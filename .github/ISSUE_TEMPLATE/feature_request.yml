@@ -1,0 +1,88 @@
+name: ✨ Feature request
+description: Suggest something VaultaMark should do.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        VaultaMark is built in numbered phases and has a deliberately small surface. Before filing,
+        please skim [PLAN.md](https://github.com/zyndata/vaulta-mark/blob/dev/PLAN.md) — §5 lists what
+        is already planned, §1 lists the explicit non-goals, and §11 has the post-1.0 backlog. Your
+        idea may already be there.
+
+        **Some things are settled and not up for relitigation** (PLAN.md §2): zero runtime
+        dependencies, PBKDF2 over Argon2id, `drive.file` scope only, vanilla TypeScript with no UI
+        framework, no telemetry of any kind, and never storing vault items in `chrome.bookmarks`.
+        A proposal that requires changing one of those needs to argue that case explicitly.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you file
+      options:
+        - label: I searched existing issues and PLAN.md, and this is not already planned or rejected.
+          required: true
+        - label: This does not require the extension to make a network request to a third party.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you actually trying to do, and what stops you today?
+      placeholder: >-
+        I keep a few hundred bookmarks and cannot tell which ones I have not opened in a year, so the
+        vault slowly fills with dead weight.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to happen
+      description: Describe the behaviour, not the implementation. Where in the UI would it live?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Including "do nothing" — say why that is not good enough.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of VaultaMark?
+      options:
+        - Popup
+        - Manager page
+        - Search / tags / folders
+        - Sync (Chrome or Drive)
+        - Import / export
+        - Thumbnails or favicons
+        - Incognito opening / history cleanup
+        - Security, crypto, or the threat model
+        - Something else
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints this respects
+      description: >-
+        Tick what you have thought about. Anything left unticked is fine — it just tells triage where
+        the discussion needs to go.
+      options:
+        - label: It needs no new required permission.
+        - label: It needs no new runtime dependency.
+        - label: It works while the vault is locked, or clearly requires an unlocked vault.
+        - label: It stores no plaintext vault content anywhere.
+        - label: It works on the Chrome-sync tier, or degrades gracefully without Drive.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Mockups, prior art in other tools, links to relevant Chrome API docs.

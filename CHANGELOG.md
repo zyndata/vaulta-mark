@@ -20,6 +20,10 @@ below.
 - `SECURITY.md` — private reporting via GitHub Security Advisories, 90-day coordinated disclosure,
   what is in and out of scope, the no-warranty statement, and the no-password-recovery statement.
 - `CODE_OF_CONDUCT.md` — Contributor Covenant 2.1.
+- Issue templates for bug reports and feature requests, a pull-request checklist, and an issue-chooser
+  that routes security reports to the private advisory form instead of a public issue.
+- `.github/dependabot.yml` — weekly npm and monthly GitHub Actions updates, minor and patch bumps
+  grouped into one pull request per ecosystem.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
