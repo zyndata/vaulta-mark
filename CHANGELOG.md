@@ -31,6 +31,12 @@ below.
 - `docs/BRANCH_PROTECTION.md` — the branch, tag, and repository settings a maintainer applies by
   hand, and the reason CI cannot block a direct push.
 
+### Changed
+
+- `README.md` — filled in: the five differentiators, how the encryption works, what the vault does
+  and does not protect against, the two sync tiers, the permission table, and the no-recovery
+  warning. Screenshots and install instructions follow the first release.
+
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
 [Unreleased]: https://github.com/zyndata/vaulta-mark/commits/dev
