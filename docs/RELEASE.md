@@ -1,14 +1,14 @@
 # VaultaMark — Release Runbook
 
 Branching, CI/CD, tagging, and Chrome Web Store publishing. Implemented in
-[Phase 13 of PLAN.md](../PLAN.md#phase-13--release-engineering--100); the PR gate is implemented in
+[Phase 13 of PLAN.md](../PLAN.md#phase-13--release-engineering--100); the CI gate is implemented in
 Phase 1.
 
 **Contents**
 
 1. [Branching model](#1-branching-model)
 2. [Branch protection settings](#2-branch-protection-settings)
-3. [CI: the PR gate](#3-ci-the-pr-gate)
+3. [CI](#3-ci)
 4. [Cutting a release](#4-cutting-a-release)
 5. [Google Cloud & OAuth setup](#5-google-cloud--oauth-setup)
 6. [Chrome Web Store setup and the four secrets](#6-chrome-web-store-setup-and-the-four-secrets)
@@ -24,17 +24,34 @@ Phase 1.
 ```
 main    ──●────────────────────────●────────────────────────●──►   release-only, protected
           │ v1.0.0                 │ v1.1.0                 │ v1.1.1
-          │                        │                        │
-dev     ──●──●──●──●──●──●──●──●───●──●──●──●──●──●──●──●───●──►   integration
-             ↑     ↑     ↑            ↑     ↑     ↑
-        feat/phase-5  feat/phase-6  fix/…  feat/…  docs/…          short-lived, squash-merged
+          │ --no-ff merge          │                        │
+dev     ──●──●──●──●──●──●──●──●───●──●──●──●──●──●──●──●───●──►   all development happens here
+             ↑        ↑                    ↑        ↑
+        phase-2-done  phase-3-done   feat/phase-7   phase-8-done
+                                     (risky work only)
 ```
+
+**This is a solo repository.** There are deliberately **no pull-request or approval requirements** —
+they gate a reviewer who does not exist, and the ceremony costs more than it catches. What replaces
+them: `npm run verify` locally before every push, CI as the backstop, and a `phase-N-done` tag as the
+"this is finished and green" marker.
 
 | Branch | Rules |
 | --- | --- |
-| `main` | Release-only. Receives merges from `dev` at release time and nothing else (except hotfix branches, §9). Protected, linear history. Every commit on `main` is a released or releasable state. |
-| `dev` | The integration branch. All feature work merges here via PR. Always green, always installable. |
-| `feat/*`, `fix/*`, `docs/*`, `chore/*` | Short-lived, branched from `dev`, squash-merged back, deleted on merge. Phase branches are named `feat/phase-<N>-<slug>`. |
+| `main` | Release-only. Receives a `--no-ff` merge from `dev` at release time and nothing else (except hotfix branches, §9). Never commit to it directly. Force pushes and deletions blocked; linear history required. |
+| `dev` | Where all development happens. Direct commits, one per logical unit. Always green, always installable. Force pushes and deletions blocked. |
+| `feat/*` | **Optional**, for work risky enough to want a clean revert point — Phase 7 (the sync merge engine) is the one phase that uses one. Merged back with `--no-ff`, then deleted. |
+| PRs | Not required for the maintainer, but fully available: once the repo is public, outside contributions arrive as PRs and CI gates them automatically. |
+
+**Phase tags.** Each completed phase gets an annotated tag on `dev`:
+
+```bash
+git tag -a phase-7-done -m "Phase 7: ChromeSyncProvider, merge engine, conflict UI"
+git push origin phase-7-done
+```
+
+These give bisect and revert points across a 14-phase build without PR overhead, and make
+"which commit was the last known-good state of Phase 6" a one-command question.
 
 **Commit convention:** [Conventional Commits](https://www.conventionalcommits.org/). The type prefix
 drives the CHANGELOG section a change lands in:
@@ -47,44 +64,58 @@ drives the CHANGELOG section a change lands in:
 | `docs:`, `test:`, `chore:`, `ci:`, `build:` | (not listed unless user-visible) |
 | `feat!:` / `BREAKING CHANGE:` | Changed, flagged, and forces a major bump |
 
-`CHANGELOG.md` is maintained **by hand** under `## [Unreleased]` in every PR (the PR template has a
-checkbox). We do not auto-generate it from commits: a changelog is written for users, and commit
-subjects are written for reviewers. The release workflow only *extracts* the relevant section.
+`CHANGELOG.md` is maintained **by hand** under `## [Unreleased]`, updated in the same commit as any
+user-visible change. We do not auto-generate it from commits: a changelog is written for users, and
+commit subjects are written for whoever is reading the history. The release workflow only *extracts*
+the relevant section.
 
 ---
 
 ## 2. Branch protection settings
 
-These cannot be set from repository contents — a human clicks them in
-**Settings → Branches → Add branch ruleset**. Also mirrored in `docs/BRANCH_PROTECTION.md`
-(created in Phase 0) so the requirement is discoverable from the repo.
+Set in **Settings → Rules → Rulesets** (or Settings → Branches). These cannot be configured from
+repository contents, so `docs/BRANCH_PROTECTION.md` (Phase 0) mirrors them for discoverability.
+
+**Solo repository: no PR requirement, no approvals, no conversation resolution.** The only rules that
+remain are the ones that prevent accidents — losing a branch, rewriting published history.
 
 ### `main`
 
 | Setting | Value |
 | --- | --- |
-| Require a pull request before merging | ✅ |
-| Required approvals | 1 (on a solo repo, enable **"Allow specified actors to bypass"** for the owner, or set 0 and rely on the status checks — document which you chose) |
-| Dismiss stale approvals on new commits | ✅ |
-| Require status checks to pass | ✅ — **`verify`** (the CI job name) and **`e2e`** |
-| Require branches to be up to date before merging | ✅ |
-| Require conversation resolution | ✅ |
-| **Require linear history** | ✅ |
-| Require signed commits | Optional but recommended for a security tool |
 | Block force pushes | ✅ |
 | Restrict deletions | ✅ |
-| Allowed merge methods | **Merge commit** for `dev → main` release PRs (so the release PR is one identifiable merge), squash disabled |
+| Require linear history | ✅ — with `--no-ff` release merges this stays true and keeps `git log --first-parent` readable |
+| Require signed commits | Optional; worth it for a crypto tool if you already have signing set up |
+| Require a pull request | ❌ |
+| Require status checks | ❌ — see the note below |
 
 ### `dev`
 
 | Setting | Value |
 | --- | --- |
-| Require a pull request before merging | ✅ |
-| Required approvals | 0 (solo) / 1 (with collaborators) |
-| Require status checks to pass | ✅ — `verify`, `e2e` |
-| Allowed merge methods | **Squash only** |
-| Automatically delete head branches | ✅ (repo-level setting) |
 | Block force pushes | ✅ |
+| Restrict deletions | ✅ |
+| Everything else | ❌ |
+
+### The tradeoff you are accepting
+
+GitHub can only **require** a status check as a merge condition on a pull request. With no PR
+requirement, **CI runs on every push but cannot block one.** A broken commit can land on `dev`.
+
+That is a deliberate trade, and it is fine as long as the replacement gate is real:
+
+- **`npm run verify` locally before every push.** This is the actual gate. It runs the same lint,
+  type-check, test, build, and invariant scan that CI does.
+- **CI is the backstop**, not the gate — it catches what your machine's state hid (a stale
+  `node_modules`, an uncommitted file, a platform difference).
+- **Fix forward on `dev`.** Never force-push to unbreak it; that is what the force-push block is for.
+- **`main` is different.** It only ever receives a merge from a `dev` commit whose CI is green — that
+  check is manual and it is the one you must not skip, because `main` is what gets tagged, built,
+  and shipped to users.
+
+If a collaborator ever joins, turn on "require a pull request" + required checks `verify` and `e2e`
+for `main` at that moment. Nothing else about the model has to change.
 
 ### Repository settings
 
@@ -99,22 +130,23 @@ These cannot be set from repository contents — a human clicks them in
 
 ---
 
-## 3. CI: the PR gate
+## 3. CI
 
-`.github/workflows/ci.yml`, on `pull_request` → `dev`/`main` and `push` → `dev`.
+`.github/workflows/ci.yml`. It runs on pushes to `dev`/`main` (your own work) **and** on pull
+requests (outside contributions, once the repo is public).
 
 ```yaml
 name: ci
 on:
+  push:         { branches: [dev, main] }
   pull_request: { branches: [dev, main] }
-  push:         { branches: [dev] }
 permissions: { contents: read }
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  verify:                      # ← the required status check
+  verify:                      # the gate for PRs; advisory (but watch it) for direct pushes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -131,7 +163,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: coverage, path: coverage/, retention-days: 7 }
 
-  e2e:                         # ← also a required status check
+  e2e:
     runs-on: ubuntu-latest
     needs: verify
     steps:
@@ -157,25 +189,33 @@ jobs:
 | `src/sync/**` | 90 % | 85 % |
 | global | 70 % | 60 % |
 
-A PR that drops any threshold fails `verify`. Thresholds are ratcheted upward as modules land — they
-are never lowered without a note in the PR description.
+A commit that drops any threshold fails `verify` — locally as well as in CI, since `npm run verify`
+runs the same command. Thresholds are ratcheted upward as modules land; never lowered without a
+`chore:` commit saying why.
 
 ---
 
 ## 4. Cutting a release
 
-1. **Freeze `dev`.** Confirm CI is green and no PR is mid-review.
-2. **Bump the version.** On a branch off `dev`: `npm version <major|minor|patch> --no-git-tag-version`,
-   which updates `package.json` and `package-lock.json`. The manifest version is derived at build
-   time (see [ARCHITECTURE §2](ARCHITECTURE.md#version-mapping-buildversionts)) — never edit it by hand.
+1. **Confirm `dev` is green.** Run `npm run verify` **and** check that CI passed on the latest pushed
+   `dev` commit. This is the one manual check that must not be skipped — with no required status
+   checks (§2), nothing else stops a broken commit from reaching `main`.
+2. **Bump the version** on `dev`: `npm version <major|minor|patch> --no-git-tag-version`, which
+   updates `package.json` and `package-lock.json`. The manifest version is derived at build time
+   (see [ARCHITECTURE §2](ARCHITECTURE.md#version-mapping-buildversionts)) — never edit it by hand.
 3. **Finalize the CHANGELOG.** Rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh
    empty `## [Unreleased]`, update the link refs at the bottom.
-4. **PR the bump into `dev`**, merge.
-5. **Open the release PR: `dev → main`.** Title `release: vX.Y.Z`. Merge with a **merge commit** (not
-   squash) so `main`'s history shows one identifiable release merge per version.
-6. **Tag on `main`:**
+4. **Commit and push `dev`:** `chore(release): v1.2.3`. Wait for CI to go green on it.
+5. **Merge into `main`:**
    ```bash
    git checkout main && git pull
+   git merge --no-ff dev -m "release: v1.2.3"
+   git push origin main
+   ```
+   `--no-ff` keeps one identifiable release merge per version, so `git log --first-parent main`
+   reads as a clean list of releases.
+6. **Tag on `main`:**
+   ```bash
    git tag -a v1.2.3 -m "VaultaMark v1.2.3"
    git push origin v1.2.3
    ```
@@ -495,9 +535,12 @@ For a critical bug in a released version when `dev` has moved on:
 ```bash
 git checkout -b hotfix/1.2.4 v1.2.3          # branch from the tag, not from dev
 # fix, test, bump patch version, update CHANGELOG
-git push origin hotfix/1.2.4
-# PR hotfix/1.2.4 → main   (this is the one case where a non-dev branch may target main)
-# after merge: tag v1.2.4 on main, run the release workflow
+git checkout main
+git merge --no-ff hotfix/1.2.4 -m "release: v1.2.4"   # the one case where main takes a non-dev merge
+git push origin main
+git tag -a v1.2.4 -m "VaultaMark v1.2.4" && git push origin v1.2.4
+git branch -d hotfix/1.2.4
+
 git checkout dev && git merge main            # back-merge so dev keeps the fix
 ```
 

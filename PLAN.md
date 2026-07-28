@@ -31,12 +31,12 @@ Read, in this order:
 
 Rules:
   - Do only what Phase <N> scopes. Do not start later phases.
-  - Work on branch `feat/phase-<N>-<slug>` cut from `dev`.
+  - Work on `dev` with direct commits, one commit per logical unit. Never commit to `main`.
   - Write the tests named in the phase; all of them must pass before you call it done.
   - The phase is done only when every item in its "Definition of done" is true.
   - `npm run verify` (lint + type-check + test + build + invariant scan) must be green.
   - Update CHANGELOG.md under `## [Unreleased]`.
-  - Open a PR into `dev` using the template; do not merge to `main`.
+  - When done: push `dev`, confirm CI is green, then tag `phase-<N>-done` and push the tag.
 ```
 
 **Rules that apply to every phase (the fresh conversation must honour these):**
@@ -137,7 +137,7 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | # | Decision | Reasoning |
 | --- | --- | --- |
 | D31 | **License: GPL-3.0-only** | (a) A security tool's users benefit from forks staying auditable; GPL prevents a closed, subtly-backdoored repackage of this exact code. (b) The prior art in this niche is largely GPLv3, so we can read it without contamination worry. (c) GPLv3 is fully compatible with Chrome Web Store distribution (the Store's Developer Agreement does not require sublicensing rights that GPLv3 withholds). **Cost:** no proprietary reuse of our modules, which is a non-goal anyway. **Override note:** if you want maximum adoption of the crypto/sync modules as a library, say so and I will switch to Apache-2.0 (which also grants an explicit patent licence). Default stands at GPL-3.0-only. |
-| D32 | **Branching: `dev` is the integration branch; `main` is release-only** | As specified. Feature branches `feat/phase-N-slug` → PR → squash-merge into `dev`; `dev` → `main` via merge PR at release; annotated tag `vX.Y.Z` on `main` triggers the release workflow. |
+| D32 | **Branching: all development on `dev`; `main` is release-only** | Solo repository, so **no PR requirement and no approval gates** — they add ceremony without adding a reviewer. Phases commit directly to `dev` and are marked complete with a `phase-N-done` tag, which gives clean revert/bisect points without PR overhead. `main` receives a `--no-ff` merge from `dev` only at a release; an annotated `vX.Y.Z` tag on `main` triggers the release workflow. Short-lived `feat/*` branches stay available for risky work (Phase 7 uses one) and PRs remain available for outside contributors once the repo is public. |
 | D33 | **Coverage gates: 90 % lines / 85 % branches on `src/crypto/**`, `src/vault/**`, `src/sync/**`; 70 % lines global** | Pragmatic: near-total on the parts where a bug loses user data, moderate on UI glue. |
 | D34 | **Store upload is gated behind `workflow_dispatch` input `publish: true`** | A tag push builds and creates a GitHub Release with the zip attached, but never publishes to the Store by itself. |
 | D35 | **Versioning: SemVer**, `manifest.json` version generated from `package.json` at build time | Chrome versions must be `1.2.3` numeric-only; pre-release tags (`1.2.0-rc.1`) map to `1.2.0.1` via a documented rule in `build/version.ts`. |
@@ -394,7 +394,7 @@ opening a bookmark (mitigated by incognito-only opening + history cleanup).
 ```
 vaulta-mark/
 ├─ .github/
-│  ├─ workflows/ci.yml               # PR gate: lint, type-check, test, build, invariants
+│  ├─ workflows/ci.yml               # push gate: lint, type-check, test, build, invariants
 │  ├─ workflows/release.yml          # tag-triggered: verify, zip, GitHub Release, gated CWS upload
 │  ├─ workflows/codeql.yml
 │  ├─ ISSUE_TEMPLATE/{bug_report.yml,feature_request.yml,security.md,config.yml}
@@ -445,8 +445,8 @@ Consequences every phase must respect:
 
 # 9. The phased plan
 
-Fourteen phases, 0 → 13. Each ends on a green `dev` with a merged PR. Estimates assume one focused
-Claude conversation per phase.
+Fourteen phases, 0 → 13. Each ends on a green `dev`, tagged `phase-N-done`. One focused conversation
+per phase.
 
 **Dependency graph:**
 
@@ -500,11 +500,15 @@ never staged; update its "Current state" line at the end of every phase.
 
 **Out of scope:** any `package.json`, any TS, any workflow YAML (Phase 1).
 
-**Branch-protection settings to document (human action, `main`):** require PR before merge; require
-1 approval (or "allow bypass for the owner" on a solo repo — document both); require status checks
-`ci / verify` to pass; require branches up to date; **require linear history**; require conversation
-resolution; block force pushes and deletions. For `dev`: require status checks, allow squash merge
-only, delete branch on merge.
+**Branch-protection settings to document (human action).** This is a solo repository, so there are
+**no PR or approval requirements** — those gate a reviewer who does not exist. The rules that remain
+exist only to prevent accidents. For `main`: block force pushes, restrict deletions, require linear
+history. For `dev`: block force pushes, restrict deletions. Nothing else.
+
+Record the real tradeoff in `docs/BRANCH_PROTECTION.md`: GitHub can only *require* status checks on a
+pull request, so with no PR requirement **CI runs but does not block a push**. The gate is therefore
+local — `npm run verify` before every push — and CI is the backstop that catches what the local run
+missed. If a collaborator ever joins, turn PR requirements on for `main` at that point.
 
 **Tests:** none (no code). CI does not exist yet.
 
@@ -523,7 +527,7 @@ Everything after this goes through `dev`.
 ## Phase 1 — Toolchain, MV3 skeleton, CI gate, invariant scanners
 
 **Goal:** `npm run build` produces a loadable, empty-but-working MV3 extension; `npm run verify` is
-green; CI runs on every PR.
+green; CI runs on every push to `dev`.
 
 **Depends on:** Phase 0.
 **Specs to read:** §2.1, §4 (all invariants), [ARCHITECTURE §2](docs/ARCHITECTURE.md#2-build-system).
@@ -558,10 +562,10 @@ green; CI runs on every PR.
   `windows`, `permissions`, `identity`, with quota + write-rate simulation for `sync`.
 - Minimal runtime: a service worker that logs and responds to a `PING` message; a popup that renders
   "VaultaMark" and the build version; an empty manager page.
-- `.github/workflows/ci.yml` — on `pull_request` to `dev`/`main` and `push` to `dev`: Node 20,
-  `npm ci`, `npm run verify`, upload `dist/` and coverage as artifacts. Job name **`verify`**
-  (referenced by branch protection).
-- `.github/workflows/codeql.yml` — JS/TS, on PR + weekly.
+- `.github/workflows/ci.yml` — on `push` to `dev`/`main` **and** on `pull_request` (so outside
+  contributions are still gated once the repo is public): Node 20, `npm ci`, `npm run verify`,
+  upload `dist/` and coverage as artifacts. Job name **`verify`**.
+- `.github/workflows/codeql.yml` — JS/TS, on push to `dev` + PR + weekly.
 - `docs/DEVELOPMENT.md` — load-unpacked instructions, dev watch loop, how to run each test tier.
 
 **Out of scope:** crypto, storage, any vault behaviour.
@@ -581,9 +585,11 @@ green; CI runs on every PR.
 - [ ] `npm run zip` emits `release/vaulta-mark-<version>.zip` containing only build output.
 - [ ] INV-1, INV-2, INV-3, INV-8, INV-9 are enforced by scripts and covered by tests.
 - [ ] `dist/` contains zero absolute non-allowlisted URLs and zero runtime npm packages.
-- [ ] CI is green on the PR.
+- [ ] CI is green on the pushed `dev` commit.
 
-**Git:** `feat/phase-1-toolchain` → PR → `dev`. First PR that exercises the gate.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-1-done` and
+push. This is the phase that makes CI exist — confirm the `ci` workflow ran green on the pushed `dev`
+commit before tagging.
 
 ---
 
@@ -636,7 +642,7 @@ green; CI runs on every PR.
       if anything shifted).
 - [ ] `npm run verify` green.
 
-**Git:** `feat/phase-2-crypto` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-2-done` and push.
 
 ---
 
@@ -690,7 +696,7 @@ green; CI runs on every PR.
 - [ ] A 500-item vault unlocks (excluding KDF time) in < 150 ms in the Node test env.
 - [ ] `docs/ARCHITECTURE.md` §3/§5 match the code.
 
-**Git:** `feat/phase-3-vault-storage` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-3-done` and push.
 
 ---
 
@@ -748,7 +754,7 @@ service-worker behaviour. First point at which a human can meaningfully click so
 - [ ] The no-recovery warning requires a typed confirmation (not just a checkbox) at vault creation.
 - [ ] SW cold start to first handled message < 50 ms (measured in a test with a stubbed clock).
 
-**Git:** `feat/phase-4-session-lifecycle` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-4-done` and push.
 
 ---
 
@@ -806,7 +812,7 @@ service-worker behaviour. First point at which a human can meaningfully click so
 - [ ] Favicons render, and the network tab shows **zero** requests while browsing the vault.
 - [ ] E2E suite runs in CI (headless, `--headless=new`).
 
-**Git:** `feat/phase-5-popup-mvp` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-5-done` and push.
 
 ---
 
@@ -853,7 +859,7 @@ service-worker behaviour. First point at which a human can meaningfully click so
 - [ ] Zero critical/serious axe violations.
 - [ ] Change-password does not rewrite buckets (asserted).
 
-**Git:** `feat/phase-6-manager` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-6-done` and push.
 
 ---
 
@@ -915,14 +921,16 @@ resolved without data loss. **This is the highest-risk phase — budget accordin
 
 **Definition of done**
 - [ ] Two real Chrome profiles signed into the same Google account converge (manual verification
-      documented in the PR).
+      written up in the commit message — there is no PR to record it in).
 - [ ] Every merge table case and both property tests pass; fuzz run of 200 iterations is clean.
 - [ ] Coverage on `src/sync/**` ≥ 90 %/85 %.
 - [ ] The write-rate limiter is proven not to exceed Chrome's quotas under burst.
 - [ ] The documented bookmark ceiling in README/ARCHITECTURE matches a measured fixture.
 
-**Git:** `feat/phase-7-sync-chrome` → PR → `dev`. Consider splitting the PR
-(`7a` merge engine + tests, `7b` provider + engine + UI) if the diff exceeds ~1,500 lines.
+**Git:** this is the one phase worth isolating on a branch — `feat/phase-7-sync-chrome` off `dev`,
+merged back with `--no-ff` — because it is the highest-risk work in the project and a clean revert
+point is worth the ceremony. Commit `7a` (merge engine + tests) and `7b` (provider + engine + UI)
+separately. Tag `phase-7-done` on `dev` after the merge.
 
 ---
 
@@ -973,9 +981,9 @@ story for a corrupted vault.
 - [ ] Export → wipe → import restores a vault bit-for-bit (contents, not ciphertext).
 - [ ] Plain-HTML export cannot be produced without the typed confirmation.
 - [ ] Native import + optional native deletion verified manually against a real profile; the manual
-      check is written up in the PR.
+      check is written up in the commit message.
 
-**Git:** `feat/phase-8-import-export` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-8-done` and push.
 
 ---
 
@@ -1042,7 +1050,7 @@ closed.
 - [ ] History cleanup shows an accurate dry-run and deletes only vaulted domains.
 - [ ] `docs/PRIVACY.md` is publishable as-is.
 
-**Git:** `feat/phase-9-onboarding-history` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-9-done` and push.
 
 ---
 
@@ -1095,8 +1103,8 @@ so Phase 11 only adds capture and UI.
   blocks the reverse migration with an actionable message.
 - **INV-4**: the only hosts contacted are `www.googleapis.com` and `accounts.google.com`; with Drive
   disconnected, zero requests are made (Playwright route interception).
-- Manual verification against a real Drive account, written up in the PR (a mocked-only Drive
-  integration is not sufficient evidence).
+- Manual verification against a real Drive account, written up in the commit message (a mocked-only
+  Drive integration is not sufficient evidence).
 
 **Definition of done**
 - [ ] A real Google account connects, syncs, and converges across two profiles.
@@ -1105,7 +1113,7 @@ so Phase 11 only adds capture and UI.
 - [ ] INV-4 test passes with Drive both on and off.
 - [ ] Only `drive.file` is ever requested (asserted against the manifest and the auth call).
 
-**Git:** `feat/phase-10-drive-provider` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-10-done` and push.
 
 ---
 
@@ -1178,7 +1186,7 @@ browsing, and gracefully absent everywhere they are unavailable.
 - [ ] All hostile-input cases rejected.
 - [ ] Degradation on a Drive-less device is visually clean.
 
-**Git:** `feat/phase-11-thumbnails` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-11-done` and push.
 
 ---
 
@@ -1192,7 +1200,7 @@ browsing, and gracefully absent everywhere they are unavailable.
 - Full Playwright E2E suite covering the user journeys end to end: first run → onboarding → create
   vault → add via all four entry points → search/tag/folder → open in incognito (spy-asserted) →
   lock/unlock → export/import → connect Drive (mocked API, real extension code path) → conflict
-  resolution → thumbnails. Run in CI on every PR.
+  resolution → thumbnails. Run in CI on every push to `dev`.
 - Performance budgets, enforced in CI (`scripts/check-budgets.mjs`):
   popup first paint < 100 ms; SW cold start < 50 ms; unlock (excluding KDF) < 200 ms for 1,000 items;
   total zip < 400 KB; largest single JS chunk < 150 KB.
@@ -1221,7 +1229,7 @@ browsing, and gracefully absent everywhere they are unavailable.
 - [ ] Security checklist complete, with every item traced to code or a test.
 - [ ] No user-facing string outside `_locales`.
 
-**Git:** `feat/phase-12-hardening` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-12-done` and push.
 
 ---
 
@@ -1258,9 +1266,9 @@ a Chrome Web Store submission.
   instructions, the reproducibility note (how to verify the published zip's hash against a local
   build), security policy link, and the differentiators up top.
 - GitHub issues created for the post-1.0 backlog (B1–B9).
-- Release `1.0.0`: `dev` → `main` PR, merge, annotated tag `v1.0.0`, verify the Release, then the
-  **manual first Store upload** (the API cannot create a new item), then subsequent releases can use
-  the gated automation.
+- Release `1.0.0`: `git checkout main && git merge --no-ff dev`, push, annotated tag `v1.0.0`, verify
+  the GitHub Release, then the **manual first Store upload** (the API cannot create a new item);
+  subsequent releases can use the gated automation.
 
 **Tests**
 - `scripts/*` unit tests (release-notes extraction, version-sync detection).
@@ -1274,7 +1282,9 @@ a Chrome Web Store submission.
 - [ ] `main` is protected exactly as `docs/BRANCH_PROTECTION.md` specifies.
 - [ ] v1.0.0 tagged and released.
 
-**Git:** `feat/phase-13-release` → PR → `dev`; then `release/1.0.0` PR `dev` → `main`; then tag.
+**Git:** direct commits on `dev`, tag `phase-13-done`. Then the release itself:
+`git checkout main && git merge --no-ff dev -m "release: v1.0.0"`, push `main`, and push the
+annotated tag `v1.0.0` — see [RELEASE §4](docs/RELEASE.md#4-cutting-a-release).
 
 ---
 
@@ -1374,6 +1384,5 @@ conversation that wants to change one must open an issue and get it changed here
 
 ---
 
-*Last updated during the planning session. Changes to this plan should be made by PR to `dev` with a
-`docs:` commit, and phases should be renumbered only if absolutely necessary — the phase number is the
-contract with the executing conversation.*
+*Changes to this plan are made on `dev` with a `docs:` commit. Phases should be renumbered only if
+absolutely necessary — the phase number is the contract with the executing conversation.*
