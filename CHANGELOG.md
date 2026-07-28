@@ -24,6 +24,12 @@ below.
   that routes security reports to the private advisory form instead of a public issue.
 - `.github/dependabot.yml` — weekly npm and monthly GitHub Actions updates, minor and patch bumps
   grouped into one pull request per ecosystem.
+- `docs/PRIVACY.md` — privacy policy: nothing is collected, no server exists, and the only network
+  traffic is to the user's own Google Drive once they connect it.
+- `docs/STORE_LISTING.md` — Chrome Web Store drafts: descriptions, single-purpose statement,
+  per-permission justifications, data-usage answers, and the asset checklist.
+- `docs/BRANCH_PROTECTION.md` — the branch, tag, and repository settings a maintainer applies by
+  hand, and the reason CI cannot block a direct push.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
