@@ -518,9 +518,13 @@ missed. If a collaborator ever joins, turn PR requirements on for `main` at that
 - [ ] `README.md` states the product name, repo URL, and the five differentiators.
 - [ ] `docs/BRANCH_PROTECTION.md` is actionable without further research.
 
-**Git:** initial commit on `main` (`chore: initial repository scaffolding`), then create `dev` from
-`main` and push both. This is the one phase that commits directly to `main` — it predates protection.
-Everything after this goes through `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-0-done` and
+push.
+
+> **Already done — do not redo.** The repository is initialized, `main` and `dev` both exist and are
+> pushed to `origin`, and the planning docs are committed. `main` is at the initial planning commit
+> and **must not be touched again until the v1.0.0 release**. Phase 0 adds the governance and
+> licensing files listed above, on `dev`, like every other phase.
 
 ---
 
