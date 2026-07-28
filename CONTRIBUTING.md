@@ -4,6 +4,12 @@ Thanks for looking. VaultaMark is a security tool, so a few of the rules below a
 may be used to. They exist to keep the extension auditable and its threat model honest — not to make
 contributing tedious.
 
+> **The repository is private for now, and outside contributions are not open yet.** Whether the
+> source is published is a decision for later ([PLAN.md §2.5, D36](PLAN.md#25-project--process)).
+> Until then this document is the maintainer's own working agreement — and it is written now, rather
+> than at publication, because the rules it describes have to be followed from the first commit to be
+> worth anything. Where it says "pull request", read "the change you are about to push".
+
 Before anything else, please read:
 
 - [PLAN.md](PLAN.md) — goals, decisions, the hard invariants, and the phased build order.

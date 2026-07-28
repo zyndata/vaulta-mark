@@ -8,6 +8,13 @@ source and this file is the thing to fix.
 Everything below takes about ten minutes and is done from the repository's **Settings** tab. You need
 admin rights on the repository.
 
+> **The repository is private for now** ([PLAN.md §2.5, D36](../PLAN.md#25-project--process)). The
+> branch, tag, and Actions rules in §1–§4 apply unchanged — they protect against accidents, and
+> accidents do not care who can see the repository. Several of the **code-security** features in §5
+> are gated on a public repository or a paid plan; each one is marked. Re-run §5 the day the
+> repository is published, because features that were unavailable become available and are **off by
+> default**.
+
 ---
 
 ## The shape of it, first
@@ -107,17 +114,17 @@ published SHA-256 in the release notes no longer proves anything.
 
 **Settings → Code security** (some are under **Settings → General → Features**):
 
-| Setting | State | Why |
-| --- | --- | --- |
-| **Private vulnerability reporting** | ✅ | This is the channel `SECURITY.md` and the issue templates point at. Without it, that link 404s and reports arrive in public issues. **Enable this before making the repository public.** |
-| **Dependabot alerts** | ✅ | |
-| **Dependabot security updates** | ✅ | |
-| **Dependabot version updates** | ✅ | Configured by [`.github/dependabot.yml`](../.github/dependabot.yml) — weekly npm, monthly actions. |
-| **Secret scanning** | ✅ | The Chrome Web Store credentials in [RELEASE §6](RELEASE.md#6-chrome-web-store-setup-and-the-four-secrets) are exactly the kind of thing that gets pasted into a commit by accident. |
-| **Secret scanning push protection** | ✅ | Blocks the paste *before* it becomes public history. |
-| **CodeQL / code scanning** | ✅ | The workflow arrives in Phase 1. |
-| **Discussions** | ✅ | The issue-template config routes questions there. |
-| **Wiki, Projects** | ❌ | Unused; documentation lives in the repository. |
+| Setting | State | Available while private? | Why |
+| --- | --- | --- | --- |
+| **Private vulnerability reporting** | ✅ | ❌ **public repositories only** | This is the channel `SECURITY.md` and the issue templates point at. **Turn it on the moment the repository is made public** — until then that link works only for accounts with repository access, which `SECURITY.md` now states. |
+| **Dependabot alerts** | ✅ | ✅ | |
+| **Dependabot security updates** | ✅ | ✅ | |
+| **Dependabot version updates** | ✅ | ✅ | Configured by [`.github/dependabot.yml`](../.github/dependabot.yml) — weekly npm, monthly actions. |
+| **Secret scanning** | ✅ | ⚠️ check your plan | Free on public repositories; on a private repository it depends on the plan (Advanced Security). The Chrome Web Store credentials in [RELEASE §6](RELEASE.md#6-chrome-web-store-setup-and-the-four-secrets) are exactly the kind of thing that gets pasted into a commit by accident. |
+| **Secret scanning push protection** | ✅ | ⚠️ check your plan | Blocks the paste *before* it enters the history — and history is what gets published later, in full. If this is unavailable, the mitigation is manual: never paste a credential into a file, and keep them in Actions secrets only. |
+| **CodeQL / code scanning** | ✅ | ⚠️ check your plan | Free on public repositories; on a private repository it generally requires Advanced Security. The workflow arrives in Phase 1 — if code scanning cannot run, keep the workflow file and expect the run to fail or be skipped rather than deleting it. |
+| **Discussions** | ✅ | ✅ (visible only to people with access) | The issue-template config routes questions there. |
+| **Wiki, Projects** | ❌ | — | Unused; documentation lives in the repository. |
 
 **Settings → Actions → General:**
 
@@ -152,3 +159,28 @@ git commit -m "docs: ..." && git push origin dev
 If a force push succeeds, the ruleset is either **Disabled**, targeting the wrong pattern, or you are
 in its bypass list. Check enforcement status first — a ruleset saved in **Evaluate** mode reports
 what it *would* have done and blocks nothing.
+
+## 7. If the repository is ever made public
+
+Publishing is one click and is **irreversible in practice**: the entire history, every branch, and
+every tag become readable at once, and anything that was ever committed is assumed cloned. Before
+flipping it:
+
+1. **Audit the whole history, not the working tree.** `git log --all --stat` and
+   `git log -p -- '*.env*' '*.pem'`. A secret deleted in a later commit is still in the history.
+2. **Confirm the assistant-tooling files never entered it** ([PLAN.md §8.1](../PLAN.md#81-files-that-are-never-committed)):
+   `git log --all --oneline -- CLAUDE.md CLAUDE.local.md .claude .mcp.json` must print nothing.
+3. **Check for real vault data or personal URLs** in fixtures and test files. Fixtures must be
+   synthetic.
+4. **Decide on the committer email** you have been using — it becomes public with every commit.
+
+Then, immediately after publishing:
+
+- Turn on **private vulnerability reporting** (§5) — `SECURITY.md` and the issue chooser both point
+  at a form that does not exist until you do.
+- Re-check **secret scanning**, **push protection**, and **CodeQL**; they may have become available,
+  and they are off by default.
+- Update the "repository is private" notes in `README.md`, `SECURITY.md`, `CONTRIBUTING.md`,
+  `docs/PRIVACY.md`, `docs/STORE_LISTING.md`, and decision **D36** in `PLAN.md`.
+- If PRs from outsiders are now possible, revisit §3: turning on *require a pull request* +
+  required `verify` / `e2e` checks for `main` is the moment's one real decision.

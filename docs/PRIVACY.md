@@ -6,10 +6,15 @@
 (Phase 9 sets the public URL; see [RELEASE §8](RELEASE.md#8-store-listing-checklist)).
 
 > **Publishing note (remove before publishing):** the Chrome Web Store requires a publicly reachable
-> URL. Serve this file with GitHub Pages from the `docs/` folder of
+> URL. The intended host is GitHub Pages from the `docs/` folder of
 > <https://github.com/zyndata/vaulta-mark> — Settings → Pages → Deploy from a branch → `main` /
-> `docs`. The public URL is then `https://zyndata.github.io/vaulta-mark/PRIVACY`. Do not point the
-> Store at a `dev`-branch blob URL; it must stay stable across releases.
+> `docs`, giving `https://zyndata.github.io/vaulta-mark/PRIVACY`. Do not point the Store at a
+> `dev`-branch blob URL; it must stay stable across releases.
+>
+> **The repository is private for now** ([PLAN.md §2.5, D36](../PLAN.md#25-project--process)), and
+> GitHub Pages on a private repository requires a paid plan. Before the first Store submission,
+> either make the repository public, upgrade the plan, or host this policy somewhere else entirely —
+> the Store will not accept a URL it cannot open. Decide this in Phase 9, not on submission day.
 
 ---
 
@@ -142,9 +147,9 @@ recovery key exists — not held by the developer, not by Google, not by anyone.
 vault is permanently unreadable. That is the design, and it is the reason nobody can be compelled to
 hand over your bookmarks. Use the encrypted export as your backup.
 
-VaultaMark is open source under GPL-3.0-only and its cryptography is fully documented, but it has not
-had a formal third-party security audit. Report vulnerabilities privately: see
-[SECURITY.md](../SECURITY.md).
+VaultaMark is licensed GPL-3.0-only and its cryptography is fully documented, but the source is not
+published yet and it has not had a formal third-party security audit. Report vulnerabilities
+privately: see [SECURITY.md](../SECURITY.md).
 
 ## Changes to this policy
 

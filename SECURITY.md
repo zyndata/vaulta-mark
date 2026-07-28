@@ -3,6 +3,12 @@
 VaultaMark stores people's bookmarks under a password they cannot recover. Security reports are taken
 seriously and answered.
 
+> **Current status:** the repository is **private** and there is no released version yet. This policy
+> is in force from the first public release; until then the advisory form below is reachable only by
+> accounts with access to the repository, and GitHub's private vulnerability reporting cannot be
+> switched on at all while a repository is private. If you are reading this without repository
+> access, nothing here is live yet.
+
 ---
 
 ## Reporting a vulnerability
@@ -148,7 +154,11 @@ unreadable vault data.
 
 ## Verifying what you install
 
-Every release is built from a tagged commit by a public GitHub Actions workflow, and the zip's
-SHA-256 is published in the GitHub Release notes. You can build from source and compare hashes; the
-invariant scanners that prove "no remote code" are in the repository and run on every build. See
-[docs/RELEASE.md](docs/RELEASE.md).
+Every release is built from a tagged commit by a GitHub Actions workflow, and the zip's SHA-256 is
+published in the GitHub Release notes. The invariant scanners that prove "no remote code" are in the
+repository and run on every build. See [docs/RELEASE.md](docs/RELEASE.md).
+
+**While the repository is private, you cannot verify any of that yourself** — building from source
+and comparing hashes requires the source. Independent verification becomes possible only if and when
+the repository is published; until then the claims in this document are claims, and the reasonable
+posture toward an unpublished security tool is skepticism.

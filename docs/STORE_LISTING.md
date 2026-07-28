@@ -7,6 +7,13 @@ justifications are written while the reasoning is fresh rather than reconstructe
 The submission process itself — accounts, secrets, the upload workflow — is in
 [RELEASE §6–§8](RELEASE.md#6-chrome-web-store-setup-and-the-four-secrets).
 
+> **Repository is private for now** ([PLAN.md §2.5, D36](../PLAN.md#25-project--process)). Two
+> listing fields assume otherwise and must be settled before submission: the **privacy-policy URL**
+> (GitHub Pages needs a public repository or a paid plan — see [PRIVACY.md](PRIVACY.md)) and the
+> **homepage/repository link** in the detailed description below. A Store listing that advertises
+> "open source" and links to a 404 is worse than one that says nothing; if the repository is still
+> private at submission, cut those lines rather than leaving them broken.
+
 ---
 
 ## 1. Asset checklist
@@ -25,8 +32,8 @@ The submission process itself — accounts, secrets, the upload workflow — is 
 | Single-purpose statement | one sentence, below | **draft below** |
 | Permission justifications | one or two sentences each, below | **draft below** |
 | Data-usage disclosures | "No data collected" across the board | Phase 13 |
-| Support URL | <https://github.com/zyndata/vaulta-mark/issues> | fixed |
-| Homepage URL | <https://github.com/zyndata/vaulta-mark> | fixed |
+| Support URL | <https://github.com/zyndata/vaulta-mark/issues> | **blocked while the repo is private** |
+| Homepage URL | <https://github.com/zyndata/vaulta-mark> | **blocked while the repo is private** |
 
 ### Screenshots to capture (Phase 13)
 
@@ -101,7 +108,8 @@ only for length or clarity.
 > Open source, GPL-3.0-only: <https://github.com/zyndata/vaulta-mark>
 
 **Phase 13 checks before submission:** every claim above is true of the shipped build (especially the
-capacity figure, which Phase 7 measures for real), and no sentence promises a feature that slipped.
+capacity figure, which Phase 7 measures for real), no sentence promises a feature that slipped, and
+the closing "Open source" line is either backed by a public repository or removed.
 
 ## 4. Single-purpose statement
 

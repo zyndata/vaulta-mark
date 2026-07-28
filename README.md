@@ -11,8 +11,10 @@ window. Nothing leaves your machine unless you explicitly connect your own Googl
 
 **Repository:** <https://github.com/zyndata/vaulta-mark>
 
-**Status: in development.** The extension is being built in numbered phases — see
-[PLAN.md](PLAN.md) for the plan and the current phase. There is no installable release yet.
+**Status: in development, repository private.** The extension is being built in numbered phases — see
+[PLAN.md](PLAN.md) for the plan and the current phase. There is no installable release yet, and
+whether the source is published is a decision for later ([PLAN.md §2.5, D36](PLAN.md#25-project--process)).
+GPL-3.0-only is the license it will carry if and when it is distributed.
 
 ---
 
@@ -165,7 +167,8 @@ Web Store publishing. User-visible changes are recorded in [CHANGELOG.md](CHANGE
 
 ## Contributing
 
-[CONTRIBUTING.md](CONTRIBUTING.md) — branching model, Conventional Commits, DCO sign-off, how to run
+The repository is private and not taking outside contributions yet. If that changes,
+[CONTRIBUTING.md](CONTRIBUTING.md) is the entry point — branching model, Conventional Commits, DCO sign-off, how to run
 the tests, and the rules that are not negotiable (zero runtime dependencies, no remote code, no
 plaintext anywhere, and no crypto pull request without a linked issue first).
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) applies to everyone here.
@@ -175,10 +178,13 @@ plaintext anywhere, and no crypto pull request without a linked issue first).
 Report vulnerabilities **privately** through
 [GitHub Security Advisories](https://github.com/zyndata/vaulta-mark/security/advisories/new) — see
 [SECURITY.md](SECURITY.md) for scope, timelines, and what to include. Please do not open a public
-issue for a security problem.
+issue for a security problem. While the repository is private, that form is reachable only by
+accounts with access to it.
 
 ## License
 
 [GPL-3.0-only](LICENSE) — Copyright (C) 2026 zyndata.
 
-VaultaMark is a security tool. Copyleft keeps every fork auditable, which is the point.
+VaultaMark is a security tool. Copyleft keeps every fork auditable, which is the point. The license
+applies to the code as distributed; the repository is private for now, and publishing the source is a
+separate decision that has not been made.

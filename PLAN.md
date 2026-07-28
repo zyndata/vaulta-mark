@@ -64,7 +64,9 @@ Rules:
    user's own Google Drive** for bigger vaults and thumbnails.
 4. **Incognito-only opening**, with a guided flow when the required permission is missing.
 5. **Reviewable and publishable**: minimal permissions, all code in the package, MV3-clean.
-6. **Open source and auditable**: GPLv3, documented crypto, reproducible build, CI-enforced invariants.
+6. **Auditable, and buildable as open source**: GPLv3, documented crypto, reproducible build,
+   CI-enforced invariants. The repository is private for now and whether the source is published is a
+   later decision (D36) — the code is written to survive publication regardless.
 
 ### Non-goals (explicitly out of scope for 1.0)
 
@@ -141,6 +143,7 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | D33 | **Coverage gates: 90 % lines / 85 % branches on `src/crypto/**`, `src/vault/**`, `src/sync/**`; 70 % lines global** | Pragmatic: near-total on the parts where a bug loses user data, moderate on UI glue. |
 | D34 | **Store upload is gated behind `workflow_dispatch` input `publish: true`** | A tag push builds and creates a GitHub Release with the zip attached, but never publishes to the Store by itself. |
 | D35 | **Versioning: SemVer**, `manifest.json` version generated from `package.json` at build time | Chrome versions must be `1.2.3` numeric-only; pre-release tags (`1.2.0-rc.1`) map to `1.2.0.1` via a documented rule in `build/version.ts`. |
+| D36 | **Repository visibility: private for now.** Publishing the source is a separate decision, taken later. | Licensing and publishing are different things: GPL-3.0-only (D31) governs the terms under which the code is distributed *if and when* it is, and obliges nothing while the repository is private. Nothing in the build, the test suite, or the invariant scanners depends on the repository being public. **Consequences to respect while it stays private:** (a) several GitHub features the docs assume are public-repo or paid-plan features — private vulnerability reporting, CodeQL/code scanning, secret-scanning push protection, and GitHub Pages for the privacy-policy URL — so re-check each before relying on it (see [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md) §5); (b) the Chrome Web Store listing must not link to a repository nobody can open; (c) §8.1 becomes **more** important, not less — history published later is published in full, so nothing that must never be public may enter it now. |
 
 ---
 
@@ -416,8 +419,11 @@ vaulta-mark/
 
 ### 8.1 Files that are never committed
 
-The repository is open source and its history is public. Assistant tooling is a local development
-detail, not part of the product, and it stays out of both.
+The repository is **private for now** and may be published later (D36). Git history is published in
+full or not at all, so the rule is written for the moment of publication, not for today: anything
+that must never be public must never enter the history in the first place. Assistant tooling is a
+local development detail, not part of the product, and it stays out of the tree and out of the
+history either way.
 
 ```gitignore
 # assistant tooling — local only, never committed

@@ -33,6 +33,10 @@ below.
 
 ### Changed
 
+- Documentation now states that the repository is **private for now** and that publishing the source
+  is a later decision — including what that blocks (GitHub Pages for the privacy-policy URL, private
+  vulnerability reporting, the Store listing's repository link) and a checklist for the day it
+  changes.
 - `README.md` — filled in: the five differentiators, how the encryption works, what the vault does
   and does not protect against, the two sync tiers, the permission table, and the no-recovery
   warning. Screenshots and install instructions follow the first release.
