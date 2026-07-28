@@ -95,7 +95,7 @@ Privacy policy: [docs/PRIVACY.md](docs/PRIVACY.md)
 
 ## Development
 
-<!-- Prereqs (Node 20), npm scripts, load-unpacked, the three test tiers. → docs/DEVELOPMENT.md.
+<!-- Prereqs (Node 24 LTS), npm scripts, load-unpacked, the three test tiers. → docs/DEVELOPMENT.md.
      Phase 1. -->
 
 ```bash

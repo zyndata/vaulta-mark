@@ -93,7 +93,7 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | D5 | **Vitest** (unit/integration) + **Playwright** with a persistent-context Chromium extension harness (E2E) | As suggested. `@vitest/coverage-v8`, `fake-indexeddb` not needed; a hand-written `chrome.*` mock lives in `test/mocks/chrome.ts`. |
 | D6 | **ESLint 9 flat config + Prettier + `tsc --noEmit`** | Standard. Plus custom ESLint rules banning `eval`, `new Function`, `chrome.bookmarks` outside the import module, and remote URLs. |
 | D7 | **npm** (not pnpm/yarn) | Widest CI/action support, lockfile v3, no corepack friction for contributors. |
-| D8 | **Node 20 LTS** in CI, `.nvmrc` pinned | Matches Actions default and Vite 5 requirements. |
+| D8 | **Node 24 LTS** in CI, `.nvmrc` pinned to `24` | Node 20 reached end-of-life in **April 2026** — no further security patches. Pinning a dead runtime in a security-focused project is indefensible, however convenient. Node 24 is Active LTS until October 2026 and supported through April 2028, and satisfies Vite 5. CI reads the version from `.nvmrc` (`node-version-file`), so bumping the runtime is a one-line change in one file. |
 
 ### 2.2 Crypto
 
@@ -481,7 +481,7 @@ per phase.
 - `.github/ISSUE_TEMPLATE/` — `bug_report.yml`, `feature_request.yml`, `config.yml` routing security
   reports to the advisory form.
 - `.github/dependabot.yml` — weekly npm + monthly github-actions, grouped minor/patch.
-- `.gitignore`, `.gitattributes` (`* text=auto eol=lf`), `.editorconfig`, `.nvmrc` (`20`).
+- `.gitignore`, `.gitattributes` (`* text=auto eol=lf`), `.editorconfig`, `.nvmrc` (`24`).
   The `.gitignore` **must** include `node_modules/`, `dist/`, `release/`, `coverage/`,
   `playwright-report/`, `*.pem`, `.env*` (except `.env.example`), **and the assistant-tooling block
   below** — see [§8.1](#81-files-that-are-never-committed).
@@ -563,7 +563,7 @@ green; CI runs on every push to `dev`.
 - Minimal runtime: a service worker that logs and responds to a `PING` message; a popup that renders
   "VaultaMark" and the build version; an empty manager page.
 - `.github/workflows/ci.yml` — on `push` to `dev`/`main` **and** on `pull_request` (so outside
-  contributions are still gated once the repo is public): Node 20, `npm ci`, `npm run verify`,
+  contributions are still gated once the repo is public): Node from `.nvmrc`, `npm ci`, `npm run verify`,
   upload `dist/` and coverage as artifacts. Job name **`verify`**.
 - `.github/workflows/codeql.yml` — JS/TS, on push to `dev` + PR + weekly.
 - `docs/DEVELOPMENT.md` — load-unpacked instructions, dev watch loop, how to run each test tier.
