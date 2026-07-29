@@ -31,9 +31,13 @@ describe('gzip / gunzip', () => {
   it('survives a payload larger than the stream backpressure window', async () => {
     // Regression guard for the write/read ordering in `pump`: awaiting the writer before draining
     // the reader deadlocks once the input exceeds the stream's internal queue.
+    //
+    // A megabyte of incompressible bytes through two stream transforms is slow enough on a CI
+    // runner to blow the 5-second default. The generous budget does not weaken the guard — the
+    // failure this catches is a deadlock, which never finishes at any timeout.
     const data = randomBytes(1_000_000);
     expect(await gunzip(await gzip(data))).toStrictEqual(data);
-  });
+  }, 30_000);
 
   it('reports non-gzip input as corruption, not as a raw TypeError', async () => {
     await expect(gunzip(randomBytes(64))).rejects.toThrow(CorruptVaultError);

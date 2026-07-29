@@ -36,6 +36,9 @@ async function read(key: CryptoKey, sealed: Bytes, aad: Aad): Promise<Bytes> {
 }
 
 describe('gzip → pad → seal round-trip', () => {
+  // The two payload sweeps below push hundreds of kilobytes through gzip and AES-GCM, which is
+  // comfortably past Vitest's 5-second default on a CI runner. They are correctness tests, not
+  // performance ones; the KDF is where a latency budget is actually asserted.
   it('survives random plaintexts from 0 to 256 KiB', async () => {
     const key = await subkey(generateDek(), 'items');
     const sizes = [0, 1, 2, 63, 255, 256, 257, 1024, 65_536, 262_144];
@@ -43,7 +46,7 @@ describe('gzip → pad → seal round-trip', () => {
       const plaintext = randomBytes(size);
       expect(await read(key, await write(key, plaintext, AAD), AAD)).toStrictEqual(plaintext);
     }
-  });
+  }, 30_000);
 
   it('survives realistic, highly compressible payloads', async () => {
     const key = await subkey(generateDek(), 'items');
@@ -51,7 +54,7 @@ describe('gzip → pad → seal round-trip', () => {
       const plaintext = compressibleBytes(size);
       expect(await read(key, await write(key, plaintext, AAD), AAD)).toStrictEqual(plaintext);
     }
-  });
+  }, 30_000);
 
   it('survives JSON that looks like a real bucket', async () => {
     const key = await subkey(generateDek(), 'items');
