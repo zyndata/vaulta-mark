@@ -180,6 +180,11 @@ Then, immediately after publishing:
   at a form that does not exist until you do.
 - Re-check **secret scanning**, **push protection**, and **CodeQL**; they may have become available,
   and they are off by default.
+- Restore the `push` and `pull_request` triggers in
+  [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml). They were removed while the
+  repository was private because the upload step failed on every single push, and a permanently red
+  check is worse than no check. On a public repository the upload works, and analysing each change
+  as it lands is the entire point — weekly alone would let a bad commit sit for six days.
 - Update the "repository is private" notes in `README.md`, `SECURITY.md`, `CONTRIBUTING.md`,
   `docs/PRIVACY.md`, `docs/STORE_LISTING.md`, and decision **D36** in `PLAN.md`.
 - If PRs from outsiders are now possible, revisit §3: turning on *require a pull request* +
