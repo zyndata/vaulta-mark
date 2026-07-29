@@ -308,7 +308,25 @@ children, which is a normal multi-item commit.
 
 ## 4. Cryptography
 
-Everything here lives in `src/crypto/`. **No other module may import `crypto.subtle`** (ESLint-enforced).
+Everything here lives in `src/crypto/`. **No other module may import `crypto.subtle`** (ESLint-enforced:
+`no-restricted-syntax` bans the `subtle` member everywhere under `src/` except `src/crypto/**`).
+
+| Module | Contents |
+| --- | --- |
+| `kdf.ts` | `deriveKek`, `generateKdfSalt`, `pbkdf2Sha256`, `KdfParams`, `RECOMMENDED_KDF_PARAMS` |
+| `keys.ts` | `generateDek`, `wrapDek`, `unwrapDek`, `subkey`, `hkdfSha256` |
+| `envelope.ts` | `seal`, `open`, `aadBytes`, `gcmEncrypt`, `gcmDecrypt`, the wire-format constants |
+| `codec.ts` | `Bytes`, `gzip`/`gunzip`, `pad`/`unpad`, `toBase64Url`/`fromBase64Url`, `utf8`/`utf8Decode` |
+| `hash.ts` | `sha256`, `hmacSha256`, `verifyHmacSha256`, `assertHmacSha256`, `equalBytes` |
+| `wipe.ts` | `zero`, `zeroAll`, `Secret<T>` |
+| `errors.ts` | `CryptoError`, `WrongPasswordError`, `CorruptVaultError`, `UnsupportedSchemaError` |
+| `password.ts` | `estimateStrength`, `isCommonPassword`, `MIN_PASSWORD_LENGTH` |
+| `data/` | the bundled common-password list — see §4.6 |
+
+The module is storage-agnostic: it imports nothing from the rest of the project, touches no `chrome.*`
+API, and knows nothing of the vault schema. `Bytes` (`Uint8Array<ArrayBuffer>`) is the byte type used
+throughout; bare `Uint8Array` admits `SharedArrayBuffer`, which WebCrypto will not accept as a
+`BufferSource`.
 
 ### 4.1 Key hierarchy
 
@@ -336,6 +354,14 @@ half-converted. Phase 6 asserts this (bucket tags must be unchanged after a pass
 **Why HKDF subkeys.** No key is ever used for two purposes. A hypothetical weakness in the thumbnail
 path cannot be turned into an oracle against the item path.
 
+**What each level is, concretely.** The KEK is a non-extractable `CryptoKey` — the raw bits never
+exist as JavaScript-reachable bytes, which costs us nothing because the KEK's only job is the DEK.
+The DEK is the opposite: 32 raw bytes, because it has to survive in `chrome.storage.session` across
+service-worker restarts (D14) and a `CryptoKey` does not serialise into it. Subkeys are
+non-extractable `CryptoKey`s again; `subkey()` derives 32 bits' worth of material, imports it, and
+zeroes the intermediate buffer before it returns. `SUBKEY_INFO_PREFIX` carries the schema version, so
+a future v3 vault derives entirely different subkeys from the same DEK for free.
+
 ### 4.2 KDF parameters
 
 | Parameter | Value | Note |
@@ -350,6 +376,13 @@ iteration count later is a header change plus a re-wrap, not a format break. The
 parameters it was created with; when the app's recommended parameters exceed the stored ones, the UI
 offers an in-place upgrade (re-derive KEK with the new count, re-wrap the DEK) — a post-1.0 nicety,
 but the format supports it from v2.
+
+**Parameters we refuse to read.** `deriveKek` throws `CorruptVaultError` for an unrecognised `alg`,
+a salt that is not exactly 32 bytes, or an iteration count below `MIN_KDF_ITERATIONS` (100,000). The
+last one is not defending against a rewritten header — lowering the count there does not help an
+attacker, since the DEK was wrapped under the original KEK and would simply fail to unwrap. It
+defends against an *imported* vault built by something else with an indefensibly cheap KDF, which
+would otherwise leave the user weakly protected while every screen said "unlocked".
 
 **On Argon2id:** memory-hard KDFs are meaningfully better against offline cracking. We are not
 adopting one for 1.0 because the only practical route in MV3 is a WASM build, which requires adding
@@ -373,12 +406,38 @@ AAD is the UTF-8 encoding of canonical JSON:
 { "v": 2, "purpose": "bucket", "id": "7" }   // or "thumb"/"<itemId>", "base"/"", "export"/""
 ```
 
+The AAD is rebuilt field by field, never stringified from the caller's object: JSON key order follows
+insertion order, so an AAD constructed with its fields in a different order would produce different
+bytes and fail to authenticate a blob that is perfectly valid.
+
 Binding the AAD prevents a bucket ciphertext being replayed into a different bucket slot, or a
 thumbnail blob being served as a bucket. `open()` throws `CorruptVaultError` on any tag failure
 except the DEK unwrap, which throws `WrongPasswordError`.
 
+| Failure | Thrown by | Error |
+| --- | --- | --- |
+| GCM tag fails on `header.wrappedDek` | `unwrapDek` | `WrongPasswordError` |
+| `wrappedDek` is malformed (bad base64url, IV ≠ 12 B, ct ≠ 48 B) | `unwrapDek` | `CorruptVaultError` |
+| GCM tag fails on any sealed blob | `open`, `gcmDecrypt` | `CorruptVaultError` |
+| AAD does not match the one the blob was sealed with | `open` | `CorruptVaultError` |
+| Version byte ≠ `0x02`, or blob shorter than 29 bytes of framing | `open` | `CorruptVaultError` |
+| Padding, gzip or UTF-8 does not decode | `unpad`, `gunzip`, `utf8Decode` | `CorruptVaultError` |
+| Header declares a schema version we do not know | vault layer (Phase 3) | `UnsupportedSchemaError` |
+
+**`header.wrappedDek` is not an envelope.** It is a bare `{ iv, ct }` pair — 12-byte IV, 48-byte
+ciphertext-plus-tag, both base64url — with **no version byte and no AAD**, because it is read before
+we know anything at all, and its shape is fixed by the header format (§3.1). Everything else in the
+vault goes through `seal`/`open`.
+
 Random 96-bit IVs are safe here by a wide margin: GCM's birthday bound becomes a concern around 2³²
 encryptions under one key, and a heavy user commits on the order of 10⁵ bucket writes in a decade.
+
+**Known-answer tests.** `gcmEncrypt`/`gcmDecrypt` are exported precisely so the NIST-referenced GCM
+vectors — which pin an IV and a raw AAD, and so cannot go through `seal` — run through the code the
+product uses rather than through `crypto.subtle` directly, where a green test would only prove the
+platform works. `test/fixtures/gcm-vectors.json` also pins one blob in our own envelope format: if
+that test fails, the wire format changed, and a wire-format change needs a `SCHEMA_VERSION` bump and
+a migration, not a regenerated fixture.
 
 ### 4.4 Compression and padding
 
@@ -391,8 +450,14 @@ Write order is **gzip → pad → seal**.
    "this bucket is 1.75 KB" instead of "this bucket contains exactly a 47-character URL".
 3. `seal` with the purpose key.
 
+Padded length is `ceil((4 + n) / 256) * 256`. A payload whose framed length already sits exactly on a
+boundary gets no extra block: that case leaks "the length is a multiple of 256", which is a far
+smaller signal than the bytes a whole spare block would cost across every bucket of a synced vault.
+An empty payload still occupies one block, because the length prefix has to live somewhere.
+
 Read reverses it. Padding is applied *after* compression because padding before compression would be
-compressed away.
+compressed away. `unpad` checks every structural expectation — a positive multiple of 256, a declared
+length that fits — and treats a violation as corruption.
 
 ### 4.5 Wiping
 
@@ -406,12 +471,37 @@ by the GC, and `CryptoKey` internals are opaque. We therefore:
 - never write key material to `storage.local` or `storage.sync`
 - state the limitation plainly in `SECURITY.md` rather than implying a guarantee we cannot make
 
+`Secret<T>` earns its place not by making bytes unrecoverable — it cannot — but by making a forgotten
+release *visible*: a `Secret` still readable after `lock()` shows up in a diff, where a stray
+`Uint8Array` in a module-scope variable does not. `dispose()` is idempotent, because MV3 races a lock
+alarm against a user click as a matter of routine, and reading a disposed `Secret` throws rather than
+handing back stale bytes. The default disposer zeroes a `Uint8Array` and does nothing else for
+anything else; a `CryptoKey` has nothing we can reach into, and the code does not pretend otherwise.
+
 ### 4.6 Password policy
 
 `src/crypto/password.ts` estimates strength from length, character-class variety, a bundled
 ~2,000-entry common-password list (compressed asset, no network), and repeat/sequence detection.
 Hard minimum 10 characters. Below "good", the create-vault button stays enabled but requires a
 second confirmation. We never block a user from their own choice; we make sure they made it knowingly.
+
+`estimateStrength(password)` returns `{ score: 0–4, bits, warnings, meetsMinimumLength, acceptable }`.
+Warnings are **machine-readable codes** — `too-short`, `common-password`, `common-password-variant`,
+`single-character-class`, `repeated-characters`, `sequential-characters`, `keyboard-pattern`,
+`year-like` — never sentences: user-facing text belongs in `_locales`, and `src/` is where it must
+not appear. Length is counted in code points, so ten emoji are ten characters. Pattern penalties are
+multiplicative (a long passphrase that happens to contain "2024" is not punished like a short
+password that is nothing but a pattern); a hit on the common-password list *caps* the estimate
+instead, because a known password has no entropy worth the name whatever its character classes claim.
+
+The list is checked case-insensitively and after leet substitution and trailing-digit stripping, so
+`P@ssw0rd!!` is recognised as `password`. It ships as `src/crypto/data/common-passwords.ts` — the
+newline-separated list, gzipped and base64url-encoded, decompressed lazily on the first call and
+memoized — generated from the human-readable `src/crypto/data/common-passwords.txt` by
+`scripts/gen-common-passwords.mjs`. The list is mechanically constructed from a curated core plus the
+suffixes people actually append, **not** a breach dump: vendoring someone else's corpus of unclear
+provenance into a GPL package, for a strength hint, is not a trade worth making. A test regenerates
+the list and decompresses the shipped asset, so the three artefacts cannot drift apart.
 
 ---
 

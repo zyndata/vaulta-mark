@@ -14,6 +14,27 @@ below.
 
 ### Added
 
+- The cryptography that the vault will be built on (`src/crypto/`). Nothing is stored or encrypted
+  yet — no UI reaches it — but the primitives are complete, specified and tested: PBKDF2-HMAC-SHA256
+  at 600,000 iterations turns your master password into a key-encryption key; that unwraps a random
+  256-bit data key; and HKDF splits the data key into separate keys for bookmarks, thumbnails and
+  integrity tags, so no key is ever used for two jobs. Bookmark data is gzipped, padded to a
+  256-byte boundary so its size gives little away, and sealed with AES-256-GCM.
+- **There is still no password recovery, by design.** A wrong password is detected because the data
+  key fails to decrypt, and nothing distinguishes "wrong password" from "no vault for you" — there
+  is no verifier stored anywhere and no back door to add one to.
+- A master-password strength meter that runs entirely on your machine: length, character variety,
+  keyboard walks, repeats and sequences, plus a bundled list of ~2,000 common passwords that is
+  checked after undoing leetspeak, so `P@ssw0rd!!` is recognised for what it is. Passwords must be
+  at least 10 characters; below "good" you are warned, never blocked. The list ships with the
+  extension and is never looked up over the network.
+- Known-answer tests against published vectors — RFC 6070 and pinned PBKDF2-SHA256 vectors for the
+  key derivation, RFC 5869 for HKDF, the NIST-referenced GCM vectors for the cipher — plus a pinned
+  sample of VaultaMark's own sealed format, so an accidental change to the on-disk layout fails a
+  test instead of silently making existing vaults unreadable. Every single-bit change to a sealed
+  blob is tested to be rejected.
+- `crypto.subtle` is now confined to `src/crypto/` by an ESLint rule, and that directory carries a
+  90 % line / 85 % branch coverage gate.
 - The extension now builds and loads: `npm run build` produces a Manifest V3 package in `dist/`
   that Chrome accepts via **Load unpacked**. It does nothing yet — a placeholder popup that reports
   the build version and whether the background service is running, an empty manager page, and a
