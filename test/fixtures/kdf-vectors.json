@@ -1,0 +1,90 @@
+{
+  "_": [
+    "Known-answer vectors for PBKDF2.",
+    "",
+    "`rfc6070Sha1` is RFC 6070 verbatim (PBKDF2-HMAC-SHA1). We do not ship SHA-1 anywhere; these run",
+    "against the platform's WebCrypto directly, as a sanity check that the PBKDF2 implementation we",
+    "are trusting is the one the RFC describes. RFC 6070's fourth vector (c = 16,777,216) is omitted:",
+    "it is minutes of CPU for no additional signal.",
+    "",
+    "`sha256` is the widely-published PBKDF2-HMAC-SHA256 counterpart of the same inputs, and is what",
+    "`pbkdf2Sha256` in src/crypto/kdf.ts is tested against.",
+    "",
+    "`p` and `s` are UTF-8 strings (\\u0000 appears deliberately in the last vector of each set);",
+    "`c` is the iteration count, `dkLen` the output length in bytes, `dk` the expected output in hex."
+  ],
+  "rfc6070Sha1": [
+    {
+      "p": "password",
+      "s": "salt",
+      "c": 1,
+      "dkLen": 20,
+      "dk": "0c60c80f961f0e71f3a9b524af6012062fe037a6"
+    },
+    {
+      "p": "password",
+      "s": "salt",
+      "c": 2,
+      "dkLen": 20,
+      "dk": "ea6c014dc72d6f8ccd1ed92ace1d41f0d8de8957"
+    },
+    {
+      "p": "password",
+      "s": "salt",
+      "c": 4096,
+      "dkLen": 20,
+      "dk": "4b007901b765489abead49d926f721d065a429c1"
+    },
+    {
+      "p": "passwordPASSWORDpassword",
+      "s": "saltSALTsaltSALTsaltSALTsaltSALTsalt",
+      "c": 4096,
+      "dkLen": 25,
+      "dk": "3d2eec4fe41c849b80c8d83662c0e44a8b291a964cf2f07038"
+    },
+    {
+      "p": "pass\u0000word",
+      "s": "sa\u0000lt",
+      "c": 4096,
+      "dkLen": 16,
+      "dk": "56fa6aa75548099dcc37d7f03425e0c3"
+    }
+  ],
+  "sha256": [
+    {
+      "p": "password",
+      "s": "salt",
+      "c": 1,
+      "dkLen": 32,
+      "dk": "120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b"
+    },
+    {
+      "p": "password",
+      "s": "salt",
+      "c": 2,
+      "dkLen": 32,
+      "dk": "ae4d0c95af6b46d32d0adff928f06dd02a303f8ef3c251dfd6e2d85a95474c43"
+    },
+    {
+      "p": "password",
+      "s": "salt",
+      "c": 4096,
+      "dkLen": 32,
+      "dk": "c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a"
+    },
+    {
+      "p": "passwordPASSWORDpassword",
+      "s": "saltSALTsaltSALTsaltSALTsaltSALTsalt",
+      "c": 4096,
+      "dkLen": 40,
+      "dk": "348c89dbcbd32b2f32d814b8116e84cf2b17347ebc1800181c4e2a1fb8dd53e1c635518c7dac47e9"
+    },
+    {
+      "p": "pass\u0000word",
+      "s": "sa\u0000lt",
+      "c": 4096,
+      "dkLen": 16,
+      "dk": "89b69d0516f829893c696226650a8687"
+    }
+  ]
+}
