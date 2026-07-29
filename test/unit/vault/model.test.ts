@@ -1,0 +1,491 @@
+import { describe, expect, it } from 'vitest';
+
+import { InvalidMutationError, ItemNotFoundError } from '../../../src/vault/errors.js';
+import {
+  addItem,
+  allTags,
+  applyMutations,
+  canonicalJson,
+  countsByFolder,
+  deleteItem,
+  descendantsOf,
+  duplicateKeyOf,
+  listChildren,
+  moveItem,
+  normalizeTags,
+  normalizeUrl,
+  pathOf,
+  purgeTombstones,
+  toItemMap,
+  updateItem,
+  type MutationContext,
+} from '../../../src/vault/model.js';
+import { compareOrder } from '../../../src/vault/order.js';
+import {
+  MAX_TAGS_PER_ITEM,
+  ROOT_ID,
+  TOMBSTONE_TTL_MS,
+  isBookmark,
+  isDeleted,
+  noteOf,
+  tagsOf,
+  type Bookmark,
+  type ItemMap,
+  type VaultItem,
+} from '../../../src/vault/types.js';
+
+const NOW = 1_750_000_000_000;
+
+/**
+ * Deterministic ids, so a failure names the same item every run. `prefix` keeps a second context
+ * used against an existing vault from re-minting ids the first one already handed out.
+ */
+function ctx(overrides: Partial<MutationContext> = {}, prefix = 'id'): MutationContext {
+  let next = 0;
+  return {
+    now: NOW,
+    rev: 2,
+    newId: () => `${prefix}-${String(++next)}`,
+    ...overrides,
+  };
+}
+
+/** Build a small tree: root › Reading › two bookmarks, plus one bookmark at the top level. */
+function sampleVault(): { items: ItemMap; ids: Record<string, string> } {
+  let items: ItemMap = new Map();
+  const context = ctx();
+  const folder = addItem(items, { type: 'folder', title: 'Reading' }, context);
+  items = folder.items;
+  const alpha = addItem(
+    items,
+    {
+      type: 'bookmark',
+      url: 'https://example.org/alpha',
+      title: 'Alpha paper',
+      tags: ['Crypto', 'crypto ', 'Papers'],
+      parentId: folder.changed[0]!.id,
+    },
+    context,
+  );
+  items = alpha.items;
+  const beta = addItem(
+    items,
+    {
+      type: 'bookmark',
+      url: 'https://example.org/beta',
+      title: 'Beta notes',
+      note: 'Read chapter 4 first',
+      parentId: folder.changed[0]!.id,
+    },
+    context,
+  );
+  items = beta.items;
+  const loose = addItem(
+    items,
+    { type: 'bookmark', url: 'https://example.com/', title: 'Example Domain' },
+    context,
+  );
+  items = loose.items;
+
+  return {
+    items,
+    ids: {
+      folder: folder.changed[0]!.id,
+      alpha: alpha.changed[0]!.id,
+      beta: beta.changed[0]!.id,
+      loose: loose.changed[0]!.id,
+    },
+  };
+}
+
+describe('normalizeTags', () => {
+  it('trims, folds case, collapses whitespace and dedupes', () => {
+    expect(normalizeTags([' Reading ', 'reading', 'TO   READ', ''])).toEqual([
+      'reading',
+      'to read',
+    ]);
+  });
+
+  it('caps the tag count and the tag length', () => {
+    const many = Array.from({ length: 50 }, (_unused, i) => `tag${String(i)}`);
+    expect(normalizeTags(many)).toHaveLength(MAX_TAGS_PER_ITEM);
+    expect(normalizeTags(['x'.repeat(200)])[0]).toHaveLength(64);
+  });
+
+  it('normalizes to NFC so two encodings of one tag are one tag', () => {
+    // "café" precomposed vs. decomposed — the same tag typed on two different devices.
+    expect(normalizeTags(['café', 'café'])).toEqual(['café']);
+  });
+});
+
+describe('normalizeUrl', () => {
+  it('lowercases the scheme and host and drops the default port', () => {
+    expect(normalizeUrl('  HTTPS://Example.COM:443/Path?q=1#frag  ')).toBe(
+      'https://example.com/Path?q=1#frag',
+    );
+  });
+
+  it('keeps the query and the fragment', () => {
+    expect(normalizeUrl('https://example.com/a?b=c#d')).toContain('#d');
+    expect(normalizeUrl('https://example.com/a?b=c#d')).toContain('b=c');
+  });
+
+  it('stores an unparseable value verbatim rather than losing it', () => {
+    expect(normalizeUrl('  not a url  ')).toBe('not a url');
+  });
+});
+
+describe('duplicateKeyOf', () => {
+  it('ignores the fragment and the query order', () => {
+    expect(duplicateKeyOf('https://example.com/a?b=1&a=2#x')).toBe(
+      duplicateKeyOf('https://example.com/a?a=2&b=1'),
+    );
+  });
+
+  it('treats a bare origin with and without a trailing slash as one page', () => {
+    expect(duplicateKeyOf('https://example.com/')).toBe(duplicateKeyOf('https://example.com'));
+  });
+
+  it('falls back to a folded literal for an unparseable URL', () => {
+    expect(duplicateKeyOf(' Weird Thing ')).toBe('weird thing');
+  });
+});
+
+describe('addItem', () => {
+  it('appends after the last live sibling', () => {
+    const { items, ids } = sampleVault();
+    const children = listChildren(items, ids.folder!);
+    expect(children.map((item) => item.title)).toEqual(['Alpha paper', 'Beta notes']);
+    expect(compareOrder(children[0]!.order, children[1]!.order)).toBe(-1);
+  });
+
+  it('normalizes tags and omits empty optional fields', () => {
+    const { items, ids } = sampleVault();
+    const alpha = items.get(ids.alpha!) as Bookmark;
+    expect(alpha.tags).toEqual(['crypto', 'papers']);
+    expect('note' in alpha).toBe(false);
+    expect(noteOf(alpha)).toBe('');
+  });
+
+  it('rejects an unknown parent', () => {
+    expect(() =>
+      addItem(new Map(), { type: 'bookmark', url: 'https://x.test/', parentId: 'nope' }, ctx()),
+    ).toThrow(ItemNotFoundError);
+  });
+
+  it('rejects a bookmark used as a parent', () => {
+    const { items, ids } = sampleVault();
+    expect(() =>
+      addItem(items, { type: 'folder', title: 'Nested', parentId: ids.loose! }, ctx()),
+    ).toThrow(InvalidMutationError);
+  });
+
+  it('rejects a duplicate id', () => {
+    const { items, ids } = sampleVault();
+    expect(() =>
+      addItem(items, { type: 'bookmark', url: 'https://x.test/', id: ids.alpha! }, ctx()),
+    ).toThrow(InvalidMutationError);
+  });
+
+  it('rejects a deleted folder as a parent', () => {
+    const { items, ids } = sampleVault();
+    const after = deleteItem(items, ids.folder!, ctx()).items;
+    expect(() =>
+      addItem(after, { type: 'bookmark', url: 'https://x.test/', parentId: ids.folder! }, ctx()),
+    ).toThrow(InvalidMutationError);
+  });
+});
+
+describe('updateItem', () => {
+  it('changes only the named fields and stamps the revision', () => {
+    const { items, ids } = sampleVault();
+    const result = updateItem(items, ids.alpha!, { title: '  Renamed  ' }, ctx({ rev: 9 }));
+    const alpha = result.items.get(ids.alpha!) as Bookmark;
+    expect(alpha.title).toBe('Renamed');
+    expect(alpha.url).toBe('https://example.org/alpha');
+    expect(alpha.rev).toBe(9);
+    expect(result.changed).toHaveLength(1);
+  });
+
+  it('clears an optional field when the patch says null', () => {
+    const { items, ids } = sampleVault();
+    const result = updateItem(items, ids.beta!, { note: null, tags: null }, ctx());
+    const beta = result.items.get(ids.beta!) as Bookmark;
+    expect('note' in beta).toBe(false);
+    expect(tagsOf(beta)).toEqual([]);
+  });
+
+  it('treats an empty note the same as no note', () => {
+    const { items, ids } = sampleVault();
+    const beta = updateItem(items, ids.beta!, { note: '   ' }, ctx()).items.get(ids.beta!)!;
+    // Whitespace is content — only a genuinely empty string clears the field.
+    expect(noteOf(beta)).toBe('   ');
+    const cleared = updateItem(items, ids.beta!, { note: '' }, ctx()).items.get(ids.beta!)!;
+    expect('note' in cleared).toBe(false);
+  });
+
+  it('reports no change for an edit that changes nothing', () => {
+    const { items, ids } = sampleVault();
+    const result = updateItem(items, ids.alpha!, { title: 'Alpha paper' }, ctx({ rev: 99 }));
+    expect(result.changed).toEqual([]);
+    expect(result.items).toBe(items);
+    expect(result.items.get(ids.alpha!)!.rev).toBe(2);
+  });
+
+  it('refuses bookmark-only fields on a folder', () => {
+    const { items, ids } = sampleVault();
+    expect(() => updateItem(items, ids.folder!, { url: 'https://x.test/' }, ctx())).toThrow(
+      InvalidMutationError,
+    );
+  });
+
+  it('refuses to edit a tombstone', () => {
+    const { items, ids } = sampleVault();
+    const after = deleteItem(items, ids.alpha!, ctx()).items;
+    expect(() => updateItem(after, ids.alpha!, { title: 'x' }, ctx())).toThrow(
+      InvalidMutationError,
+    );
+  });
+
+  it('raises ItemNotFoundError for an unknown id', () => {
+    expect(() => updateItem(new Map(), 'nope', { title: 'x' }, ctx())).toThrow(ItemNotFoundError);
+  });
+});
+
+describe('deleteItem', () => {
+  it('tombstones rather than removing, so a stale peer cannot resurrect the item', () => {
+    const { items, ids } = sampleVault();
+    const result = deleteItem(items, ids.loose!, ctx());
+    const loose = result.items.get(ids.loose!)!;
+    expect(isDeleted(loose)).toBe(true);
+    expect(loose.deletedAt).toBe(NOW);
+    expect(result.items.size).toBe(items.size);
+  });
+
+  it('takes the whole subtree with a folder', () => {
+    const { items, ids } = sampleVault();
+    const result = deleteItem(items, ids.folder!, ctx());
+    expect(result.changed.map((item) => item.id).toSorted()).toEqual(
+      [ids.folder!, ids.alpha!, ids.beta!].toSorted(),
+    );
+    expect(listChildren(result.items, ROOT_ID).map((item) => item.id)).toEqual([ids.loose!]);
+  });
+
+  it('is idempotent', () => {
+    const { items, ids } = sampleVault();
+    const once = deleteItem(items, ids.loose!, ctx());
+    const twice = deleteItem(once.items, ids.loose!, ctx());
+    expect(twice.changed).toEqual([]);
+    expect(twice.items).toBe(once.items);
+  });
+});
+
+describe('moveItem', () => {
+  it('appends to the new parent and touches only the moved item', () => {
+    const { items, ids } = sampleVault();
+    const result = moveItem(items, ids.loose!, ids.folder!, undefined, ctx({ rev: 7 }));
+    expect(result.changed).toHaveLength(1);
+    expect(result.changed[0]!.id).toBe(ids.loose!);
+    expect(listChildren(result.items, ids.folder!).map((item) => item.id)).toEqual([
+      ids.alpha!,
+      ids.beta!,
+      ids.loose!,
+    ]);
+    expect(result.items.get(ids.alpha!)).toBe(items.get(ids.alpha!));
+  });
+
+  it('places an item first when afterId is null', () => {
+    const { items, ids } = sampleVault();
+    const result = moveItem(items, ids.beta!, ids.folder!, null, ctx());
+    expect(listChildren(result.items, ids.folder!).map((item) => item.id)).toEqual([
+      ids.beta!,
+      ids.alpha!,
+    ]);
+  });
+
+  it('places an item after a named sibling', () => {
+    const { items, ids } = sampleVault();
+    const moved = moveItem(items, ids.loose!, ids.folder!, ids.alpha!, ctx());
+    expect(listChildren(moved.items, ids.folder!).map((item) => item.id)).toEqual([
+      ids.alpha!,
+      ids.loose!,
+      ids.beta!,
+    ]);
+  });
+
+  it('refuses to move a folder inside itself', () => {
+    const { items, ids } = sampleVault();
+    expect(() => moveItem(items, ids.folder!, ids.folder!, undefined, ctx())).toThrow(
+      InvalidMutationError,
+    );
+    const nested = addItem(
+      items,
+      { type: 'folder', title: 'Inner', parentId: ids.folder! },
+      ctx({}, 'nested'),
+    );
+    expect(() =>
+      moveItem(nested.items, ids.folder!, nested.changed[0]!.id, undefined, ctx()),
+    ).toThrow(InvalidMutationError);
+  });
+
+  it('refuses an afterId that is not a live sibling', () => {
+    const { items, ids } = sampleVault();
+    expect(() => moveItem(items, ids.loose!, ids.folder!, 'nope', ctx())).toThrow(
+      InvalidMutationError,
+    );
+  });
+
+  it('refuses to move a tombstone', () => {
+    const { items, ids } = sampleVault();
+    const after = deleteItem(items, ids.loose!, ctx()).items;
+    expect(() => moveItem(after, ids.loose!, ids.folder!, undefined, ctx())).toThrow(
+      InvalidMutationError,
+    );
+  });
+
+  it('reports no change when the item is already where it is asked to go', () => {
+    const { items, ids } = sampleVault();
+    const result = moveItem(items, ids.beta!, ids.folder!, ids.alpha!, ctx());
+    expect(result.changed).toEqual([]);
+  });
+});
+
+describe('applyMutations', () => {
+  it('folds a batch, letting later mutations see earlier ones', () => {
+    const context = ctx();
+    const result = applyMutations(
+      new Map(),
+      [
+        { kind: 'add', input: { type: 'folder', title: 'Inbox' } },
+        { kind: 'add', input: { type: 'bookmark', url: 'https://x.test/', parentId: 'id-1' } },
+        { kind: 'update', id: 'id-2', patch: { title: 'Renamed' } },
+      ],
+      context,
+    );
+    expect(result.items.size).toBe(2);
+    // id-2 was added and then renamed inside one batch: it appears once in `changed`, at its
+    // final value, because a bucket is written once per commit however many times it was touched.
+    expect(result.changed).toHaveLength(2);
+    expect(result.changed.find((item) => item.id === 'id-2')!.title).toBe('Renamed');
+  });
+});
+
+describe('purgeTombstones', () => {
+  it('drops tombstones past the TTL and keeps the rest', () => {
+    const { items, ids } = sampleVault();
+    const deleted = deleteItem(items, ids.loose!, ctx()).items;
+    expect(purgeTombstones(deleted, NOW + TOMBSTONE_TTL_MS - 1).purged).toEqual([]);
+    const purged = purgeTombstones(deleted, NOW + TOMBSTONE_TTL_MS + 1);
+    expect(purged.purged).toEqual([ids.loose!]);
+    expect(purged.items.has(ids.loose!)).toBe(false);
+    expect(purged.items.size).toBe(items.size - 1);
+  });
+});
+
+describe('queries', () => {
+  it('lists children in order, tombstones excluded', () => {
+    const { items, ids } = sampleVault();
+    const deleted = deleteItem(items, ids.alpha!, ctx()).items;
+    expect(listChildren(deleted, ids.folder!).map((item) => item.id)).toEqual([ids.beta!]);
+  });
+
+  it('walks the path from the top level down to the item', () => {
+    const { items, ids } = sampleVault();
+    expect(pathOf(items, ids.alpha!).map((item) => item.title)).toEqual(['Reading', 'Alpha paper']);
+    expect(pathOf(items, ids.loose!).map((item) => item.id)).toEqual([ids.loose!]);
+  });
+
+  it('truncates rather than looping on a parent cycle', () => {
+    // A merge of two divergent moves can produce this; the UI must still render.
+    const { items, ids } = sampleVault();
+    const cyclic = new Map(items);
+    cyclic.set(ids.folder!, { ...items.get(ids.folder!)!, parentId: ids.alpha! });
+    expect(pathOf(cyclic, ids.alpha!).length).toBeLessThanOrEqual(cyclic.size);
+  });
+
+  it('counts direct children and descendant bookmarks per folder', () => {
+    const { items, ids } = sampleVault();
+    const counts = countsByFolder(items);
+    // `direct` is what sits immediately under the folder; `descendants` is every bookmark in the
+    // subtree, which for the root is the whole vault.
+    expect(counts.get(ROOT_ID)).toEqual({ direct: 2, descendants: 3 });
+    expect(counts.get(ids.folder!)).toEqual({ direct: 2, descendants: 2 });
+  });
+
+  it('counts nested folders into the ancestor total', () => {
+    const { items, ids } = sampleVault();
+    const nested = addItem(
+      items,
+      { type: 'folder', title: 'Inner', parentId: ids.folder! },
+      ctx({}, 'nested'),
+    );
+    const withChild = addItem(
+      nested.items,
+      { type: 'bookmark', url: 'https://x.test/', parentId: nested.changed[0]!.id },
+      ctx({}, 'child'),
+    ).items;
+    expect(countsByFolder(withChild).get(ids.folder!)).toEqual({ direct: 3, descendants: 3 });
+  });
+
+  it('lists tags by frequency, ties alphabetical', () => {
+    const { items, ids } = sampleVault();
+    const tagged = updateItem(items, ids.beta!, { tags: ['papers', 'zeta'] }, ctx()).items;
+    expect(allTags(tagged)).toEqual([
+      { tag: 'papers', count: 2 },
+      { tag: 'crypto', count: 1 },
+      { tag: 'zeta', count: 1 },
+    ]);
+  });
+
+  it('excludes tombstoned items from tag counts', () => {
+    const { items, ids } = sampleVault();
+    const deleted = deleteItem(items, ids.alpha!, ctx()).items;
+    expect(allTags(deleted)).toEqual([]);
+  });
+
+  it('finds every descendant, tombstones included', () => {
+    const { items, ids } = sampleVault();
+    const deleted = deleteItem(items, ids.alpha!, ctx()).items;
+    expect(
+      descendantsOf(deleted, ids.folder!)
+        .map((item) => item.id)
+        .toSorted(),
+    ).toEqual([ids.alpha!, ids.beta!].toSorted());
+  });
+});
+
+describe('toItemMap', () => {
+  it('keys items by id', () => {
+    const items: VaultItem[] = [...sampleVault().items.values()];
+    const map = toItemMap(items);
+    expect(map.size).toBe(items.length);
+    expect(map.get(items[0]!.id)).toBe(items[0]);
+  });
+});
+
+describe('canonicalJson', () => {
+  it('emits object keys in sorted order at every depth', () => {
+    expect(canonicalJson({ b: 1, a: { d: 2, c: 3 } })).toBe('{"a":{"c":3,"d":2},"b":1}');
+  });
+
+  it('preserves array order', () => {
+    expect(canonicalJson({ items: [2, 1] })).toBe('{"items":[2,1]}');
+  });
+
+  it('is stable across two spellings of the same item', () => {
+    const { items, ids } = sampleVault();
+    const alpha = items.get(ids.alpha!)!;
+    const reordered = Object.fromEntries(Object.entries(alpha).toReversed());
+    expect(canonicalJson(reordered)).toBe(canonicalJson(alpha));
+  });
+});
+
+describe('type guards', () => {
+  it('separates bookmarks from folders', () => {
+    const { items, ids } = sampleVault();
+    expect(isBookmark(items.get(ids.alpha!)!)).toBe(true);
+    expect(isBookmark(items.get(ids.folder!)!)).toBe(false);
+    expect(tagsOf(items.get(ids.folder!)!)).toEqual([]);
+    expect(noteOf(items.get(ids.folder!)!)).toBe('');
+  });
+});
