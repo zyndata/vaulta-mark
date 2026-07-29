@@ -44,6 +44,14 @@ const ABSOLUTE_URL_BAN = {
     'INV-3: absolute URLs in shipped code must be on the allowlist in build/url-allowlist.json.',
 };
 
+// Every primitive, parameter and error path lives in one directory that can be read end to end and
+// audited as a unit. A second call site for crypto.subtle is how a vault ends up with two envelope
+// formats, or an AES-GCM key with an IV nobody checked. PLAN.md Phase 2, ARCHITECTURE §4.
+const SUBTLE_BAN = {
+  selector: "MemberExpression[property.name='subtle']",
+  message: 'crypto.subtle is confined to src/crypto/**. Call the module that wraps the primitive.',
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -82,7 +90,13 @@ export default tseslint.config(
   {
     files: ['src/**/*.ts'],
     rules: {
-      'no-restricted-syntax': ['error', ...REMOTE_CODE_BANS, BOOKMARKS_BAN, ABSOLUTE_URL_BAN],
+      'no-restricted-syntax': [
+        'error',
+        ...REMOTE_CODE_BANS,
+        BOOKMARKS_BAN,
+        ABSOLUTE_URL_BAN,
+        SUBTLE_BAN,
+      ],
     },
   },
 
@@ -90,7 +104,15 @@ export default tseslint.config(
   {
     files: ['src/import/native-bookmarks.ts'],
     rules: {
-      'no-restricted-syntax': ['error', ...REMOTE_CODE_BANS, ABSOLUTE_URL_BAN],
+      'no-restricted-syntax': ['error', ...REMOTE_CODE_BANS, ABSOLUTE_URL_BAN, SUBTLE_BAN],
+    },
+  },
+
+  // The one place WebCrypto is reachable. Everything else on this list still applies.
+  {
+    files: ['src/crypto/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', ...REMOTE_CODE_BANS, BOOKMARKS_BAN, ABSOLUTE_URL_BAN],
     },
   },
 

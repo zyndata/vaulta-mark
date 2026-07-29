@@ -27,6 +27,7 @@ export default defineConfig({
         // written ahead of the code. Ratchet up, never down.
         lines: 70,
         branches: 60,
+        'src/crypto/**': { lines: 90, branches: 85 },
       },
     },
   },
