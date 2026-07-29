@@ -1,0 +1,163 @@
+# VaultaMark — Development
+
+Everything you need to build, load, and test the extension locally.
+
+**Requirements:** Node 24 LTS (pinned in [`.nvmrc`](../.nvmrc)) and npm. Nothing else — no global
+tools, no Docker, no browser download for the unit tests.
+
+```bash
+npm ci          # exact dependency tree from package-lock.json
+npm run verify  # the gate: lint + type-check + test + build + invariant scan
+```
+
+---
+
+## 1. The scripts
+
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Vite build in watch mode. Rebuilds `dist/` on every save. |
+| `npm run build` | Production build → `dist/`. |
+| `npm run zip` | Packages `dist/` → `release/vaulta-mark-<version>.zip` and prints its SHA-256. |
+| `npm run test` | Vitest unit + integration, with coverage and its thresholds. |
+| `npm run test:watch` | Vitest in watch mode, no coverage. |
+| `npm run test:e2e` | Playwright, against a **built** `dist/`. No specs yet — see §5. |
+| `npm run lint` | ESLint (type-aware) over `src/`, `test/`, `build/`, `scripts/`. |
+| `npm run format` | Prettier over the code (not the Markdown — prose is wrapped by hand). |
+| `npm run type-check` | `tsc --noEmit` over the whole repository. |
+| `npm run verify:invariants` | The INV-1/2/3/8/9 scanners, against the real `dist/`. |
+| `npm run verify` | All of the above in the order CI runs them. **Run this before every push.** |
+
+`npm run verify` is the real gate. CI runs the same steps, but GitHub can only *require* a status
+check on a pull request, and this repository pushes straight to `dev` — so CI is the backstop that
+catches what the local run missed, not the thing that stops a bad commit.
+See [BRANCH_PROTECTION.md](BRANCH_PROTECTION.md).
+
+---
+
+## 2. Loading the extension in Chrome
+
+1. `npm run build`
+2. Open `chrome://extensions`
+3. Turn on **Developer mode** (top right)
+4. **Load unpacked** → select the `dist/` directory
+5. For anything involving opening a vaulted link: open the extension's **Details** page and turn on
+   **Allow in incognito**. The manifest is `"incognito": "spanning"` (D29), so the same service
+   worker — and the same unlocked session — serves incognito windows.
+
+While `npm run dev` is running, Chrome does **not** reload the extension by itself. After a
+rebuild, press the **reload** ⟳ button on the extension card. Reloading the extension restarts the
+service worker, which clears `chrome.storage.session` — i.e. it locks the vault. That is correct
+behaviour, not a bug.
+
+To watch the service worker's console: the extension card has a **service worker** link. It is
+inactive most of the time; MV3 terminates it after roughly 30 seconds of idle and restarts it on the
+next event. Anything that assumes module-scope state survived a gap between events is a bug.
+
+**The extension id changes** every time you load an unpacked build from a fresh directory. For a
+stable id (needed for OAuth in Phase 10), add a `key` to the manifest — see
+[RELEASE.md §5.4](RELEASE.md#54-stable-extension-id-for-local-development).
+
+---
+
+## 3. How the build fits together
+
+```
+build/manifest.ts   ─┐
+build/version.ts    ─┼─► build/mv3-plugin.ts ─► dist/manifest.json
+package.json        ─┘
+
+src/popup/popup.html    ─► dist/popup.html    + dist/assets/popup-<hash>.{js,css}
+src/manager/manager.html ─► dist/manager.html + dist/assets/manager-<hash>.{js,css}
+src/background/index.ts  ─► dist/background.js      (ES module, one file, never split)
+src/content/og-capture.ts ─► dist/og-capture.js     (IIFE, one file — Phase 11)
+public/**                ─► dist/**                (icons, _locales)
+```
+
+Three things are worth knowing:
+
+- **The service worker is built in its own pass**, as a single un-split file. A code-split service
+  worker will eventually try to `import()` a chunk after MV3 terminated it — a failure that never
+  shows up in development and always shows up in the field.
+- **The content script is built in a third pass**, as an IIFE, because
+  `chrome.scripting.executeScript({ files })` needs one self-contained file. That pass is skipped
+  while `src/content/og-capture.ts` does not exist yet.
+- **HTML entries are flattened** from `src/popup/popup.html` to `dist/popup.html`. Their script and
+  style references are root-absolute (`/assets/…`), which resolves against the extension's own
+  origin.
+
+We use an in-repo plugin (~130 lines) rather than `@crxjs/vite-plugin` — the reasoning is D2 in
+[PLAN.md](../PLAN.md) and [ARCHITECTURE.md §2](ARCHITECTURE.md#2-build-system).
+
+---
+
+## 4. Tests
+
+| Tier | Where | Runner |
+| --- | --- | --- |
+| Unit | `test/unit/**/*.test.ts` | Vitest, Node environment |
+| Integration | `test/integration/**/*.test.ts` | Vitest, against the `chrome.*` mock |
+| E2E | `test/e2e/**` | Playwright, real Chromium with `dist/` loaded |
+
+`chrome.*` is mocked by [`test/mocks/chrome.ts`](../test/mocks/chrome.ts). It is not a stub: the
+`storage.sync` area enforces Chrome's real caps — `QUOTA_BYTES`, `QUOTA_BYTES_PER_ITEM`,
+`MAX_ITEMS`, and both write-rate ceilings — against an injectable clock, so a test can exhaust a
+rate budget without waiting a minute:
+
+```ts
+import { createChromeMock, createClock } from '../mocks/chrome';
+
+const clock = createClock();
+const { chrome, storage } = createChromeMock({ clock });
+await chrome.storage.sync.set({ 'vm.s.b0.0': part });
+clock.advance(61_000); // the write-rate window slides
+```
+
+Use `installChromeMock()` when the code under test reads the global `chrome` at import time (the
+service worker does), and remember `vi.resetModules()` so each test imports it fresh.
+
+**Coverage gates** live in `vitest.config.ts` and fail the run, locally and in CI. They start at
+70 % lines / 60 % branches globally; the 90 %/85 % gates for `src/crypto`, `src/vault`,
+`src/storage` and `src/sync` are added as those modules land (D33). Ratchet up, never down.
+
+---
+
+## 5. Writing the first E2E test
+
+There is no E2E spec yet — the first arrives with the popup in Phase 4. When you write it, see
+[`test/e2e/README.md`](../test/e2e/README.md): an MV3 extension needs a **persistent context**
+launched with `--load-extension`, not Playwright's default browser fixture.
+
+---
+
+## 6. The invariant scanners
+
+`npm run verify:invariants` runs two scripts against the **built** `dist/`, because the point is to
+catch what a dependency or a plugin smuggled into the bundle, which source-level linting cannot see:
+
+- [`scripts/verify-manifest.mjs`](../scripts/verify-manifest.mjs) — MV3, the exact CSP string, and
+  the permission set diffed against [`build/permissions.lock.json`](../build/permissions.lock.json).
+  **Adding a permission means editing that lock file in the same commit, with a CHANGELOG entry.**
+- [`scripts/verify-no-remote-code.mjs`](../scripts/verify-no-remote-code.mjs) — `eval`, the
+  `Function` constructor, remote or computed `import()`, `importScripts`, WASM, `sendBeacon`,
+  `XMLHttpRequest`, `blob:`/`data:` script URLs, and any absolute URL not in
+  [`build/url-allowlist.json`](../build/url-allowlist.json).
+
+ESLint enforces the same bans at the source level, so you find out while typing rather than at the
+end of `verify`. If a scanner fires on something legitimate, the fix is a narrower rule or an
+allowlist entry in a reviewed commit — never a disabled check. The invariants are listed with their
+rationale in [PLAN.md §4](../PLAN.md#4-hard-invariants).
+
+---
+
+## 7. Conventions worth knowing before your first commit
+
+- **No runtime dependencies.** `dependencies` in `package.json` is empty and stays empty; adding one
+  needs a written case (D4). Dev dependencies are unrestricted.
+- **No user-facing string outside `public/_locales/en/messages.json`.** Markup carries `data-i18n`
+  keys; the page fills them in.
+- **Never log** a password, key, URL, title, note or tag — not at any level, not in a `catch`.
+- **Crypto and vault-format changes are spec-first**: update `docs/ARCHITECTURE.md` and bump
+  `SCHEMA_VERSION` with a migration and a fixture, in the same commit.
+- Commit with [Conventional Commits](https://www.conventionalcommits.org/) and update
+  `CHANGELOG.md` under `## [Unreleased]` in the same commit as any user-visible change.

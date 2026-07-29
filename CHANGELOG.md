@@ -14,6 +14,35 @@ below.
 
 ### Added
 
+- The extension now builds and loads: `npm run build` produces a Manifest V3 package in `dist/`
+  that Chrome accepts via **Load unpacked**. It does nothing yet — a placeholder popup that reports
+  the build version and whether the background service is running, an empty manager page, and a
+  service worker that answers a heartbeat. The vault, the UI and sync arrive in later phases.
+- Toolchain: TypeScript (strict, with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`),
+  Vite 5 with an in-repo MV3 build plugin, ESLint 9 with type-aware rules, Prettier, Vitest with
+  coverage gates, and a Playwright harness. **Zero runtime dependencies**, as designed.
+- `manifest.json` is generated from a typed source (`build/manifest.ts`): the six required
+  permissions and no host permissions at install time, optional `identity`/`history`/`bookmarks`/
+  `idle`, `incognito: "spanning"`, the strict CSP, the three keyboard shortcuts, no content scripts,
+  and nothing exposed to web pages.
+- Invariant scanners that run against the real build output, not the source: `verify-manifest.mjs`
+  (Manifest V3, exact CSP, permission set diffed against `build/permissions.lock.json`) and
+  `verify-no-remote-code.mjs` (`eval`, the `Function` constructor, remote or computed `import()`,
+  `importScripts`, WASM, `sendBeacon`, `XMLHttpRequest`, `blob:`/`data:` script URLs, and any
+  absolute URL outside `build/url-allowlist.json`). Both run in `npm run verify` and in CI, and the
+  same bans are enforced at the source level by ESLint.
+- `npm run zip` packages `dist/` into `release/vaulta-mark-<version>.zip` — deterministic, so a
+  published zip can be hash-compared against a local build — excluding source maps, and printing
+  the archive's SHA-256.
+- A `chrome.*` test mock that enforces `chrome.storage.sync`'s real limits: per-item and total byte
+  quotas, item count, and both write-rate ceilings, against an injectable clock.
+- `.github/workflows/ci.yml` — lint, type-check, test with coverage, build, and the invariant
+  scanners on every push to `dev`/`main` and on every pull request.
+- `.github/workflows/codeql.yml` — CodeQL for JavaScript/TypeScript. Code scanning generally needs
+  GitHub Advanced Security on a private repository, so this may not run until the repository is
+  public (see `docs/BRANCH_PROTECTION.md` §5).
+- `docs/DEVELOPMENT.md` — how to build, load the extension in Chrome, run each test tier, and what
+  the invariant scanners check.
 - `LICENSE` — GPL-3.0-only, the verbatim license text.
 - `CONTRIBUTING.md` — branching model, Conventional Commits, DCO sign-off, how to run the test
   suite, the zero-runtime-dependencies rule, and the crypto-changes-need-an-issue-first rule.
@@ -39,7 +68,8 @@ below.
   changes.
 - `README.md` — filled in: the five differentiators, how the encryption works, what the vault does
   and does not protect against, the two sync tiers, the permission table, and the no-recovery
-  warning. Screenshots and install instructions follow the first release.
+  warning. Screenshots and install instructions follow the first release. The Development section
+  now points at `docs/DEVELOPMENT.md` and describes a toolchain that exists.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 

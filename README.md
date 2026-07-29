@@ -148,11 +148,11 @@ Then `chrome://extensions` → enable Developer mode → **Load unpacked** → s
 "open in incognito", also enable **Allow in incognito** on the extension's details page.
 
 The three test tiers — Vitest unit, Vitest integration, and Playwright E2E against a real Chromium
-with the extension loaded — are `npm run test` and `npm run test:e2e`. Setup details land in
-`docs/DEVELOPMENT.md` (Phase 1).
+with the extension loaded — are `npm run test` and `npm run test:e2e`. Full setup, the build layout,
+and the invariant scanners: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-> The toolchain arrives in **Phase 1**. Until then this repository holds documentation and governance
-> files only, and the commands above have nothing to run.
+> The extension currently builds and loads, and does nothing yet: there is no vault, no UI beyond a
+> placeholder popup, and no sync. Those arrive in the phases described in [PLAN.md](PLAN.md).
 
 ## Architecture
 
