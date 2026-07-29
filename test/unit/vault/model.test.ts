@@ -305,7 +305,7 @@ describe('moveItem', () => {
 
   it('places an item after a named sibling', () => {
     const { items, ids } = sampleVault();
-    const moved = moveItem(items, ids.loose!, ids.folder!, ids.alpha!, ctx());
+    const moved = moveItem(items, ids.loose!, ids.folder!, ids.alpha, ctx());
     expect(listChildren(moved.items, ids.folder!).map((item) => item.id)).toEqual([
       ids.alpha!,
       ids.loose!,
@@ -345,7 +345,7 @@ describe('moveItem', () => {
 
   it('reports no change when the item is already where it is asked to go', () => {
     const { items, ids } = sampleVault();
-    const result = moveItem(items, ids.beta!, ids.folder!, ids.alpha!, ctx());
+    const result = moveItem(items, ids.beta!, ids.folder!, ids.alpha, ctx());
     expect(result.changed).toEqual([]);
   });
 });

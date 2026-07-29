@@ -110,8 +110,31 @@ describe('orderBetween', () => {
     expect(() => orderBetween('a1', 'a1')).toThrow(InvalidMutationError);
   });
 
+  it('walks back across zero and up again without breaking the order', () => {
+    // Crossing between the below-zero (uppercase head) and above-zero (lowercase head) integer
+    // ranges is where the head character has to change the *length* of the integer part; getting
+    // it wrong produces keys that compare in the wrong direction.
+    let key = FIRST_ORDER;
+    const descending = [key];
+    for (let i = 0; i < 200; i++) {
+      key = orderBetween(null, key);
+      descending.push(key);
+    }
+    const ascending = descending.toReversed();
+    expect(ascending.toSorted(compareOrder)).toEqual(ascending);
+
+    let up = ascending[0]!;
+    const back = [up];
+    for (let i = 0; i < 400; i++) {
+      up = orderBetween(up, null);
+      back.push(up);
+    }
+    expect(back.toSorted(compareOrder)).toEqual(back);
+    expect(new Set(back).size).toBe(back.length);
+  });
+
   it('rejects malformed keys', () => {
-    for (const bad of ['', '0', 'a', '!', 'a0' + '0', 'zz']) {
+    for (const bad of ['', '0', 'a', '!', 'a0' + '0', 'zz', 'a0$', 'a0é']) {
       expect(isOrderKey(bad), bad).toBe(false);
       expect(() => orderBetween(bad, null), bad).toThrow(InvalidMutationError);
     }
@@ -163,6 +186,22 @@ describe('ordersBetween', () => {
     const keys = ordersBetween(null, null, 500);
     expect(keys).toHaveLength(500);
     expect(keys.toSorted(compareOrder)).toEqual(keys);
+  });
+
+  it('prepends a run before an existing first item', () => {
+    const first = orderBetween(null, null);
+    const keys = ordersBetween(null, first, 30);
+    expect(keys).toHaveLength(30);
+    expect(keys.toSorted(compareOrder)).toEqual(keys);
+    expect(compareOrder(keys.at(-1)!, first)).toBe(-1);
+    expect(new Set(keys).size).toBe(30);
+  });
+
+  it('appends a run after an existing last item', () => {
+    const last = orderBetween(null, null);
+    const keys = ordersBetween(last, null, 30);
+    expect(keys.toSorted(compareOrder)).toEqual(keys);
+    expect(compareOrder(last, keys[0]!)).toBe(-1);
   });
 
   it('rejects a negative or fractional count', () => {

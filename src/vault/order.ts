@@ -172,6 +172,13 @@ function integerLength(head: string): number {
   throw new InvalidMutationError(`Order key head "${head}" is not a valid integer-part marker.`);
 }
 
+/**
+ * The integer part of a key.
+ *
+ * Slicing to exactly `integerLength(head)` is what makes {@link incrementInteger} and
+ * {@link decrementInteger} safe without a second length check of their own: every integer part they
+ * see came out of here, and is therefore well-formed by construction.
+ */
 function integerPartOf(key: string): string {
   const length = integerLength(key.charAt(0));
   if (length > key.length) {
@@ -180,12 +187,6 @@ function integerPartOf(key: string): string {
     );
   }
   return key.slice(0, length);
-}
-
-function validateInteger(integerPart: string): void {
-  if (integerPart.length !== integerLength(integerPart.charAt(0))) {
-    throw new InvalidMutationError(`"${integerPart}" is not a well-formed order integer part.`);
-  }
 }
 
 /**
@@ -212,7 +213,6 @@ function validateOrderKey(key: string): void {
 
 /** The next integer part, or `null` at the top of the representable range. */
 function incrementInteger(integerPart: string): string | null {
-  validateInteger(integerPart);
   const head = integerPart.charAt(0);
   // Base-62 digits are single ASCII characters by construction; there is no grapheme to break.
   // eslint-disable-next-line @typescript-eslint/no-misused-spread
@@ -242,7 +242,6 @@ function incrementInteger(integerPart: string): string | null {
 
 /** The previous integer part, or `null` at the bottom of the representable range. */
 function decrementInteger(integerPart: string): string | null {
-  validateInteger(integerPart);
   const head = integerPart.charAt(0);
   // Base-62 digits are single ASCII characters by construction; there is no grapheme to break.
   // eslint-disable-next-line @typescript-eslint/no-misused-spread

@@ -107,8 +107,7 @@ describe('migrate', () => {
     expect(() => migrate({ items: [{ ...good, type: 'link' }] }, 2)).toThrow(CorruptVaultError);
     expect(() => migrate({ items: [{ ...good, id: 7 }] }, 2)).toThrow(CorruptVaultError);
     expect(() => migrate({ items: [{ ...good, rev: 'one' }] }, 2)).toThrow(CorruptVaultError);
-    const { url: _dropped, ...noUrl } = good;
-    expect(() => migrate({ items: [noUrl] }, 2)).toThrow(CorruptVaultError);
+    expect(() => migrate({ items: [{ ...good, url: undefined }] }, 2)).toThrow(CorruptVaultError);
   });
 
   it('reports when a stored vault needs migrating', () => {

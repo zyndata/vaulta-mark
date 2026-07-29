@@ -28,6 +28,8 @@ export default defineConfig({
         lines: 70,
         branches: 60,
         'src/crypto/**': { lines: 90, branches: 85 },
+        'src/vault/**': { lines: 90, branches: 85 },
+        'src/storage/**': { lines: 90, branches: 85 },
       },
     },
   },
