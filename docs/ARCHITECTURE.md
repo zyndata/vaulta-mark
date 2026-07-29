@@ -39,7 +39,7 @@ src/
 ├─ crypto/              WebCrypto only — no other module may import crypto.subtle
 │  ├─ kdf.ts  keys.ts  envelope.ts  codec.ts  hash.ts  wipe.ts  password.ts  errors.ts
 ├─ vault/               pure domain logic, zero I/O
-│  ├─ types.ts  model.ts  order.ts  migrate.ts  search.ts
+│  ├─ types.ts  model.ts  order.ts  migrate.ts  search.ts  errors.ts
 ├─ storage/             persistence of the working copy
 │  ├─ repo.ts  local.ts  buckets.ts  codec.ts  quota.ts
 ├─ sync/                transport + reconciliation
@@ -219,10 +219,21 @@ interface VaultHeader {
 interface BucketMeta {
   i: number;                     // bucket index
   rev: number;                   // vaultRev at which this bucket last changed
-  parts: number;                 // how many storage items this bucket occupies
+  parts: number;                 // how many storage items this bucket occupies; 0 = empty, unstored
   tag: string;                   // base64url of HMAC-SHA256(k_hmac, plaintext)[0..8]
 }
 ```
+
+Every index in `[0, bucketCount)` has an entry, empty buckets included. `parts: 0` means the bucket
+holds no items and **nothing is stored for it** — an empty vault therefore occupies one header and
+no bucket values, rather than sixteen sealed empty payloads costing ~7 KB of a 100 KB sync quota to
+say nothing.
+
+`tag`'s "plaintext" is the **canonical JSON** of the bucket payload — object keys sorted at every
+depth, items ordered by id — taken before gzip. Canonical ordering is not cosmetic: the tag's whole
+job is to answer "did this bucket's contents change?", and it can only do that if the same item set
+always serialises to the same bytes. Without it, an item rebuilt with its fields in a different
+order would report a change that never happened, costing one sync write per edit forever.
 
 **What the header leaks:** that a VaultaMark vault exists, when it was created and last changed, how
 many buckets it has (a coarse size signal), and how many revisions it has seen. It leaks **nothing**
@@ -261,6 +272,11 @@ interface Bookmark extends ItemBase {
 
 interface Folder extends ItemBase { type: 'folder' }
 
+// Absent and empty mean the same thing, and are read through accessors so no call site has to
+// know which one it got:
+tagsOf(item)  // item.tags ?? []
+noteOf(item)  // item.note ?? ''
+
 interface ThumbMeta {
   sha256: string;                // of the *plaintext* thumbnail bytes; integrity + dedupe
   w: number; h: number;
@@ -283,16 +299,39 @@ in sequence. Rules:
   Never downgrade-write; that destroys data.
 - Migrations are pure functions over the decrypted payload, unit-tested against committed fixtures
   in `test/fixtures/vault-v<N>.json`.
+- Migration runs over the **whole item set**, not per bucket: a step may need to see an item's
+  siblings (v1 → v2 does), and a bucket holds a hash-scattered slice rather than a subtree.
+- `migrate()` is the one place a decrypted payload becomes typed `VaultItem`s, so it also validates
+  every item's required fields. That is not defending against an attacker — the bytes authenticated
+  before they got there — it is defending against a migration step that forgets a field, which would
+  otherwise surface three layers up with no clue where it came from.
 
 **v1 → v2** (the one shipped migration): v1 lacked `tags`, `note`, `og`, `thumb`, and used integer
-`order`. The step defaults the new fields and converts integer order to fractional indices.
+`order`. The step converts integer order to fractional indices, per parent. The new optional fields
+are left **absent** rather than written as `[]` and `""`: absent and empty read identically through
+`tagsOf`/`noteOf`, and an empty array in every item is real bytes against a 100 KB sync quota.
 
 ### 3.4 Ordering
 
-Fractional indexing (base-62 strings, `a0` < `a0V` < `a1`). Inserting between two siblings generates
-a midpoint string; only the moved item's `order` changes, so a reorder dirties one bucket instead of
-renumbering a folder. A rare "no midpoint available" case triggers a scoped renumber of that folder's
-children, which is a normal multi-item commit.
+Fractional indexing over the base-62 alphabet `0-9A-Za-z` — **in ASCII order**, so `<` on the strings
+agrees with `<` on the digit values. `a0 < a0V < a1`. Inserting between two siblings generates a
+midpoint string; only the moved item's `order` changes, so a reorder dirties one bucket instead of
+renumbering a folder.
+
+Keys carry a variable-length **integer part** whose length is encoded in the first character (`a` →
+one digit above zero, `b` → two, …; `Z` → one digit below zero, `Y` → two, …). That prefix is what
+keeps appends cheap: adding to the end of a list increments the integer part instead of appending a
+digit, so a thousand sequential adds produce keys of length 2–3 rather than length 500. Only
+inserting *between* two adjacent keys lengthens the fractional part, and then by one digit.
+
+There is consequently **no "no midpoint available" case** and no renumbering path: a midpoint always
+exists, because the fractional part can always grow. `ordersBetween(before, after, n)` exists for
+laying out an imported folder in one pass and bisects rather than chaining, so `n` keys stay short.
+Exhaustion needs the integer part to overflow 27 base-62 digits, which is not reachable.
+
+`src/vault/order.ts` reproduces the well-known algorithm (as in the `fractional-indexing` package)
+rather than depending on it: ~120 lines, load-bearing for data we cannot re-derive, and D4 wants a
+written case for a runtime dependency. This is not that case.
 
 ### 3.5 Normalization rules
 
@@ -300,9 +339,13 @@ children, which is a normal multi-item commit.
   max 64 chars, max 32 per item, deduped.
 - **URLs:** stored as the user's tab reported them, with these applied: lowercase scheme and host,
   strip the default port, keep the fragment (people bookmark anchors), keep the query. UTM stripping
-  is **off** by default and available as a setting. A separate `normalizedUrl` is computed for
-  duplicate detection only (scheme+host+path+sorted query, fragment dropped) and never stored.
-- **Search text:** NFKD-folded, diacritics stripped, lowercased.
+  is **off** by default and available as a setting. A separate key is computed for duplicate
+  detection only (`duplicateKeyOf`: scheme+host+path+sorted query, fragment dropped, a bare origin's
+  trailing slash normalised away) and **never stored**. A URL `URL` cannot parse is kept verbatim:
+  this is a bookmark manager, not a validator, and a user should get back exactly what they saved.
+- **Search text:** NFKD-folded, combining marks stripped, lowercased. The search index is built on
+  unlock and dropped on lock — it is never persisted, because a search index *is* the vault content
+  reorganised, and writing one would break INV-6.
 
 ---
 
@@ -521,6 +564,19 @@ the list and decompresses the shipped asset, so the three artefacts cannot drift
 | `vm.conflicts` | sealed pending-conflict records | yes (`k_items`) |
 | `vm.onboarding` | `{ completed, version, stepsSeen }` | no |
 
+Every sealed value is stored as **base64url**, not as a `Uint8Array`. `chrome.storage.local`
+JSON-serialises what it is given, so a byte array comes back as `{"0":12,"1":…}` — roughly five bytes
+of quota per byte of ciphertext, and a silent shape change on the way out.
+
+`vm.settings` is deliberately plaintext and deliberately incapable of holding vault content: the lock
+screen has to honour the theme, and the auto-lock alarm has to be armed, before any key exists.
+Reading it never throws — a corrupted blob falls back to defaults field by field, because a bad theme
+value must not be able to keep someone out of their vault.
+
+`destroy()` enumerates every `vm.` key rather than deleting a fixed list. A key added by a later
+phase and forgotten there would leave sealed vault content on disk after the user asked for it to be
+gone, which is the one outcome `destroy()` exists to prevent.
+
 `chrome.storage.local` has a ~10 MB quota unless `unlimitedStorage` is requested. We deliberately do
 **not** request it: VaultaMark's permission set produces no install-time warning today, and we intend
 to keep it that way.
@@ -593,17 +649,39 @@ first, so item count is never the limiting factor.
 ### 5.4 Bucketing
 
 ```
-bucketOf(itemId, bucketCount) = SHA-256(itemId)[0..4] as uint32 % bucketCount
+bucketOf(itemId, bucketCount) = SHA-256(itemId)[0..4] as big-endian uint32 % bucketCount
 ```
 
 - Deterministic, so every device agrees without coordination.
 - Uniform, so buckets stay balanced without rebalancing logic for normal growth.
 - Independent of item content, so renaming a bookmark never moves it between buckets.
 
+Items are sorted by id **inside** a bucket, so the same item set always serialises to the same bytes
+— which is what the header's integrity tag depends on (§3.1).
+
 `bucketCount` starts at 16 and doubles when the largest bucket exceeds 60 % of the per-part budget ×
 parts, which in practice means a full rewrite roughly once per 1,000 items. A rebalance is a single
 atomic commit that bumps `vaultRev` and rewrites everything; it is rare and is treated as a normal
 (if large) sync push.
+
+### 5.4.1 Writing: dirty tracking and ordering
+
+`VaultRepository` keeps an item-id → bucket-index map (a SHA-256 per id, cached because it never
+changes for an id) and a dirty set. A mutation marks the buckets its changed items belong to; a
+300 ms coalescer then re-seals **only those** buckets, so a burst of edits is one write rather than
+one per keystroke. An edit that changes nothing returns no changed items, marks nothing dirty, and
+costs no write — otherwise a no-op would spend one of the 120 writes a minute buys and manufacture a
+merge conflict out of nothing.
+
+**Buckets are written before the header, always.** A crash between the two leaves a header pointing
+at the previous revision of a bucket that has already been superseded, which the integrity tag
+detects; the other order leaves a header pointing at buckets that do not exist. A write that fails
+leaves its buckets dirty rather than dropping them, so the next flush retries instead of leaving
+`storage.local` a revision behind permanently.
+
+`lock()` flushes pending writes first by default — losing the last thing a user typed to a lock timer
+is a bug, not a security feature. Panic-lock (Phase 4) passes `flush: false`, where being immediate
+is the whole point.
 
 ### 5.5 `chrome.storage.session` — key custody
 

@@ -14,6 +14,33 @@ below.
 
 ### Added
 
+- **The vault itself** (`src/vault/`, `src/storage/`). There is a real, working, encrypted bookmark
+  vault now: it can be created with a master password, unlocked, filled with bookmarks and folders,
+  searched, locked, and reopened. There is still no interface to any of it — the popup and the
+  manager page arrive in the next phase — but everything underneath them is in place and tested.
+- Bookmarks live in a tree of folders, with tags, notes and free ordering. Deleting something leaves
+  a tombstone rather than a hole, so a delete on one computer is not quietly undone by another
+  computer that was switched off at the time; tombstones are cleaned up after 90 days.
+- Search over titles, addresses, tags and notes, built fresh each time the vault is unlocked and
+  discarded when it locks. It is never written to disk — a search index is your bookmarks
+  rearranged, and storing one would undo the encryption. Accents fold, so `beyonce` finds `Beyoncé`,
+  and partial words match: `github` finds `https://github.com/…` without your having to type the
+  address.
+- Your vault is stored in **sixteen separately-encrypted buckets** rather than one blob. Editing one
+  bookmark rewrites one bucket, not the whole collection. That is what will make syncing through
+  Chrome's small storage quota practical in a later phase, and it means a burst of edits costs one
+  write instead of one per keystroke.
+- **Changing your master password re-encrypts 32 bytes and nothing else.** No re-encryption of the
+  vault, no long conversion, no window in which half your bookmarks are readable with the old
+  password and half with the new one. Your bookmarks themselves are never touched.
+- The vault format is versioned, with a migration path that runs against a committed test fixture
+  rather than existing only in theory. A vault written by a *newer* VaultaMark refuses to open and
+  says so, rather than silently discarding whatever the newer version added.
+- A test asserts the promise this product is built on: after adding, editing, deleting and reopening
+  a vault, no title, address, tag, note or folder name can be found anywhere in the extension's
+  storage — not in plain text, and not merely encoded. The only thing readable is the header, which
+  holds the key-derivation settings it must hold, plus how many buckets exist and how many times the
+  vault has changed.
 - The cryptography that the vault will be built on (`src/crypto/`). Nothing is stored or encrypted
   yet — no UI reaches it — but the primitives are complete, specified and tested: PBKDF2-HMAC-SHA256
   at 600,000 iterations turns your master password into a key-encryption key; that unwraps a random
