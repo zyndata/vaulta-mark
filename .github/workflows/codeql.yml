@@ -1,0 +1,35 @@
+name: codeql
+
+# Static analysis for JavaScript/TypeScript.
+#
+# Code scanning is free on public repositories; on a private one it generally requires GitHub
+# Advanced Security. This repository is private for now (PLAN.md D36), so this workflow may fail
+# to upload its results until that changes. Keep the file — see docs/BRANCH_PROTECTION.md §5.
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  schedule:
+    # Weekly, so a newly published advisory pattern is caught without a push.
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'
