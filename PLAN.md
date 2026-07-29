@@ -50,6 +50,7 @@ Rules:
 | Crypto changes are spec-first | If a phase changes crypto or the vault format, update `docs/ARCHITECTURE.md` **and** bump `SCHEMA_VERSION` with a migration. |
 | Conventional Commits | `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:`, `ci:`. |
 | Every phase ends green | `dev` is always installable, testable, and non-broken. |
+| Dependency advisories | Run `npm audit` at the end of the phase. Patch and minor security bumps can be merged any time. **Never merge a Dependabot PR that bumps a major** — majors are batched into Phase 12 and several of them contradict a settled decision (§2.1 D2, D5, D6). See [R11](#risks). |
 
 ---
 
@@ -1227,6 +1228,18 @@ browsing, and gracefully absent everywhere they are unavailable.
 - Security self-review against `docs/THREAT_MODEL.md`: a written checklist, each item ticked with a
   reference to the code or test that satisfies it. Run `/security-review` on the accumulated diff.
 - `docs/THREAT_MODEL.md` finalized (expanded from ARCHITECTURE §8).
+- **Dependency advisory sweep — do this first, before anything else in this phase.** Clear the whole
+  Dependabot backlog in one deliberate change instead of merging bot PRs as they arrived (§0, R11).
+  The **Vite, Vitest and ESLint majors are taken together**, because they are one interlocking
+  toolchain: bump them, update **D2, D5 and D6** in §2.1 in the same commit, re-verify
+  `build/mv3-plugin.ts` against the new Vite plugin API (`enforce`, `generateBundle`, lib-mode
+  `fileName` and `build.modulePreload` have all moved between majors), and get the full suite green
+  before touching the E2E work below. Record the result in `CHANGELOG.md`.
+  Two triggers to **bring this forward** into an earlier phase: `npm audit` reporting a High on a
+  path the build or CI actually executes, or any phase introducing a real dev server. Every
+  advisory seen up to Phase 1 was dev-server-only and therefore inert here — `npm run dev` is
+  `vite build --watch`, never `vite serve` — and that reasoning stops holding the moment a server
+  exists.
 
 **Out of scope:** new features.
 
@@ -1238,6 +1251,8 @@ browsing, and gracefully absent everywhere they are unavailable.
 - [ ] Zero critical/serious axe violations on every page.
 - [ ] Security checklist complete, with every item traced to code or a test.
 - [ ] No user-facing string outside `_locales`.
+- [ ] `npm audit` reports no advisory, or each remaining one is recorded in the security checklist
+      with a written reason for accepting it. No Dependabot PR is left open without a decision.
 
 **Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-12-done` and push.
 
@@ -1351,6 +1366,7 @@ Five differentiators, one line each:
 | R8 | MV3 service-worker termination causes subtle sync bugs | Medium | Medium | Phase 4 tests simulate termination explicitly; Phase 7's engine is restartable and idempotent; every long operation is resumable. |
 | R9 | Scope creep across 14 phases | High | Medium | Each phase's "out of scope" list is binding. A fresh conversation that wants to do more should open an issue instead. |
 | R10 | `_favicon/` returns the generic globe for sites not in the profile's cache | Certain | Low | Documented; the letter-avatar fallback is designed, not an afterthought. |
+| R11 | Dev-dependency advisories accumulate, and clearing them needs major upgrades that contradict settled decisions (Vite → D2, Vitest → D5, ESLint → D6) | Certain | Low | **Nothing from npm ships.** `dist/` carries zero runtime dependencies (D4), enforced by `verify:invariants`, so a toolchain advisory can never reach a user of the extension — the exposure is the maintainer's own machine. Reviewed with `npm audit` at the end of every phase (§0); majors are executed as **one deliberate change in Phase 12**. Brought forward if a High lands on a path the build or CI actually runs. |
 
 ### Resolved decisions (previously open; settled by the maintainer's delegation — do not relitigate)
 
