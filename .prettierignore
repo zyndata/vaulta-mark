@@ -1,0 +1,15 @@
+dist/
+release/
+coverage/
+playwright-report/
+test-results/
+node_modules/
+package-lock.json
+LICENSE
+
+# Prose is wrapped by hand here — the plan, the specs and the governance files are read as much
+# as they are edited, and Prettier's reflow makes their diffs unreadable. Formatting is for code.
+**/*.md
+
+# GitHub's issue-form YAML is hand-tuned for how the form renders, not for how it reads.
+.github/
