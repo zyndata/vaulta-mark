@@ -29,7 +29,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run type-check
-      - run: npm run test -- --coverage
+      # `test` already runs with coverage, so the thresholds gate locally too.
+      - run: npm run test
       - run: npm run build
       # INV-1, INV-2, INV-3, INV-8, INV-9 against the real dist/, not against the source.
       - run: npm run verify:invariants

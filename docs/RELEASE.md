@@ -155,7 +155,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run type-check
-      - run: npm run test -- --coverage
+      - run: npm run test                     # runs with coverage; thresholds gate here
       - run: npm run build
       - run: npm run verify:invariants     # INV-1, 2, 3, 8, 9 against real dist/
       - uses: actions/upload-artifact@v4
@@ -420,7 +420,7 @@ jobs:
 
       - run: npm run lint
       - run: npm run type-check
-      - run: npm run test -- --coverage
+      - run: npm run test                     # runs with coverage; thresholds gate here
       - run: npm run build
       - run: npm run verify:invariants
       - run: npx playwright install --with-deps chromium
