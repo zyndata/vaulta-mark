@@ -1,0 +1,53 @@
+/* Phase 1 placeholder styling. The real design tokens and UI kit land in src/ui/ in Phase 4. */
+
+:root {
+  color-scheme: light dark;
+  --vm-bg: #ffffff;
+  --vm-fg: #16181d;
+  --vm-muted: #5c6370;
+  --vm-accent: #3b5bdb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --vm-bg: #16181d;
+    --vm-fg: #e9ecef;
+    --vm-muted: #9aa3b2;
+    --vm-accent: #8da2fb;
+  }
+}
+
+body.vm-popup {
+  margin: 0;
+  min-width: 20rem;
+  padding: 1rem 1.25rem 1.25rem;
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+
+.vm-wordmark {
+  margin: 0;
+  font-size: 1.125rem;
+  letter-spacing: 0.01em;
+}
+
+.vm-tagline {
+  margin: 0.25rem 0 1rem;
+  color: var(--vm-muted);
+}
+
+.vm-status,
+.vm-meta {
+  margin: 0 0 0.25rem;
+  color: var(--vm-muted);
+  font-size: 0.8125rem;
+}
+
+.vm-link {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: var(--vm-accent);
+}

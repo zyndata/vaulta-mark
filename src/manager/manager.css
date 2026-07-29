@@ -1,0 +1,36 @@
+/* Phase 1 placeholder styling. The real manager UI lands in Phase 6. */
+
+:root {
+  color-scheme: light dark;
+  --vm-bg: #ffffff;
+  --vm-fg: #16181d;
+  --vm-muted: #5c6370;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --vm-bg: #16181d;
+    --vm-fg: #e9ecef;
+    --vm-muted: #9aa3b2;
+  }
+}
+
+body.vm-manager {
+  margin: 0;
+  padding: 2rem;
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font:
+    15px/1.6 system-ui,
+    sans-serif;
+}
+
+.vm-wordmark {
+  margin: 0 0 0.5rem;
+  font-size: 1.375rem;
+}
+
+.vm-placeholder {
+  margin: 0;
+  color: var(--vm-muted);
+}
