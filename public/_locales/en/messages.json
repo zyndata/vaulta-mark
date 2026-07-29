@@ -1,0 +1,56 @@
+{
+  "extName": {
+    "message": "VaultaMark",
+    "description": "The extension name, as shown in Chrome and on the Web Store."
+  },
+  "extDescription": {
+    "message": "Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito. Optional sync via your own Google Drive.",
+    "description": "Store and toolbar description. Chrome truncates at 132 characters."
+  },
+  "actionTitle": {
+    "message": "VaultaMark — encrypted bookmarks",
+    "description": "Tooltip on the toolbar button."
+  },
+  "cmdAdd": {
+    "message": "Add the current tab to the vault",
+    "description": "Keyboard shortcut description, shown on chrome://extensions/shortcuts."
+  },
+  "cmdLock": {
+    "message": "Lock the vault now",
+    "description": "Keyboard shortcut description, shown on chrome://extensions/shortcuts."
+  },
+  "cmdManager": {
+    "message": "Open the VaultaMark manager",
+    "description": "Keyboard shortcut description, shown on chrome://extensions/shortcuts."
+  },
+  "popupTagline": {
+    "message": "Encrypted bookmarks that never touch your omnibox.",
+    "description": "One-line explanation under the wordmark in the popup."
+  },
+  "popupVersion": {
+    "message": "Version $VERSION$",
+    "description": "Build version shown in the popup.",
+    "placeholders": {
+      "version": {
+        "content": "$1",
+        "example": "0.1.0"
+      }
+    }
+  },
+  "popupWorkerReady": {
+    "message": "Background service is running.",
+    "description": "Popup status line when the service worker answered."
+  },
+  "popupWorkerUnreachable": {
+    "message": "Background service is not responding.",
+    "description": "Popup status line when the service worker did not answer."
+  },
+  "popupOpenManager": {
+    "message": "Open the manager",
+    "description": "Link from the popup to the full manager page."
+  },
+  "managerPlaceholder": {
+    "message": "The vault lives here. Nothing to show yet — this build is the empty shell.",
+    "description": "Placeholder text on the manager page before the vault UI exists."
+  }
+}

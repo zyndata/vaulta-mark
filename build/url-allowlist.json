@@ -1,0 +1,4 @@
+{
+  "$comment": "INV-3. The only absolute URL prefixes allowed to appear anywhere in dist/. Everything else is a bug or an exfiltration path. Adding an entry here is a deliberate, reviewable act — see PLAN.md §4.",
+  "allowed": ["https://www.googleapis.com/", "https://accounts.google.com/"]
+}
