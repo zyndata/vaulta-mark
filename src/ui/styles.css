@@ -203,6 +203,21 @@ body {
   line-height: 1;
 }
 
+/* ------------------------------------------------------------------ virtual list */
+
+/* The scroll container owned by `virtual-list.ts`. The canvas inside it carries the full height of
+   the list so the scrollbar tells the truth, and every row is absolutely positioned within it. */
+.vm-vlist {
+  position: relative;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.vm-vlist-canvas {
+  position: relative;
+  width: 100%;
+}
+
 /* ------------------------------------------------------------------ notices */
 
 .vm-notice {
