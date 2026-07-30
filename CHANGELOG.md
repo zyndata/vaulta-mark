@@ -110,6 +110,9 @@ below.
 
 ### Changed
 
+- The 10-character minimum master password is now enforced where the vault is written, not only in
+  the interface — so no future code path can create a permanently weak vault by forgetting to check.
+  Length is counted in characters as a person counts them, so ten emoji are ten characters.
 - Documentation now states that the repository is **private for now** and that publishing the source
   is a later decision — including what that blocks (GitHub Pages for the privacy-policy URL, private
   vulnerability reporting, the Store listing's repository link) and a checklist for the day it

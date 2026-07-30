@@ -8,7 +8,7 @@ import {
 } from '../../../src/crypto/errors.js';
 import { LOCAL_KEYS, bucketKey, readHeader } from '../../../src/storage/local.js';
 import { VaultRepository } from '../../../src/storage/repo.js';
-import { VaultLockedError, VaultStateError } from '../../../src/vault/errors.js';
+import { VaultLockedError, VaultStateError, WeakPasswordError } from '../../../src/vault/errors.js';
 import {
   DEFAULT_BUCKET_COUNT,
   SCHEMA_VERSION,
@@ -119,6 +119,63 @@ describe('create', () => {
   it('refuses to create over an existing vault', async () => {
     restore(seeded);
     await expect(repository().create(PASSWORD)).rejects.toThrow(VaultStateError);
+  });
+
+  it('refuses a password below the hard floor, and writes nothing (ARCHITECTURE §4.6)', async () => {
+    await expect(repository().create('nine char')).rejects.toThrow(WeakPasswordError);
+    expect(mock.storage.local.snapshot()).toEqual({});
+  });
+
+  it('counts the floor in code points, not UTF-16 units', async () => {
+    // Nine emoji: eighteen UTF-16 units, so a `.length` check would wave this through.
+    const nineEmoji = '🔒🔑🐈🍎🌍🚀🎈🧊🦊';
+    expect(nineEmoji.length).toBe(18);
+    await expect(repository().create(nineEmoji)).rejects.toThrow(WeakPasswordError);
+  });
+});
+
+describe('the DEK, in and out', () => {
+  it('reopens a vault from an exported DEK with no password and no KDF', async () => {
+    restore(seeded);
+    const first = repository();
+    await first.unlock(PASSWORD);
+    await first.apply([
+      { kind: 'add', input: { type: 'bookmark', url: 'https://example.org/a', title: 'A' } },
+    ]);
+    await first.flush();
+    const dek = first.exportDek();
+    expect(dek).toHaveLength(32);
+
+    const second = repository();
+    await second.unlockWithDek(dek);
+
+    expect(second.getAll().map((item) => item.title)).toEqual(['A']);
+    await second.lock({ flush: false });
+    // The caller keeps ownership of its buffer: locking the second repository must not have
+    // zeroed the bytes the first one handed over.
+    expect(dek.some((byte) => byte !== 0)).toBe(true);
+    await first.lock({ flush: false });
+  }, 60_000);
+
+  it('refuses to export a key it does not have', () => {
+    expect(() => repository().exportDek()).toThrow(VaultLockedError);
+  });
+
+  it('reports a vault from a newer build before adopting the key', async () => {
+    restore(seeded);
+    const repo = repository();
+    await repo.unlock(PASSWORD);
+    const dek = repo.exportDek();
+    await repo.lock({ flush: false });
+
+    await mock.storage.local.set({
+      [LOCAL_KEYS.meta]: { ...(seeded[LOCAL_KEYS.meta] as VaultHeader), schemaVersion: 99 },
+    });
+    await expect(repository().unlockWithDek(dek)).rejects.toThrow(UnsupportedSchemaError);
+  }, 60_000);
+
+  it('refuses when there is no vault', async () => {
+    await expect(repository().unlockWithDek(new Uint8Array(32))).rejects.toThrow(VaultStateError);
   });
 });
 
@@ -393,6 +450,20 @@ describe('changePassword', () => {
     await reopened.unlock('a different long passphrase');
     expect(reopened.getAll()).toHaveLength(1);
     await reopened.lock({ flush: false });
+  }, 60_000);
+
+  it('refuses a new password below the hard floor', async () => {
+    restore(seeded);
+    const repo = repository();
+    await repo.unlock(PASSWORD);
+    try {
+      await expect(repo.changePassword(PASSWORD, 'too short')).rejects.toThrow(WeakPasswordError);
+      expect((await readHeader())!.kdf.salt).toBe(
+        (seeded[LOCAL_KEYS.meta] as VaultHeader).kdf.salt,
+      );
+    } finally {
+      await repo.lock({ flush: false });
+    }
   }, 60_000);
 
   it('refuses a wrong current password even while unlocked', async () => {

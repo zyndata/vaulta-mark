@@ -93,6 +93,18 @@ const DELEET = new Map<string, string>([
  * every call after the first is synchronous work behind an already-settled promise — cheap enough
  * to run on each keystroke of a strength meter.
  */
+/**
+ * Length in code points — the unit a person counts what they typed in, so ten emoji are ten
+ * characters and not twenty UTF-16 units.
+ *
+ * The one place that answer is computed, so the repository's hard floor and the popup's live
+ * validation cannot disagree about whether a password is long enough.
+ */
+export function passwordLength(password: string): number {
+  // eslint-disable-next-line @typescript-eslint/no-misused-spread
+  return [...password].length;
+}
+
 export async function estimateStrength(password: string): Promise<PasswordStrength> {
   // Code points are the unit we want: a password of ten emoji is ten characters, not twenty
   // UTF-16 units, and the minimum length must be counted the way a person counts what they typed.

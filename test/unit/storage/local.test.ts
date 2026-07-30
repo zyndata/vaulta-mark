@@ -20,7 +20,12 @@ import {
   writeHeader,
   writeSettings,
 } from '../../../src/storage/local.js';
-import { DEFAULT_SETTINGS, VAULT_MAGIC, type VaultHeader } from '../../../src/vault/types.js';
+import {
+  DEFAULT_SETTINGS,
+  IDLE_TIMEOUT_NEVER,
+  VAULT_MAGIC,
+  type VaultHeader,
+} from '../../../src/vault/types.js';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../../mocks/chrome.js';
 
 let mock: ChromeMock;
@@ -159,11 +164,20 @@ describe('settings', () => {
     expect(await readSettings()).toEqual(settings);
   });
 
+  it('keeps a zero idle timeout, which is how "never auto-lock" is stored', async () => {
+    await writeSettings({ ...DEFAULT_SETTINGS, idleTimeoutMinutes: IDLE_TIMEOUT_NEVER });
+    expect((await readSettings()).idleTimeoutMinutes).toBe(IDLE_TIMEOUT_NEVER);
+  });
+
   it('never throws on a corrupted blob — a bad theme must not lock a user out', async () => {
     await mock.storage.local.set({
       [LOCAL_KEYS.settings]: { theme: 'chartreuse', idleTimeoutMinutes: -5, providerId: 42 },
     });
     expect(await readSettings()).toEqual(DEFAULT_SETTINGS);
+    await mock.storage.local.set({
+      [LOCAL_KEYS.settings]: { idleTimeoutMinutes: Number.POSITIVE_INFINITY },
+    });
+    expect((await readSettings()).idleTimeoutMinutes).toBe(DEFAULT_SETTINGS.idleTimeoutMinutes);
     await mock.storage.local.set({ [LOCAL_KEYS.settings]: 'not an object' });
     expect(await readSettings()).toEqual(DEFAULT_SETTINGS);
   });

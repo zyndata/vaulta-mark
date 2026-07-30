@@ -207,8 +207,12 @@ export async function readSettings(): Promise<VaultSettings> {
   const stored = raw as Partial<VaultSettings>;
   return {
     theme: pick(stored.theme, DEFAULT_SETTINGS.theme, ['system', 'light', 'dark']),
+    // `0` is a legal value and means "never auto-lock" (`IDLE_TIMEOUT_NEVER`); a negative or
+    // non-finite one is corruption and falls back to the default.
     idleTimeoutMinutes:
-      typeof stored.idleTimeoutMinutes === 'number' && stored.idleTimeoutMinutes > 0
+      typeof stored.idleTimeoutMinutes === 'number' &&
+      Number.isFinite(stored.idleTimeoutMinutes) &&
+      stored.idleTimeoutMinutes >= 0
         ? stored.idleTimeoutMinutes
         : DEFAULT_SETTINGS.idleTimeoutMinutes,
     providerId: pick(stored.providerId, DEFAULT_SETTINGS.providerId, ['chrome', 'drive']),

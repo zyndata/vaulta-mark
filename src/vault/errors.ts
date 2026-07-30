@@ -49,3 +49,16 @@ export class VaultLockedError extends VaultError {
 
 /** `create()` on a device that already has a vault, or `unlock()` on one that has none. */
 export class VaultStateError extends VaultError {}
+
+/**
+ * A master password below the hard floor of `MIN_PASSWORD_LENGTH` (ARCHITECTURE §4.6).
+ *
+ * Enforced in the repository rather than only in the UI, because there is no recovery: a vault
+ * created through some future code path that forgot to check would be permanently weak, and the
+ * one place that cannot forget is the one that writes the header.
+ */
+export class WeakPasswordError extends VaultError {
+  constructor(readonly minimumLength: number, options?: ErrorOptions) {
+    super(`A master password must be at least ${minimumLength} characters.`, options);
+  }
+}

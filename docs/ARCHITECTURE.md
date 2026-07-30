@@ -528,6 +528,12 @@ anything else; a `CryptoKey` has nothing we can reach into, and the code does no
 Hard minimum 10 characters. Below "good", the create-vault button stays enabled but requires a
 second confirmation. We never block a user from their own choice; we make sure they made it knowingly.
 
+The hard minimum is enforced in `VaultRepository.create()` and `changePassword()`, which throw
+`WeakPasswordError` — not only in the UI. There is no recovery, so a vault created through some later
+code path that forgot to check would be permanently weak, and the one place that cannot forget is the
+one that writes the header. `passwordLength()` is the single definition of the count, so the floor and
+the meter cannot disagree; it counts **code points**, which is why ten emoji are ten characters.
+
 `estimateStrength(password)` returns `{ score: 0–4, bits, warnings, meetsMinimumLength, acceptable }`.
 Warnings are **machine-readable codes** — `too-short`, `common-password`, `common-password-variant`,
 `single-character-class`, `repeated-characters`, `sequential-characters`, `keyboard-pattern`,
@@ -572,6 +578,11 @@ of quota per byte of ciphertext, and a silent shape change on the way out.
 screen has to honour the theme, and the auto-lock alarm has to be armed, before any key exists.
 Reading it never throws — a corrupted blob falls back to defaults field by field, because a bad theme
 value must not be able to keep someone out of their vault.
+
+`idleTimeoutMinutes` is in minutes, defaults to **10**, and **`0` means "never auto-lock"** — the
+value the UI offers as *Never*. A negative or non-finite value is corruption and falls back to the
+default. "Never" is not "stay unlocked forever": `chrome.storage.session` is memory-backed and clears
+when the browser exits, so the vault still locks on restart (§5.5, D14).
 
 `destroy()` enumerates every `vm.` key rather than deleting a fixed list. A key added by a later
 phase and forgotten there would leave sealed vault content on disk after the user asked for it to be
@@ -916,6 +927,17 @@ a stubbed clock and by the Phase-12 budget script.
 in some Chrome versions; we therefore never rely on alarm precision for security. The alarm is a
 *convenience* that locks proactively; the *authority* is the `unlockedUntil` check performed on every
 session rehydrate. An attacker who suppresses alarms still cannot use an expired session.
+
+| Alarm | When | What it does |
+| --- | --- | --- |
+| `vm.autolock` | armed at `unlockedUntil`, floored at 30 s, cleared on lock and for a "never" session | re-checks `unlockedUntil`: locks if it has passed, **re-arms if it has not** |
+| `vm.housekeeping` | every 12 h, armed once per worker start if not already armed | purges tombstones past the 90-day TTL (D20), only while unlocked |
+
+`vm.autolock` re-arms rather than locking on an early fire, because Chrome clamping a short delay is
+routine and locking a still-valid session would be a bug the user experiences as random logouts.
+`vm.housekeeping` is checked before it is created: `chrome.alarms.create` with an existing name resets
+the schedule, so recreating it on every worker start would produce a periodic alarm that never fires
+on a profile the user touches often.
 
 ---
 

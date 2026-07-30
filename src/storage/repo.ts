@@ -16,17 +16,19 @@
  * - **Lock forgets everything.** The DEK, the subkeys, the items and the search index all go. What
  *   `lock()` cannot do is prove the bytes are unrecoverable — see `crypto/wipe.ts`.
  *
- * Key custody is still process-memory only. Phase 4 moves the unlocked DEK into
- * `chrome.storage.session` so it survives the service worker being killed every ~30 seconds; that
- * is deliberately out of scope here, and this file has no `storage.session` knowledge at all.
+ * Key custody above this line belongs to `background/session.ts`, which keeps the DEK in
+ * `chrome.storage.session` so it survives the service worker being killed every ~30 seconds (D14).
+ * This file has no `storage.session` knowledge: it hands the raw key out through `exportDek()` and
+ * takes one back through `unlockWithDek()`, and knows nothing about where it was kept in between.
  */
 
 import { fromBase64Url, toBase64Url, type Bytes } from '../crypto/codec.js';
 import { CorruptVaultError, UnsupportedSchemaError } from '../crypto/errors.js';
 import { RECOMMENDED_KDF_PARAMS, deriveKek, generateKdfSalt } from '../crypto/kdf.js';
 import { generateDek, subkey, unwrapDek, wrapDek } from '../crypto/keys.js';
+import { MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
 import { Secret } from '../crypto/wipe.js';
-import { VaultLockedError, VaultStateError } from '../vault/errors.js';
+import { VaultLockedError, VaultStateError, WeakPasswordError } from '../vault/errors.js';
 import { migrate, needsMigration } from '../vault/migrate.js';
 import { applyMutations, purgeTombstones, toItemMap, type Mutation } from '../vault/model.js';
 import {
@@ -125,6 +127,7 @@ export class VaultRepository {
     if (await this.exists()) {
       throw new VaultStateError('This profile already holds a vault; destroy it before creating.');
     }
+    assertPasswordLength(password);
 
     const salt = generateKdfSalt();
     const kek = await deriveKek(password, salt, RECOMMENDED_KDF_PARAMS);
@@ -168,6 +171,48 @@ export class VaultRepository {
    */
   async unlock(password: string): Promise<void> {
     this.#throwDeferred();
+    const header = await this.#readUnlockableHeader();
+    const kek = await deriveKek(password, fromBase64Url(header.kdf.salt), {
+      alg: header.kdf.alg,
+      iterations: header.kdf.iterations,
+    });
+    const dek = await unwrapDek(kek, header.wrappedDek);
+    await this.#open(header, dek);
+  }
+
+  /**
+   * Unlock from a DEK that is already in hand, skipping the KDF entirely.
+   *
+   * This is how an MV3 service worker survives being killed (ARCHITECTURE §7): the unlocked DEK
+   * lives in `chrome.storage.session`, and a restarted worker rebuilds the repository from it
+   * rather than asking for the master password every thirty seconds. There is deliberately no
+   * password check — there is nothing to check against, and possession of the DEK *is* the
+   * authorization. It reaches here only from a `storage.session` entry this extension wrote after
+   * a real unlock, in a storage area that is memory-backed and restricted to trusted contexts.
+   *
+   * The bytes are copied: the caller keeps ownership of its buffer and is expected to zero it.
+   */
+  async unlockWithDek(dek: Bytes): Promise<void> {
+    this.#throwDeferred();
+    const header = await this.#readUnlockableHeader();
+    await this.#open(header, new Uint8Array(dek));
+  }
+
+  /**
+   * A copy of the raw DEK, for `chrome.storage.session` custody (D14).
+   *
+   * A copy rather than the live buffer, so a caller zeroing what it was given cannot pull the key
+   * out from under a repository that is still using it. The DEK is raw bytes rather than a
+   * `CryptoKey` precisely because it has to survive in `storage.session`, which a `CryptoKey` does
+   * not serialise into (ARCHITECTURE §4.1).
+   */
+  exportDek(): Bytes {
+    const dek = this.#dek;
+    if (dek === null) throw new VaultLockedError('exporting the data key');
+    return new Uint8Array(dek.value);
+  }
+
+  async #readUnlockableHeader(): Promise<VaultHeader> {
     const header = await readHeader();
     if (header === null) {
       throw new VaultStateError('There is no vault on this profile to unlock.');
@@ -175,12 +220,11 @@ export class VaultRepository {
     if (header.schemaVersion > SCHEMA_VERSION) {
       throw new UnsupportedSchemaError(header.schemaVersion, SCHEMA_VERSION);
     }
+    return header;
+  }
 
-    const kek = await deriveKek(password, fromBase64Url(header.kdf.salt), {
-      alg: header.kdf.alg,
-      iterations: header.kdf.iterations,
-    });
-    const dek = await unwrapDek(kek, header.wrappedDek);
+  /** Adopt a DEK and decrypt every stored bucket into memory. Takes ownership of `dek`. */
+  async #open(header: VaultHeader, dek: Bytes): Promise<void> {
     await this.#adoptKeys(dek);
 
     const stored = header.buckets.filter((meta) => meta.parts > 0).map((meta) => meta.i);
@@ -362,6 +406,7 @@ export class VaultRepository {
     const header = this.#header;
     const dek = this.#dek;
     if (header === null || dek === null) throw new VaultLockedError('changing the password');
+    assertPasswordLength(newPassword);
 
     // Verify the current password against the stored wrap rather than against anything in memory:
     // an unlocked session must not be a way to change the password without knowing it.
@@ -527,6 +572,18 @@ export class VaultRepository {
   #requireHmacKey(): CryptoKey {
     if (this.#hmacKey === null) throw new VaultLockedError('computing a bucket tag');
     return this.#hmacKey;
+  }
+}
+
+/**
+ * The one hard password rule (ARCHITECTURE §4.6). Everything softer than this — the strength
+ * meter, the "are you sure" for a weak-but-legal password — is the UI's job.
+ *
+ * Counted in code points, so ten emoji are ten characters, exactly as `estimateStrength` counts.
+ */
+function assertPasswordLength(password: string): void {
+  if (passwordLength(password) < MIN_PASSWORD_LENGTH) {
+    throw new WeakPasswordError(MIN_PASSWORD_LENGTH);
   }
 }
 

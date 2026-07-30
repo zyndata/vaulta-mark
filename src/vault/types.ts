@@ -161,13 +161,22 @@ export function noteOf(item: VaultItem): string {
  */
 export interface VaultSettings {
   readonly theme: 'system' | 'light' | 'dark';
-  /** Auto-lock idle window, in minutes. */
+  /** Auto-lock idle window, in minutes. {@link IDLE_TIMEOUT_NEVER} disables it. */
   readonly idleTimeoutMinutes: number;
   readonly providerId: 'chrome' | 'drive';
   readonly lockOnBrowserBlur: boolean;
   /** Strip UTM parameters when saving a URL. Off by default (ARCHITECTURE §3.5). */
   readonly stripTrackingParams: boolean;
 }
+
+/**
+ * "Never auto-lock." Still not "stay unlocked forever": `chrome.storage.session` is memory-backed
+ * and clears when the browser exits, so the vault locks on restart whatever this is set to (D14).
+ */
+export const IDLE_TIMEOUT_NEVER = 0;
+
+/** The idle windows the UI offers, in minutes. `10` is the default. */
+export const IDLE_TIMEOUT_CHOICES = [1, 5, 10, 30, 60, IDLE_TIMEOUT_NEVER] as const;
 
 export const DEFAULT_SETTINGS: VaultSettings = {
   theme: 'system',
