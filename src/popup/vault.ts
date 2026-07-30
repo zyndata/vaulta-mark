@@ -102,17 +102,19 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
       return;
     }
 
-    render(listBox, ...response.items.map((item) => row(item)));
-    if (response.items.length === 0) {
-      render(
-        listBox,
-        h(
-          'li',
-          { class: 'vm-empty' },
-          query === '' ? msg('vaultEmpty') : msg('vaultNoMatches', [query]),
-        ),
-      );
-    }
+    render(
+      listBox,
+      ...(response.items.length === 0
+        ? [
+            h(
+              'li',
+              { class: 'vm-empty' },
+              // An empty vault and an empty result are different situations and read differently.
+              query === '' ? msg('vaultEmpty') : msg('vaultNoMatches', [query]),
+            ),
+          ]
+        : response.items.map((item) => row(item))),
+    );
     summary.textContent =
       response.total > response.items.length
         ? msg('vaultShowingCount', [String(response.items.length), String(response.total)])
