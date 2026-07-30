@@ -41,6 +41,14 @@
     "message": "Open the manager",
     "description": "Link from the popup to the full manager page."
   },
+  "menuAddPage": {
+    "message": "Add to VaultaMark",
+    "description": "Right-click entry on a page or a text selection. Vaults the page you are on."
+  },
+  "menuAddLink": {
+    "message": "Add link to VaultaMark",
+    "description": "Right-click entry on a link. Vaults the link's target without opening it."
+  },
 
   "createIntro": {
     "message": "Choose a master password. It encrypts everything you save, and it is never stored or sent anywhere.",
@@ -213,6 +221,93 @@
     "description": "Shown on the unlock screen after a lock-on-blur lock."
   },
 
+  "vaultAddButton": {
+    "message": "Add this page",
+    "description": "Primary button on the unlocked popup. Vaults the tab you are looking at."
+  },
+  "vaultAdded": {
+    "message": "Saved “$TITLE$”.",
+    "description": "Confirmation after the current page was added to the vault.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "vaultAlreadySaved": {
+    "message": "This page is already in your vault.",
+    "description": "Shown when adding a page whose address is already vaulted."
+  },
+  "vaultOpenItButton": {
+    "message": "Open it",
+    "description": "Button beside the already-vaulted notice; opens the existing bookmark."
+  },
+  "vaultFilterLabel": {
+    "message": "Filter your vault",
+    "description": "Accessible name for the filter box on the unlocked popup."
+  },
+  "vaultFilterPlaceholder": {
+    "message": "Filter…",
+    "description": "Placeholder in the filter box on the unlocked popup."
+  },
+  "vaultEmpty": {
+    "message": "Nothing in the vault yet. “Add this page” puts the tab you are on in it.",
+    "description": "Shown instead of the list when the vault holds no bookmarks."
+  },
+  "vaultNoMatches": {
+    "message": "Nothing matches “$QUERY$”.",
+    "description": "Shown instead of the list when a filter matched no bookmarks.",
+    "placeholders": {
+      "query": {
+        "content": "$1",
+        "example": "github"
+      }
+    }
+  },
+  "vaultShowingCount": {
+    "message": "Showing $SHOWN$ of $TOTAL$.",
+    "description": "Line under the list when more bookmarks matched than the list shows.",
+    "placeholders": {
+      "shown": {
+        "content": "$1",
+        "example": "20"
+      },
+      "total": {
+        "content": "$2",
+        "example": "143"
+      }
+    }
+  },
+  "vaultDeleteLabel": {
+    "message": "Delete “$TITLE$”",
+    "description": "Accessible name and tooltip for the delete button on a list row.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "vaultDeleted": {
+    "message": "Deleted “$TITLE$”.",
+    "description": "Undo toast shown for eight seconds after a delete.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "vaultUndo": {
+    "message": "Undo",
+    "description": "Button on the delete toast. Restores the bookmark under the same identity."
+  },
+  "vaultSettingsSummary": {
+    "message": "Settings",
+    "description": "Disclosure that folds the popup's settings away below the bookmark list."
+  },
+
   "unlockedHeading": {
     "message": "Vault unlocked",
     "description": "Status line on the unlocked popup screen."
@@ -262,6 +357,87 @@
     "message": "Locks the moment Chrome loses focus, so you re-enter your password on every switch back. Moving between Chrome windows does not lock.",
     "description": "Explanation under the lock-on-browser-blur toggle."
   },
+  "settingsReuseWindow": {
+    "message": "Reuse the incognito window I already have open",
+    "description": "Label for the reuse-incognito-window toggle. On by default."
+  },
+  "settingsReuseWindowHint": {
+    "message": "Off, every bookmark opens a window of its own — and each one is a separate incognito session you have to close separately.",
+    "description": "Explanation under the reuse-incognito-window toggle."
+  },
+  "settingsStripTracking": {
+    "message": "Remove tracking parameters when saving",
+    "description": "Label for the strip-tracking-parameters toggle. Off by default."
+  },
+  "settingsStripTrackingHint": {
+    "message": "Drops utm_*, fbclid, gclid and similar. Off by default: a few sites need parameters that look like tracking, and rewriting what you saved is not something to do quietly.",
+    "description": "Explanation under the strip-tracking-parameters toggle."
+  },
+
+  "incognitoHeading": {
+    "message": "VaultaMark needs permission to open incognito windows",
+    "description": "Heading of the guided prompt shown when “Allow in Incognito” is off."
+  },
+  "incognitoWhy": {
+    "message": "VaultaMark opens every vaulted link in an incognito window, so the address never reaches your history or the address bar's suggestions. Chrome only lets an extension do that once you switch it on by hand — there is no way for us to ask you for it in a dialog.",
+    "description": "Explanation at the top of the guided incognito prompt."
+  },
+  "incognitoStep1": {
+    "message": "Copy this address and paste it into the address bar:",
+    "description": "First step of the guided incognito prompt. Chrome forbids an extension from opening a chrome:// URL, so the user has to paste it."
+  },
+  "incognitoStep2": {
+    "message": "On the page that opens, find the “Allow in Incognito” switch — it is near the bottom of VaultaMark's details, under “Site access”.",
+    "description": "Second step of the guided incognito prompt."
+  },
+  "incognitoStep3": {
+    "message": "Turn it on, come back here, and press Re-check.",
+    "description": "Third step of the guided incognito prompt."
+  },
+  "incognitoCopyButton": {
+    "message": "Copy",
+    "description": "Button that copies the chrome://extensions address to the clipboard."
+  },
+  "incognitoCopied": {
+    "message": "Copied.",
+    "description": "Confirmation after the address was copied to the clipboard."
+  },
+  "incognitoCopyFailed": {
+    "message": "Could not copy — select the address above instead.",
+    "description": "Shown when the clipboard write was refused."
+  },
+  "incognitoRecheck": {
+    "message": "Re-check",
+    "description": "Button that asks Chrome again whether incognito access has been granted."
+  },
+  "incognitoStillOff": {
+    "message": "Still off. Turn on “Allow in Incognito”, then press Re-check again.",
+    "description": "Result of a re-check that found the setting still disabled."
+  },
+  "incognitoNowOn": {
+    "message": "Incognito access is on. You can close this tab — your bookmarks will open in incognito from now on.",
+    "description": "Result of a re-check that found the setting enabled."
+  },
+  "incognitoFallbackHeading": {
+    "message": "Or open it in a normal window, this once",
+    "description": "Heading of the explicit fallback section of the guided incognito prompt."
+  },
+  "incognitoFallbackWarning": {
+    "message": "A normal window records the visit in your history and feeds the address bar's suggestions — which is what vaulting the bookmark was meant to avoid.",
+    "description": "Warning above the normal-window fallback button."
+  },
+  "incognitoFallbackClearHistory": {
+    "message": "Clear this site from my history afterwards",
+    "description": "Checkbox that queues a history cleanup for the site being opened."
+  },
+  "incognitoFallbackClearHistoryHint": {
+    "message": "Queued until the cleanup arrives in a later version, and only for as long as the vault stays unlocked — the queue is never written to disk.",
+    "description": "Explanation under the clear-history checkbox, stating the Phase-9 limitation honestly."
+  },
+  "incognitoFallbackButton": {
+    "message": "Open in a normal window",
+    "description": "Button that takes the explicit normal-window fallback."
+  },
 
   "errorWrongPassword": {
     "message": "That password is not right.",
@@ -292,6 +468,26 @@
   "errorVaultState": {
     "message": "That does not match the state of the vault on this device.",
     "description": "Error shown when creating a vault that exists, or unlocking one that does not."
+  },
+  "errorItemNotFound": {
+    "message": "That bookmark is no longer in the vault.",
+    "description": "Error shown when an action names an item that has since been removed."
+  },
+  "errorNoActiveTab": {
+    "message": "There is no page to add here.",
+    "description": "Error shown when the active tab could not be read."
+  },
+  "errorUrlInternalPage": {
+    "message": "This is one of the browser's own pages, and VaultaMark cannot reopen it later.",
+    "description": "Error shown when adding a chrome://, about: or extension page."
+  },
+  "errorUrlLocalFile": {
+    "message": "Files on your computer cannot be opened from an incognito window, so there would be no way to open this bookmark.",
+    "description": "Error shown when adding a file:// URL."
+  },
+  "errorUrlUnsupportedScheme": {
+    "message": "VaultaMark saves web addresses; this one is not a page it could open again.",
+    "description": "Error shown when adding a URL whose scheme is not http(s) or ftp."
   },
   "errorUnreachable": {
     "message": "The background service is not responding. Try reopening this window.",

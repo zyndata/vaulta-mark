@@ -61,3 +61,152 @@ body.vm-popup {
 .vm-meter + p {
   margin: 0.25rem 0 0.5rem;
 }
+
+/* ------------------------------------------------------------------ the vault screen */
+
+.vm-field--filter {
+  margin-bottom: 0.5rem;
+}
+
+.vm-field--filter input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font: inherit;
+}
+
+.vm-vault > .vm-button {
+  margin-bottom: 0.625rem;
+}
+
+/* A popup is at most 600 px tall and Chrome will not scroll it for us, so the list is the part
+   that scrolls and everything else stays reachable. */
+.vm-list {
+  max-height: 17rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.vm-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  border-radius: var(--vm-radius);
+}
+
+.vm-row:hover,
+.vm-row:focus-within {
+  background: var(--vm-surface);
+}
+
+.vm-row-open {
+  display: flex;
+  flex: 1;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.35rem 0.4rem;
+  border: 0;
+  border-radius: var(--vm-radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vm-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Both lines truncate rather than wrap: two rows of the same height are scannable, and a title
+   that reflows to four lines pushes the rest of the vault off screen. */
+.vm-row-title,
+.vm-row-host {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.vm-row-delete {
+  flex: none;
+  width: 1.75rem;
+  border: 0;
+  border-radius: var(--vm-radius);
+  background: none;
+  color: var(--vm-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.vm-row-delete:hover {
+  color: var(--vm-danger);
+}
+
+.vm-empty {
+  padding: 1rem 0.4rem;
+  color: var(--vm-muted);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.vm-count {
+  margin: 0.35rem 0 0;
+  text-align: center;
+}
+
+/* Reserves no space when empty, so the list does not jump when a toast appears. */
+.vm-toast-slot:empty {
+  display: none;
+}
+
+.vm-toast {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--vm-radius);
+  background: var(--vm-surface);
+  font-size: 0.8125rem;
+}
+
+.vm-toast > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.vm-settings {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--vm-border);
+  padding-top: 0.5rem;
+}
+
+.vm-settings summary {
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--vm-muted);
+}
+
+.vm-settings[open] summary {
+  margin-bottom: 0.625rem;
+}
+
+.vm-footer {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+}

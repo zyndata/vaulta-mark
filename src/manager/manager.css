@@ -15,3 +15,48 @@ body.vm-manager {
   margin: 0;
   color: var(--vm-muted);
 }
+
+/* The guided incognito prompt (ARCHITECTURE §9) — the one real screen this page has before
+   Phase 6. Narrow measure: it is instructions to read, not a layout to scan. */
+.vm-guide {
+  max-width: 34rem;
+}
+
+.vm-guide h2 {
+  margin: 1rem 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.vm-guide h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.vm-guide .vm-button {
+  width: auto;
+}
+
+.vm-steps {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.vm-steps li {
+  margin-bottom: 0.5rem;
+}
+
+.vm-address {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.vm-address code {
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-surface);
+  font-size: 0.875rem;
+  user-select: all;
+}

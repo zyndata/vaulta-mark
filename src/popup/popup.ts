@@ -1,10 +1,10 @@
 /**
- * The popup: create a vault, unlock it, lock it, and set the two settings that decide when it locks
- * itself.
+ * The popup shell: which of the three screens to show, and the two that are about the password.
  *
- * All three screens live here because they are one flow over one piece of state — "does a vault
- * exist, and is it open" — which the service worker answers in a single `GET_STATE`. The popup holds
- * no key and no vault content; every decision is the worker's.
+ * Create, unlock and "unlocked" are one flow over one piece of state — "does a vault exist, and is
+ * it open" — which the service worker answers in a single `GET_STATE`. The unlocked screen is large
+ * enough to live next door in `vault.ts`; these two are not. The popup holds no key, and no vault
+ * content beyond the rows currently on screen.
  *
  * The create screen is the one that matters. There is no password recovery and no key escrow, so a
  * user who has not understood that before they click has lost their vault and will find out weeks
@@ -26,10 +26,10 @@ import {
   send,
   type ErrorCode,
   type LockReason,
-  type StateResponse,
 } from '../shared/messages.js';
 import { applyTheme, h, matchesPhrase, msg, qs, render } from '../ui/dom.js';
-import { IDLE_TIMEOUT_CHOICES, IDLE_TIMEOUT_NEVER, type VaultSettings } from '../vault/types.js';
+import type { VaultSettings } from '../vault/types.js';
+import { vaultScreen } from './vault.js';
 
 const root = qs(document, '#vm-root');
 
@@ -45,6 +45,11 @@ const ERROR_KEYS: Record<ErrorCode, string> = {
   UNSUPPORTED_SCHEMA: 'errorUnsupportedSchema',
   VAULT_LOCKED: 'errorVaultLocked',
   VAULT_STATE: 'errorVaultState',
+  ITEM_NOT_FOUND: 'errorItemNotFound',
+  NO_ACTIVE_TAB: 'errorNoActiveTab',
+  URL_INTERNAL_PAGE: 'errorUrlInternalPage',
+  URL_LOCAL_FILE: 'errorUrlLocalFile',
+  URL_UNSUPPORTED_SCHEME: 'errorUrlUnsupportedScheme',
   UNREACHABLE: 'errorUnreachable',
   UNKNOWN: 'errorUnknown',
 };
@@ -275,91 +280,12 @@ function unlockScreen(): HTMLElement {
   );
 }
 
-/* ------------------------------------------------------------------ unlocked screen */
-
-function idleChoiceLabel(minutes: number): string {
-  return minutes === IDLE_TIMEOUT_NEVER
-    ? msg('settingsIdleNever')
-    : msg('settingsIdleMinutes', [String(minutes)]);
-}
-
-function autoLockText(unlockedUntil: number | null, settings: VaultSettings): string {
-  if (settings.idleTimeoutMinutes <= IDLE_TIMEOUT_NEVER || unlockedUntil === null) {
-    return msg('unlockedAutoLockNever');
-  }
-  const minutes = Math.max(1, Math.round((unlockedUntil - Date.now()) / 60_000));
-  return msg('unlockedAutoLockIn', [String(minutes)]);
-}
-
-function unlockedScreen(state: StateResponse): HTMLElement {
-  const idleSelect = h(
-    'select',
-    {
-      onchange: (event: Event) => {
-        const value = Number((event.currentTarget as HTMLSelectElement).value);
-        void patchSettings({ idleTimeoutMinutes: value });
-      },
-    },
-    ...IDLE_TIMEOUT_CHOICES.map((minutes) =>
-      h(
-        'option',
-        { value: String(minutes), selected: minutes === state.settings.idleTimeoutMinutes },
-        idleChoiceLabel(minutes),
-      ),
-    ),
-  );
-
-  const blurToggle = h('input', {
-    type: 'checkbox',
-    id: 'vm-lock-on-blur',
-    checked: state.settings.lockOnBrowserBlur,
-    onchange: (event: Event) => {
-      void patchSettings({ lockOnBrowserBlur: (event.currentTarget as HTMLInputElement).checked });
-    },
-  });
-
-  return h(
-    'div',
-    null,
-    h('p', { class: 'vm-unlocked', role: 'status' }, msg('unlockedHeading')),
-    h('p', { class: 'vm-small vm-muted' }, autoLockText(state.unlockedUntil, state.settings)),
-    h(
-      'button',
-      {
-        class: 'vm-button vm-button--danger',
-        type: 'button',
-        onclick: () => {
-          void lockNow();
-        },
-      },
-      msg('unlockedLockButton'),
-    ),
-    h('hr', { class: 'vm-rule' }),
-    field('settingsIdleTimeout', idleSelect),
-    h(
-      'div',
-      { class: 'vm-checkbox' },
-      blurToggle,
-      h('label', { for: 'vm-lock-on-blur' }, msg('settingsLockOnBlur')),
-    ),
-    // The label alone reads as "when Chrome closes" to anyone who has not tried it, and the two
-    // behaviours are nothing alike — so the toggle explains itself rather than being discovered.
-    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('settingsLockOnBlurHint')),
-    h('a', { class: 'vm-link', href: '/manager.html', target: '_blank' }, msg('popupOpenManager')),
-  );
-}
+/* ------------------------------------------------------------------ the shell */
 
 async function patchSettings(patch: Partial<VaultSettings>): Promise<void> {
   await send({ type: 'SET_SETTINGS', settings: patch });
   await refresh();
 }
-
-async function lockNow(): Promise<void> {
-  await send({ type: 'LOCK' });
-  await refresh();
-}
-
-/* ------------------------------------------------------------------ the shell */
 
 async function refresh(): Promise<void> {
   const response = await send({ type: 'GET_STATE' });
@@ -374,10 +300,14 @@ async function refresh(): Promise<void> {
   applyTheme(response.settings.theme, document.documentElement);
   if (!response.exists) render(root, createScreen());
   else if (response.locked) render(root, unlockScreen());
-  else render(root, unlockedScreen(response));
+  else render(root, vaultScreen({ state: response, refresh, errorText, patchSettings }));
 }
 
 onBroadcast((message) => {
+  // `VAULT_CHANGED` is deliberately not handled: the popup is the only UI that can change the vault
+  // while it is open, and it re-reads its own list at the point it made the change. Re-rendering
+  // the whole shell here would throw away the filter the user is typing into.
+  if (message.type === 'VAULT_CHANGED') return;
   if (message.type === 'SESSION_LOCKED') {
     // A panic-lock is meant to leave nothing on screen, this popup included. Chrome gives an
     // extension no way to close someone else's popup, so the popup closes itself.

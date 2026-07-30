@@ -9,7 +9,12 @@
   <body class="vm-manager">
     <main>
       <h1 class="vm-wordmark">VaultaMark</h1>
-      <p class="vm-placeholder" data-i18n="managerPlaceholder"></p>
+      <!-- Replaced by manager.ts when the page is opened at #incognito. Everywhere else this is
+           still the Phase-6 placeholder. -->
+      <div id="vm-root">
+        <p class="vm-placeholder" data-i18n="managerPlaceholder"></p>
+      </div>
+      <div id="vm-status"></div>
     </main>
   </body>
 </html>

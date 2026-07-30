@@ -167,8 +167,40 @@ body {
   color: var(--vm-danger);
 }
 
+/* A button that sits in a line of text rather than owning a row. */
+.vm-button--inline {
+  width: auto;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8125rem;
+}
+
 .vm-link {
   color: var(--vm-accent);
+}
+
+/* ------------------------------------------------------------------ favicons */
+
+.vm-favicon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+
+/* The fallback for a site this profile has never visited, so Chrome's cache has no icon
+   (ARCHITECTURE §10). Colour comes from a hash of the host, applied by favicon.ts. */
+.vm-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 /* ------------------------------------------------------------------ notices */
