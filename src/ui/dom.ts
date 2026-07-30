@@ -72,6 +72,22 @@ export function msg(key: string, substitutions?: readonly string[]): string {
     : chrome.i18n.getMessage(key, [...substitutions]);
 }
 
+/**
+ * Whether a typed confirmation matches the phrase it is confirming.
+ *
+ * A typed confirmation exists to make someone stop and read (the no-recovery warning here; the
+ * typed vault name behind "destroy vault" in Phase 6). Being fussy about capitalisation or a
+ * trailing space would only teach people that the box is broken, so it is not.
+ *
+ * `toLowerCase`, deliberately not `toLocaleLowerCase`: the phrase is a fixed string from
+ * `_locales`, and in a Turkish locale a correctly typed lowercase "i understand" would fold to a
+ * different letter than the "I" in the expected phrase and stop matching.
+ */
+export function matchesPhrase(typed: string, expected: string): boolean {
+  const normalize = (value: string): string => value.trim().replace(/\s+/gu, ' ').toLowerCase();
+  return normalize(typed) === normalize(expected);
+}
+
 /** Fill every `data-i18n` element in a static document from `_locales`. */
 export function localize(root: ParentNode): void {
   for (const element of root.querySelectorAll<HTMLElement>('[data-i18n]')) {

@@ -914,6 +914,16 @@ memory-backed, never written to disk, cleared on browser exit, and restricted to
 We combine it with a real idle timeout (default 10 min), an explicit lock command, lock-on-blur as an
 option, and "require password after browser restart" (free — session storage clears anyway).
 
+**Lock-on-blur is off by default**, and its name in the UI matters more than it looks. It fires on
+`WINDOW_ID_NONE` — no Chrome window has focus at all — which means *every switch to another
+application*, not "when Chrome closes". At 600,000 PBKDF2 iterations that is a password prompt per
+alt-tab: a defensible posture to offer, a bad one to impose, and a worse one to imply with a label
+like "lock when I leave Chrome". The UI says "switch to another app" and spells out the consequence
+next to the toggle.
+
+Focus moving *between* Chrome windows must never lock, or opening a bookmark in incognito (§9) would
+lock the vault behind it.
+
 ### 7.2 Cold-start budget
 
 The SW entry does only: register listeners, read `vm.settings` (small), and return. Key derivation,

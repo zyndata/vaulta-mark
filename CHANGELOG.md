@@ -19,14 +19,20 @@ below.
   interface — adding bookmarks arrives in the next phase — but the vault underneath is the real one.
 - Creating a vault asks you to **type a phrase to confirm** you have understood that there is no
   password recovery. Not a checkbox: a checkbox is a reflex, and this is the one mistake nobody can
-  undo for you. The strength meter is live as you type, and a password weaker than "good" asks a
-  second time before it is accepted — it is never refused. Fewer than 10 characters is refused.
+  undo for you. The phrase is matched loosely — capitalisation and stray spaces do not count — since
+  the point is that you read it, not that you can copy a string. The strength meter is live as you
+  type, and a password weaker than "good" asks a second time before it is accepted — it is never
+  refused. Fewer than 10 characters is refused, and the create button says which requirement it is
+  still waiting on rather than sitting there greyed out.
 - **The vault stays unlocked while you work, and locks itself when you stop.** Default 10 minutes of
   inactivity, selectable between 1 minute and an hour, or *Never*. Chrome shuts our background
   process down every 30 seconds or so of idle; the vault survives that without asking for your
   password again, and locks on the deadline regardless of whether Chrome remembered to wake us. Even
   on *Never*, the vault locks when you close Chrome — the key is never written to disk.
-- Optional **lock when you leave Chrome** (off by default), and a **panic lock** on
+- Optional **lock when you switch to another app** (off by default). It locks the moment Chrome loses
+  focus, so you re-enter your password on every switch back — worth it for some people, and not the
+  sort of thing to turn on for you. Moving between Chrome windows does not lock, so opening a
+  bookmark never locks the vault behind it. Also a **panic lock** on
   <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> that drops the key immediately and closes the
   extension's own windows. A lock you asked for finishes saving first; a panic lock does not wait.
 - <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> opens the manager page. All shortcuts are rebindable

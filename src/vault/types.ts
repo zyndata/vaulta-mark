@@ -182,6 +182,10 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   theme: 'system',
   idleTimeoutMinutes: 10,
   providerId: 'chrome',
+  // Off by default. It fires on *focus loss* — every switch to another application, not just
+  // closing Chrome — which at 600,000 PBKDF2 iterations means retyping the master password every
+  // alt-tab. That is a posture worth offering and a bad one to impose; the idle timeout already
+  // covers walking away. Opt in from the popup.
   lockOnBrowserBlur: false,
   stripTrackingParams: false,
 };

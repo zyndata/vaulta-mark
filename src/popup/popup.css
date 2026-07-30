@@ -30,6 +30,17 @@ body.vm-popup {
   color: var(--vm-danger);
 }
 
+.vm-blocked {
+  margin: 0.5rem 0 0;
+  text-align: center;
+}
+
+/* Sits under the control it explains, indented past the checkbox it belongs to. */
+.vm-hint {
+  margin: -0.4rem 0 0.75rem;
+  padding-left: 1.4rem;
+}
+
 .vm-unlocked {
   margin: 0 0 0.25rem;
   font-weight: 600;

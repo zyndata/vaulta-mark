@@ -158,6 +158,15 @@ describe('settings', () => {
     expect(await readSettings()).toEqual(DEFAULT_SETTINGS);
   });
 
+  it('pins the out-of-the-box lock posture', () => {
+    // Spelled out rather than left to `DEFAULT_SETTINGS`: this is what a user gets without touching
+    // anything, and moving either of them should have to be a deliberate edit here.
+    expect(DEFAULT_SETTINGS.idleTimeoutMinutes).toBe(10);
+    // Off: it fires on every focus loss, which is a password prompt per alt-tab. Offered, not
+    // imposed — the idle timeout already covers walking away from the machine.
+    expect(DEFAULT_SETTINGS.lockOnBrowserBlur).toBe(false);
+  });
+
   it('round-trips', async () => {
     const settings = { ...DEFAULT_SETTINGS, theme: 'dark' as const, idleTimeoutMinutes: 30 };
     await writeSettings(settings);

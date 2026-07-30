@@ -227,12 +227,19 @@ describe('listeners registered during initial evaluation', () => {
   it('locks on blur only once the setting is on', async () => {
     await mock.sendMessage({ type: 'UNLOCK', password: PASSWORD });
 
+    // Default is off, so losing focus changes nothing. Give the handler a turn to prove it.
     mock.triggerFocusChanged(chrome.windows.WINDOW_ID_NONE);
-    // Nothing should happen; give the handler a turn to prove it.
     await Promise.resolve();
     expect(mock.storage.session.snapshot()['vm.session']).toBeDefined();
 
     await mock.sendMessage({ type: 'SET_SETTINGS', settings: { lockOnBrowserBlur: true } });
+
+    // Even switched on, focus moving to another Chrome *window* must not lock, or every
+    // open-in-incognito would lock the vault behind it.
+    mock.triggerFocusChanged(7);
+    await Promise.resolve();
+    expect(mock.storage.session.snapshot()['vm.session']).toBeDefined();
+
     mock.triggerFocusChanged(chrome.windows.WINDOW_ID_NONE);
     await vi.waitFor(() => {
       expect(mock.storage.session.snapshot()).toEqual({});

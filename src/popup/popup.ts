@@ -28,7 +28,7 @@ import {
   type LockReason,
   type StateResponse,
 } from '../shared/messages.js';
-import { applyTheme, h, msg, qs, render } from '../ui/dom.js';
+import { applyTheme, h, matchesPhrase, msg, qs, render } from '../ui/dom.js';
 import { IDLE_TIMEOUT_CHOICES, IDLE_TIMEOUT_NEVER, type VaultSettings } from '../vault/types.js';
 
 const root = qs(document, '#vm-root');
@@ -107,6 +107,9 @@ function createScreen(): HTMLElement {
   const weak = h('p', { class: 'vm-notice vm-notice--warning', hidden: true });
   const error = alertBox();
   const submit = h('button', { class: 'vm-button', type: 'submit', disabled: true });
+  // A disabled button that will not say why is a dead end: three separate conditions gate it, and
+  // the one that is unmet is not always the one the user is looking at.
+  const blocked = h('p', { class: 'vm-blocked vm-small vm-muted', role: 'status', hidden: true });
 
   /** Set once the user has seen the weak-password warning and chosen to go ahead anyway. */
   let weakAcknowledged = false;
@@ -114,13 +117,31 @@ function createScreen(): HTMLElement {
   /** Guards against a slower earlier `estimateStrength` landing on top of a later result. */
   let latest = 0;
 
+  /**
+   * The first requirement the form is still waiting on, or `null` when it is ready.
+   *
+   * Ordered the way the fields are: naming the phrase while the password is too short would send
+   * someone to fix the thing they already got right.
+   */
+  function unmetRequirement(): string | null {
+    if (passwordLength(password.value) < MIN_PASSWORD_LENGTH) {
+      return msg('createNeedsLength', [String(MIN_PASSWORD_LENGTH)]);
+    }
+    if (password.value !== confirm.value) return msg('createNeedsMatch');
+    if (!matchesPhrase(phrase.value, msg('createConfirmPhrase'))) {
+      return msg('createNeedsPhrase', [msg('createConfirmPhrase')]);
+    }
+    return null;
+  }
+
   function refreshSubmit(): void {
-    const typed = password.value;
-    const matches = typed.length > 0 && typed === confirm.value;
+    const matches = password.value.length > 0 && password.value === confirm.value;
     show(mismatch, confirm.value.length > 0 && !matches ? msg('createPasswordsDiffer') : null);
-    const confirmed =
-      phrase.value.trim().toLocaleLowerCase() === msg('createConfirmPhrase').toLocaleLowerCase();
-    submit.disabled = !(matches && confirmed && passwordLength(typed) >= MIN_PASSWORD_LENGTH);
+
+    const unmet = unmetRequirement();
+    submit.disabled = unmet !== null;
+    // Nothing to say before the user has typed anything: the form is not "blocked" yet, it is empty.
+    show(blocked, password.value.length > 0 ? unmet : null);
     submit.textContent = msg(weakAcknowledged ? 'createButtonAnyway' : 'createButton');
   }
 
@@ -206,6 +227,7 @@ function createScreen(): HTMLElement {
     weak,
     error,
     submit,
+    blocked,
   );
 }
 
@@ -320,6 +342,9 @@ function unlockedScreen(state: StateResponse): HTMLElement {
       blurToggle,
       h('label', { for: 'vm-lock-on-blur' }, msg('settingsLockOnBlur')),
     ),
+    // The label alone reads as "when Chrome closes" to anyone who has not tried it, and the two
+    // behaviours are nothing alike — so the toggle explains itself rather than being discovered.
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('settingsLockOnBlurHint')),
     h('a', { class: 'vm-link', href: '/manager.html', target: '_blank' }, msg('popupOpenManager')),
   );
 }

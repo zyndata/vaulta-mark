@@ -106,6 +106,30 @@
     "message": "Create vault anyway",
     "description": "Submit button after the weak-password warning has been shown."
   },
+  "createNeedsLength": {
+    "message": "Still needed: a password of at least $MINIMUM$ characters.",
+    "description": "Shown under the disabled create button when the password is too short.",
+    "placeholders": {
+      "minimum": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "createNeedsMatch": {
+    "message": "Still needed: the two passwords have to match.",
+    "description": "Shown under the disabled create button when the confirmation differs."
+  },
+  "createNeedsPhrase": {
+    "message": "Still needed: type “$PHRASE$” in the box above.",
+    "description": "Shown under the disabled create button when the typed confirmation is missing.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "I understand"
+      }
+    }
+  },
 
   "strength0": {
     "message": "Very weak",
@@ -185,7 +209,7 @@
     "description": "Shown on the unlock screen after a system-idle lock."
   },
   "lockedBlur": {
-    "message": "The vault locked itself when you left Chrome.",
+    "message": "The vault locked itself when you switched away from Chrome.",
     "description": "Shown on the unlock screen after a lock-on-blur lock."
   },
 
@@ -231,8 +255,12 @@
     "description": "The idle-timeout choice that disables auto-locking."
   },
   "settingsLockOnBlur": {
-    "message": "Lock when I leave Chrome",
-    "description": "Label for the lock-on-browser-blur toggle."
+    "message": "Lock when I switch to another app",
+    "description": "Label for the lock-on-browser-blur toggle. Must not read as 'when Chrome closes' — it fires on focus loss, which is a very different promise."
+  },
+  "settingsLockOnBlurHint": {
+    "message": "Locks the moment Chrome loses focus, so you re-enter your password on every switch back. Moving between Chrome windows does not lock.",
+    "description": "Explanation under the lock-on-browser-blur toggle."
   },
 
   "errorWrongPassword": {

@@ -14,6 +14,7 @@ import {
   createStore,
   h,
   localize,
+  matchesPhrase,
   msg,
   qs,
   render,
@@ -103,6 +104,28 @@ describe('msg and localize', () => {
     // The mock returns the key, which makes a missing string obvious.
     expect(document.body.querySelector('[data-i18n]')?.textContent).toBe('popupLoading');
     expect(document.body.querySelector('.untouched')?.textContent).toBe('literal');
+  });
+});
+
+describe('matchesPhrase', () => {
+  const EXPECTED = 'I understand';
+
+  it('ignores case, so a typed confirmation is not a spelling test', () => {
+    for (const typed of ['I understand', 'i understand', 'I UNDERSTAND', 'i UnDeRsTaNd']) {
+      expect(matchesPhrase(typed, EXPECTED)).toBe(true);
+    }
+  });
+
+  it('ignores surrounding and doubled whitespace', () => {
+    for (const typed of ['  I understand  ', 'I  understand', '\tI understand\n']) {
+      expect(matchesPhrase(typed, EXPECTED)).toBe(true);
+    }
+  });
+
+  it('still requires the phrase — this is the no-recovery gate, not a formality', () => {
+    for (const typed of ['', 'I understan', 'understand', 'I understand!', 'rozumiem']) {
+      expect(matchesPhrase(typed, EXPECTED)).toBe(false);
+    }
   });
 });
 

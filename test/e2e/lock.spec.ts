@@ -63,13 +63,21 @@ test('creates, unlocks, auto-locks and panic-locks a vault', async () => {
   const create = page.getByRole('button', { name: 'Create vault' });
   await expect(create).toBeDisabled();
 
+  // A password below the ten-character floor keeps the button disabled — and says so, because a
+  // dead button that will not explain itself is how someone concludes the extension is broken.
+  await page.getByLabel('Master password').fill('short');
+  await expect(page.getByText(/Still needed: a password of at least 10/)).toBeVisible();
+  await expect(create).toBeDisabled();
+
   // The no-recovery warning is a typed confirmation, not a checkbox: matching passwords alone
   // must not be enough to create a vault.
   await page.getByLabel('Master password').fill(PASSWORD);
   await page.getByLabel('Repeat the password').fill(PASSWORD);
   await expect(create).toBeDisabled();
 
-  await page.getByLabel('Type the phrase to confirm').fill(CONFIRM_PHRASE);
+  // Typed case-insensitively, with sloppy whitespace: the gate is "did you read it", not "can you
+  // reproduce a string exactly".
+  await page.getByLabel('Type the phrase to confirm').fill(`  ${CONFIRM_PHRASE.toLowerCase()} `);
   await expect(create).toBeEnabled();
 
   await create.click();

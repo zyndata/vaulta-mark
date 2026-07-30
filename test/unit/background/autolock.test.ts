@@ -110,7 +110,11 @@ describe('lock policy', () => {
     // Focus moving to another Chrome window must not lock, or every "open in incognito" would
     // lock the vault behind it.
     expect(locksOnBlur(7, on)).toBe(false);
-    expect(locksOnBlur(chrome.windows.WINDOW_ID_NONE, settings())).toBe(false);
+    // Spelled out rather than relying on the default, which is now `true` — the assertion is about
+    // the setting being honoured, not about what it happens to be set to.
+    expect(locksOnBlur(chrome.windows.WINDOW_ID_NONE, settings({ lockOnBrowserBlur: false }))).toBe(
+      false,
+    );
   });
 
   it('locks on system idle and on a screen lock, but not on becoming active', () => {
