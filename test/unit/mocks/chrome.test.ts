@@ -161,4 +161,53 @@ describe('chrome runtime, alarms and windows mocks', () => {
       true,
     );
   });
+
+  it('records tab creation', async () => {
+    const mock = createChromeMock();
+    await mock.chrome.tabs.create({ url: 'chrome-extension://x/manager.html' });
+    expect(mock.createdTabs).toEqual([{ url: 'chrome-extension://x/manager.html' }]);
+  });
+
+  it('fires keyboard commands and focus changes', () => {
+    const mock = createChromeMock();
+    const commands: string[] = [];
+    const focus: number[] = [];
+    mock.chrome.commands.onCommand.addListener((name) => commands.push(name));
+    mock.chrome.windows.onFocusChanged.addListener((id) => focus.push(id));
+    mock.triggerCommand('panic-lock');
+    mock.triggerFocusChanged(mock.chrome.windows.WINDOW_ID_NONE);
+    expect(commands).toEqual(['panic-lock']);
+    expect(focus).toEqual([-1]);
+  });
+
+  it('omits chrome.idle until the optional permission is granted, as Chrome does', () => {
+    const withoutIdle = createChromeMock();
+    // The namespace is genuinely absent, which is what src/background/autolock.ts checks for.
+    expect((withoutIdle.chrome as { idle?: unknown }).idle).toBeUndefined();
+    expect(() => {
+      withoutIdle.triggerIdleState('idle');
+    }).toThrow(/optional "idle" permission/);
+
+    const withIdle = createChromeMock({ grantedPermissions: ['idle'] });
+    const states: string[] = [];
+    withIdle.chrome.idle.onStateChanged.addListener((state) => states.push(state));
+    withIdle.chrome.idle.setDetectionInterval(600);
+    withIdle.triggerIdleState('locked');
+    expect(states).toEqual(['locked']);
+    expect(withIdle.idleDetectionInterval()).toBe(600);
+  });
+
+  it('lets a test observe what the worker broadcast', async () => {
+    const mock = createChromeMock();
+    const seen = mock.observeMessages();
+    await mock.chrome.runtime.sendMessage({ type: 'SESSION_LOCKED', reason: 'panic' });
+    expect(seen).toEqual([{ type: 'SESSION_LOCKED', reason: 'panic' }]);
+  });
+
+  it('records the session area access level', async () => {
+    const mock = createChromeMock();
+    expect(mock.storage.session.accessLevel).toBeUndefined();
+    await mock.chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+    expect(mock.storage.session.accessLevel).toBe('TRUSTED_CONTEXTS');
+  });
 });

@@ -264,8 +264,26 @@ export interface ChromeMock {
   triggerStartup(): void;
   /** Fire `chrome.alarms.onAlarm` for one armed alarm. */
   triggerAlarm(name: string): void;
+  /** Fire `chrome.commands.onCommand`, as a keyboard shortcut does. */
+  triggerCommand(name: string): void;
+  /** Fire `chrome.windows.onFocusChanged`. Pass `WINDOW_ID_NONE` (-1) for "Chrome lost focus". */
+  triggerFocusChanged(windowId: number): void;
+  /**
+   * Fire `chrome.idle.onStateChanged`. Throws when the optional `idle` permission is not granted,
+   * because Chrome does not expose `chrome.idle` at all in that case.
+   */
+  triggerIdleState(state: 'active' | 'idle' | 'locked'): void;
+  /** Tabs created via `chrome.tabs.create`, in order. */
+  readonly createdTabs: { url?: string }[];
+  /** `chrome.idle.setDetectionInterval`'s last argument, or `undefined` if never called. */
+  idleDetectionInterval(): number | undefined;
   /** Send a message the way a popup would, resolving with the first response given. */
   sendMessage(message: unknown): Promise<unknown>;
+  /**
+   * Register an extra `onMessage` listener, the way an open extension page does. Returns the
+   * messages it received — which is how a test observes a broadcast from the service worker.
+   */
+  observeMessages(): unknown[];
 }
 
 export interface ChromeMockOptions {
@@ -311,12 +329,16 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   type InstalledListener = (details: { reason: string }) => void;
   type StartupListener = () => void;
   type FocusListener = (windowId: number) => void;
+  type CommandListener = (name: string) => void;
+  type IdleListener = (state: 'active' | 'idle' | 'locked') => void;
 
   const onMessage = new Event<MessageListener>();
   const onInstalled = new Event<InstalledListener>();
   const onStartup = new Event<StartupListener>();
   const onAlarm = new Event<AlarmListener>();
   const onFocusChanged = new Event<FocusListener>();
+  const onCommand = new Event<CommandListener>();
+  const onIdleStateChanged = new Event<IdleListener>();
 
   const grantedPermissions = new Set<string>([
     'storage',
@@ -329,7 +351,9 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   ]);
 
   const createdWindows: { url?: string | string[]; incognito?: boolean }[] = [];
+  const createdTabs: { url?: string }[] = [];
   const alarms = new Map<string, { periodInMinutes?: number; scheduledTime: number }>();
+  let idleDetectionInterval: number | undefined;
 
   const sendMessage = (message: unknown): Promise<unknown> =>
     new Promise((resolve) => {
@@ -399,6 +423,30 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
       remove: () => Promise.resolve(),
       onFocusChanged,
     },
+    tabs: {
+      create: (options_: { url?: string }) => {
+        createdTabs.push(options_);
+        return Promise.resolve({ id: createdTabs.length, url: options_.url });
+      },
+      remove: () => Promise.resolve(),
+    },
+    commands: {
+      getAll: () => Promise.resolve([]),
+      onCommand,
+    },
+    // Present only when the optional `idle` permission has been granted (D26), because that is how
+    // Chrome behaves: the namespace is simply absent, which is what `autolock.ts` checks for.
+    ...(grantedPermissions.has('idle')
+      ? {
+          idle: {
+            queryState: () => Promise.resolve('active' as const),
+            setDetectionInterval: (seconds: number) => {
+              idleDetectionInterval = seconds;
+            },
+            onStateChanged: onIdleStateChanged,
+          },
+        }
+      : {}),
     permissions: {
       contains: (request: { permissions?: string[]; origins?: string[] }) =>
         Promise.resolve((request.permissions ?? []).every((name) => grantedPermissions.has(name))),
@@ -429,6 +477,7 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     storage: { local, sync, session },
     grantedPermissions,
     createdWindows,
+    createdTabs,
     alarms,
     triggerInstalled: (reason = 'install') => {
       for (const listener of onInstalled.listeners) listener({ reason });
@@ -442,7 +491,28 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
       for (const listener of onAlarm.listeners)
         listener({ name, scheduledTime: alarm.scheduledTime });
     },
+    triggerCommand: (name) => {
+      for (const listener of onCommand.listeners) listener(name);
+    },
+    triggerFocusChanged: (windowId) => {
+      for (const listener of onFocusChanged.listeners) listener(windowId);
+    },
+    triggerIdleState: (state) => {
+      if (!grantedPermissions.has('idle')) {
+        throw new Error('chrome.idle needs the optional "idle" permission');
+      }
+      for (const listener of onIdleStateChanged.listeners) listener(state);
+    },
+    idleDetectionInterval: () => idleDetectionInterval,
     sendMessage,
+    observeMessages: () => {
+      const received: unknown[] = [];
+      onMessage.addListener((message) => {
+        received.push(message);
+        return undefined;
+      });
+      return received;
+    },
   };
 }
 
