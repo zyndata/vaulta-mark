@@ -123,6 +123,12 @@ describe('letterAvatar', () => {
 });
 
 describe('faviconImage', () => {
+  it('loads lazily, which is what lets the popup list be unbounded', () => {
+    // Building a thousand rows is cheap; asking for a thousand favicons at once is not. Drop this
+    // and the row cap has to come back.
+    expect(faviconImage('https://example.com/a').loading).toBe('lazy');
+  });
+
   it('points at _favicon/ and swaps itself for the avatar when it fails', () => {
     const img = faviconImage('https://example.com/a');
     expect(img.src).toContain('/_favicon/');

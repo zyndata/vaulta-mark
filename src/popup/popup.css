@@ -1,7 +1,12 @@
 /* Popup layout only. Tokens and shared components live in src/ui/styles.css. */
 
+/*
+ * Chrome clamps a popup at 800×600 px and will not scroll it for us beyond that, so the width and
+ * the list's height are chosen to leave headroom: 24rem (384 px) wide, and a list that stops at
+ * 22rem so the whole popup lands near 580 px with the settings folded away.
+ */
 body.vm-popup {
-  width: 20rem;
+  width: 24rem;
   padding: 0.875rem 1rem 1rem;
 }
 
@@ -83,10 +88,11 @@ body.vm-popup {
   margin-bottom: 0.625rem;
 }
 
-/* A popup is at most 600 px tall and Chrome will not scroll it for us, so the list is the part
-   that scrolls and everything else stays reachable. */
+/* The list is the part that scrolls, so the add button, the filter and the footer stay reachable
+   however many bookmarks are in the vault. There is no row cap behind this — favicons load lazily
+   (ui/favicon.ts), so the rows below the fold cost nothing until they are scrolled to. */
 .vm-list {
-  max-height: 17rem;
+  max-height: 22rem;
   margin: 0;
   padding: 0;
   overflow-y: auto;

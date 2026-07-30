@@ -19,8 +19,9 @@ below.
   menu, **Add link to VaultaMark** on a link you have not opened, and
   <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>. The keyboard shortcut and the right-click menu have
   no window to answer in, so they report on the toolbar button itself — a tick, or a reason.
-- **The popup is the vault**: your most recent bookmarks, a filter box that searches the whole vault
-  rather than just what is on screen, a favicon and a host on every row, and one click to open.
+- **The popup is the vault**: every bookmark you have, newest first, in a list that scrolls — no
+  "showing 20 of 143" between you and your own collection. A filter box that searches the whole
+  vault rather than just what is on screen, a favicon and a host on every row, and one click to open.
   Deleting shows an **Undo** for eight seconds, and undo brings back the same bookmark rather than
   making a second copy of it — which matters once your other computers are involved.
 - **Bookmarks open in an incognito window**, which is the point of the whole thing: the address never

@@ -103,6 +103,12 @@ export function letterAvatar(pageUrl: string): HTMLElement {
  *
  * `size` is what we ask Chrome for, not what is rendered: the row is 16 px and the request is 32,
  * so a 2× display gets a sharp icon. The rendered size belongs to `.vm-favicon` in `styles.css`.
+ *
+ * **`loading="lazy"` is what lets the list be unbounded.** Building a thousand rows is a few
+ * milliseconds of DOM; asking Chrome's favicon service for a thousand icons at once is not. Lazy
+ * loading means only the rows actually on screen cost anything, so the popup does not need a row
+ * cap to open quickly. The icon still comes from Chrome's local cache — laziness changes when we
+ * ask, never who we ask (D28, INV-3).
  */
 export function faviconImage(
   pageUrl: string,
@@ -112,6 +118,7 @@ export function faviconImage(
   img.className = 'vm-favicon';
   img.alt = '';
   img.decoding = 'async';
+  img.loading = 'lazy';
   img.src = faviconUrl(pageUrl, size);
   img.addEventListener('error', () => {
     img.replaceWith(letterAvatar(pageUrl));

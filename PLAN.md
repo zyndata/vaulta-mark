@@ -797,7 +797,9 @@ service-worker behaviour. First point at which a human can meaningfully click so
     afterwards" checkbox that queues a Phase-9 cleanup for that domain
 - `src/ui/favicon.ts` — `faviconUrl(pageUrl, size)` → `chrome.runtime.getURL('/_favicon/?pageUrl=…&size=32')`;
   `onerror` → an inline SVG letter-avatar derived from the host (no network, no third party).
-- Popup list UI: recent items (default 20), instant filter box, per-row favicon + title + host,
+- Popup list UI: recent items (no row cap — favicons load lazily, so the list scrolls the whole
+  vault instead of trimming it; `limit` stays in the protocol for Phase 6's virtualized list),
+  instant filter box, per-row favicon + title + host,
   open (click / Enter), delete (with undo toast, 8 s), "Open manager" link.
 - Empty, locked, error, and "no incognito access" states all designed, not left to chance.
 

@@ -32,8 +32,17 @@ import {
 } from './incognito.js';
 import * as session from './session.js';
 
-/** How many rows the popup shows before the list is trimmed. */
-export const DEFAULT_LIST_LIMIT = 20;
+/**
+ * There is deliberately **no** default row cap.
+ *
+ * The one that used to be here existed because a thousand rows means a thousand favicon requests,
+ * not because a thousand rows are expensive to build. `ui/favicon.ts` loads icons lazily now, so
+ * only the visible ones cost anything and the cap was buying nothing but a "showing 20 of 143" line
+ * in front of the user's own bookmarks.
+ *
+ * `limit` stays in the protocol: Phase 6's virtualized list will ask for windows of the vault, and
+ * a caller that wants a bounded answer should be able to say so.
+ */
 
 export interface ListOptions {
   readonly query?: string;
@@ -93,7 +102,6 @@ async function announce(result: AddResult): Promise<void> {
 export async function list(options: ListOptions = {}): Promise<ListResult> {
   const repo = await requireVault();
   await session.touch();
-  const limit = options.limit ?? DEFAULT_LIST_LIMIT;
   const query = options.query?.trim() ?? '';
 
   // `getAll` drops tombstones and `search` drops both tombstones and folders, so the only filter
@@ -103,7 +111,8 @@ export async function list(options: ListOptions = {}): Promise<ListResult> {
       ? repo.getAll().filter(isBookmark).sort(newestFirst)
       : repo.search(query).map((hit) => hit.item).filter(isBookmark);
 
-  return { items: matches.slice(0, limit).map(summarize), total: matches.length };
+  const limited = options.limit === undefined ? matches : matches.slice(0, options.limit);
+  return { items: limited.map(summarize), total: matches.length };
 }
 
 function newestFirst(a: Bookmark, b: Bookmark): number {

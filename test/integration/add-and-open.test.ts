@@ -141,11 +141,23 @@ describe('the list', () => {
     expect(await listItems('nothing here')).toEqual([]);
   });
 
-  it('trims to the limit and says how many matched', async () => {
+  it('trims to a limit the caller asked for, and says how many matched', async () => {
     const response = await send({ type: 'LIST_ITEMS', limit: 1 });
     expect(response['items']).toHaveLength(1);
     expect(response['total']).toBe(2);
   });
+
+  it('returns everything when no limit is asked for', async () => {
+    // There is no default row cap: the popup shows the whole vault and scrolls it, because favicons
+    // load lazily and rows below the fold cost nothing. A cap here would put a "showing 20 of 143"
+    // line between someone and their own bookmarks for no benefit.
+    for (let i = 0; i < 60; i++) {
+      await send({ type: 'ADD_URL', url: `https://example.com/page-${i}`, title: `Page ${i}` });
+    }
+    const response = await send({ type: 'LIST_ITEMS' });
+    expect(response['items']).toHaveLength(62);
+    expect(response['total']).toBe(62);
+  }, 30_000);
 });
 
 describe('delete and undo', () => {
