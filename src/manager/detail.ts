@@ -68,7 +68,6 @@ export function detailPane(deps: DetailDeps): HTMLElement {
   updateCounter();
 
   const tags = tagField(item.tags);
-  const status = h('p', { class: 'vm-small vm-ok', role: 'status' });
   const save = h('button', { class: 'vm-button', type: 'submit' }, msg('detailSave'));
 
   const form = h(
@@ -79,8 +78,10 @@ export function detailPane(deps: DetailDeps): HTMLElement {
         event.preventDefault();
         void (async () => {
           save.disabled = true;
-          status.textContent = '';
           const next = tags.value();
+          // The outcome is reported through the page's live region, not from here: a successful
+          // save reloads the vault, and reloading rebuilds this pane — so anything written to an
+          // element inside it lands on a node that has already been replaced.
           await deps.save({
             title: title.value,
             ...(isFolder ? {} : { url: url.value }),
@@ -88,7 +89,6 @@ export function detailPane(deps: DetailDeps): HTMLElement {
             tags: next.length === 0 ? null : next,
           });
           save.disabled = false;
-          status.textContent = msg('detailSaved');
         })();
       },
     },
@@ -97,7 +97,6 @@ export function detailPane(deps: DetailDeps): HTMLElement {
     isFolder ? null : field('detailFieldTags', tags.element),
     isFolder ? null : field('detailFieldNote', note, counter),
     save,
-    status,
   );
 
   render(

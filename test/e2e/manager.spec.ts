@@ -182,10 +182,11 @@ test('creates a folder, tags an item, finds it, bulk-moves it, and undoes a dele
   await expect(row(page, 'Overnight bread')).toBeVisible();
 
   // ---------------------------------------------------------------- nothing failed quietly
-  // The status area is where a failed operation lands, and it persists. Asserting it is empty is
-  // what turns "the move silently did nothing" into a failure that names itself — which is how the
-  // debounce bug that dropped the selection out from under a bulk move was found.
-  await expect(page.locator('#vm-status')).toBeEmpty();
+  // Errors land in the live region and stay there (confirmations clear themselves). Asserting no
+  // error is showing is what turns "the move silently did nothing" into a failure that names
+  // itself — which is how the debounce bug that dropped the selection out from under a bulk move
+  // was found.
+  await expect(page.locator('#vm-status .vm-notice--danger')).toHaveCount(0);
 
   // ---------------------------------------------------------------- INV-4
   // Three bookmarks, a folder tree, favicons and a search, and not one request.

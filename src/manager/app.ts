@@ -14,6 +14,7 @@
 import {
   onBroadcast,
   send,
+  type ErrorCode,
   type ItemDetail,
   type ListRow,
   type StateResponse,
@@ -44,6 +45,9 @@ const SEARCH_DEBOUNCE_MS = 120;
 
 /** How long the undo offer stays up after a delete, matching the popup. */
 const UNDO_MS = 8_000;
+
+/** How long a confirmation sits in the live region before it clears itself. */
+const STATUS_MS = 6_000;
 
 export function mountManager(root: HTMLElement, initial: StateResponse): void {
   const state: ManagerState = initialState();
@@ -310,8 +314,41 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     return msg('listEmptyVault');
   }
 
-  function say(text: string): void {
-    render(status, h('p', { class: 'vm-notice', role: 'status' }, text));
+  /**
+   * The page's live region: what just happened, or what just failed.
+   *
+   * It lives outside every pane on purpose. A confirmation shown inside the detail pane is written
+   * to an element that the reload triggered by the very action being confirmed has already
+   * replaced — so it never appears. This one survives, because nothing else rebuilds it.
+   *
+   * A confirmation clears itself; an error does not. "Renamed on 12 bookmarks" is worth a moment
+   * and then noise, while "that change was refused" should still be there when the user looks up
+   * from the thing that failed.
+   */
+  let statusTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function say(text: string, kind: 'info' | 'danger' = 'info'): void {
+    if (statusTimer !== null) clearTimeout(statusTimer);
+    render(
+      status,
+      h(
+        'p',
+        {
+          class: `vm-notice${kind === 'danger' ? ' vm-notice--danger' : ''}`,
+          role: kind === 'danger' ? 'alert' : 'status',
+        },
+        text,
+      ),
+    );
+    if (kind === 'danger') return;
+    statusTimer = setTimeout(() => {
+      statusTimer = null;
+      render(status);
+    }, STATUS_MS);
+  }
+
+  function warn(code: ErrorCode): void {
+    say(errorText(code), 'danger');
   }
 
   /* ---------------------------------------------------------------- loading */
@@ -392,7 +429,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   async function openItem(id: string): Promise<void> {
     const response = await send({ type: 'OPEN_ITEM', id });
     if (response.type === 'ERROR') {
-      say(errorText(response.code));
+      warn(response.code);
       return;
     }
     if (response.status === 'needs-incognito-access') {
@@ -421,10 +458,11 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       },
     });
     if (response.type === 'ERROR') {
-      say(errorText(response.code));
+      warn(response.code);
       return;
     }
     await reloadAll();
+    say(msg('detailSaved'));
   }
 
   async function createFolder(): Promise<void> {
@@ -440,7 +478,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       title,
       ...(parentId === ROOT_ID ? {} : { parentId }),
     });
-    if (response.type === 'ERROR') say(errorText(response.code));
+    if (response.type === 'ERROR') warn(response.code);
     await reloadAll();
   }
 
@@ -453,7 +491,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     });
     if (title === null) return;
     const response = await send({ type: 'UPDATE_ITEM', id: item.id, patch: { title } });
-    if (response.type === 'ERROR') say(errorText(response.code));
+    if (response.type === 'ERROR') warn(response.code);
     await reloadAll();
   }
 
@@ -476,7 +514,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     if (mode === null) return;
 
     const response = await send({ type: 'DELETE_FOLDER', id: item.id, mode });
-    if (response.type === 'ERROR') say(errorText(response.code));
+    if (response.type === 'ERROR') warn(response.code);
     // Standing inside a folder that no longer exists would leave the list permanently empty.
     if (state.scope.kind === 'folder' && state.scope.folderId === item.id) {
       state.scope = { kind: 'folder', folderId: ROOT_ID };
@@ -507,7 +545,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       ids: [...state.selection],
       parentId,
     });
-    if (response.type === 'ERROR') say(errorText(response.code));
+    if (response.type === 'ERROR') warn(response.code);
     await reloadAll();
   }
 
@@ -535,7 +573,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       add: chosenTags.add,
       remove: chosenTags.remove,
     });
-    if (response.type === 'ERROR') say(errorText(response.code));
+    if (response.type === 'ERROR') warn(response.code);
     await reloadAll();
   }
 
@@ -549,7 +587,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     });
     if (to === null) return;
     const response = await send({ type: 'RENAME_TAG', from: tag, to });
-    if (response.type === 'ERROR') say(errorText(response.code));
+    if (response.type === 'ERROR') warn(response.code);
     else say(msg('tagRenamed', [String(response.count)]));
     await reloadAll();
   }
@@ -560,7 +598,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     if (ids.length === 0) return;
     const response = await send({ type: 'DELETE_ITEMS', ids });
     if (response.type === 'ERROR') {
-      say(errorText(response.code));
+      warn(response.code);
       return;
     }
     state.selection.clear();
@@ -579,7 +617,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
             void (async () => {
               render(toastSlot);
               const undone = await send({ type: 'RESTORE_ITEMS', ids });
-              if (undone.type === 'ERROR') say(errorText(undone.code));
+              if (undone.type === 'ERROR') warn(undone.code);
               await reloadAll();
             })();
           },
