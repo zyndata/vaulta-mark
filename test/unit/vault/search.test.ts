@@ -4,6 +4,9 @@ import { addItem, deleteItem, toItemMap, type MutationContext } from '../../../s
 import {
   buildSearchIndex,
   foldText,
+  foldWithMap,
+  isEmptyQuery,
+  matchRanges,
   parseQuery,
   search,
   tokenize,
@@ -100,16 +103,53 @@ describe('tokenize', () => {
   });
 });
 
+const EMPTY_QUERY = { terms: [], tags: [], folders: [], hosts: [], fields: [] };
+
 describe('parseQuery', () => {
   it('lifts tag filters out and folds the remaining terms', () => {
     expect(parseQuery('  Padding tag:Crypto oracle ')).toEqual({
+      ...EMPTY_QUERY,
       terms: ['padding', 'oracle'],
       tags: ['crypto'],
     });
   });
 
   it('returns nothing for an empty query', () => {
-    expect(parseQuery('   ')).toEqual({ terms: [], tags: [] });
+    expect(parseQuery('   ')).toEqual(EMPTY_QUERY);
+  });
+
+  it('lifts folder:, host: and in: as well', () => {
+    expect(parseQuery('report folder:Work host:Example.COM in:note')).toEqual({
+      terms: ['report'],
+      tags: [],
+      folders: ['work'],
+      hosts: ['example.com'],
+      fields: ['note'],
+    });
+  });
+
+  it('accepts several in: fields and never repeats one', () => {
+    expect(parseQuery('x in:note in:title in:note').fields).toEqual(['note', 'title']);
+  });
+
+  it('treats an unknown in: field as an ordinary term', () => {
+    // The alternative — an empty restriction — would make `in:noets` match every field, which is
+    // the one behaviour that hides the typo instead of showing it.
+    expect(parseQuery('in:noets')).toEqual({ ...EMPTY_QUERY, terms: ['in:noets'] });
+  });
+
+  it('leaves a bare prefix with no value as a term', () => {
+    expect(parseQuery('tag:')).toEqual({ ...EMPTY_QUERY, terms: ['tag:'] });
+  });
+});
+
+describe('isEmptyQuery', () => {
+  it('is true only when nothing at all was asked for', () => {
+    expect(isEmptyQuery(parseQuery('   '))).toBe(true);
+    expect(isEmptyQuery(parseQuery('in:note'))).toBe(true);
+    expect(isEmptyQuery(parseQuery('tag:dev'))).toBe(false);
+    expect(isEmptyQuery(parseQuery('folder:work'))).toBe(false);
+    expect(isEmptyQuery(parseQuery('host:example.com'))).toBe(false);
   });
 });
 
@@ -215,13 +255,128 @@ describe('search', () => {
     expect(ids(search(buildSearchIndex(items.values()), 'url at all'))).toEqual(['weird']);
   });
 
+  it('filters on folder: by the name of any ancestor', () => {
+    expect(ids(search(index, 'folder:work'))).toEqual(['b4']);
+    // A fragment is enough, like every other match in this file.
+    expect(ids(search(index, 'folder:wor'))).toEqual(['b4']);
+    expect(ids(search(index, 'folder:archive'))).toEqual([]);
+    // Combined with a term, it narrows rather than replaces.
+    expect(ids(search(index, 'folder:work planning'))).toEqual(['b4']);
+    expect(ids(search(index, 'folder:work github'))).toEqual([]);
+  });
+
+  it('matches folder: through a grandparent, not only the direct parent', () => {
+    let items = seededVault();
+    const context = ctx('nested');
+    items = addItem(
+      items,
+      { type: 'folder', title: 'Roadmaps', id: 'sub', parentId: FOLDER_ID },
+      context,
+    ).items;
+    items = addItem(
+      items,
+      { type: 'bookmark', id: 'deep', title: 'Deep', url: 'https://example.com/deep', parentId: 'sub' },
+      context,
+    ).items;
+    expect(ids(search(buildSearchIndex(items.values()), 'folder:work deep'))).toEqual(['deep']);
+  });
+
+  it('filters on host:, including the www. a search term would not see', () => {
+    expect(ids(search(index, 'host:github.com'))).toEqual(['b1']);
+    expect(ids(search(index, 'host:example'))).toHaveLength(3);
+    expect(ids(search(index, 'host:nope.invalid'))).toEqual([]);
+
+    const items = addItem(
+      seededVault(),
+      { type: 'bookmark', id: 'w', title: 'With www', url: 'https://www.example.io/a' },
+      ctx('www'),
+    ).items;
+    // `searchableUrl` drops `www.` so it is not noise in every term match; `host:` keeps it, so
+    // someone who types the host they see in the address bar finds the bookmark.
+    expect(ids(search(buildSearchIndex(items.values()), 'host:www.example.io'))).toEqual(['w']);
+  });
+
+  it('restricts terms to the fields named by in:', () => {
+    // "section" is in b2's note only, "padding" is in its title and its URL.
+    expect(ids(search(index, 'in:note section'))).toEqual(['b2']);
+    expect(ids(search(index, 'in:note padding'))).toEqual([]);
+    expect(ids(search(index, 'in:title padding'))).toEqual(['b2']);
+    expect(ids(search(index, 'in:url explore'))).toEqual(['b1']);
+    expect(ids(search(index, 'in:tags papers'))).toEqual(['b2']);
+    // Two fields widen the restriction rather than intersecting it.
+    expect(ids(search(index, 'in:note in:title section'))).toEqual(['b2']);
+  });
+
+  it('returns a filter-only query as results rather than as nothing', () => {
+    expect(ids(search(index, 'host:github.com')).length).toBeGreaterThan(0);
+    // …but `in:` on its own restricts nothing that was asked for, so it stays empty.
+    expect(search(index, 'in:note')).toEqual([]);
+  });
+
   it('does not loop on a parent cycle when scoping', () => {
     const items = new Map(seededVault());
     const folder = items.get(FOLDER_ID)!;
     items.set(FOLDER_ID, { ...folder, parentId: 'b4' });
-    expect(() =>
-      search(buildSearchIndex(items.values()), 'planning', { folderId: 'b4' }),
-    ).not.toThrow();
+    const cyclic = buildSearchIndex(items.values());
+    expect(() => search(cyclic, 'planning', { folderId: 'b4' })).not.toThrow();
+    expect(() => search(cyclic, 'folder:work')).not.toThrow();
+  });
+
+  it('accepts an already-parsed query, so a caller can parse once and search many times', () => {
+    expect(ids(search(index, parseQuery('padding')))).toEqual(['b2']);
+  });
+});
+
+describe('foldWithMap', () => {
+  it('folds like foldText and maps every folded character back to its source', () => {
+    const { folded, map } = foldWithMap('Café');
+    expect(folded).toBe(foldText('Café'));
+    expect(folded).toBe('cafe');
+    expect(map).toEqual([0, 1, 2, 3]);
+  });
+
+  it('handles a folding that grows and one that shrinks', () => {
+    // "ﬁ" is one code point that folds to two characters; both point back at it.
+    expect(foldWithMap('ﬁx')).toEqual({ folded: 'fix', map: [0, 0, 1] });
+    // A combining mark folds away entirely and contributes no folded character.
+    expect(foldWithMap('éx')).toEqual({ folded: 'ex', map: [0, 2] });
+  });
+
+  it('advances by the two UTF-16 units a surrogate pair occupies', () => {
+    // The emoji is one code point that folds to a two-unit string, so both units point back at
+    // offset 0 — and the character after it starts at 2, which is where `slice` expects it.
+    const { folded, map } = foldWithMap('😀a');
+    expect(folded).toBe('😀a');
+    expect(map).toEqual([0, 0, 2]);
+  });
+});
+
+describe('matchRanges', () => {
+  it('finds every occurrence of every term', () => {
+    expect(matchRanges('padding oracle padding', ['padding'])).toEqual([
+      { start: 0, end: 7 },
+      { start: 15, end: 22 },
+    ]);
+  });
+
+  it('ranges index the original text, not the folded one', () => {
+    // Folding "Café" shortens nothing here, but "Beyoncé" after it would shift by one if the
+    // ranges were measured on the folded string.
+    const text = 'Café Beyoncé';
+    const [range] = matchRanges(text, ['beyonce']);
+    expect(text.slice(range!.start, range!.end)).toBe('Beyoncé');
+  });
+
+  it('merges overlapping and adjacent hits into one highlight', () => {
+    expect(matchRanges('github', ['git', 'github'])).toEqual([{ start: 0, end: 6 }]);
+    expect(matchRanges('aaaa', ['aa'])).toEqual([{ start: 0, end: 4 }]);
+  });
+
+  it('is empty for no terms, empty terms, or empty text', () => {
+    expect(matchRanges('anything', [])).toEqual([]);
+    expect(matchRanges('anything', [''])).toEqual([]);
+    expect(matchRanges('', ['a'])).toEqual([]);
+    expect(matchRanges('anything', ['nothere'])).toEqual([]);
   });
 });
 

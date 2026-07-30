@@ -329,6 +329,106 @@ export function moveItem(
   return { items: withItems(items, [moved]), changed: [moved] };
 }
 
+/* ------------------------------------------------------------------ batch builders */
+
+/**
+ * The mutations that add and remove tags across a selection.
+ *
+ * A *builder* rather than a mutation of its own, because `VaultRepository.apply()` commits a batch
+ * at one `vaultRev` and rolls the whole thing back if any part of it is invalid — so a bulk tag is
+ * atomic for free, and stays one revision for the merge engine to reason about (Phase 7).
+ *
+ * Removals are applied after additions, so a tag named in both is removed: an explicit "take this
+ * off" is a clearer instruction than an implicit "put this on". Items that would not change, and
+ * folders (which have no tags at all), produce no mutation.
+ */
+export function tagMutations(
+  items: ItemMap,
+  ids: Iterable<string>,
+  changes: { readonly add?: readonly string[]; readonly remove?: readonly string[] },
+): Mutation[] {
+  const add = normalizeTags(changes.add ?? []);
+  const remove = new Set(normalizeTags(changes.remove ?? []));
+  if (add.length === 0 && remove.size === 0) return [];
+
+  const mutations: Mutation[] = [];
+  for (const id of new Set(ids)) {
+    const item = items.get(id);
+    if (item === undefined || isDeleted(item) || !isBookmark(item)) continue;
+    const current = tagsOf(item);
+    const next = normalizeTags([...current, ...add]).filter((tag) => !remove.has(tag));
+    if (sameTags(current, next)) continue;
+    mutations.push({ kind: 'update', id, patch: { tags: next.length === 0 ? null : next } });
+  }
+  return mutations;
+}
+
+/**
+ * Rename a tag on every bookmark that carries it.
+ *
+ * The renamed tag keeps its position in each item's list, and folds into an existing occurrence of
+ * the new name rather than appearing twice — renaming `read` to `reading` on an item already tagged
+ * `reading` leaves one tag, not two.
+ */
+export function renameTagMutations(items: ItemMap, from: string, to: string): Mutation[] {
+  const [oldTag] = normalizeTags([from]);
+  const [newTag] = normalizeTags([to]);
+  if (oldTag === undefined || newTag === undefined) {
+    throw new InvalidMutationError('A tag rename needs a non-empty name on both sides.');
+  }
+  if (oldTag === newTag) return [];
+
+  const mutations: Mutation[] = [];
+  for (const item of items.values()) {
+    if (isDeleted(item) || !isBookmark(item)) continue;
+    const current = tagsOf(item);
+    if (!current.includes(oldTag)) continue;
+    const next = normalizeTags(current.map((tag) => (tag === oldTag ? newTag : tag)));
+    mutations.push({ kind: 'update', id: item.id, patch: { tags: next } });
+  }
+  return mutations;
+}
+
+/** What "delete this folder" should do with what is inside it. */
+export type FolderDeleteMode =
+  /** Tombstone the folder and everything under it. */
+  | 'recursive'
+  /** Move the folder's direct children up to its parent, then tombstone the empty folder. */
+  | 'reparent';
+
+/**
+ * The mutations behind deleting a folder.
+ *
+ * The choice is the user's and there is no safe default, so it is a required argument rather than
+ * an option with a fallback: one of the two answers loses a subtree and the other rearranges the
+ * tree, and picking either silently is a way to lose someone's bookmarks.
+ *
+ * `reparent` moves only the *direct* children — everything deeper travels with its own parent.
+ * The moves come first so they still see a live folder to move out of.
+ */
+export function deleteFolderMutations(
+  items: ItemMap,
+  id: string,
+  mode: FolderDeleteMode,
+): Mutation[] {
+  const folder = requireItem(items, id);
+  if (isBookmark(folder)) {
+    throw new InvalidMutationError(`Item ${id} is a bookmark, not a folder.`);
+  }
+  if (mode === 'recursive') return [{ kind: 'delete', id }];
+
+  const moves: Mutation[] = listChildren(items, id).map((child) => ({
+    kind: 'move',
+    id: child.id,
+    parentId: folder.parentId,
+  }));
+  return [...moves, { kind: 'delete', id }];
+}
+
+function sameTags(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((tag, index) => tag === b[index]);
+}
+
 /** Dispatch one mutation. `VaultRepository.apply()` is a fold of this over a batch. */
 export function applyMutation(
   items: ItemMap,

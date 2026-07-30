@@ -7,6 +7,7 @@ import {
   applyMutations,
   canonicalJson,
   countsByFolder,
+  deleteFolderMutations,
   deleteItem,
   descendantsOf,
   duplicateKeyOf,
@@ -16,7 +17,9 @@ import {
   normalizeUrl,
   pathOf,
   purgeTombstones,
+  renameTagMutations,
   restoreItem,
+  tagMutations,
   toItemMap,
   updateItem,
   type MutationContext,
@@ -532,6 +535,171 @@ describe('canonicalJson', () => {
     const alpha = items.get(ids.alpha!)!;
     const reordered = Object.fromEntries(Object.entries(alpha).toReversed());
     expect(canonicalJson(reordered)).toBe(canonicalJson(alpha));
+  });
+});
+
+describe('tagMutations', () => {
+  it('adds a tag to every named bookmark, normalized', () => {
+    const { items, ids } = sampleVault();
+    const mutations = tagMutations(items, [ids.alpha!, ids.loose!], { add: ['  Reading LIST '] });
+    const applied = applyMutations(items, mutations, ctx({}, 'tag'));
+    expect(tagsOf(applied.items.get(ids.alpha!)!)).toEqual(['crypto', 'papers', 'reading list']);
+    expect(tagsOf(applied.items.get(ids.loose!)!)).toEqual(['reading list']);
+  });
+
+  it('removes a tag, and clears the field when the last one goes', () => {
+    const { items, ids } = sampleVault();
+    const mutations = tagMutations(items, [ids.alpha!], { remove: ['Crypto', 'papers'] });
+    const applied = applyMutations(items, mutations, ctx({}, 'tag'));
+    const alpha = applied.items.get(ids.alpha!)! as Bookmark;
+    expect(tagsOf(alpha)).toEqual([]);
+    // Cleared rather than stored as `[]`: an empty array costs real bytes in every bucket.
+    expect('tags' in alpha).toBe(false);
+  });
+
+  it('lets a removal win over an addition of the same tag', () => {
+    const { items, ids } = sampleVault();
+    const mutations = tagMutations(items, [ids.loose!], { add: ['x'], remove: ['x'] });
+    expect(mutations).toEqual([]);
+  });
+
+  it('emits nothing for items that would not change', () => {
+    const { items, ids } = sampleVault();
+    // `alpha` already carries `crypto`; `beta` does not.
+    const mutations = tagMutations(items, [ids.alpha!, ids.beta!], { add: ['crypto'] });
+    expect(mutations).toHaveLength(1);
+    expect(mutations[0]).toMatchObject({ kind: 'update', id: ids.beta });
+  });
+
+  it('skips folders, tombstones, unknown ids and duplicate ids', () => {
+    const { items, ids } = sampleVault();
+    const deleted = deleteItem(items, ids.beta!, ctx({}, 'del')).items;
+    const mutations = tagMutations(
+      deleted,
+      [ids.folder!, ids.beta!, 'nope', ids.loose!, ids.loose!],
+      { add: ['x'] },
+    );
+    expect(mutations).toHaveLength(1);
+    expect(mutations[0]).toMatchObject({ id: ids.loose });
+  });
+
+  it('emits nothing when the change itself is empty', () => {
+    const { items, ids } = sampleVault();
+    expect(tagMutations(items, [ids.alpha!], {})).toEqual([]);
+    expect(tagMutations(items, [ids.alpha!], { add: ['  '], remove: [] })).toEqual([]);
+  });
+});
+
+describe('renameTagMutations', () => {
+  it('renames the tag on every bookmark that carries it, keeping its position', () => {
+    const { items, ids } = sampleVault();
+    const withBoth = applyMutations(
+      items,
+      tagMutations(items, [ids.beta!], { add: ['crypto'] }),
+      ctx({}, 'seed'),
+    ).items;
+
+    const applied = applyMutations(
+      withBoth,
+      renameTagMutations(withBoth, 'Crypto', 'Cryptography'),
+      ctx({}, 'ren'),
+    );
+    expect(tagsOf(applied.items.get(ids.alpha!)!)).toEqual(['cryptography', 'papers']);
+    expect(tagsOf(applied.items.get(ids.beta!)!)).toEqual(['cryptography']);
+  });
+
+  it('folds into an existing occurrence instead of duplicating it', () => {
+    const { items, ids } = sampleVault();
+    const applied = applyMutations(
+      items,
+      renameTagMutations(items, 'crypto', 'papers'),
+      ctx({}, 'ren'),
+    );
+    expect(tagsOf(applied.items.get(ids.alpha!)!)).toEqual(['papers']);
+  });
+
+  it('touches nothing when the tag is unused, or when both names fold to the same tag', () => {
+    const { items } = sampleVault();
+    expect(renameTagMutations(items, 'unused', 'other')).toEqual([]);
+    expect(renameTagMutations(items, 'crypto', ' CRYPTO ')).toEqual([]);
+  });
+
+  it('refuses a rename with an empty side rather than deleting the tag', () => {
+    const { items } = sampleVault();
+    expect(() => renameTagMutations(items, 'crypto', '   ')).toThrow(InvalidMutationError);
+    expect(() => renameTagMutations(items, '', 'crypto')).toThrow(InvalidMutationError);
+  });
+
+  it('leaves tombstoned items alone', () => {
+    const { items, ids } = sampleVault();
+    const deleted = deleteItem(items, ids.alpha!, ctx({}, 'del')).items;
+    expect(renameTagMutations(deleted, 'crypto', 'cryptography')).toEqual([]);
+  });
+});
+
+describe('deleteFolderMutations', () => {
+  it('recursively tombstones the folder and everything under it', () => {
+    const { items, ids } = sampleVault();
+    const applied = applyMutations(
+      items,
+      deleteFolderMutations(items, ids.folder!, 'recursive'),
+      ctx({}, 'del'),
+    );
+    expect(isDeleted(applied.items.get(ids.folder!)!)).toBe(true);
+    expect(isDeleted(applied.items.get(ids.alpha!)!)).toBe(true);
+    expect(isDeleted(applied.items.get(ids.beta!)!)).toBe(true);
+  });
+
+  it('lifts the children to the folder’s parent and deletes only the folder', () => {
+    const { items, ids } = sampleVault();
+    const applied = applyMutations(
+      items,
+      deleteFolderMutations(items, ids.folder!, 'reparent'),
+      ctx({}, 'del'),
+    );
+    expect(isDeleted(applied.items.get(ids.folder!)!)).toBe(true);
+    expect(isDeleted(applied.items.get(ids.alpha!)!)).toBe(false);
+    expect(applied.items.get(ids.alpha!)!.parentId).toBe(ROOT_ID);
+    expect(applied.items.get(ids.beta!)!.parentId).toBe(ROOT_ID);
+  });
+
+  it('reparents into a nested folder’s own parent, not into the root', () => {
+    const { items, ids } = sampleVault();
+    const context = ctx({}, 'nest');
+    const inner = addItem(
+      items,
+      { type: 'folder', title: 'Inner', parentId: ids.folder! },
+      context,
+    );
+    const moved = moveItem(inner.items, ids.alpha!, inner.changed[0]!.id, undefined, context);
+    const applied = applyMutations(
+      moved.items,
+      deleteFolderMutations(moved.items, inner.changed[0]!.id, 'reparent'),
+      ctx({}, 'del'),
+    );
+    expect(applied.items.get(ids.alpha!)!.parentId).toBe(ids.folder);
+  });
+
+  it('moves only the direct children — deeper items travel with their own parent', () => {
+    const { items, ids } = sampleVault();
+    const context = ctx({}, 'nest');
+    const inner = addItem(items, { type: 'folder', title: 'Inner', parentId: ids.folder! }, context);
+    const innerId = inner.changed[0]!.id;
+    const moved = moveItem(inner.items, ids.alpha!, innerId, undefined, context);
+
+    const mutations = deleteFolderMutations(moved.items, ids.folder!, 'reparent');
+    const applied = applyMutations(moved.items, mutations, ctx({}, 'del'));
+    expect(applied.items.get(innerId)!.parentId).toBe(ROOT_ID);
+    // Still inside `Inner`, which simply lives somewhere else now.
+    expect(applied.items.get(ids.alpha!)!.parentId).toBe(innerId);
+  });
+
+  it('refuses to treat a bookmark as a folder, and an unknown id as anything', () => {
+    const { items, ids } = sampleVault();
+    expect(() => deleteFolderMutations(items, ids.loose!, 'recursive')).toThrow(
+      InvalidMutationError,
+    );
+    expect(() => deleteFolderMutations(items, 'nope', 'reparent')).toThrow(ItemNotFoundError);
   });
 });
 
