@@ -18,6 +18,7 @@ import { CorruptVaultError } from '../crypto/errors.js';
 import {
   DEFAULT_SETTINGS,
   VAULT_MAGIC,
+  isSortKey,
   type BaseMeta,
   type BucketMeta,
   type VaultHeader,
@@ -228,6 +229,7 @@ export async function readSettings(): Promise<VaultSettings> {
       typeof stored.reuseIncognitoWindow === 'boolean'
         ? stored.reuseIncognitoWindow
         : DEFAULT_SETTINGS.reuseIncognitoWindow,
+    sortBy: isSortKey(stored.sortBy) ? stored.sortBy : DEFAULT_SETTINGS.sortBy,
   };
 }
 

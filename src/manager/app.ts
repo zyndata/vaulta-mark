@@ -48,6 +48,8 @@ const UNDO_MS = 8_000;
 export function mountManager(root: HTMLElement, initial: StateResponse): void {
   const state: ManagerState = initialState();
   let settings: VaultSettings = initial.settings;
+  // The sort order is a stored preference, so the manager opens the way it was left.
+  state.sort = settings.sortBy;
 
   /* ---------------------------------------------------------------- chrome */
 
@@ -66,10 +68,13 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       'aria-label': msg('managerSortLabel'),
       onchange: (event: Event) => {
         const value = (event.currentTarget as HTMLSelectElement).value;
-        if (isSortKey(value)) {
-          state.sort = value;
-          void reloadView();
-        }
+        if (!isSortKey(value)) return;
+        state.sort = value;
+        void reloadView();
+        // Persisted, so the next window and the next session open in the same order. Fire and
+        // forget: a failed write costs a preference, and blocking the repaint on it would make
+        // changing the sort feel like a round trip.
+        void send({ type: 'SET_SETTINGS', settings: { sortBy: value } });
       },
     },
     ...SORT_KEYS.map((key) => h('option', { value: key }, msg(SORT_LABEL_KEYS[key]))),

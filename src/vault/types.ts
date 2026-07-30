@@ -153,6 +153,24 @@ export function noteOf(item: VaultItem): string {
 }
 
 /**
+ * The orders the manager's list can be in.
+ *
+ * The names live here rather than in `sort.ts` because `VaultSettings` below needs them, and
+ * `sort.ts` needs the item types from this file — putting them there would make the two modules
+ * import each other. The *comparators* are in `sort.ts`; this is only the vocabulary.
+ */
+export const SORT_KEYS = ['added', 'modified', 'title', 'opened', 'opens'] as const;
+
+export type SortKey = (typeof SORT_KEYS)[number];
+
+/** What a fresh install sorts by: the bookmark you saved a minute ago is the one you want. */
+export const DEFAULT_SORT: SortKey = 'added';
+
+export function isSortKey(value: unknown): value is SortKey {
+  return typeof value === 'string' && (SORT_KEYS as readonly string[]).includes(value);
+}
+
+/**
  * Non-sensitive settings (`vm.settings`, ARCHITECTURE §5.1).
  *
  * Deliberately plaintext, and deliberately incapable of holding vault content: the lock screen has
@@ -169,6 +187,16 @@ export interface VaultSettings {
   readonly stripTrackingParams: boolean;
   /** Open vaulted links in the incognito window that is already open, if there is one (§9). */
   readonly reuseIncognitoWindow: boolean;
+  /**
+   * The order the manager's list is in.
+   *
+   * One setting for the whole manager rather than one per folder, and that is a privacy decision
+   * rather than a simplification: a per-folder preference has to be keyed by folder id, and this
+   * file is written to `vm.settings` in the clear (§5.1). A map of folder ids in plaintext would
+   * leak how many folders a vault has and how often each is visited — small, but it is exactly the
+   * kind of shape INV-6 exists to keep out of `storage.local`.
+   */
+  readonly sortBy: SortKey;
 }
 
 /**
@@ -194,6 +222,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   // from "open in incognito"; a new window per bookmark buries the browser in windows, and each of
   // them is a separate incognito session that has to be closed separately to end it.
   reuseIncognitoWindow: true,
+  sortBy: DEFAULT_SORT,
 };
 
 /** `vm.baseMeta` — the plaintext bookkeeping beside the encrypted merge base. Phase 7 uses it. */

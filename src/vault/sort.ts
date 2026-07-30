@@ -14,18 +14,12 @@
  *   direction, and offering ten choices to make five of them useful is not a better menu.
  */
 
-import { isBookmark, type VaultItem } from './types.js';
+import { isBookmark, type SortKey, type VaultItem } from './types.js';
 
-export const SORT_KEYS = ['added', 'modified', 'title', 'opened', 'opens'] as const;
-
-export type SortKey = (typeof SORT_KEYS)[number];
-
-/** What a fresh install sorts by: the bookmark you saved a minute ago is the one you want. */
-export const DEFAULT_SORT: SortKey = 'added';
-
-export function isSortKey(value: unknown): value is SortKey {
-  return typeof value === 'string' && (SORT_KEYS as readonly string[]).includes(value);
-}
+// The key names themselves live in `types.ts`, which `VaultSettings` needs them for and which this
+// file already depends on for the item types. Re-exported here so a caller that wants the whole
+// sorting vocabulary has one import.
+export { DEFAULT_SORT, SORT_KEYS, isSortKey, type SortKey } from './types.js';
 
 export interface SortOptions {
   /**

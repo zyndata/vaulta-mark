@@ -519,6 +519,23 @@ describe('the view', () => {
     expect(await titles({ sort: 'added' })).toEqual(['Apple', 'Zebra']);
   });
 
+  it('remembers the sort order as a setting, so the next window opens the same way', async () => {
+    // One order for the whole manager rather than one per folder: a per-folder preference has to be
+    // keyed by folder id, and `vm.settings` is plaintext, so it would leak the shape of the tree.
+    expect(await send({ type: 'GET_SETTINGS' })).toMatchObject({ settings: { sortBy: 'added' } });
+
+    const saved = await send({ type: 'SET_SETTINGS', settings: { sortBy: 'title' } });
+    expect(saved).toMatchObject({ settings: { sortBy: 'title' } });
+
+    await startWorker();
+    expect(await send({ type: 'GET_STATE' })).toMatchObject({ settings: { sortBy: 'title' } });
+  });
+
+  it('refuses a stored sort key it does not recognise', async () => {
+    await expectRejected({ type: 'SET_SETTINGS', settings: { sortBy: 'sideways' } });
+    expect(await send({ type: 'GET_SETTINGS' })).toMatchObject({ settings: { sortBy: 'added' } });
+  });
+
   it('rejects a sort key it does not know rather than falling back quietly', async () => {
     await expectRejected({ type: 'LIST_VIEW', sort: 'sideways' });
     await expectRejected({ type: 'LIST_VIEW', folderId: '' });

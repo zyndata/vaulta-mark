@@ -809,6 +809,12 @@ export function parseSettingsPatch(raw: unknown): SettingsPatch | null {
     patch.reuseIncognitoWindow = reuseIncognitoWindow;
   }
 
+  const sortBy = raw['sortBy'];
+  if (sortBy !== undefined) {
+    if (!isSortKey(sortBy)) return null;
+    patch.sortBy = sortBy;
+  }
+
   return patch;
 }
 
