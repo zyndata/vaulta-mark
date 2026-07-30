@@ -7,14 +7,12 @@
     <script type="module" src="./manager.ts"></script>
   </head>
   <body class="vm-manager">
-    <main>
-      <h1 class="vm-wordmark">VaultaMark</h1>
-      <!-- Replaced by manager.ts when the page is opened at #incognito. Everywhere else this is
-           still the Phase-6 placeholder. -->
-      <div id="vm-root">
-        <p class="vm-placeholder" data-i18n="managerPlaceholder"></p>
-      </div>
-      <div id="vm-status"></div>
-    </main>
+    <!-- Everything below #vm-root is built by manager.ts. The static markup is only the landmarks,
+         so a screen reader has a document structure before the first message round trip returns. -->
+    <a class="vm-skip" href="#vm-root" data-i18n="listLabel"></a>
+    <div id="vm-root">
+      <p class="vm-placeholder" data-i18n="managerLoading"></p>
+    </div>
+    <div id="vm-status" aria-live="polite"></div>
   </body>
 </html>

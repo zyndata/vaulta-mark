@@ -502,8 +502,465 @@
     "description": "Error shown for anything not covered by a more specific message."
   },
 
-  "managerPlaceholder": {
-    "message": "The vault lives here. Nothing to show yet — the manager arrives in the next phase.",
-    "description": "Placeholder text on the manager page before the vault UI exists."
+  "managerLoading": {
+    "message": "Opening the vault…",
+    "description": "Shown on the manager page for the moment before the service worker answers."
+  },
+  "managerLocked": {
+    "message": "The vault is locked. Open the VaultaMark popup to unlock it.",
+    "description": "Shown on the manager page when the vault is locked. Unlocking happens in the popup, which is the one surface that is always one click away."
+  },
+  "managerNoVault": {
+    "message": "There is no vault on this device yet. Open the VaultaMark popup to create one.",
+    "description": "Shown on the manager page before a vault exists."
+  },
+  "managerSearchLabel": {
+    "message": "Search your vault",
+    "description": "Accessible name for the manager's search box."
+  },
+  "managerSearchPlaceholder": {
+    "message": "Search — or tag:x, folder:y, host:z, in:note",
+    "description": "Placeholder in the manager's search box. Names the query prefixes so they are discoverable without documentation."
+  },
+  "managerSearchHint": {
+    "message": "Press / to search.",
+    "description": "Keyboard hint shown beside the search box."
+  },
+  "managerSortLabel": {
+    "message": "Sort by",
+    "description": "Label for the sort selector."
+  },
+  "managerSortRanked": {
+    "message": "Sorted by best match.",
+    "description": "Shown in place of the sort selector while a search is ranked by relevance."
+  },
+  "sortAdded": {
+    "message": "Date added",
+    "description": "Sort order: newest first."
+  },
+  "sortModified": {
+    "message": "Date modified",
+    "description": "Sort order: most recently changed first."
+  },
+  "sortTitle": {
+    "message": "Title",
+    "description": "Sort order: alphabetical."
+  },
+  "sortOpened": {
+    "message": "Recently opened",
+    "description": "Sort order: most recently opened first."
+  },
+  "sortOpens": {
+    "message": "Most opened",
+    "description": "Sort order: highest open count first."
+  },
+  "managerSettingsButton": {
+    "message": "Settings",
+    "description": "Button that opens the manager's settings dialog."
+  },
+  "managerLockButton": {
+    "message": "Lock",
+    "description": "Button that locks the vault from the manager."
+  },
+
+  "navSidebarLabel": {
+    "message": "Folders and tags",
+    "description": "Accessible name for the manager's sidebar."
+  },
+  "navAllBookmarks": {
+    "message": "All bookmarks",
+    "description": "Sidebar entry showing the whole vault."
+  },
+  "navUntagged": {
+    "message": "Untagged",
+    "description": "Sidebar filter showing bookmarks that carry no tags."
+  },
+  "navFolders": {
+    "message": "Folders",
+    "description": "Heading above the folder tree in the sidebar."
+  },
+  "navTags": {
+    "message": "Tags",
+    "description": "Heading above the tag list in the sidebar."
+  },
+  "navNoFolders": {
+    "message": "No folders yet.",
+    "description": "Shown under the Folders heading when the vault has none."
+  },
+  "navNoTags": {
+    "message": "No tags yet.",
+    "description": "Shown under the Tags heading when nothing is tagged."
+  },
+  "navNewFolder": {
+    "message": "New folder",
+    "description": "Button that creates a folder in the sidebar."
+  },
+  "navExpand": {
+    "message": "Expand $FOLDER$",
+    "description": "Accessible name for the twisty that opens a folder's children.",
+    "placeholders": { "folder": { "content": "$1", "example": "Work" } }
+  },
+  "navCollapse": {
+    "message": "Collapse $FOLDER$",
+    "description": "Accessible name for the twisty that closes a folder's children.",
+    "placeholders": { "folder": { "content": "$1", "example": "Work" } }
+  },
+
+  "listLabel": {
+    "message": "Bookmarks",
+    "description": "Accessible name for the manager's main list."
+  },
+  "listEmptyVault": {
+    "message": "Nothing in the vault yet. Add a page from the VaultaMark popup or with the toolbar button.",
+    "description": "Shown instead of the list when the whole vault is empty."
+  },
+  "listEmptyFolder": {
+    "message": "This folder is empty.",
+    "description": "Shown instead of the list when an open folder holds nothing."
+  },
+  "listEmptySearch": {
+    "message": "Nothing matches that search.",
+    "description": "Shown instead of the list when a search found nothing."
+  },
+  "listEmptyUntagged": {
+    "message": "Every bookmark has at least one tag.",
+    "description": "Shown instead of the list when the Untagged filter finds nothing."
+  },
+  "listCountBookmarks": {
+    "message": "$COUNT$ bookmarks",
+    "description": "Count of the bookmarks in the current view.",
+    "placeholders": { "count": { "content": "$1", "example": "143" } }
+  },
+  "listCountOneBookmark": {
+    "message": "1 bookmark",
+    "description": "Singular of listCountBookmarks."
+  },
+  "listFolderCount": {
+    "message": "$COUNT$ inside",
+    "description": "Bookmark count shown on a folder row, counting the whole subtree.",
+    "placeholders": { "count": { "content": "$1", "example": "12" } }
+  },
+  "listHasNote": {
+    "message": "Has a note",
+    "description": "Accessible label for the marker on a row whose bookmark carries a note."
+  },
+  "listKeyboardHint": {
+    "message": "j and k move, Enter opens, e edits, Delete removes, Esc clears.",
+    "description": "Keyboard hint under the manager's list."
+  },
+
+  "selectionCount": {
+    "message": "$COUNT$ selected",
+    "description": "How many rows are selected.",
+    "placeholders": { "count": { "content": "$1", "example": "7" } }
+  },
+  "actionsLabel": {
+    "message": "Actions for the selected bookmarks",
+    "description": "Accessible name for the bulk-action toolbar."
+  },
+  "actionOpen": {
+    "message": "Open",
+    "description": "Bulk action: open the selected bookmark in incognito."
+  },
+  "actionMove": {
+    "message": "Move to…",
+    "description": "Bulk action: move the selection into a folder."
+  },
+  "actionTag": {
+    "message": "Tag…",
+    "description": "Bulk action: add or remove tags across the selection."
+  },
+  "actionDelete": {
+    "message": "Delete",
+    "description": "Bulk action: delete the selection."
+  },
+  "actionSelectAll": {
+    "message": "Select all",
+    "description": "Bulk action: select every row in the current view."
+  },
+  "actionClearSelection": {
+    "message": "Clear selection",
+    "description": "Bulk action: deselect everything."
+  },
+  "deletedCount": {
+    "message": "Deleted $COUNT$ bookmarks.",
+    "description": "Undo toast after a bulk delete.",
+    "placeholders": { "count": { "content": "$1", "example": "7" } }
+  },
+
+  "detailLabel": {
+    "message": "Details",
+    "description": "Accessible name for the manager's detail pane."
+  },
+  "detailNothing": {
+    "message": "Select a bookmark to see and edit it.",
+    "description": "Shown in the detail pane when nothing is selected."
+  },
+  "detailMany": {
+    "message": "$COUNT$ bookmarks selected. Use the actions above the list to move, tag or delete them together.",
+    "description": "Shown in the detail pane when more than one row is selected.",
+    "placeholders": { "count": { "content": "$1", "example": "7" } }
+  },
+  "detailFieldTitle": {
+    "message": "Title",
+    "description": "Label for the title field in the detail pane."
+  },
+  "detailFieldUrl": {
+    "message": "Address",
+    "description": "Label for the URL field in the detail pane."
+  },
+  "detailFieldNote": {
+    "message": "Note",
+    "description": "Label for the note field in the detail pane."
+  },
+  "detailFieldTags": {
+    "message": "Tags",
+    "description": "Label for the tag field in the detail pane."
+  },
+  "detailTagsPlaceholder": {
+    "message": "Add a tag and press Enter",
+    "description": "Placeholder in the tag chip input."
+  },
+  "detailRemoveTag": {
+    "message": "Remove tag $TAG$",
+    "description": "Accessible name for the × on a tag chip.",
+    "placeholders": { "tag": { "content": "$1", "example": "reading" } }
+  },
+  "detailNoteCount": {
+    "message": "$USED$ of $MAX$ characters",
+    "description": "Character counter under the note field.",
+    "placeholders": {
+      "used": { "content": "$1", "example": "312" },
+      "max": { "content": "$2", "example": "4096" }
+    }
+  },
+  "detailSave": {
+    "message": "Save changes",
+    "description": "Button that writes the detail pane's edits to the vault."
+  },
+  "detailSaved": {
+    "message": "Saved.",
+    "description": "Confirmation after the detail pane's edits were written."
+  },
+  "detailOpen": {
+    "message": "Open in incognito",
+    "description": "Button in the detail pane that opens the bookmark."
+  },
+  "detailInFolder": {
+    "message": "In: $PATH$",
+    "description": "Where the bookmark lives, as a breadcrumb path.",
+    "placeholders": { "path": { "content": "$1", "example": "Work / Roadmaps" } }
+  },
+  "detailAtTopLevel": {
+    "message": "At the top level",
+    "description": "Shown instead of detailInFolder when the item has no parent folder."
+  },
+  "detailStats": {
+    "message": "Added $ADDED$ · opened $COUNT$ times",
+    "description": "Timestamps and counters in the detail pane.",
+    "placeholders": {
+      "added": { "content": "$1", "example": "12 March 2026" },
+      "count": { "content": "$2", "example": "4" }
+    }
+  },
+
+  "folderNewHeading": {
+    "message": "New folder",
+    "description": "Heading of the new-folder dialog."
+  },
+  "folderNameLabel": {
+    "message": "Folder name",
+    "description": "Label for the folder-name field."
+  },
+  "folderCreate": {
+    "message": "Create folder",
+    "description": "Confirm button of the new-folder dialog."
+  },
+  "folderRenameHeading": {
+    "message": "Rename folder",
+    "description": "Heading of the rename-folder dialog."
+  },
+  "folderRename": {
+    "message": "Rename",
+    "description": "Confirm button of the rename dialog, and the menu entry that opens it."
+  },
+  "folderDelete": {
+    "message": "Delete folder",
+    "description": "Menu entry that opens the delete-folder dialog."
+  },
+  "folderDeleteHeading": {
+    "message": "Delete “$FOLDER$”?",
+    "description": "Heading of the delete-folder dialog.",
+    "placeholders": { "folder": { "content": "$1", "example": "Work" } }
+  },
+  "folderDeleteQuestion": {
+    "message": "There are $COUNT$ bookmarks inside. What should happen to them?",
+    "description": "The choice the delete-folder dialog asks for. There is no default: one answer loses a subtree and the other rearranges the tree.",
+    "placeholders": { "count": { "content": "$1", "example": "12" } }
+  },
+  "folderDeleteReparent": {
+    "message": "Keep them, one level up",
+    "description": "Delete-folder choice: move the children to the folder's parent."
+  },
+  "folderDeleteRecursive": {
+    "message": "Delete them too",
+    "description": "Delete-folder choice: tombstone the whole subtree."
+  },
+
+  "moveHeading": {
+    "message": "Move to a folder",
+    "description": "Heading of the move dialog."
+  },
+  "moveTopLevel": {
+    "message": "Top level",
+    "description": "The move dialog's entry for the root of the vault."
+  },
+  "moveConfirm": {
+    "message": "Move here",
+    "description": "Confirm button of the move dialog."
+  },
+
+  "tagBulkHeading": {
+    "message": "Tag the selection",
+    "description": "Heading of the bulk-tag dialog."
+  },
+  "tagBulkAdd": {
+    "message": "Add these tags",
+    "description": "Label for the add field in the bulk-tag dialog."
+  },
+  "tagBulkRemove": {
+    "message": "Remove these tags",
+    "description": "Label for the remove field in the bulk-tag dialog."
+  },
+  "tagBulkHint": {
+    "message": "Separate tags with commas. A tag named in both boxes is removed.",
+    "description": "Explanation under the bulk-tag fields."
+  },
+  "tagBulkApply": {
+    "message": "Apply",
+    "description": "Confirm button of the bulk-tag dialog."
+  },
+  "tagRenameHeading": {
+    "message": "Rename the tag “$TAG$”",
+    "description": "Heading of the rename-tag dialog.",
+    "placeholders": { "tag": { "content": "$1", "example": "reading" } }
+  },
+  "tagRenameLabel": {
+    "message": "New name",
+    "description": "Label for the new-name field in the rename-tag dialog."
+  },
+  "tagRenameEverywhere": {
+    "message": "Renames it on every bookmark that carries it.",
+    "description": "Explanation under the rename-tag field."
+  },
+  "tagRenamed": {
+    "message": "Renamed on $COUNT$ bookmarks.",
+    "description": "Confirmation after a tag rename.",
+    "placeholders": { "count": { "content": "$1", "example": "12" } }
+  },
+  "tagFilterBy": {
+    "message": "Show bookmarks tagged $TAG$",
+    "description": "Accessible name for a tag in the sidebar.",
+    "placeholders": { "tag": { "content": "$1", "example": "reading" } }
+  },
+  "tagRenameAction": {
+    "message": "Rename the tag $TAG$",
+    "description": "Accessible name for the rename button beside a tag in the sidebar.",
+    "placeholders": { "tag": { "content": "$1", "example": "reading" } }
+  },
+
+  "dialogCancel": {
+    "message": "Cancel",
+    "description": "Cancel button, shared by every dialog."
+  },
+  "dialogClose": {
+    "message": "Close",
+    "description": "Close button, shared by every dialog."
+  },
+
+  "settingsHeading": {
+    "message": "Settings",
+    "description": "Heading of the settings dialog."
+  },
+  "settingsTheme": {
+    "message": "Appearance",
+    "description": "Label for the theme selector."
+  },
+  "themeSystem": {
+    "message": "Match the system",
+    "description": "Theme choice: follow prefers-color-scheme."
+  },
+  "themeLight": {
+    "message": "Light",
+    "description": "Theme choice: always light."
+  },
+  "themeDark": {
+    "message": "Dark",
+    "description": "Theme choice: always dark."
+  },
+  "settingsSectionLock": {
+    "message": "Locking",
+    "description": "Heading of the locking section in settings."
+  },
+  "settingsSectionBrowsing": {
+    "message": "Opening and saving",
+    "description": "Heading of the browsing section in settings."
+  },
+  "settingsSectionPassword": {
+    "message": "Master password",
+    "description": "Heading of the change-password section in settings."
+  },
+  "settingsSectionDanger": {
+    "message": "Destroy this vault",
+    "description": "Heading of the destructive section in settings."
+  },
+  "settingsCurrentPassword": {
+    "message": "Current password",
+    "description": "Label for the current-password field."
+  },
+  "settingsNewPassword": {
+    "message": "New password",
+    "description": "Label for the new-password field."
+  },
+  "settingsConfirmPassword": {
+    "message": "Repeat the new password",
+    "description": "Label for the confirm-new-password field."
+  },
+  "settingsChangePassword": {
+    "message": "Change password",
+    "description": "Button that re-wraps the data key under a new password."
+  },
+  "settingsPasswordChanged": {
+    "message": "Password changed. Your bookmarks were not re-encrypted — only the key that unlocks them was re-wrapped.",
+    "description": "Confirmation after a successful password change."
+  },
+  "settingsDestroyWarning": {
+    "message": "This erases the vault and everything in it from this device. There is no backup and no recovery — not by us, not by anyone.",
+    "description": "Warning above the destroy-vault control."
+  },
+  "settingsDestroyPhrase": {
+    "message": "destroy my vault",
+    "description": "The exact phrase the user must type to destroy the vault. Compared case-insensitively after trimming."
+  },
+  "settingsDestroyLabel": {
+    "message": "Type the phrase to confirm",
+    "description": "Label for the destroy-vault confirmation field."
+  },
+  "settingsDestroyHint": {
+    "message": "Type “$PHRASE$” to enable the button.",
+    "description": "Hint under the destroy-vault confirmation field.",
+    "placeholders": { "phrase": { "content": "$1", "example": "destroy my vault" } }
+  },
+  "settingsDestroyButton": {
+    "message": "Destroy this vault",
+    "description": "Button that erases the vault. Enabled only after the typed confirmation."
+  },
+  "settingsDestroyConfirm": {
+    "message": "Last chance. Press again to erase the vault.",
+    "description": "The second of the two confirmations before the vault is destroyed."
+  },
+  "settingsDestroyed": {
+    "message": "The vault has been erased.",
+    "description": "Shown after the vault was destroyed."
   }
 }

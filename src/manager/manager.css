@@ -1,25 +1,582 @@
-/* Placeholder layout. The real manager UI lands in Phase 6; tokens live in src/ui/styles.css. */
+/*
+ * The manager page. Tokens and shared components live in src/ui/styles.css.
+ *
+ * Three columns on a wide window — sidebar, list, detail — collapsing to one on a narrow one. The
+ * list column is the only part that scrolls; the page itself does not, so the toolbar and the
+ * sidebar stay reachable however many bookmarks are in the vault.
+ *
+ * Every colour pair here is one of the tokens, which all clear 4.5:1 against their background. The
+ * one thing that is *not* colour-only is selection: a selected row is tinted **and** carries a left
+ * bar, because "which of these is selected" must not be a question only a colour answers.
+ */
 
 body.vm-manager {
-  padding: 2rem;
-  font-size: 15px;
-  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  font-size: 14px;
 }
 
-.vm-manager .vm-wordmark {
-  margin: 0 0 0.5rem;
-  font-size: 1.375rem;
+/*
+ * `#vm-root` is a wrapper the static HTML provides and the script replaces the contents of, so it
+ * sits between the body and the columns and has to pass the height through. Without this it
+ * collapses to the height of its content and the three columns end mid-page.
+ */
+#vm-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Visible only when focused: keyboard users get a way past the toolbar and the sidebar. */
+.vm-skip {
+  position: absolute;
+  left: -9999px;
+  z-index: 10;
+  padding: 0.5rem 0.75rem;
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+}
+
+.vm-skip:focus {
+  left: 0.5rem;
+  top: 0.5rem;
 }
 
 .vm-placeholder {
-  margin: 0;
+  margin: 2rem;
   color: var(--vm-muted);
 }
 
-/* The guided incognito prompt (ARCHITECTURE §9) — the one real screen this page has before
-   Phase 6. Narrow measure: it is instructions to read, not a layout to scan. */
+/* ------------------------------------------------------------------ top bar */
+
+.vm-topbar {
+  display: flex;
+  gap: var(--vm-gap);
+  align-items: center;
+  flex: none;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--vm-border);
+  background: var(--vm-surface);
+}
+
+.vm-topbar .vm-wordmark {
+  flex: none;
+  font-size: 1.0625rem;
+}
+
+.vm-search-slot {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 0.5rem;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.vm-search {
+  flex: 1 1 auto;
+  min-width: 8rem;
+  max-width: 32rem;
+  box-sizing: border-box;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font: inherit;
+}
+
+.vm-sort {
+  flex: none;
+}
+
+.vm-sort select {
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font: inherit;
+}
+
+/* ------------------------------------------------------------------ layout */
+
+.vm-layout {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr) 20rem;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.vm-sidebar-slot,
+.vm-detail-slot {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.vm-sidebar-slot {
+  border-right: 1px solid var(--vm-border);
+}
+
+.vm-detail-slot {
+  border-left: 1px solid var(--vm-border);
+}
+
+.vm-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+@media (max-width: 60rem) {
+  body.vm-manager {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
+  .vm-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .vm-sidebar-slot,
+  .vm-detail-slot {
+    border: 0;
+    border-bottom: 1px solid var(--vm-border);
+  }
+}
+
+/* ------------------------------------------------------------------ sidebar */
+
+.vm-sidebar {
+  padding: 0.75rem;
+}
+
+.vm-nav-list,
+.vm-tree,
+.vm-tree ul,
+.vm-tag-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vm-tree ul {
+  padding-left: 0.85rem;
+}
+
+.vm-nav-section {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 1rem 0 0.35rem;
+}
+
+.vm-nav-heading {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vm-muted);
+}
+
+.vm-nav-empty {
+  margin: 0 0 0.5rem;
+}
+
+.vm-nav-button,
+.vm-tree-row,
+.vm-tag {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: var(--vm-radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vm-nav-button:hover,
+.vm-tree-item:hover > .vm-tree-row,
+.vm-tag:hover {
+  background: var(--vm-surface);
+}
+
+.vm-nav-button.is-current,
+.vm-tree-item.is-current > .vm-tree-row,
+.vm-tag.is-current {
+  border-left-color: var(--vm-accent);
+  background: var(--vm-surface);
+  font-weight: 600;
+}
+
+.vm-tree-item {
+  cursor: pointer;
+}
+
+.vm-tree-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vm-twisty {
+  flex: none;
+  width: 1em;
+  font-size: 0.75rem;
+  color: var(--vm-muted);
+}
+
+.vm-count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.vm-tag-row {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.vm-tag-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vm-icon-button {
+  flex: none;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: var(--vm-radius);
+  background: transparent;
+  color: var(--vm-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.vm-icon-button:hover {
+  border-color: var(--vm-border);
+  color: var(--vm-fg);
+}
+
+/* ------------------------------------------------------------------ crumbs and actions */
+
+.vm-crumbs {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  padding: 0.5rem 1rem 0;
+}
+
+.vm-crumb {
+  padding: 0.15rem 0.3rem;
+  border: 0;
+  border-radius: var(--vm-radius);
+  background: transparent;
+  color: var(--vm-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.vm-crumb-sep {
+  color: var(--vm-muted);
+}
+
+.vm-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem;
+}
+
+.vm-count-line {
+  flex: none;
+  margin: 0 1rem 0.35rem;
+}
+
+/* ------------------------------------------------------------------ the list */
+
+.vm-list-slot {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 0.5rem 0.5rem;
+}
+
+.vm-list-slot .vm-vlist {
+  flex: 1 1 auto;
+  min-height: 12rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+}
+
+.vm-list-empty {
+  margin: 1.5rem 0.5rem;
+}
+
+/* Height is load-bearing: `list.ts` exports ROW_HEIGHT and the windowing arithmetic uses it. */
+.vm-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0 0.6rem;
+  border-left: 3px solid transparent;
+  cursor: default;
+}
+
+.vm-row:hover {
+  background: var(--vm-surface);
+}
+
+/* Tinted *and* barred: which row is selected must not be a question only colour answers. */
+.vm-row.is-selected {
+  border-left-color: var(--vm-accent);
+  background: var(--vm-surface);
+}
+
+.vm-row.is-cursor {
+  outline: var(--vm-focus);
+  outline-offset: -2px;
+}
+
+.vm-row-folder {
+  flex: none;
+  width: 16px;
+  text-align: center;
+}
+
+.vm-row-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.vm-row-title,
+.vm-row-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vm-row mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--vm-warning);
+  color: var(--vm-bg);
+}
+
+.vm-row-tags {
+  display: flex;
+  flex: none;
+  gap: 0.2rem;
+  max-width: 12rem;
+  overflow: hidden;
+}
+
+.vm-row-note {
+  flex: none;
+  width: 1.1em;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ chips */
+
+.vm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.vm-chip {
+  display: inline-flex;
+  gap: 0.2rem;
+  align-items: center;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--vm-border);
+  border-radius: 999px;
+  background: var(--vm-surface);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.vm-chip--small {
+  max-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+}
+
+.vm-chip-remove {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--vm-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.vm-tag-field {
+  display: block;
+}
+
+.vm-chip-input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 0.3rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font: inherit;
+}
+
+/* ------------------------------------------------------------------ detail pane */
+
+.vm-detail {
+  padding: 0.75rem 1rem;
+}
+
+.vm-detail textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font: inherit;
+  resize: vertical;
+}
+
+.vm-detail-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+}
+
+.vm-hint {
+  margin: 0.2rem 0 0;
+}
+
+.vm-danger {
+  color: var(--vm-danger);
+}
+
+.vm-ok {
+  color: var(--vm-ok);
+}
+
+/* ------------------------------------------------------------------ dialogs */
+
+.vm-dialog {
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 0;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+}
+
+.vm-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.vm-dialog-form {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.vm-dialog h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.0625rem;
+}
+
+.vm-dialog h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.vm-dialog-body {
+  max-height: min(60vh, 32rem);
+  overflow-y: auto;
+}
+
+.vm-dialog-actions,
+.vm-choice {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.vm-choice {
+  flex-wrap: wrap;
+}
+
+.vm-choice .vm-button {
+  width: auto;
+}
+
+.vm-settings-section {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--vm-border);
+}
+
+.vm-danger-zone {
+  padding: 0.5rem;
+  border: 1px solid var(--vm-danger);
+  border-radius: var(--vm-radius);
+}
+
+/* ------------------------------------------------------------------ toast */
+
+.vm-toast-slot {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  z-index: 5;
+}
+
+.vm-toast {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-surface);
+  box-shadow: 0 2px 12px rgb(0 0 0 / 25%);
+}
+
+/* ------------------------------------------------------------------ the guided prompt */
+
+/* ARCHITECTURE §9. Narrow measure: it is instructions to read, not a layout to scan. */
 .vm-guide {
   max-width: 34rem;
+  margin: 2rem;
 }
 
 .vm-guide h2 {
