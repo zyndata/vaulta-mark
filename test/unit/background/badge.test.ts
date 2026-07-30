@@ -41,9 +41,13 @@ describe('flashBadge', () => {
   });
 
   it('never puts anything but a glyph on the toolbar', async () => {
+    // Chrome truncates a badge to about four characters, and nothing here may ever grow into a
+    // title, a host or a URL — so the assertion is on the *length*, counted in grapheme clusters
+    // because 🔒 is two UTF-16 units and one glyph.
+    const graphemes = new Intl.Segmenter('en');
     for (const kind of ['added', 'duplicate', 'locked', 'refused'] as const) {
       await flashBadge(kind);
-      expect([...mock.badgeText()]).toHaveLength(1);
+      expect([...graphemes.segment(mock.badgeText())]).toHaveLength(1);
     }
   });
 

@@ -14,6 +14,32 @@ below.
 
 ### Added
 
+- **You can put bookmarks in the vault now, and open them.** Four ways to save the page you are
+  looking at: the **Add this page** button in the popup, **Add to VaultaMark** in the right-click
+  menu, **Add link to VaultaMark** on a link you have not opened, and
+  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>. The keyboard shortcut and the right-click menu have
+  no window to answer in, so they report on the toolbar button itself — a tick, or a reason.
+- **The popup is the vault**: your most recent bookmarks, a filter box that searches the whole vault
+  rather than just what is on screen, a favicon and a host on every row, and one click to open.
+  Deleting shows an **Undo** for eight seconds, and undo brings back the same bookmark rather than
+  making a second copy of it — which matters once your other computers are involved.
+- **Bookmarks open in an incognito window**, which is the point of the whole thing: the address never
+  reaches your history or the address bar's suggestions. Chrome only lets an extension do that once
+  you switch on "Allow in Incognito" by hand, and there is no way for us to ask you in a dialog — so
+  until you have, nothing opens and you get a page that explains it, hands you the address to paste,
+  and re-checks when you come back. If you would rather open something in a normal window this once,
+  there is a button that says exactly that, and what it costs. By default every bookmark opens in the
+  incognito window you already have, rather than piling up a window each.
+- **Favicons come from Chrome's own cache** and nothing else. A favicon service would hand every site
+  in your vault to a third party every time the list drew itself, which would undo the point of
+  vaulting them. Sites this browser has never visited get a coloured initial instead.
+- Adding a page you already have says so, and offers to open it, instead of quietly making a
+  duplicate. Pages the browser will not let us reopen later — its own settings pages, files on your
+  computer — are refused when you save them, with the reason, rather than becoming an entry that
+  does nothing when clicked.
+- Two new settings, both in the popup: **reuse the incognito window I already have open** (on), and
+  **remove tracking parameters when saving** (off — a few sites need parameters that look like
+  tracking, and rewriting what you saved is not something to do quietly).
 - **The extension does something now.** Click the toolbar button and you can create a vault, unlock
   it, lock it, and choose when it locks itself. There is still nothing to *put* in it from the
   interface — adding bookmarks arrives in the next phase — but the vault underneath is the real one.

@@ -33,7 +33,9 @@ src/
 │  ├─ autolock.ts       alarms, idle, blur
 │  ├─ commands.ts       keyboard shortcuts
 │  ├─ contextmenu.ts    right-click entries
-│  ├─ add.ts            add active tab / link
+│  ├─ add.ts            add active tab / link — URL policy, duplicates
+│  ├─ items.ts          the vault operations a UI asks for (add/list/open/delete/undo)
+│  ├─ badge.ts          toolbar feedback for the entry points that have no window
 │  ├─ incognito.ts      access detection + windows.create
 │  └─ history.ts        vaulted-domain cleanup, quick-close
 ├─ crypto/              WebCrypto only — no other module may import crypto.subtle
@@ -52,7 +54,7 @@ src/
 ├─ io/                  export-encrypted.ts  import-encrypted.ts  export-html.ts
 ├─ content/             og-capture.ts   (injected on demand, never declared in the manifest)
 ├─ popup/  manager/     UI entry points
-├─ ui/                  dom.ts  favicon.ts  styles.css  components/
+├─ ui/                  dom.ts  favicon.ts  incognito-prompt.ts  styles.css  components/
 └─ shared/              messages.ts  settings.ts  result.ts  time.ts  url.ts
 ```
 
@@ -339,10 +341,22 @@ written case for a runtime dependency. This is not that case.
   max 64 chars, max 32 per item, deduped.
 - **URLs:** stored as the user's tab reported them, with these applied: lowercase scheme and host,
   strip the default port, keep the fragment (people bookmark anchors), keep the query. UTM stripping
-  is **off** by default and available as a setting. A separate key is computed for duplicate
-  detection only (`duplicateKeyOf`: scheme+host+path+sorted query, fragment dropped, a bare origin's
-  trailing slash normalised away) and **never stored**. A URL `URL` cannot parse is kept verbatim:
-  this is a bookmark manager, not a validator, and a user should get back exactly what they saved.
+  is **off** by default and available as a setting; it removes campaign and click-identifier
+  parameters only (`utm_*`, `gclid`, `fbclid`, `msclkid`, …) — nothing that could change which page
+  a URL resolves to, because the setting is a convenience and losing a working link to it would not
+  be. A separate key is computed for duplicate detection only (`duplicateKeyOf`:
+  scheme+host+path+sorted query, fragment dropped, a bare origin's trailing slash normalised away)
+  and **never stored**. A URL `URL` cannot parse is kept verbatim: this is a bookmark manager, not a
+  validator, and a user should get back exactly what they saved.
+- **Which URLs may be vaulted at all** (`background/add.ts`, an allowlist of `http`, `https`, `ftp`,
+  `ftps`): a browser-internal page (`chrome:`, `chrome-extension:`, `about:`, `devtools:`,
+  `view-source:`, and the equivalents in other Chromium builds) is refused because nothing could
+  reopen it later; `file:` is refused because an incognito window will not open it; everything else
+  — `javascript:`, `data:`, `blob:`, `mailto:` — is refused because its "bookmark" is a payload
+  rather than a destination. An allowlist rather than a denylist on purpose: forgetting to ban a
+  scheme is unrecoverable, forgetting to allow one is a bug report. Input `URL` cannot parse is
+  refused here too — it has no scheme to have checked — which is why this rule is separate from
+  `normalizeUrl`, which keeps such input verbatim once it is already stored.
 - **Search text:** NFKD-folded, combining marks stripped, lowercased. The search index is built on
   unlock and dropped on lock — it is never persisted, because a search index *is* the vault content
   reorganised, and writing one would break INV-6.
@@ -565,6 +579,7 @@ the list and decompresses the shipped asset, so the three artefacts cannot drift
 | `vm.base` | sealed merge base (item set as of the last successful sync) | yes (`k_items`) |
 | `vm.baseMeta` | `{ lastSyncedRev, providerId, syncedAt }` | no (no content) |
 | `vm.settings` | UI/behaviour settings: theme, idle timeout, provider id, toggles | no (no vault content) |
+| — | *no key holds a bookmark's URL, host or title outside the sealed buckets* | — |
 | `vm.thumbs.<itemId>` | sealed thumbnail bytes | yes (`k_thumbs`) |
 | `vm.thumbsLru` | `{ itemId: lastViewedMs }` | no |
 | `vm.conflicts` | sealed pending-conflict records | yes (`k_items`) |
@@ -574,8 +589,10 @@ Every sealed value is stored as **base64url**, not as a `Uint8Array`. `chrome.st
 JSON-serialises what it is given, so a byte array comes back as `{"0":12,"1":…}` — roughly five bytes
 of quota per byte of ciphertext, and a silent shape change on the way out.
 
-`vm.settings` is deliberately plaintext and deliberately incapable of holding vault content: the lock
-screen has to honour the theme, and the auto-lock alarm has to be armed, before any key exists.
+`vm.settings` holds `theme`, `idleTimeoutMinutes`, `providerId`, `lockOnBrowserBlur`,
+`stripTrackingParams` and `reuseIncognitoWindow`. It is deliberately plaintext and deliberately
+incapable of holding vault content: the lock screen has to honour the theme, and the auto-lock alarm
+has to be armed, before any key exists.
 Reading it never throws — a corrupted blob falls back to defaults field by field, because a bad theme
 value must not be able to keep someone out of their vault.
 
@@ -697,7 +714,12 @@ is the whole point.
 ### 5.5 `chrome.storage.session` — key custody
 
 ```jsonc
-{ "vm.session": { "dek": "<base64url 32B>", "unlockedUntil": 1750000600000, "providerId": "chrome" } }
+{
+  "vm.session": { "dek": "<base64url 32B>", "unlockedUntil": 1750000600000, "providerId": "chrome" },
+  // Hosts queued for the Phase-9 history cleanup by the normal-window fallback (§9). Vault-derived,
+  // so memory-backed by necessity rather than by convenience — see INV-6.
+  "vm.historyQueue": ["example.com"]
+}
 ```
 
 `chrome.storage.session` is memory-backed, cleared when the browser exits, and (with the default
@@ -1005,37 +1027,63 @@ no silent permission growth.
 
 ## 9. Incognito opening
 
+Implemented in `src/background/incognito.ts`; `src/background/items.ts` supplies the settings and
+records the open.
+
 ```ts
-async function openVaulted(url: string, opts: { force?: boolean } = {}) {
-  const allowed = await chrome.extension.isAllowedIncognitoAccess();
-  if (allowed) {
-    const reuse = settings.reuseIncognitoWindow;
-    const existing = reuse ? await findIncognitoWindow() : null;
-    if (existing) return chrome.tabs.create({ windowId: existing.id, url });
-    return chrome.windows.create({ incognito: true, url, focused: true });
+export async function openVaulted(url: string, options: OpenOptions = {}): Promise<OpenStatus> {
+  if (await isAllowedIncognitoAccess()) {
+    if (options.reuseWindow === true) {
+      const existing = await findIncognitoWindow();          // windows.getAll, first incognito one
+      if (existing !== undefined) {
+        await chrome.tabs.create({ windowId: existing, url, active: true });
+        await focusWindow(existing);                          // best-effort; the tab is open either way
+        return 'incognito';
+      }
+    }
+    await chrome.windows.create({ incognito: true, url, focused: true });
+    return 'incognito';
   }
-  if (!opts.force) return { status: 'NEEDS_INCOGNITO_ACCESS' };   // UI shows the guided prompt
-  return chrome.windows.create({ url, focused: true });            // explicit user fallback only
+  if (options.force !== true) return 'needs-incognito-access';  // UI shows the guided prompt
+  return (await chrome.windows.create({ url, focused: true }), 'normal');  // explicit fallback only
 }
 ```
+
+The open counter (`openedAt`, `openCount`) is bumped only when something actually opened, so the
+guided prompt is not a click that silently edits the vault.
 
 **The guided prompt.** Chrome does not allow an extension to navigate to `chrome://extensions`
 programmatically, and there is no API to request incognito access. So the prompt:
 
 1. explains in one sentence what "Allow in Incognito" does and why VaultaMark needs it
 2. shows `chrome://extensions/?id=<our id>` with a **Copy** button and "paste this in your address bar"
-3. illustrates the toggle's location in words plus a bundled screenshot asset
+3. illustrates the toggle's location in words plus a bundled screenshot asset (words only until the
+   store assets land in Phase 13)
 4. offers **Re-check** (calls `isAllowedIncognitoAccess()` again and updates live)
 5. offers the fallback: *Open in a normal window this once* — with a plain warning that the visit
    will be recorded in history, plus an opt-in checkbox to queue a history cleanup for that domain
    afterwards (Phase 9)
 
+It lives on the **manager page** (`manager.html#incognito=<itemId>`, built by
+`src/ui/incognito-prompt.ts`) rather than in the popup, because step 2 asks the user to click into
+the address bar and a popup closes the moment they do. The address is a `<code>` with a Copy button,
+not a link: Chrome refuses to follow an `<a href="chrome://…">` from an extension page, and a dead
+link is a worse instruction than a string that can be copied.
+
+The **history-cleanup queue** (`vm.historyQueue`) lives in `chrome.storage.session`, not in
+`storage.local`. The host of a vaulted URL is vault content, and INV-6 says vault content does not
+reach disk in the clear — so the queue is memory-backed, restricted to trusted contexts, and emptied
+by `session.lock()` along with the key. The cost is that locking before Phase 9 drains it drops the
+queue, which is the right way round to be wrong.
+
 `incognito: "spanning"` in the manifest means one shared service worker across normal and incognito
 windows, so an unlocked vault stays unlocked when the incognito window opens. With `"split"` we would
 get a second, independently-locked instance — worse in every way for this product.
 
-The access result is cached for the session and invalidated on `chrome.management.onEnabled` and on
-every explicit re-check.
+The access result is cached in a service-worker module variable and invalidated on every explicit
+re-check and on `lock()`. It is deliberately **not** invalidated on `chrome.management.onEnabled`:
+that event needs the `management` permission, which would add an install-time warning for a checkbox
+MV3 already re-reads for free every ~30 seconds when the worker restarts.
 
 ---
 
@@ -1056,9 +1104,19 @@ Requires the `favicon` permission (which produces no user-facing permission warn
 to a third party on every render, which would defeat the product's entire premise. It is banned by
 the URL allowlist scanner.
 
-Fallback when the cache has no entry (Chrome returns a generic globe): an inline SVG letter avatar
-generated from the first character of the registrable domain, coloured by a hash of the host. Purely
-local, deterministic, no network.
+`size` is what we ask Chrome for, not what is rendered: the row is 16 px and the request is 32, so a
+2× display gets a sharp icon.
+
+Fallback when the cache has no entry (Chrome returns a generic globe): a letter avatar generated
+from the first character of the host, coloured by a hash of it (FNV-1a → hue, fixed 55 %/42 % so
+every hue clears 4.5:1 against white text). Purely local, deterministic, no network.
+
+It is a **styled `<span>`**, not an inline `<svg>` and not a `data:` URL. `<svg>` would need
+`createElementNS('http://www.w3.org/2000/svg', …)`, and a `data:` URI is a string shaped exactly like
+what `verify-no-remote-code.mjs` exists to find — both would mean arguing with an invariant scanner
+over a decoration. The colour goes on through CSSOM, which no CSP directive touches; `.vm-avatar` in
+`ui/styles.css` owns the geometry, so the fallback and a real favicon are the same size by
+construction.
 
 ---
 

@@ -81,9 +81,11 @@ test('creates, unlocks, auto-locks and panic-locks a vault', async () => {
   await expect(create).toBeEnabled();
 
   await create.click();
-  await expect(page.getByText('Vault unlocked')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add this page' })).toBeVisible();
 
   // ---------------------------------------------------------------- manual lock
+  // The lock button moved into the footer of the vault screen in Phase 5, and "Add this page" is
+  // now what "the vault is open" looks like — there is no separate status line to assert on.
   await page.getByRole('button', { name: 'Lock now' }).click();
   const unlock = page.getByRole('button', { name: 'Unlock' });
   await expect(unlock).toBeVisible();
@@ -94,7 +96,7 @@ test('creates, unlocks, auto-locks and panic-locks a vault', async () => {
 
   await page.getByLabel('Master password').fill(PASSWORD);
   await unlock.click();
-  await expect(page.getByText('Vault unlocked')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add this page' })).toBeVisible();
 
   // ---------------------------------------------------------------- auto-lock
   // The alarm is a convenience; the authority is the `unlockedUntil` check on every rehydrate
@@ -117,7 +119,7 @@ test('creates, unlocks, auto-locks and panic-locks a vault', async () => {
   // ---------------------------------------------------------------- panic-lock
   await reopened.getByLabel('Master password').fill(PASSWORD);
   await reopened.getByRole('button', { name: 'Unlock' }).click();
-  await expect(reopened.getByText('Vault unlocked')).toBeVisible();
+  await expect(reopened.getByRole('button', { name: 'Add this page' })).toBeVisible();
 
   // The shortcut itself is an OS-level keystroke Chrome routes to `commands.onCommand`, which
   // headless Chromium gives no way to send; that dispatch is unit-tested. What is asserted here is

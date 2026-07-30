@@ -273,7 +273,7 @@ export function restoreItem(items: ItemMap, id: string, ctx: MutationContext): M
     delete next.deleted;
     delete next.deletedAt;
     if (!parentAlive) next.parentId = ROOT_ID;
-    return next as VaultItem;
+    return next;
   });
   return { items: withItems(items, changed), changed };
 }
