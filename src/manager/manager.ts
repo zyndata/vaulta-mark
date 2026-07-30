@@ -1,11 +1,8 @@
+import '../ui/styles.css';
 import './manager.css';
 
-/** Every user-facing string lives in `_locales/en/messages.json`; the markup only names them. */
-function localize(root: ParentNode): void {
-  for (const element of root.querySelectorAll<HTMLElement>('[data-i18n]')) {
-    const key = element.dataset['i18n'];
-    if (key !== undefined) element.textContent = chrome.i18n.getMessage(key);
-  }
-}
+import { localize } from '../ui/dom.js';
 
+// Still the empty shell: the full vault UI is Phase 6. It shares the UI kit and the design tokens
+// from now on, so the two pages cannot drift apart while one of them is a placeholder.
 localize(document);

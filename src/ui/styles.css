@@ -1,0 +1,229 @@
+/*
+ * Design tokens and the shared components (buttons, fields, meter, notices).
+ *
+ * Light and dark both come from `prefers-color-scheme`; `[data-theme]` on <html> overrides it when
+ * the user picks a theme explicitly (`applyTheme` in dom.ts). Every colour pair here clears 4.5:1
+ * against its background — the accessibility pass is Phase 6, but starting below the bar and fixing
+ * it later means restyling everything twice.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --vm-bg: #ffffff;
+  --vm-surface: #f4f5f7;
+  --vm-border: #d5d8de;
+  --vm-fg: #16181d;
+  --vm-muted: #5c6370;
+  --vm-accent: #2f4bc4;
+  --vm-accent-fg: #ffffff;
+  --vm-danger: #b3261e;
+  --vm-warning: #8a5300;
+  --vm-ok: #1c6b3c;
+
+  --vm-radius: 6px;
+  --vm-gap: 0.75rem;
+  --vm-focus: 2px solid var(--vm-accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --vm-bg: #16181d;
+    --vm-surface: #21242b;
+    --vm-border: #383d47;
+    --vm-fg: #e9ecef;
+    --vm-muted: #a7b0be;
+    --vm-accent: #93a9ff;
+    --vm-accent-fg: #10131a;
+    --vm-danger: #ff9f95;
+    --vm-warning: #f0c274;
+    --vm-ok: #7fd6a2;
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --vm-bg: #ffffff;
+  --vm-surface: #f4f5f7;
+  --vm-border: #d5d8de;
+  --vm-fg: #16181d;
+  --vm-muted: #5c6370;
+  --vm-accent: #2f4bc4;
+  --vm-accent-fg: #ffffff;
+  --vm-danger: #b3261e;
+  --vm-warning: #8a5300;
+  --vm-ok: #1c6b3c;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --vm-bg: #16181d;
+  --vm-surface: #21242b;
+  --vm-border: #383d47;
+  --vm-fg: #e9ecef;
+  --vm-muted: #a7b0be;
+  --vm-accent: #93a9ff;
+  --vm-accent-fg: #10131a;
+  --vm-danger: #ff9f95;
+  --vm-warning: #f0c274;
+  --vm-ok: #7fd6a2;
+}
+
+body {
+  margin: 0;
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+
+*:focus-visible {
+  outline: var(--vm-focus);
+  outline-offset: 2px;
+}
+
+.vm-wordmark {
+  margin: 0;
+  font-size: 1.0625rem;
+  letter-spacing: 0.01em;
+}
+
+.vm-muted {
+  color: var(--vm-muted);
+}
+
+.vm-small {
+  font-size: 0.8125rem;
+}
+
+/* ------------------------------------------------------------------ fields */
+
+.vm-field {
+  display: block;
+  margin: 0 0 var(--vm-gap);
+}
+
+.vm-field > span {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--vm-muted);
+}
+
+.vm-field input[type='password'],
+.vm-field input[type='text'],
+.vm-field select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font: inherit;
+}
+
+.vm-checkbox {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0 0 var(--vm-gap);
+}
+
+.vm-checkbox input {
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ buttons */
+
+.vm-button {
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--vm-radius);
+  background: var(--vm-accent);
+  color: var(--vm-accent-fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vm-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vm-button--quiet {
+  background: transparent;
+  border-color: var(--vm-border);
+  color: var(--vm-fg);
+  font-weight: 400;
+}
+
+.vm-button--danger {
+  background: transparent;
+  border-color: var(--vm-danger);
+  color: var(--vm-danger);
+}
+
+.vm-link {
+  color: var(--vm-accent);
+}
+
+/* ------------------------------------------------------------------ notices */
+
+.vm-notice {
+  margin: 0 0 var(--vm-gap);
+  padding: 0.5rem 0.625rem;
+  border-left: 3px solid var(--vm-border);
+  border-radius: 0 var(--vm-radius) var(--vm-radius) 0;
+  background: var(--vm-surface);
+  font-size: 0.8125rem;
+}
+
+.vm-notice--warning {
+  border-left-color: var(--vm-warning);
+}
+
+.vm-notice--danger {
+  border-left-color: var(--vm-danger);
+  color: var(--vm-danger);
+}
+
+.vm-notice p {
+  margin: 0 0 0.35rem;
+}
+
+.vm-notice p:last-child {
+  margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------------ strength meter */
+
+.vm-meter {
+  display: flex;
+  gap: 3px;
+  margin: -0.35rem 0 0.35rem;
+}
+
+.vm-meter span {
+  height: 4px;
+  flex: 1;
+  border-radius: 2px;
+  background: var(--vm-border);
+}
+
+.vm-meter[data-score='0'] span:nth-child(-n + 1),
+.vm-meter[data-score='1'] span:nth-child(-n + 2) {
+  background: var(--vm-danger);
+}
+
+.vm-meter[data-score='2'] span:nth-child(-n + 3) {
+  background: var(--vm-warning);
+}
+
+.vm-meter[data-score='3'] span:nth-child(-n + 4),
+.vm-meter[data-score='4'] span {
+  background: var(--vm-ok);
+}

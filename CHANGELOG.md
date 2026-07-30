@@ -14,6 +14,25 @@ below.
 
 ### Added
 
+- **The extension does something now.** Click the toolbar button and you can create a vault, unlock
+  it, lock it, and choose when it locks itself. There is still nothing to *put* in it from the
+  interface — adding bookmarks arrives in the next phase — but the vault underneath is the real one.
+- Creating a vault asks you to **type a phrase to confirm** you have understood that there is no
+  password recovery. Not a checkbox: a checkbox is a reflex, and this is the one mistake nobody can
+  undo for you. The strength meter is live as you type, and a password weaker than "good" asks a
+  second time before it is accepted — it is never refused. Fewer than 10 characters is refused.
+- **The vault stays unlocked while you work, and locks itself when you stop.** Default 10 minutes of
+  inactivity, selectable between 1 minute and an hour, or *Never*. Chrome shuts our background
+  process down every 30 seconds or so of idle; the vault survives that without asking for your
+  password again, and locks on the deadline regardless of whether Chrome remembered to wake us. Even
+  on *Never*, the vault locks when you close Chrome — the key is never written to disk.
+- Optional **lock when you leave Chrome** (off by default), and a **panic lock** on
+  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> that drops the key immediately and closes the
+  extension's own windows. A lock you asked for finishes saving first; a panic lock does not wait.
+- <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> opens the manager page. All shortcuts are rebindable
+  at `chrome://extensions/shortcuts`.
+- Old deleted bookmarks are cleared out on a background schedule once their 90 days are up, rather
+  than only when something else happens to touch the vault.
 - **The vault itself** (`src/vault/`, `src/storage/`). There is a real, working, encrypted bookmark
   vault now: it can be created with a master password, unlocked, filled with bookmarks and folders,
   searched, locked, and reopened. There is still no interface to any of it — the popup and the
@@ -110,6 +129,8 @@ below.
 
 ### Changed
 
+- The popup is a real interface rather than a build-version placeholder, and both extension pages now
+  share one set of design tokens with light and dark themes.
 - The 10-character minimum master password is now enforced where the vault is written, not only in
   the interface — so no future code path can create a permanently weak vault by forgetting to check.
   Length is counted in characters as a person counts them, so ten emoji are ten characters.

@@ -21,7 +21,7 @@ npm run verify  # the gate: lint + type-check + test + build + invariant scan
 | `npm run zip` | Packages `dist/` → `release/vaulta-mark-<version>.zip` and prints its SHA-256. |
 | `npm run test` | Vitest unit + integration, with coverage and its thresholds. |
 | `npm run test:watch` | Vitest in watch mode, no coverage. |
-| `npm run test:e2e` | Playwright, against a **built** `dist/`. No specs yet — see §5. |
+| `npm run test:e2e` | Playwright, against a **built** `dist/`. See §5. |
 | `npm run lint` | ESLint (type-aware) over `src/`, `test/`, `build/`, `scripts/`. |
 | `npm run format` | Prettier over the code (not the Markdown — prose is wrapped by hand). |
 | `npm run type-check` | `tsc --noEmit` over the whole repository. |
@@ -116,17 +116,24 @@ clock.advance(61_000); // the write-rate window slides
 Use `installChromeMock()` when the code under test reads the global `chrome` at import time (the
 service worker does), and remember `vi.resetModules()` so each test imports it fresh.
 
+Tests that touch the DOM opt into jsdom with a `@vitest-environment jsdom` docblock at the top of the
+file — the default environment is Node, because everything except `src/ui/**` runs without a document.
+
 **Coverage gates** live in `vitest.config.ts` and fail the run, locally and in CI. They start at
-70 % lines / 60 % branches globally; the 90 %/85 % gates for `src/crypto`, `src/vault`,
-`src/storage` and `src/sync` are added as those modules land (D33). Ratchet up, never down.
+70 % lines / 60 % branches globally; the 90 %/85 % gates for `src/crypto`, `src/vault`, `src/storage`,
+`src/background`, `src/shared`, `src/ui` and (from Phase 7) `src/sync` are added as those modules land
+(D33). Ratchet up, never down. `src/popup/**` and `src/manager/**` are excluded: they run on import
+and wire listeners to a live `chrome` and a live document, so they are covered by the E2E suite.
 
 ---
 
-## 5. Writing the first E2E test
+## 5. The E2E suite
 
-There is no E2E spec yet — the first arrives with the popup in Phase 4. When you write it, see
-[`test/e2e/README.md`](../test/e2e/README.md): an MV3 extension needs a **persistent context**
-launched with `--load-extension`, not Playwright's default browser fixture.
+`npm run test:e2e` runs Playwright against a **built** `dist/`, so `npm run build` first. Specs and
+the harness rules are listed in [`test/e2e/README.md`](../test/e2e/README.md); the two that cost the
+most time to rediscover are that an MV3 extension needs a **persistent context** launched with
+`--load-extension` rather than Playwright's default browser fixture, and that it needs
+`channel: 'chromium'` — the default headless build does not run extensions at all.
 
 ---
 

@@ -33,6 +33,7 @@ export default defineConfig({
         'src/storage/**': { lines: 90, branches: 85 },
         'src/background/**': { lines: 90, branches: 85 },
         'src/shared/**': { lines: 90, branches: 85 },
+        'src/ui/**': { lines: 90, branches: 85 },
       },
     },
   },

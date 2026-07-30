@@ -23,13 +23,9 @@
     "message": "Open the VaultaMark manager",
     "description": "Keyboard shortcut description, shown on chrome://extensions/shortcuts."
   },
-  "popupTagline": {
-    "message": "Encrypted bookmarks that never touch your omnibox.",
-    "description": "One-line explanation under the wordmark in the popup."
-  },
   "popupVersion": {
-    "message": "Version $VERSION$",
-    "description": "Build version shown in the popup.",
+    "message": "v$VERSION$",
+    "description": "Build version shown in the popup header.",
     "placeholders": {
       "version": {
         "content": "$1",
@@ -37,20 +33,249 @@
       }
     }
   },
-  "popupWorkerReady": {
-    "message": "Background service is running.",
-    "description": "Popup status line when the service worker answered."
-  },
-  "popupWorkerUnreachable": {
-    "message": "Background service is not responding.",
-    "description": "Popup status line when the service worker did not answer."
+  "popupLoading": {
+    "message": "Checking the vault…",
+    "description": "Shown for the moment before the service worker answers."
   },
   "popupOpenManager": {
     "message": "Open the manager",
     "description": "Link from the popup to the full manager page."
   },
+
+  "createIntro": {
+    "message": "Choose a master password. It encrypts everything you save, and it is never stored or sent anywhere.",
+    "description": "Introduction at the top of the create-vault form."
+  },
+  "createFieldPassword": {
+    "message": "Master password",
+    "description": "Label for the password field on the create-vault form."
+  },
+  "createFieldConfirm": {
+    "message": "Repeat the password",
+    "description": "Label for the confirm-password field on the create-vault form."
+  },
+  "createFieldPhrase": {
+    "message": "Type the phrase to confirm",
+    "description": "Label for the typed-confirmation field on the create-vault form."
+  },
+  "createConfirmPhrase": {
+    "message": "I understand",
+    "description": "The exact phrase the user must type to confirm there is no password recovery. Compared case-insensitively after trimming."
+  },
+  "createPhraseHint": {
+    "message": "Type “$PHRASE$” above to continue.",
+    "description": "Hint under the typed-confirmation field.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "I understand"
+      }
+    }
+  },
+  "createNoRecoveryHeading": {
+    "message": "There is no way to recover this password.",
+    "description": "Heading of the no-recovery warning on the create-vault form."
+  },
+  "createNoRecoveryBody": {
+    "message": "No reset link, no recovery code, no support request. If you forget it, everything in the vault is gone for good — not even we can read it.",
+    "description": "Body of the no-recovery warning on the create-vault form."
+  },
+  "createStrength": {
+    "message": "Strength: $LEVEL$",
+    "description": "Password strength line under the meter.",
+    "placeholders": {
+      "level": {
+        "content": "$1",
+        "example": "Strong"
+      }
+    }
+  },
+  "createPasswordsDiffer": {
+    "message": "The two passwords do not match.",
+    "description": "Shown when the confirm field differs from the password field."
+  },
+  "createWeakConfirm": {
+    "message": "That password is weaker than we would like, and it cannot be recovered later. Press the button again to use it anyway.",
+    "description": "Second confirmation shown when the chosen password scores below “good”."
+  },
+  "createButton": {
+    "message": "Create vault",
+    "description": "Submit button on the create-vault form."
+  },
+  "createButtonAnyway": {
+    "message": "Create vault anyway",
+    "description": "Submit button after the weak-password warning has been shown."
+  },
+
+  "strength0": {
+    "message": "Very weak",
+    "description": "Password strength level 0 of 4."
+  },
+  "strength1": {
+    "message": "Weak",
+    "description": "Password strength level 1 of 4."
+  },
+  "strength2": {
+    "message": "Fair",
+    "description": "Password strength level 2 of 4."
+  },
+  "strength3": {
+    "message": "Good",
+    "description": "Password strength level 3 of 4."
+  },
+  "strength4": {
+    "message": "Strong",
+    "description": "Password strength level 4 of 4."
+  },
+  "warnTooShort": {
+    "message": "Too short — use at least 10 characters.",
+    "description": "Password warning: below the hard minimum length."
+  },
+  "warnCommonPassword": {
+    "message": "This is one of the most commonly used passwords.",
+    "description": "Password warning: an exact match in the bundled common-password list."
+  },
+  "warnCommonPasswordVariant": {
+    "message": "This is a common password with small substitutions — those are the first thing an attacker tries.",
+    "description": "Password warning: a leet or suffixed variant of a common password."
+  },
+  "warnSingleCharacterClass": {
+    "message": "Only one kind of character. Mixing in others helps.",
+    "description": "Password warning: all lowercase, all digits, and so on."
+  },
+  "warnRepeatedCharacters": {
+    "message": "Contains a long run of repeated characters.",
+    "description": "Password warning: a repeated-character run."
+  },
+  "warnSequentialCharacters": {
+    "message": "Contains a sequence like “abcd” or “1234”.",
+    "description": "Password warning: a sequential run."
+  },
+  "warnKeyboardPattern": {
+    "message": "Contains a keyboard pattern like “qwerty”.",
+    "description": "Password warning: a keyboard walk."
+  },
+  "warnYearLike": {
+    "message": "Contains something that looks like a year.",
+    "description": "Password warning: a four-digit year."
+  },
+
+  "unlockFieldPassword": {
+    "message": "Master password",
+    "description": "Label for the password field on the unlock form."
+  },
+  "unlockButton": {
+    "message": "Unlock",
+    "description": "Submit button on the unlock form."
+  },
+  "lockedManual": {
+    "message": "The vault was locked.",
+    "description": "Shown on the unlock screen after the user locked the vault."
+  },
+  "lockedPanic": {
+    "message": "The vault was locked immediately.",
+    "description": "Shown on the unlock screen after a panic-lock."
+  },
+  "lockedExpired": {
+    "message": "The vault locked itself after a period of inactivity.",
+    "description": "Shown on the unlock screen after the idle timeout expired."
+  },
+  "lockedIdle": {
+    "message": "The vault locked itself because the computer went idle.",
+    "description": "Shown on the unlock screen after a system-idle lock."
+  },
+  "lockedBlur": {
+    "message": "The vault locked itself when you left Chrome.",
+    "description": "Shown on the unlock screen after a lock-on-blur lock."
+  },
+
+  "unlockedHeading": {
+    "message": "Vault unlocked",
+    "description": "Status line on the unlocked popup screen."
+  },
+  "unlockedAutoLockIn": {
+    "message": "Locks itself after about $MINUTES$ min of inactivity.",
+    "description": "Auto-lock countdown on the unlocked popup screen.",
+    "placeholders": {
+      "minutes": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "unlockedAutoLockNever": {
+    "message": "Stays unlocked until you lock it or close Chrome.",
+    "description": "Shown instead of the countdown when the idle timeout is set to Never."
+  },
+  "unlockedLockButton": {
+    "message": "Lock now",
+    "description": "Button that locks the vault from the popup."
+  },
+
+  "settingsIdleTimeout": {
+    "message": "Lock after inactivity",
+    "description": "Label for the idle-timeout selector."
+  },
+  "settingsIdleMinutes": {
+    "message": "$MINUTES$ minutes",
+    "description": "An idle-timeout choice.",
+    "placeholders": {
+      "minutes": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "settingsIdleNever": {
+    "message": "Never",
+    "description": "The idle-timeout choice that disables auto-locking."
+  },
+  "settingsLockOnBlur": {
+    "message": "Lock when I leave Chrome",
+    "description": "Label for the lock-on-browser-blur toggle."
+  },
+
+  "errorWrongPassword": {
+    "message": "That password is not right.",
+    "description": "Error shown when the master password fails to unwrap the data key."
+  },
+  "errorPasswordTooShort": {
+    "message": "A master password needs at least $MINIMUM$ characters.",
+    "description": "Error shown when the password is below the hard minimum length.",
+    "placeholders": {
+      "minimum": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "errorCorruptVault": {
+    "message": "The vault data on this device is damaged. Restore a backup to recover it.",
+    "description": "Error shown when authenticated decryption fails."
+  },
+  "errorUnsupportedSchema": {
+    "message": "This vault was made by a newer version of VaultaMark. Update the extension to open it.",
+    "description": "Error shown when the vault schema version is newer than this build supports."
+  },
+  "errorVaultLocked": {
+    "message": "The vault is locked.",
+    "description": "Error shown when an operation needed an unlocked vault."
+  },
+  "errorVaultState": {
+    "message": "That does not match the state of the vault on this device.",
+    "description": "Error shown when creating a vault that exists, or unlocking one that does not."
+  },
+  "errorUnreachable": {
+    "message": "The background service is not responding. Try reopening this window.",
+    "description": "Error shown when the service worker did not answer at all."
+  },
+  "errorUnknown": {
+    "message": "Something went wrong.",
+    "description": "Error shown for anything not covered by a more specific message."
+  },
+
   "managerPlaceholder": {
-    "message": "The vault lives here. Nothing to show yet — this build is the empty shell.",
+    "message": "The vault lives here. Nothing to show yet — the manager arrives in the next phase.",
     "description": "Placeholder text on the manager page before the vault UI exists."
   }
 }

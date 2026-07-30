@@ -7,12 +7,13 @@
     <script type="module" src="./popup.ts"></script>
   </head>
   <body class="vm-popup">
-    <main>
+    <header class="vm-header">
       <h1 class="vm-wordmark">VaultaMark</h1>
-      <p class="vm-tagline" data-i18n="popupTagline"></p>
-      <p class="vm-status" id="vm-status" role="status"></p>
-      <p class="vm-meta"><span id="vm-version"></span></p>
-      <a class="vm-link" id="vm-open-manager" href="/manager.html" data-i18n="popupOpenManager"></a>
-    </main>
+      <p class="vm-small vm-muted" id="vm-version"></p>
+    </header>
+    <!-- Everything below the wordmark is built by popup.ts: which screen belongs here depends on
+         whether a vault exists and whether it is unlocked, and neither is known until the service
+         worker answers. -->
+    <main id="vm-root"></main>
   </body>
 </html>

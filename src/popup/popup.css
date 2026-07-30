@@ -1,53 +1,52 @@
-/* Phase 1 placeholder styling. The real design tokens and UI kit land in src/ui/ in Phase 4. */
-
-:root {
-  color-scheme: light dark;
-  --vm-bg: #ffffff;
-  --vm-fg: #16181d;
-  --vm-muted: #5c6370;
-  --vm-accent: #3b5bdb;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --vm-bg: #16181d;
-    --vm-fg: #e9ecef;
-    --vm-muted: #9aa3b2;
-    --vm-accent: #8da2fb;
-  }
-}
+/* Popup layout only. Tokens and shared components live in src/ui/styles.css. */
 
 body.vm-popup {
+  width: 20rem;
+  padding: 0.875rem 1rem 1rem;
+}
+
+.vm-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.vm-header p {
   margin: 0;
-  min-width: 20rem;
-  padding: 1rem 1.25rem 1.25rem;
-  background: var(--vm-bg);
-  color: var(--vm-fg);
-  font:
-    14px/1.5 system-ui,
-    sans-serif;
 }
 
-.vm-wordmark {
-  margin: 0;
-  font-size: 1.125rem;
-  letter-spacing: 0.01em;
+.vm-warnings {
+  margin: 0 0 0.75rem;
+  padding-left: 1.1rem;
 }
 
-.vm-tagline {
-  margin: 0.25rem 0 1rem;
-  color: var(--vm-muted);
+.vm-warnings:empty {
+  display: none;
 }
 
-.vm-status,
-.vm-meta {
+.vm-danger {
+  color: var(--vm-danger);
+}
+
+.vm-unlocked {
   margin: 0 0 0.25rem;
-  color: var(--vm-muted);
-  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--vm-ok);
 }
 
-.vm-link {
-  display: inline-block;
-  margin-top: 0.75rem;
-  color: var(--vm-accent);
+.vm-rule {
+  margin: 1rem 0 0.875rem;
+  border: 0;
+  border-top: 1px solid var(--vm-border);
+}
+
+/* The strength line and the warning list sit tight under the field they describe. */
+.vm-field + .vm-meter {
+  margin-top: -0.5rem;
+}
+
+.vm-meter + p {
+  margin: 0.25rem 0 0.5rem;
 }
