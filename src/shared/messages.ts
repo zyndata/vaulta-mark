@@ -20,6 +20,8 @@
  *   reaches storage; `chrome.runtime` is not storage and is not reachable from a web page.
  */
 
+import type { FolderDeleteMode } from '../vault/model.js';
+import { isSortKey, type SortKey } from '../vault/sort.js';
 import type { VaultSettings } from '../vault/types.js';
 
 /* ------------------------------------------------------------------ requests */
@@ -95,15 +97,129 @@ export interface OpenItemRequest {
   readonly clearHistoryAfter?: boolean;
 }
 
-export interface DeleteItemRequest {
-  readonly type: 'DELETE_ITEM';
+/**
+ * Delete one or many items, as one revision.
+ *
+ * Plural because the manager deletes a selection and the popup deletes a row, and one batch means
+ * one `vaultRev`, one write, and one thing for {@link RestoreItemsRequest} to undo — a bulk delete
+ * that undid itself one bookmark at a time would be a worse product and a worse merge.
+ */
+export interface DeleteItemsRequest {
+  readonly type: 'DELETE_ITEMS';
+  readonly ids: readonly string[];
+}
+
+/** Undo a delete. The tombstone still holds the items, so this restores them under their own ids. */
+export interface RestoreItemsRequest {
+  readonly type: 'RESTORE_ITEMS';
+  readonly ids: readonly string[];
+}
+
+/* --- the manager (Phase 6) ------------------------------------------------- */
+
+/** The sidebar: every folder with its counts, and every tag with its use count. */
+export interface GetTreeRequest {
+  readonly type: 'GET_TREE';
+}
+
+/**
+ * The manager's main list: a folder's contents, or the results of a search, sorted.
+ *
+ * `folderId` and `query` are not alternatives — a query is scoped to the folder when both are
+ * given, which is what makes "search inside this folder" work without a second request type.
+ */
+export interface ListViewRequest {
+  readonly type: 'LIST_VIEW';
+  readonly folderId?: string;
+  readonly query?: string;
+  readonly sort?: SortKey;
+  /** Only bookmarks carrying no tags. The sidebar's one built-in filter that needs the vault. */
+  readonly untagged?: boolean;
+}
+
+/** One item in full, for the detail pane. The only message that carries a note. */
+export interface GetItemRequest {
+  readonly type: 'GET_ITEM';
   readonly id: string;
 }
 
-/** Undo a delete. The tombstone still holds the item, so this restores it under its own id. */
-export interface RestoreItemRequest {
-  readonly type: 'RESTORE_ITEM';
+export interface CreateFolderRequest {
+  readonly type: 'CREATE_FOLDER';
+  readonly title: string;
+  readonly parentId?: string;
+}
+
+export interface UpdateItemRequest {
+  readonly type: 'UPDATE_ITEM';
   readonly id: string;
+  readonly patch: ItemEdit;
+}
+
+/**
+ * What a UI may change about an item.
+ *
+ * A deliberate subset of the model's `ItemPatch`: `og`, `thumb`, `openedAt` and `openCount` are
+ * written by the extension in response to what happened, never by a person typing, and the cheapest
+ * way to keep a UI from writing them is for the wire not to carry them.
+ *
+ * `null` clears an optional field, matching `ItemPatch` — `exactOptionalPropertyTypes` means the
+ * absence of a key cannot express "remove this".
+ */
+export interface ItemEdit {
+  readonly title?: string;
+  readonly url?: string;
+  readonly note?: string | null;
+  readonly tags?: readonly string[] | null;
+}
+
+export interface MoveItemsRequest {
+  readonly type: 'MOVE_ITEMS';
+  readonly ids: readonly string[];
+  readonly parentId: string;
+}
+
+/** Delete a folder. The caller must say what happens to what is inside it; there is no default. */
+export interface DeleteFolderRequest {
+  readonly type: 'DELETE_FOLDER';
+  readonly id: string;
+  readonly mode: FolderDeleteMode;
+}
+
+export interface TagItemsRequest {
+  readonly type: 'TAG_ITEMS';
+  readonly ids: readonly string[];
+  readonly add?: readonly string[];
+  readonly remove?: readonly string[];
+}
+
+/** Rename a tag everywhere it appears. */
+export interface RenameTagRequest {
+  readonly type: 'RENAME_TAG';
+  readonly from: string;
+  readonly to: string;
+}
+
+/**
+ * Re-wrap the data key under a new password.
+ *
+ * The current password is required even though the vault is open: an unlocked session must not be
+ * a way to change the password without knowing it (`repo.changePassword`).
+ */
+export interface ChangePasswordRequest {
+  readonly type: 'CHANGE_PASSWORD';
+  readonly currentPassword: string;
+  readonly newPassword: string;
+}
+
+/**
+ * Erase the vault from this profile, irreversibly.
+ *
+ * The typed confirmation that gates this is in the UI, not on the wire. There is nothing a
+ * confirmation field could add: `chrome.runtime` is reachable only from this extension's own pages
+ * (there is no `externally_connectable`), so a message that arrives here was sent by our own code.
+ */
+export interface DestroyVaultRequest {
+  readonly type: 'DESTROY_VAULT';
 }
 
 /** Is "Allow in Incognito" on? `recheck` bypasses the per-worker cache for the Re-check button. */
@@ -125,9 +241,20 @@ export type Request =
   | AddUrlRequest
   | ListItemsRequest
   | OpenItemRequest
-  | DeleteItemRequest
-  | RestoreItemRequest
-  | IncognitoAccessRequest;
+  | DeleteItemsRequest
+  | RestoreItemsRequest
+  | IncognitoAccessRequest
+  | GetTreeRequest
+  | ListViewRequest
+  | GetItemRequest
+  | CreateFolderRequest
+  | UpdateItemRequest
+  | MoveItemsRequest
+  | DeleteFolderRequest
+  | TagItemsRequest
+  | RenameTagRequest
+  | ChangePasswordRequest
+  | DestroyVaultRequest;
 
 /** A partial settings update. Absent fields keep their stored value. */
 export type SettingsPatch = Partial<VaultSettings>;
@@ -198,6 +325,105 @@ export interface OpenedResponse {
   readonly status: OpenStatus;
 }
 
+/* --- the manager (Phase 6) ------------------------------------------------- */
+
+/**
+ * One row of the manager's list.
+ *
+ * Richer than {@link ItemSummary} — the manager shows folders, tags and a sort key the popup does
+ * not — and still deliberately **without the note**. A note is capped at 4 KB, and a five-thousand
+ * row view would put twenty megabytes of it on the wire to render a boolean. `hasNote` is that
+ * boolean; the detail pane asks for the rest with {@link GetItemRequest}.
+ */
+export interface ListRow {
+  readonly id: string;
+  readonly type: 'bookmark' | 'folder';
+  readonly parentId: string;
+  readonly title: string;
+  readonly url?: string;
+  readonly tags: readonly string[];
+  readonly hasNote: boolean;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  readonly openedAt?: number;
+  readonly openCount?: number;
+  /** Live bookmarks in this folder's subtree. Present on folders only. */
+  readonly descendants?: number;
+}
+
+/** One item in full. The note travels here and nowhere else. */
+export interface ItemDetail extends ListRow {
+  readonly note: string;
+  /** Ancestors from the top level down to the item's parent. */
+  readonly path: readonly Crumb[];
+}
+
+export interface Crumb {
+  readonly id: string;
+  readonly title: string;
+}
+
+export interface FolderNode {
+  readonly id: string;
+  readonly parentId: string;
+  readonly title: string;
+  /** Items of either kind directly inside. */
+  readonly direct: number;
+  /** Live bookmarks anywhere in the subtree — the number a folder row shows. */
+  readonly descendants: number;
+}
+
+export interface TagCount {
+  readonly tag: string;
+  readonly count: number;
+}
+
+export interface TreeResponse {
+  readonly type: 'TREE';
+  readonly folders: readonly FolderNode[];
+  readonly tags: readonly TagCount[];
+  /** Live bookmarks in the whole vault, and how many of them carry no tag. */
+  readonly total: number;
+  readonly untagged: number;
+}
+
+export interface ViewResponse {
+  readonly type: 'VIEW';
+  readonly items: readonly ListRow[];
+  /** Breadcrumbs for the folder being shown. Empty at the top level and for a search. */
+  readonly path: readonly Crumb[];
+  /**
+   * The folded free-text terms the query came down to, so the list can highlight them without
+   * re-implementing the query grammar. Empty when nothing was searched for.
+   */
+  readonly terms: readonly string[];
+  /**
+   * Whether the order is relevance rather than the requested sort key.
+   *
+   * A search with terms in it is ranked — a result that is third because it happens to be older is
+   * a search that failed — so the sort control has nothing to do and the UI says so instead of
+   * offering a menu that changes nothing.
+   */
+  readonly ranked: boolean;
+}
+
+export interface ItemResponse {
+  readonly type: 'ITEM';
+  /** `null` when the id is unknown — a stale list, or something another window just deleted. */
+  readonly item: ItemDetail | null;
+}
+
+export interface CreatedResponse {
+  readonly type: 'CREATED';
+  readonly id: string;
+}
+
+/** How many items an operation actually changed. */
+export interface CountResponse {
+  readonly type: 'COUNT';
+  readonly count: number;
+}
+
 export type OpenStatus =
   | 'incognito'
   /** Opened in a normal window, because the user explicitly chose the fallback. */
@@ -238,6 +464,8 @@ export type ErrorCode =
   | 'VAULT_STATE'
   /** The vault has no item with that id — a stale list, or an undo of an already-purged delete. */
   | 'ITEM_NOT_FOUND'
+  /** The tree refused the change: a folder moved inside itself, a bookmark used as a parent. */
+  | 'INVALID_MUTATION'
   /** There was no active tab to read, or `activeTab` did not grant us its URL. */
   | 'NO_ACTIVE_TAB'
   /** A Chrome page, our own pages, `about:` — nothing we could reopen in incognito later. */
@@ -264,9 +492,20 @@ export interface ResponseMap {
   readonly ADD_URL: AddedResponse;
   readonly LIST_ITEMS: ItemsResponse;
   readonly OPEN_ITEM: OpenedResponse;
-  readonly DELETE_ITEM: OkResponse;
-  readonly RESTORE_ITEM: OkResponse;
+  readonly DELETE_ITEMS: OkResponse;
+  readonly RESTORE_ITEMS: OkResponse;
   readonly INCOGNITO_ACCESS: IncognitoAccessResponse;
+  readonly GET_TREE: TreeResponse;
+  readonly LIST_VIEW: ViewResponse;
+  readonly GET_ITEM: ItemResponse;
+  readonly CREATE_FOLDER: CreatedResponse;
+  readonly UPDATE_ITEM: OkResponse;
+  readonly MOVE_ITEMS: CountResponse;
+  readonly DELETE_FOLDER: OkResponse;
+  readonly TAG_ITEMS: CountResponse;
+  readonly RENAME_TAG: CountResponse;
+  readonly CHANGE_PASSWORD: OkResponse;
+  readonly DESTROY_VAULT: OkResponse;
 }
 
 export type ResponseFor<R extends Request> = ResponseMap[R['type']] | ErrorResponse;
@@ -380,15 +619,88 @@ export function parseRequest(raw: unknown): Request | null {
         ...(clearHistoryAfter === undefined ? {} : { clearHistoryAfter }),
       };
     }
-    case 'DELETE_ITEM':
-    case 'RESTORE_ITEM': {
-      const id = raw['id'];
-      return typeof id === 'string' && id !== '' ? { type, id } : null;
+    case 'DELETE_ITEMS':
+    case 'RESTORE_ITEMS': {
+      const ids = parseIdList(raw['ids']);
+      return ids === null ? null : { type, ids };
     }
     case 'INCOGNITO_ACCESS': {
       const recheck = raw['recheck'];
       if (recheck === undefined) return { type };
       return typeof recheck === 'boolean' ? { type, recheck } : null;
+    }
+    case 'GET_TREE':
+    case 'DESTROY_VAULT':
+      return { type };
+    case 'LIST_VIEW': {
+      const { folderId, query, sort, untagged } = raw;
+      if (folderId !== undefined && !isNonEmptyString(folderId)) return null;
+      if (query !== undefined && typeof query !== 'string') return null;
+      if (sort !== undefined && !isSortKey(sort)) return null;
+      if (untagged !== undefined && typeof untagged !== 'boolean') return null;
+      return {
+        type,
+        ...(folderId === undefined ? {} : { folderId }),
+        ...(query === undefined ? {} : { query }),
+        ...(sort === undefined ? {} : { sort }),
+        ...(untagged === undefined ? {} : { untagged }),
+      };
+    }
+    case 'GET_ITEM': {
+      const id = raw['id'];
+      return isNonEmptyString(id) ? { type, id } : null;
+    }
+    case 'CREATE_FOLDER': {
+      const title = raw['title'];
+      const parentId = raw['parentId'];
+      if (!isNonEmptyString(title)) return null;
+      if (parentId !== undefined && !isNonEmptyString(parentId)) return null;
+      return { type, title, ...(parentId === undefined ? {} : { parentId }) };
+    }
+    case 'UPDATE_ITEM': {
+      const id = raw['id'];
+      const patch = parseItemEdit(raw['patch']);
+      if (!isNonEmptyString(id) || patch === null) return null;
+      return { type, id, patch };
+    }
+    case 'MOVE_ITEMS': {
+      const ids = parseIdList(raw['ids']);
+      const parentId = raw['parentId'];
+      if (ids === null || !isNonEmptyString(parentId)) return null;
+      return { type, ids, parentId };
+    }
+    case 'DELETE_FOLDER': {
+      const id = raw['id'];
+      const mode = raw['mode'];
+      if (!isNonEmptyString(id)) return null;
+      if (mode !== 'recursive' && mode !== 'reparent') return null;
+      return { type, id, mode };
+    }
+    case 'TAG_ITEMS': {
+      const ids = parseIdList(raw['ids']);
+      const add = raw['add'];
+      const remove = raw['remove'];
+      if (ids === null) return null;
+      if (add !== undefined && !isStringArray(add)) return null;
+      if (remove !== undefined && !isStringArray(remove)) return null;
+      return {
+        type,
+        ids,
+        ...(add === undefined ? {} : { add }),
+        ...(remove === undefined ? {} : { remove }),
+      };
+    }
+    case 'RENAME_TAG': {
+      const from = raw['from'];
+      const to = raw['to'];
+      if (!isNonEmptyString(from) || !isNonEmptyString(to)) return null;
+      return { type, from, to };
+    }
+    case 'CHANGE_PASSWORD': {
+      const currentPassword = raw['currentPassword'];
+      const newPassword = raw['newPassword'];
+      if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') return null;
+      return { type, currentPassword, newPassword };
     }
     default:
       return null;
@@ -397,6 +709,58 @@ export function parseRequest(raw: unknown): Request | null {
 
 function isPositiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value !== '';
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
+/**
+ * A list of item ids: non-empty strings, and at least one of them.
+ *
+ * An empty array is rejected rather than treated as a no-op. Every caller of a bulk operation has a
+ * selection behind it, so an empty one is a bug in the caller — and answering `OK` to "delete
+ * nothing" is how that bug reaches a user as "the delete button does nothing sometimes".
+ */
+function parseIdList(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  return value.every(isNonEmptyString) ? [...value] : null;
+}
+
+/** Validate an item edit. Rejects the whole patch on any bad field, like {@link parseSettingsPatch}. */
+export function parseItemEdit(raw: unknown): ItemEdit | null {
+  if (!isRecord(raw)) return null;
+  const patch: { -readonly [K in keyof ItemEdit]: ItemEdit[K] } = {};
+
+  const title = raw['title'];
+  if (title !== undefined) {
+    if (typeof title !== 'string') return null;
+    patch.title = title;
+  }
+
+  const url = raw['url'];
+  if (url !== undefined) {
+    if (!isNonEmptyString(url)) return null;
+    patch.url = url;
+  }
+
+  const note = raw['note'];
+  if (note !== undefined) {
+    if (note !== null && typeof note !== 'string') return null;
+    patch.note = note;
+  }
+
+  const tags = raw['tags'];
+  if (tags !== undefined) {
+    if (tags !== null && !isStringArray(tags)) return null;
+    patch.tags = tags;
+  }
+
+  return patch;
 }
 
 /**
@@ -458,6 +822,11 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'ITEMS',
   'OPENED',
   'INCOGNITO_ACCESS_STATE',
+  'TREE',
+  'VIEW',
+  'ITEM',
+  'CREATED',
+  'COUNT',
   'ERROR',
 ]);
 

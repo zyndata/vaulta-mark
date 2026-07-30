@@ -212,7 +212,7 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
   }
 
   async function deleteItem(item: ItemSummary): Promise<void> {
-    const response = await send({ type: 'DELETE_ITEM', id: item.id });
+    const response = await send({ type: 'DELETE_ITEMS', ids: [item.id] });
     if (response.type === 'ERROR') {
       showNotice(deps.errorText(response.code), 'danger');
       return;
@@ -234,7 +234,7 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
           onclick: () => {
             void (async () => {
               render(toastBox);
-              const response = await send({ type: 'RESTORE_ITEM', id: item.id });
+              const response = await send({ type: 'RESTORE_ITEMS', ids: [item.id] });
               if (response.type === 'ERROR') showNotice(deps.errorText(response.code), 'danger');
               await reload();
             })();

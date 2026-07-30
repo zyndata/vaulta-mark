@@ -5,6 +5,7 @@ import {
   onBroadcast,
   onRequest,
   parseBroadcast,
+  parseItemEdit,
   parseRequest,
   parseResponse,
   parseSettingsPatch,
@@ -92,8 +93,8 @@ describe('parseRequest', () => {
     expect(parseRequest({ type: 'LIST_ITEMS', query: 7 })).toBeNull();
   });
 
-  it('requires an id on OPEN_ITEM, DELETE_ITEM and RESTORE_ITEM', () => {
-    for (const type of ['OPEN_ITEM', 'DELETE_ITEM', 'RESTORE_ITEM'] as const) {
+  it('requires an id on OPEN_ITEM and GET_ITEM', () => {
+    for (const type of ['OPEN_ITEM', 'GET_ITEM'] as const) {
       expect(parseRequest({ type, id: 'abc' })).toMatchObject({ type, id: 'abc' });
       for (const id of [undefined, null, '', 42]) {
         expect(parseRequest({ type, id })).toBeNull();
@@ -130,6 +131,160 @@ describe('parseRequest', () => {
     for (const raw of [null, undefined, 'PING', 42, [], {}, { type: 'NOT_OURS' }, { type: 7 }]) {
       expect(parseRequest(raw)).toBeNull();
     }
+  });
+
+  /* --- the manager (Phase 6) --- */
+
+  it('takes GET_TREE and DESTROY_VAULT bare', () => {
+    for (const type of ['GET_TREE', 'DESTROY_VAULT'] as const) {
+      expect(parseRequest({ type })).toEqual({ type });
+      // Extra fields are dropped rather than rejected: the parser's output is what the router sees.
+      expect(parseRequest({ type, extra: 'ignored' })).toEqual({ type });
+    }
+  });
+
+  it('takes every LIST_VIEW field as optional, and each of them typed', () => {
+    expect(parseRequest({ type: 'LIST_VIEW' })).toEqual({ type: 'LIST_VIEW' });
+    expect(
+      parseRequest({ type: 'LIST_VIEW', folderId: 'f', query: 'x', sort: 'title', untagged: true }),
+    ).toEqual({ type: 'LIST_VIEW', folderId: 'f', query: 'x', sort: 'title', untagged: true });
+    // An empty query is meaningful — "the user cleared the box" — and an empty folder id is not.
+    expect(parseRequest({ type: 'LIST_VIEW', query: '' })).toEqual({ type: 'LIST_VIEW', query: '' });
+    for (const bad of [
+      { folderId: '' },
+      { folderId: 7 },
+      { query: 7 },
+      { sort: 'sideways' },
+      { sort: 4 },
+      { untagged: 'yes' },
+    ]) {
+      expect(parseRequest({ type: 'LIST_VIEW', ...bad }), JSON.stringify(bad)).toBeNull();
+    }
+  });
+
+  it('requires a non-empty id list on every bulk request', () => {
+    for (const type of ['DELETE_ITEMS', 'RESTORE_ITEMS', 'TAG_ITEMS', 'MOVE_ITEMS'] as const) {
+      const extra = type === 'MOVE_ITEMS' ? { parentId: 'root' } : {};
+      expect(parseRequest({ type, ids: ['a', 'b'], ...extra })).toMatchObject({
+        type,
+        ids: ['a', 'b'],
+      });
+      // An empty selection is a bug in the caller, and answering OK to it is how that bug reaches
+      // a user as "the button does nothing sometimes".
+      for (const ids of [undefined, [], ['a', ''], ['a', 7], 'a', {}]) {
+        expect(parseRequest({ type, ids, ...extra }), JSON.stringify(ids)).toBeNull();
+      }
+    }
+  });
+
+  it('types the tag lists on TAG_ITEMS, and leaves both optional', () => {
+    expect(parseRequest({ type: 'TAG_ITEMS', ids: ['a'] })).toEqual({
+      type: 'TAG_ITEMS',
+      ids: ['a'],
+    });
+    expect(parseRequest({ type: 'TAG_ITEMS', ids: ['a'], add: ['x'], remove: ['y'] })).toEqual({
+      type: 'TAG_ITEMS',
+      ids: ['a'],
+      add: ['x'],
+      remove: ['y'],
+    });
+    expect(parseRequest({ type: 'TAG_ITEMS', ids: ['a'], add: 'x' })).toBeNull();
+    expect(parseRequest({ type: 'TAG_ITEMS', ids: ['a'], remove: [7] })).toBeNull();
+  });
+
+  it('requires a parent on MOVE_ITEMS and a mode on DELETE_FOLDER', () => {
+    expect(parseRequest({ type: 'MOVE_ITEMS', ids: ['a'], parentId: '' })).toBeNull();
+    for (const mode of ['recursive', 'reparent'] as const) {
+      expect(parseRequest({ type: 'DELETE_FOLDER', id: 'f', mode })).toEqual({
+        type: 'DELETE_FOLDER',
+        id: 'f',
+        mode,
+      });
+    }
+    for (const mode of [undefined, '', 'purge', 7]) {
+      expect(parseRequest({ type: 'DELETE_FOLDER', id: 'f', mode })).toBeNull();
+    }
+  });
+
+  it('requires a title on CREATE_FOLDER and leaves the parent optional', () => {
+    expect(parseRequest({ type: 'CREATE_FOLDER', title: 'Work' })).toEqual({
+      type: 'CREATE_FOLDER',
+      title: 'Work',
+    });
+    expect(parseRequest({ type: 'CREATE_FOLDER', title: 'Work', parentId: 'p' })).toEqual({
+      type: 'CREATE_FOLDER',
+      title: 'Work',
+      parentId: 'p',
+    });
+    expect(parseRequest({ type: 'CREATE_FOLDER', title: '' })).toBeNull();
+    expect(parseRequest({ type: 'CREATE_FOLDER', title: 'Work', parentId: '' })).toBeNull();
+  });
+
+  it('requires both names on RENAME_TAG and both passwords on CHANGE_PASSWORD', () => {
+    expect(parseRequest({ type: 'RENAME_TAG', from: 'a', to: 'b' })).toEqual({
+      type: 'RENAME_TAG',
+      from: 'a',
+      to: 'b',
+    });
+    expect(parseRequest({ type: 'RENAME_TAG', from: 'a', to: '' })).toBeNull();
+
+    expect(
+      parseRequest({ type: 'CHANGE_PASSWORD', currentPassword: 'a', newPassword: 'b' }),
+    ).toEqual({ type: 'CHANGE_PASSWORD', currentPassword: 'a', newPassword: 'b' });
+    // Length is the repository's rule, not the parser's — but the type is the parser's.
+    expect(parseRequest({ type: 'CHANGE_PASSWORD', currentPassword: 'a', newPassword: 7 })).toBeNull();
+  });
+});
+
+describe('parseItemEdit', () => {
+  it('accepts an empty patch and each field on its own', () => {
+    expect(parseItemEdit({})).toEqual({});
+    expect(parseItemEdit({ title: 'A' })).toEqual({ title: 'A' });
+    // An empty title is legal — a bookmark may have none — but an empty URL is not a URL.
+    expect(parseItemEdit({ title: '' })).toEqual({ title: '' });
+    expect(parseItemEdit({ url: 'https://example.com/' })).toEqual({ url: 'https://example.com/' });
+    expect(parseItemEdit({ note: 'hello' })).toEqual({ note: 'hello' });
+    expect(parseItemEdit({ tags: ['a', 'b'] })).toEqual({ tags: ['a', 'b'] });
+  });
+
+  it('carries null through, because it is the only way to clear a field', () => {
+    expect(parseItemEdit({ note: null })).toEqual({ note: null });
+    expect(parseItemEdit({ tags: null })).toEqual({ tags: null });
+  });
+
+  it('rejects the whole patch on any bad field rather than dropping it', () => {
+    for (const bad of [
+      { title: 7 },
+      { url: '' },
+      { url: 7 },
+      { note: 7 },
+      { tags: 'a' },
+      { tags: [7] },
+      { tags: ['a', null] },
+    ]) {
+      expect(parseItemEdit(bad), JSON.stringify(bad)).toBeNull();
+    }
+    for (const raw of [null, undefined, 'patch', 42]) {
+      expect(parseItemEdit(raw)).toBeNull();
+    }
+  });
+
+  it('does not accept fields only the extension may write', () => {
+    // `openedAt`, `openCount`, `og` and `thumb` are written in response to what happened, never by
+    // someone typing. The cheapest way to keep a UI from writing them is for the wire not to carry
+    // them — so they are dropped, and a request that is only those is an empty patch.
+    expect(parseItemEdit({ openedAt: 1, openCount: 2, og: {}, thumb: {} })).toEqual({});
+  });
+
+  it('is what UPDATE_ITEM validates its patch with', () => {
+    expect(parseRequest({ type: 'UPDATE_ITEM', id: 'a', patch: { title: 'x' } })).toEqual({
+      type: 'UPDATE_ITEM',
+      id: 'a',
+      patch: { title: 'x' },
+    });
+    expect(parseRequest({ type: 'UPDATE_ITEM', id: 'a', patch: { url: '' } })).toBeNull();
+    expect(parseRequest({ type: 'UPDATE_ITEM', id: '', patch: {} })).toBeNull();
+    expect(parseRequest({ type: 'UPDATE_ITEM', id: 'a' })).toBeNull();
   });
 });
 

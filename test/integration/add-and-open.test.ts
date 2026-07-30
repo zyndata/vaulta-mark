@@ -43,7 +43,10 @@ async function listItems(query?: string): Promise<{ id: string; title: string; u
 beforeEach(async () => {
   mock = installChromeMock();
   await startWorker();
-  await send({ type: 'CREATE_VAULT', password: PASSWORD });
+  // Asserted, not fired and forgotten: a stray write from a previous test's dead worker landing in
+  // this mock would make CREATE_VAULT fail with VAULT_STATE, and every assertion after it would
+  // then fail for a reason that has nothing to do with what it was testing.
+  expect(await send({ type: 'CREATE_VAULT', password: PASSWORD })).toEqual({ type: 'OK' });
 });
 
 afterEach(() => {
@@ -165,10 +168,10 @@ describe('delete and undo', () => {
     await send({ type: 'ADD_URL', url: 'https://example.com/x', title: 'Example' });
     const [item] = await listItems();
 
-    expect(await send({ type: 'DELETE_ITEM', id: item!.id })).toEqual({ type: 'OK' });
+    expect(await send({ type: 'DELETE_ITEMS', ids: [item!.id] })).toEqual({ type: 'OK' });
     expect(await listItems()).toEqual([]);
 
-    expect(await send({ type: 'RESTORE_ITEM', id: item!.id })).toEqual({ type: 'OK' });
+    expect(await send({ type: 'RESTORE_ITEMS', ids: [item!.id] })).toEqual({ type: 'OK' });
     const restored = await listItems();
     expect(restored).toHaveLength(1);
     expect(restored[0]!.id).toBe(item!.id);
@@ -177,16 +180,16 @@ describe('delete and undo', () => {
   it('survives a worker restart between the delete and the undo', async () => {
     await send({ type: 'ADD_URL', url: 'https://example.com/x', title: 'Example' });
     const [item] = await listItems();
-    await send({ type: 'DELETE_ITEM', id: item!.id });
+    await send({ type: 'DELETE_ITEMS', ids: [item!.id] });
 
     await startWorker();
 
-    expect(await send({ type: 'RESTORE_ITEM', id: item!.id })).toEqual({ type: 'OK' });
+    expect(await send({ type: 'RESTORE_ITEMS', ids: [item!.id] })).toEqual({ type: 'OK' });
     expect(await listItems()).toHaveLength(1);
   });
 
   it('reports an id the vault has never held', async () => {
-    expect(await send({ type: 'DELETE_ITEM', id: 'not-an-item' })).toEqual({
+    expect(await send({ type: 'DELETE_ITEMS', ids: ['not-an-item'] })).toEqual({
       type: 'ERROR',
       code: 'ITEM_NOT_FOUND',
     });
@@ -264,8 +267,8 @@ describe('INV-6, over the whole Phase-5 journey', () => {
     await send({ type: 'ADD_ACTIVE_TAB' });
     const [item] = await listItems();
     await send({ type: 'OPEN_ITEM', id: item!.id });
-    await send({ type: 'DELETE_ITEM', id: item!.id });
-    await send({ type: 'RESTORE_ITEM', id: item!.id });
+    await send({ type: 'DELETE_ITEMS', ids: [item!.id] });
+    await send({ type: 'RESTORE_ITEMS', ids: [item!.id] });
     await send({ type: 'LOCK' });
 
     const stored = JSON.stringify(mock.storage.local.snapshot());

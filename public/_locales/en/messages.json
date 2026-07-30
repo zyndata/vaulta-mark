@@ -473,6 +473,10 @@
     "message": "That bookmark is no longer in the vault.",
     "description": "Error shown when an action names an item that has since been removed."
   },
+  "errorInvalidMutation": {
+    "message": "That change would not leave a workable set of folders — a folder cannot go inside itself, and a bookmark cannot hold other bookmarks.",
+    "description": "Error shown when the item tree refuses a move or an edit."
+  },
   "errorNoActiveTab": {
     "message": "There is no page to add here.",
     "description": "Error shown when the active tab could not be read."

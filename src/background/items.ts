@@ -21,6 +21,8 @@ import {
   type OpenStatus,
 } from '../shared/messages.js';
 import { ItemNotFoundError, VaultLockedError } from '../vault/errors.js';
+import type { Mutation } from '../vault/model.js';
+import { sortItems } from '../vault/sort.js';
 import { isBookmark, isDeleted, type Bookmark } from '../vault/types.js';
 import type { VaultRepository } from '../storage/repo.js';
 import { addActiveTab as addActiveTabTo, addUrl as addUrlTo, summarize, type AddResult } from './add.js';
@@ -106,17 +108,17 @@ export async function list(options: ListOptions = {}): Promise<ListResult> {
 
   // `getAll` drops tombstones and `search` drops both tombstones and folders, so the only filter
   // left is "bookmarks" — and it is a type narrowing rather than a second exclusion.
+  // `sortItems` rather than a bare `createdAt` comparison: two bookmarks vaulted in the same
+  // millisecond — a bulk add, or a fast pair of clicks — tie on the timestamp, and a comparator
+  // that returns 0 for them leaves their order to `Array.prototype.sort`. The shared comparators
+  // fall back to title and then id, so the same vault always lists the same way round.
   const matches: Bookmark[] =
     query === ''
-      ? repo.getAll().filter(isBookmark).sort(newestFirst)
+      ? sortItems(repo.getAll().filter(isBookmark), 'added').filter(isBookmark)
       : repo.search(query).map((hit) => hit.item).filter(isBookmark);
 
   const limited = options.limit === undefined ? matches : matches.slice(0, options.limit);
   return { items: limited.map(summarize), total: matches.length };
-}
-
-function newestFirst(a: Bookmark, b: Bookmark): number {
-  return b.createdAt - a.createdAt;
 }
 
 /* ------------------------------------------------------------------ opening */
@@ -151,6 +153,11 @@ export async function open(id: string, options: OpenOptions = {}): Promise<OpenS
       patch: { openedAt: Date.now(), openCount: (item.openCount ?? 0) + 1 },
     },
   ]);
+  // Written through rather than left to the 300 ms coalescer. Opening a bookmark hands focus to a
+  // new window, which is exactly the moment MV3 is free to tear this worker down — and from Phase 6
+  // these two fields are sort keys ("recently opened", "most opened"), so losing the bump is a
+  // visibly wrong list rather than a rounding error.
+  await repo.flush();
   await session.touch();
   return status;
 }
@@ -166,24 +173,29 @@ export async function incognitoAccess(recheck = false): Promise<IncognitoAccessR
 /* ------------------------------------------------------------------ deleting and undoing */
 
 /**
- * Delete a bookmark. Written through immediately, because the undo has to be able to find it.
+ * Delete items. Written through immediately, because the undo has to be able to find them.
  *
- * A delete is a tombstone (D20), so the undo is `restore` on the same id rather than a second add
+ * A delete is a tombstone (D20), so the undo is `restore` on the same ids rather than a second add
  * — which is what stops "delete, undo" from arriving on another device as two bookmarks.
+ *
+ * The whole selection is one batch, so a bulk delete is one revision and one undo. An id that is
+ * not in the vault rejects the batch rather than deleting the rest: a caller working from a stale
+ * list should be told, not half-obeyed.
  */
-export async function remove(id: string): Promise<void> {
-  const repo = await requireVault();
-  if (repo.getItem(id) === undefined) throw new ItemNotFoundError(id);
-  await repo.apply([{ kind: 'delete', id }]);
-  await repo.flush();
-  await session.touch();
-  await broadcast({ type: 'VAULT_CHANGED' });
+export async function remove(ids: readonly string[]): Promise<void> {
+  await mutate(ids, (id) => ({ kind: 'delete', id }));
 }
 
-export async function restore(id: string): Promise<void> {
+export async function restore(ids: readonly string[]): Promise<void> {
+  await mutate(ids, (id) => ({ kind: 'restore', id }));
+}
+
+async function mutate(ids: readonly string[], build: (id: string) => Mutation): Promise<void> {
   const repo = await requireVault();
-  if (repo.getItem(id) === undefined) throw new ItemNotFoundError(id);
-  await repo.apply([{ kind: 'restore', id }]);
+  for (const id of ids) {
+    if (repo.getItem(id) === undefined) throw new ItemNotFoundError(id);
+  }
+  await repo.apply(ids.map(build));
   await repo.flush();
   await session.touch();
   await broadcast({ type: 'VAULT_CHANGED' });
@@ -191,7 +203,8 @@ export async function restore(id: string): Promise<void> {
 
 /* ------------------------------------------------------------------ internals */
 
-async function requireVault(): Promise<VaultRepository> {
+/** The unlocked repository, or `VaultLockedError`. Shared with `organize.ts`. */
+export async function requireVault(): Promise<VaultRepository> {
   const repo = await session.currentRepository();
   if (repo === null) throw new VaultLockedError('working with vault items');
   return repo;

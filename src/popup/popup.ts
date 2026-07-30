@@ -15,19 +15,10 @@
 import '../ui/styles.css';
 import './popup.css';
 
-import {
-  MIN_PASSWORD_LENGTH,
-  estimateStrength,
-  passwordLength,
-  type PasswordWarning,
-} from '../crypto/password.js';
-import {
-  onBroadcast,
-  send,
-  type ErrorCode,
-  type LockReason,
-} from '../shared/messages.js';
+import { MIN_PASSWORD_LENGTH, estimateStrength, passwordLength } from '../crypto/password.js';
+import { onBroadcast, send, type LockReason } from '../shared/messages.js';
 import { applyTheme, h, matchesPhrase, msg, qs, render } from '../ui/dom.js';
+import { LOCK_REASON_KEYS, WARNING_KEYS, errorText } from '../ui/strings.js';
 import type { VaultSettings } from '../vault/types.js';
 import { vaultScreen } from './vault.js';
 
@@ -35,49 +26,6 @@ const root = qs(document, '#vm-root');
 
 /** Why the vault locked while the popup was open. Shown once on the unlock screen, then cleared. */
 let lastLockReason: LockReason | null = null;
-
-/* ------------------------------------------------------------------ strings */
-
-const ERROR_KEYS: Record<ErrorCode, string> = {
-  WRONG_PASSWORD: 'errorWrongPassword',
-  PASSWORD_TOO_SHORT: 'errorPasswordTooShort',
-  CORRUPT_VAULT: 'errorCorruptVault',
-  UNSUPPORTED_SCHEMA: 'errorUnsupportedSchema',
-  VAULT_LOCKED: 'errorVaultLocked',
-  VAULT_STATE: 'errorVaultState',
-  ITEM_NOT_FOUND: 'errorItemNotFound',
-  NO_ACTIVE_TAB: 'errorNoActiveTab',
-  URL_INTERNAL_PAGE: 'errorUrlInternalPage',
-  URL_LOCAL_FILE: 'errorUrlLocalFile',
-  URL_UNSUPPORTED_SCHEME: 'errorUrlUnsupportedScheme',
-  UNREACHABLE: 'errorUnreachable',
-  UNKNOWN: 'errorUnknown',
-};
-
-const WARNING_KEYS: Record<PasswordWarning, string> = {
-  'too-short': 'warnTooShort',
-  'common-password': 'warnCommonPassword',
-  'common-password-variant': 'warnCommonPasswordVariant',
-  'single-character-class': 'warnSingleCharacterClass',
-  'repeated-characters': 'warnRepeatedCharacters',
-  'sequential-characters': 'warnSequentialCharacters',
-  'keyboard-pattern': 'warnKeyboardPattern',
-  'year-like': 'warnYearLike',
-};
-
-const LOCK_REASON_KEYS: Record<LockReason, string> = {
-  manual: 'lockedManual',
-  panic: 'lockedPanic',
-  expired: 'lockedExpired',
-  idle: 'lockedIdle',
-  blur: 'lockedBlur',
-};
-
-function errorText(code: ErrorCode): string {
-  return code === 'PASSWORD_TOO_SHORT'
-    ? msg(ERROR_KEYS[code], [String(MIN_PASSWORD_LENGTH)])
-    : msg(ERROR_KEYS[code]);
-}
 
 /* ------------------------------------------------------------------ shared pieces */
 

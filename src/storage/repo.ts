@@ -34,6 +34,7 @@ import { applyMutations, purgeTombstones, toItemMap, type Mutation } from '../va
 import {
   buildSearchIndex,
   search,
+  type ParsedQuery,
   type SearchHit,
   type SearchIndex,
   type SearchOptions,
@@ -320,8 +321,14 @@ export class VaultRepository {
     return this.#items;
   }
 
-  /** Search the unlocked vault. The index is built on first use and dropped on any change. */
-  search(query: string, options?: SearchOptions): SearchHit[] {
+  /**
+   * Search the unlocked vault. The index is built on first use and dropped on any change.
+   *
+   * Takes an already-parsed query as well as a string, so a caller that needs the parse for
+   * something else — the manager highlights the terms it searched for — does not have to parse
+   * twice and risk the two parses disagreeing.
+   */
+  search(query: string | ParsedQuery, options?: SearchOptions): SearchHit[] {
     this.#assertUnlocked('searching');
     this.#index ??= buildSearchIndex(this.#items.values());
     return search(this.#index, query, options);

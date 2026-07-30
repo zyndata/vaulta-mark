@@ -24,6 +24,7 @@ import {
   type Response,
 } from '../shared/messages.js';
 import {
+  InvalidMutationError,
   ItemNotFoundError,
   UnsupportedUrlError,
   VaultLockedError,
@@ -36,6 +37,7 @@ import { clearBadge, flashBadge, type BadgeKind } from './badge.js';
 import { registerCommandListener } from './commands.js';
 import { installContextMenus, registerContextMenuListener } from './contextmenu.js';
 import * as items from './items.js';
+import * as organize from './organize.js';
 import * as session from './session.js';
 
 /**
@@ -53,6 +55,7 @@ export function toErrorCode(error: unknown): ErrorCode {
   if (error instanceof VaultLockedError) return 'VAULT_LOCKED';
   if (error instanceof VaultStateError) return 'VAULT_STATE';
   if (error instanceof ItemNotFoundError) return 'ITEM_NOT_FOUND';
+  if (error instanceof InvalidMutationError) return 'INVALID_MUTATION';
   if (error instanceof NoActiveTabError) return 'NO_ACTIVE_TAB';
   if (error instanceof UnsupportedUrlError) return URL_ERROR_CODES[error.reason];
   return 'UNKNOWN';
@@ -124,14 +127,53 @@ export async function handleRequest(request: Request): Promise<Response> {
               : { clearHistoryAfter: request.clearHistoryAfter }),
           }),
         };
-      case 'DELETE_ITEM':
-        await items.remove(request.id);
+      case 'DELETE_ITEMS':
+        await items.remove(request.ids);
         return { type: 'OK' };
-      case 'RESTORE_ITEM':
-        await items.restore(request.id);
+      case 'RESTORE_ITEMS':
+        await items.restore(request.ids);
         return { type: 'OK' };
       case 'INCOGNITO_ACCESS':
         return await items.incognitoAccess(request.recheck ?? false);
+
+      /* ---- the manager (Phase 6) ---- */
+      case 'GET_TREE':
+        return await organize.tree();
+      case 'LIST_VIEW':
+        return await organize.listView({
+          ...(request.folderId === undefined ? {} : { folderId: request.folderId }),
+          ...(request.query === undefined ? {} : { query: request.query }),
+          ...(request.sort === undefined ? {} : { sort: request.sort }),
+          ...(request.untagged === undefined ? {} : { untagged: request.untagged }),
+        });
+      case 'GET_ITEM':
+        return { type: 'ITEM', item: await organize.getItem(request.id) };
+      case 'CREATE_FOLDER':
+        return { type: 'CREATED', id: await organize.createFolder(request.title, request.parentId) };
+      case 'UPDATE_ITEM':
+        await organize.editItem(request.id, request.patch);
+        return { type: 'OK' };
+      case 'MOVE_ITEMS':
+        return { type: 'COUNT', count: await organize.moveItems(request.ids, request.parentId) };
+      case 'DELETE_FOLDER':
+        await organize.deleteFolder(request.id, request.mode);
+        return { type: 'OK' };
+      case 'TAG_ITEMS':
+        return {
+          type: 'COUNT',
+          count: await organize.tagItems(request.ids, {
+            ...(request.add === undefined ? {} : { add: request.add }),
+            ...(request.remove === undefined ? {} : { remove: request.remove }),
+          }),
+        };
+      case 'RENAME_TAG':
+        return { type: 'COUNT', count: await organize.renameTag(request.from, request.to) };
+      case 'CHANGE_PASSWORD':
+        await session.changePassword(request.currentPassword, request.newPassword);
+        return { type: 'OK' };
+      case 'DESTROY_VAULT':
+        await session.destroyVault();
+        return { type: 'OK' };
     }
   } catch (error) {
     // Nothing here may reach a log: a request carries a master password, and the errors that come

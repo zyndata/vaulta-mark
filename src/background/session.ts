@@ -25,6 +25,7 @@ import { readHeader, readSettings, writeSettings } from '../storage/local.js';
 import { VaultRepository } from '../storage/repo.js';
 import type { LockReason, SettingsPatch } from '../shared/messages.js';
 import { broadcast } from '../shared/messages.js';
+import { VaultLockedError } from '../vault/errors.js';
 import type { VaultSettings } from '../vault/types.js';
 import {
   applyIdleDetection,
@@ -267,6 +268,42 @@ export async function enforceDeadline(): Promise<void> {
     return;
   }
   await armAutolock(record.unlockedUntil, now);
+}
+
+/* ------------------------------------------------------------------ the master password */
+
+/**
+ * Re-wrap the data key under a new password.
+ *
+ * The session record is left alone on purpose: it holds the **DEK**, and the DEK does not change —
+ * that is the entire point of the two-level hierarchy (D10). Thirty-two bytes are re-encrypted, no
+ * bucket moves, and the vault stays open under the session it was already open under. A user who
+ * changes their password mid-session should not be thrown back to a lock screen for it.
+ */
+export async function changePassword(current: string, next: string): Promise<void> {
+  const repo = await currentRepository();
+  if (repo === null) throw new VaultLockedError('changing the master password');
+  await repo.changePassword(current, next);
+  await touch();
+}
+
+/**
+ * Erase the vault from this profile, irreversibly.
+ *
+ * Ordered so that a failure part-way through cannot leave a usable key beside an erased vault: the
+ * repository drops its keys and clears `storage.local` first, then the session record goes, then
+ * the alarms. The UI is told with `SESSION_LOCKED` — from every open page's point of view the
+ * difference between "locked" and "gone" is a `GET_STATE` away, and `exists` will answer it.
+ */
+export async function destroyVault(): Promise<void> {
+  const repo = await currentRepository();
+  if (repo === null) throw new VaultLockedError('destroying the vault');
+  repository = null;
+  await repo.destroy();
+  await chrome.storage.session.clear();
+  await clearAutolock();
+  forgetIncognitoAccess();
+  await broadcast({ type: 'SESSION_LOCKED', reason: 'manual' });
 }
 
 /** Periodic upkeep that needs the key: purge tombstones past the 90-day TTL (D20). */
