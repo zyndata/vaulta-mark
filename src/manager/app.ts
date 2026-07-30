@@ -170,8 +170,13 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
           goTo(scope);
         },
         searchFor: (query) => {
+          // The box is filled programmatically, so no `input` fires and no debounce is pending —
+          // but one may be left over from typing a moment ago, and it must not overwrite this.
+          cancelSearchTimer();
           search.value = query;
           state.query = query;
+          state.selection.clear();
+          state.cursor = -1;
           void reloadView();
         },
         newFolder: () => {
@@ -209,14 +214,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     list.setRows(rows, state.view?.terms ?? []);
     list.setSelection(state.selection, state.cursor);
 
-    const bookmarks = rows.filter((row) => row.type === 'bookmark').length;
-    countSlot.textContent =
-      state.selection.size > 0
-        ? msg('selectionCount', [String(state.selection.size)])
-        : bookmarks === 1
-          ? msg('listCountOneBookmark')
-          : msg('listCountBookmarks', [String(bookmarks)]);
-
+    paintCount();
     emptySlot.textContent = rows.length > 0 ? '' : emptyMessage();
     emptySlot.hidden = rows.length > 0;
     list.element.hidden = rows.length === 0;
@@ -249,6 +247,23 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     );
 
     paintActions();
+  }
+
+  /**
+   * The line above the list: how many bookmarks are in view, or how many are selected.
+   *
+   * Separate from `paintList` because selecting a row changes it without changing the data — and
+   * a count that only updated on a reload would sit there reading "143 bookmarks" while the user
+   * had seven of them selected.
+   */
+  function paintCount(): void {
+    const bookmarks = rowsOf(state).filter((row) => row.type === 'bookmark').length;
+    countSlot.textContent =
+      state.selection.size > 0
+        ? msg('selectionCount', [String(state.selection.size)])
+        : bookmarks === 1
+          ? msg('listCountOneBookmark')
+          : msg('listCountBookmarks', [String(bookmarks)]);
   }
 
   function paintActions(): void {
@@ -322,6 +337,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     state.cursor = -1;
     // Navigating to a folder is not a search; leaving the box filled would show its results instead.
     if (scope.kind === 'folder') {
+      cancelSearchTimer();
       search.value = '';
       state.query = '';
     }
@@ -354,6 +370,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
 
   function afterSelectionChange(): void {
     list.setSelection(state.selection, state.cursor);
+    paintCount();
     paintActions();
     void refreshDetail(state).then(paintDetail);
   }
@@ -630,10 +647,22 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   /* ---------------------------------------------------------------- wiring */
 
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function cancelSearchTimer(): void {
+    if (searchTimer === null) return;
+    clearTimeout(searchTimer);
+    searchTimer = null;
+  }
+
   search.addEventListener('input', () => {
-    if (searchTimer !== null) clearTimeout(searchTimer);
+    cancelSearchTimer();
     searchTimer = setTimeout(() => {
       searchTimer = null;
+      // **Only when the query actually changed.** A debounced handler fires a tenth of a second
+      // after the last keystroke, by which time the user may already have clicked a row — and
+      // clearing the selection then loses a selection nothing visible asked to lose. It is also
+      // simply correct: a settled keystroke that leaves the query where it was has nothing to do.
+      if (search.value === state.query) return;
       state.query = search.value;
       state.selection.clear();
       state.cursor = -1;
@@ -642,6 +671,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   });
   search.addEventListener('keydown', (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return;
+    cancelSearchTimer();
     search.value = '';
     state.query = '';
     void reloadView();
