@@ -167,6 +167,8 @@ export interface VaultSettings {
   readonly lockOnBrowserBlur: boolean;
   /** Strip UTM parameters when saving a URL. Off by default (ARCHITECTURE §3.5). */
   readonly stripTrackingParams: boolean;
+  /** Open vaulted links in the incognito window that is already open, if there is one (§9). */
+  readonly reuseIncognitoWindow: boolean;
 }
 
 /**
@@ -188,6 +190,10 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   // covers walking away. Opt in from the popup.
   lockOnBrowserBlur: false,
   stripTrackingParams: false,
+  // On by default. Every vaulted link landing in the same incognito window is what people expect
+  // from "open in incognito"; a new window per bookmark buries the browser in windows, and each of
+  // them is a separate incognito session that has to be closed separately to end it.
+  reuseIncognitoWindow: true,
 };
 
 /** `vm.baseMeta` — the plaintext bookkeeping beside the encrypted merge base. Phase 7 uses it. */

@@ -16,6 +16,7 @@ import {
   normalizeUrl,
   pathOf,
   purgeTombstones,
+  restoreItem,
   toItemMap,
   updateItem,
   type MutationContext,
@@ -277,6 +278,60 @@ describe('deleteItem', () => {
     const twice = deleteItem(once.items, ids.loose!, ctx());
     expect(twice.changed).toEqual([]);
     expect(twice.items).toBe(once.items);
+  });
+});
+
+describe('restoreItem', () => {
+  it('lifts the tombstone under the same id, so an undo stays one bookmark', () => {
+    const { items, ids } = sampleVault();
+    const deleted = deleteItem(items, ids.loose!, ctx());
+    const restored = restoreItem(deleted.items, ids.loose!, ctx({ rev: 9 }));
+
+    const loose = restored.items.get(ids.loose!)!;
+    expect(isDeleted(loose)).toBe(false);
+    expect(loose.deletedAt).toBe(undefined);
+    expect(loose.rev).toBe(9);
+    expect(restored.items.size).toBe(items.size);
+    expect(listChildren(restored.items, ROOT_ID).map((item) => item.id).toSorted()).toEqual(
+      [ids.folder!, ids.loose!].toSorted(),
+    );
+  });
+
+  it('brings back the subtree that went down with a folder, and nothing else', () => {
+    const { items, ids } = sampleVault();
+    // Alpha is deleted on its own first: undoing the folder's delete must not resurrect it.
+    const alphaGone = deleteItem(items, ids.alpha!, ctx({ now: NOW - 60_000 }));
+    const folderGone = deleteItem(alphaGone.items, ids.folder!, ctx());
+    const restored = restoreItem(folderGone.items, ids.folder!, ctx());
+
+    expect(restored.changed.map((item) => item.id).toSorted()).toEqual(
+      [ids.folder!, ids.beta!].toSorted(),
+    );
+    expect(isDeleted(restored.items.get(ids.alpha!)!)).toBe(true);
+  });
+
+  it('brings an orphan back at the top level rather than under a tombstone', () => {
+    const { items, ids } = sampleVault();
+    // Alpha alone is deleted, then its folder — so restoring alpha finds a deleted parent.
+    const alphaGone = deleteItem(items, ids.alpha!, ctx({ now: NOW - 60_000 }));
+    const folderGone = deleteItem(alphaGone.items, ids.folder!, ctx());
+    const restored = restoreItem(folderGone.items, ids.alpha!, ctx());
+
+    expect(restored.items.get(ids.alpha!)!.parentId).toBe(ROOT_ID);
+    expect(listChildren(restored.items, ROOT_ID).map((item) => item.id).toSorted()).toEqual(
+      [ids.alpha!, ids.loose!].toSorted(),
+    );
+  });
+
+  it('does nothing to an item that is not deleted', () => {
+    const { items, ids } = sampleVault();
+    const result = restoreItem(items, ids.loose!, ctx());
+    expect(result.changed).toEqual([]);
+    expect(result.items).toBe(items);
+  });
+
+  it('refuses an id that is not in the vault', () => {
+    expect(() => restoreItem(sampleVault().items, 'nope', ctx())).toThrow(ItemNotFoundError);
   });
 });
 

@@ -50,6 +50,27 @@ export class VaultLockedError extends VaultError {
 /** `create()` on a device that already has a vault, or `unlock()` on one that has none. */
 export class VaultStateError extends VaultError {}
 
+/** Why a URL cannot be vaulted. Each reason gets its own sentence in the UI. */
+export type UnsupportedUrlReason = 'internal-page' | 'local-file' | 'unsupported-scheme';
+
+/**
+ * A URL VaultaMark refuses to store.
+ *
+ * The reasons are separate because the answers are: a `chrome://` page is not a bookmark anyone
+ * could reopen later, a `file://` URL will not open in an incognito window at all, and everything
+ * else — `javascript:`, `data:`, `blob:` — is a scheme whose "bookmark" is a payload rather than a
+ * destination. Refusing at the point of adding is deliberate: a vault entry that cannot be opened
+ * is worse than a refusal the user sees while the tab is still in front of them.
+ */
+export class UnsupportedUrlError extends VaultError {
+  constructor(
+    readonly reason: UnsupportedUrlReason,
+    options?: ErrorOptions,
+  ) {
+    super(`This URL cannot be vaulted (${reason}).`, options);
+  }
+}
+
 /**
  * A master password below the hard floor of `MIN_PASSWORD_LENGTH` (ARCHITECTURE §4.6).
  *

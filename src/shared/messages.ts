@@ -13,8 +13,11 @@
  *   structured-clones its payload, which turns an `Error` subclass into a shapeless `{}` and loses
  *   the class the caller was going to branch on. {@link ErrorCode} is the wire form of the
  *   taxonomy in `crypto/errors.ts` and `vault/errors.ts`.
- * - **No message carries vault content or a key.** The unlocked DEK never leaves the service
- *   worker, and no message here has a field it could travel in.
+ * - **No message ever carries a key.** The unlocked DEK never leaves the service worker, and no
+ *   message here has a field it could travel in. Decrypted *content* does travel — a popup that
+ *   lists bookmarks has to receive them — but only as the {@link ItemSummary} projection, only to
+ *   extension pages, only while the vault is unlocked, and never onto disk. INV-6 is about what
+ *   reaches storage; `chrome.runtime` is not storage and is not reachable from a web page.
  */
 
 import type { VaultSettings } from '../vault/types.js';
@@ -61,6 +64,54 @@ export interface SetSettingsRequest {
   readonly settings: SettingsPatch;
 }
 
+/**
+ * Vault the active tab. Carries no URL: the worker reads the tab itself, under the `activeTab`
+ * grant the click that produced this message just created (D25).
+ */
+export interface AddActiveTabRequest {
+  readonly type: 'ADD_ACTIVE_TAB';
+}
+
+/** Vault a URL the user pointed at — the "Add link to VaultaMark" context-menu entry. */
+export interface AddUrlRequest {
+  readonly type: 'ADD_URL';
+  readonly url: string;
+  readonly title?: string;
+}
+
+/** Recent items, or the ones matching `query`. Ordered newest first. */
+export interface ListItemsRequest {
+  readonly type: 'LIST_ITEMS';
+  readonly query?: string;
+  readonly limit?: number;
+}
+
+export interface OpenItemRequest {
+  readonly type: 'OPEN_ITEM';
+  readonly id: string;
+  /** Open in a *normal* window despite missing incognito access. Only ever an explicit choice. */
+  readonly force?: boolean;
+  /** Queue the item's domain for the history cleanup that Phase 9 performs. */
+  readonly clearHistoryAfter?: boolean;
+}
+
+export interface DeleteItemRequest {
+  readonly type: 'DELETE_ITEM';
+  readonly id: string;
+}
+
+/** Undo a delete. The tombstone still holds the item, so this restores it under its own id. */
+export interface RestoreItemRequest {
+  readonly type: 'RESTORE_ITEM';
+  readonly id: string;
+}
+
+/** Is "Allow in Incognito" on? `recheck` bypasses the per-worker cache for the Re-check button. */
+export interface IncognitoAccessRequest {
+  readonly type: 'INCOGNITO_ACCESS';
+  readonly recheck?: boolean;
+}
+
 export type Request =
   | PingRequest
   | GetStateRequest
@@ -69,7 +120,14 @@ export type Request =
   | LockRequest
   | TouchRequest
   | GetSettingsRequest
-  | SetSettingsRequest;
+  | SetSettingsRequest
+  | AddActiveTabRequest
+  | AddUrlRequest
+  | ListItemsRequest
+  | OpenItemRequest
+  | DeleteItemRequest
+  | RestoreItemRequest
+  | IncognitoAccessRequest;
 
 /** A partial settings update. Absent fields keep their stored value. */
 export type SettingsPatch = Partial<VaultSettings>;
@@ -107,6 +165,54 @@ export interface TouchedResponse {
 }
 
 /**
+ * One bookmark, as much of it as a list row needs.
+ *
+ * A projection rather than the stored `Bookmark`: notes, tags, OG metadata and thumbnail records
+ * are not on this wire because nothing in the popup renders them, and the cheapest way to keep a
+ * field out of a message is for the message not to have it.
+ */
+export interface ItemSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly url: string;
+  readonly createdAt: number;
+  readonly openedAt?: number;
+}
+
+export interface AddedResponse {
+  readonly type: 'ADDED';
+  /** `duplicate` means this URL was already vaulted; `item` is the one that was already there. */
+  readonly status: 'added' | 'duplicate';
+  readonly item: ItemSummary;
+}
+
+export interface ItemsResponse {
+  readonly type: 'ITEMS';
+  readonly items: readonly ItemSummary[];
+  /** How many matched before `limit` was applied, so the list can say "showing 20 of 143". */
+  readonly total: number;
+}
+
+export interface OpenedResponse {
+  readonly type: 'OPENED';
+  readonly status: OpenStatus;
+}
+
+export type OpenStatus =
+  | 'incognito'
+  /** Opened in a normal window, because the user explicitly chose the fallback. */
+  | 'normal'
+  /** Nothing was opened: "Allow in Incognito" is off and the UI must show the guided prompt. */
+  | 'needs-incognito-access';
+
+export interface IncognitoAccessResponse {
+  readonly type: 'INCOGNITO_ACCESS_STATE';
+  readonly allowed: boolean;
+  /** `chrome://extensions/?id=…`. Built here because only the worker knows the extension id. */
+  readonly settingsUrl: string;
+}
+
+/**
  * The wire form of a thrown error.
  *
  * No message string: user-facing text lives in `_locales` and is chosen by the UI from the code.
@@ -130,6 +236,16 @@ export type ErrorCode =
   | 'VAULT_LOCKED'
   /** `CREATE_VAULT` on a profile that already has one, or `UNLOCK` on one that has none. */
   | 'VAULT_STATE'
+  /** The vault has no item with that id — a stale list, or an undo of an already-purged delete. */
+  | 'ITEM_NOT_FOUND'
+  /** There was no active tab to read, or `activeTab` did not grant us its URL. */
+  | 'NO_ACTIVE_TAB'
+  /** A Chrome page, our own pages, `about:` — nothing we could reopen in incognito later. */
+  | 'URL_INTERNAL_PAGE'
+  /** A `file://` URL. Incognito windows will not open it, so vaulting it would be a dead entry. */
+  | 'URL_LOCAL_FILE'
+  /** Any other scheme we refuse to store: `javascript:`, `data:`, `blob:`, and the long tail. */
+  | 'URL_UNSUPPORTED_SCHEME'
   /** The service worker did not answer at all. Only ever produced on the sender's side. */
   | 'UNREACHABLE'
   | 'UNKNOWN';
@@ -144,6 +260,13 @@ export interface ResponseMap {
   readonly TOUCH: TouchedResponse;
   readonly GET_SETTINGS: SettingsResponse;
   readonly SET_SETTINGS: SettingsResponse;
+  readonly ADD_ACTIVE_TAB: AddedResponse;
+  readonly ADD_URL: AddedResponse;
+  readonly LIST_ITEMS: ItemsResponse;
+  readonly OPEN_ITEM: OpenedResponse;
+  readonly DELETE_ITEM: OkResponse;
+  readonly RESTORE_ITEM: OkResponse;
+  readonly INCOGNITO_ACCESS: IncognitoAccessResponse;
 }
 
 export type ResponseFor<R extends Request> = ResponseMap[R['type']] | ErrorResponse;
@@ -170,11 +293,23 @@ export interface SettingsChangedBroadcast {
   readonly settings: VaultSettings;
 }
 
+/**
+ * The item set changed under an open UI.
+ *
+ * Carries no items: a page that cares re-reads with `LIST_ITEMS`, filtered the way *it* is
+ * filtered. Broadcasting the items instead would mean shipping the vault to every open page on
+ * every add, including the ones showing something else entirely.
+ */
+export interface VaultChangedBroadcast {
+  readonly type: 'VAULT_CHANGED';
+}
+
 /** Service worker → open UIs. Never answered; `broadcast()` ignores the absence of a listener. */
 export type Broadcast =
   | SessionLockedBroadcast
   | SessionUnlockedBroadcast
-  | SettingsChangedBroadcast;
+  | SettingsChangedBroadcast
+  | VaultChangedBroadcast;
 
 /* ------------------------------------------------------------------ parsing */
 
@@ -211,9 +346,57 @@ export function parseRequest(raw: unknown): Request | null {
       const settings = parseSettingsPatch(raw['settings']);
       return settings === null ? null : { type, settings };
     }
+    case 'ADD_ACTIVE_TAB':
+      return { type };
+    case 'ADD_URL': {
+      const url = raw['url'];
+      if (typeof url !== 'string' || url === '') return null;
+      const title = raw['title'];
+      if (title === undefined) return { type, url };
+      return typeof title === 'string' ? { type, url, title } : null;
+    }
+    case 'LIST_ITEMS': {
+      const query = raw['query'];
+      const limit = raw['limit'];
+      if (query !== undefined && typeof query !== 'string') return null;
+      if (limit !== undefined && !isPositiveInteger(limit)) return null;
+      return {
+        type,
+        ...(query === undefined ? {} : { query }),
+        ...(limit === undefined ? {} : { limit }),
+      };
+    }
+    case 'OPEN_ITEM': {
+      const id = raw['id'];
+      if (typeof id !== 'string' || id === '') return null;
+      const force = raw['force'];
+      const clearHistoryAfter = raw['clearHistoryAfter'];
+      if (force !== undefined && typeof force !== 'boolean') return null;
+      if (clearHistoryAfter !== undefined && typeof clearHistoryAfter !== 'boolean') return null;
+      return {
+        type,
+        id,
+        ...(force === undefined ? {} : { force }),
+        ...(clearHistoryAfter === undefined ? {} : { clearHistoryAfter }),
+      };
+    }
+    case 'DELETE_ITEM':
+    case 'RESTORE_ITEM': {
+      const id = raw['id'];
+      return typeof id === 'string' && id !== '' ? { type, id } : null;
+    }
+    case 'INCOGNITO_ACCESS': {
+      const recheck = raw['recheck'];
+      if (recheck === undefined) return { type };
+      return typeof recheck === 'boolean' ? { type, recheck } : null;
+    }
     default:
       return null;
   }
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 
 /**
@@ -256,6 +439,12 @@ export function parseSettingsPatch(raw: unknown): SettingsPatch | null {
     patch.stripTrackingParams = stripTrackingParams;
   }
 
+  const reuseIncognitoWindow = raw['reuseIncognitoWindow'];
+  if (reuseIncognitoWindow !== undefined) {
+    if (typeof reuseIncognitoWindow !== 'boolean') return null;
+    patch.reuseIncognitoWindow = reuseIncognitoWindow;
+  }
+
   return patch;
 }
 
@@ -265,6 +454,10 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'OK',
   'SETTINGS',
   'TOUCHED',
+  'ADDED',
+  'ITEMS',
+  'OPENED',
+  'INCOGNITO_ACCESS_STATE',
   'ERROR',
 ]);
 
@@ -283,6 +476,7 @@ const BROADCAST_TYPES: ReadonlySet<string> = new Set([
   'SESSION_LOCKED',
   'SESSION_UNLOCKED',
   'SETTINGS_CHANGED',
+  'VAULT_CHANGED',
 ]);
 
 export function parseBroadcast(raw: unknown): Broadcast | null {

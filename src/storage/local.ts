@@ -224,6 +224,10 @@ export async function readSettings(): Promise<VaultSettings> {
       typeof stored.stripTrackingParams === 'boolean'
         ? stored.stripTrackingParams
         : DEFAULT_SETTINGS.stripTrackingParams,
+    reuseIncognitoWindow:
+      typeof stored.reuseIncognitoWindow === 'boolean'
+        ? stored.reuseIncognitoWindow
+        : DEFAULT_SETTINGS.reuseIncognitoWindow,
   };
 }
 

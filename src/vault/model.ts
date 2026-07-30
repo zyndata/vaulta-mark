@@ -88,6 +88,7 @@ export type Mutation =
   | { readonly kind: 'add'; readonly input: AddItemInput }
   | { readonly kind: 'update'; readonly id: string; readonly patch: ItemPatch }
   | { readonly kind: 'delete'; readonly id: string }
+  | { readonly kind: 'restore'; readonly id: string }
   | {
       readonly kind: 'move';
       readonly id: string;
@@ -237,6 +238,51 @@ export function deleteItem(items: ItemMap, id: string, ctx: MutationContext): Mu
 }
 
 /**
+ * Lift a tombstone: the undo behind "deleted — undo" in the UI.
+ *
+ * A tombstone still holds the whole item, so undo is a field change rather than a re-creation, and
+ * the id survives — which is what stops the undo from arriving on another device as a *second*
+ * bookmark next to the delete.
+ *
+ * Two details the caller does not have to think about:
+ *
+ * - A folder is restored together with the descendants that went down **in the same delete**
+ *   (`deletedAt` matches). Anything tombstoned earlier stays deleted, because it was deleted on its
+ *   own and undoing that is not what the user asked for.
+ * - An item whose parent is gone comes back at the top level. Restoring it under a tombstone would
+ *   produce something that exists, is not deleted, and cannot be reached from anywhere.
+ */
+export function restoreItem(items: ItemMap, id: string, ctx: MutationContext): MutationResult {
+  const target = requireItem(items, id);
+  if (!isDeleted(target)) return { items, changed: [] };
+
+  const batch = [
+    target,
+    ...descendantsOf(items, id).filter(
+      (item) => isDeleted(item) && item.deletedAt === target.deletedAt,
+    ),
+  ];
+  const restoredIds = new Set(batch.map((item) => item.id));
+
+  const changed = batch.map((item) => {
+    const parentAlive =
+      item.parentId === ROOT_ID ||
+      restoredIds.has(item.parentId) ||
+      isRestorableParent(items.get(item.parentId));
+    const next: Mutable<VaultItem> = { ...item, updatedAt: ctx.now, rev: ctx.rev };
+    delete next.deleted;
+    delete next.deletedAt;
+    if (!parentAlive) next.parentId = ROOT_ID;
+    return next as VaultItem;
+  });
+  return { items: withItems(items, changed), changed };
+}
+
+function isRestorableParent(parent: VaultItem | undefined): boolean {
+  return parent !== undefined && !isBookmark(parent) && !isDeleted(parent);
+}
+
+/**
  * Move an item under `parentId`, positioned after `afterId` (or first when `afterId` is `null`,
  * or last when it is omitted).
  *
@@ -296,6 +342,8 @@ export function applyMutation(
       return updateItem(items, mutation.id, mutation.patch, ctx);
     case 'delete':
       return deleteItem(items, mutation.id, ctx);
+    case 'restore':
+      return restoreItem(items, mutation.id, ctx);
     case 'move':
       return moveItem(items, mutation.id, mutation.parentId, mutation.afterId, ctx);
   }
