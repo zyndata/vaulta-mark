@@ -34,14 +34,15 @@ src/
 │  ├─ commands.ts       keyboard shortcuts
 │  ├─ contextmenu.ts    right-click entries
 │  ├─ add.ts            add active tab / link — URL policy, duplicates
-│  ├─ items.ts          the vault operations a UI asks for (add/list/open/delete/undo)
+│  ├─ items.ts          the popup's vocabulary (add/list/open/delete/undo)
+│  ├─ organize.ts       the manager's vocabulary (folders/edit/tags/bulk ops), batched
 │  ├─ badge.ts          toolbar feedback for the entry points that have no window
 │  ├─ incognito.ts      access detection + windows.create
 │  └─ history.ts        vaulted-domain cleanup, quick-close
 ├─ crypto/              WebCrypto only — no other module may import crypto.subtle
 │  ├─ kdf.ts  keys.ts  envelope.ts  codec.ts  hash.ts  wipe.ts  password.ts  errors.ts
 ├─ vault/               pure domain logic, zero I/O
-│  ├─ types.ts  model.ts  order.ts  migrate.ts  search.ts  errors.ts
+│  ├─ types.ts  model.ts  order.ts  migrate.ts  search.ts  sort.ts  errors.ts
 ├─ storage/             persistence of the working copy
 │  ├─ repo.ts  local.ts  buckets.ts  codec.ts  quota.ts
 ├─ sync/                transport + reconciliation
@@ -53,8 +54,12 @@ src/
 ├─ import/              native-bookmarks.ts
 ├─ io/                  export-encrypted.ts  import-encrypted.ts  export-html.ts
 ├─ content/             og-capture.ts   (injected on demand, never declared in the manifest)
-├─ popup/  manager/     UI entry points
-├─ ui/                  dom.ts  favicon.ts  incognito-prompt.ts  styles.css  components/
+├─ popup/               popup.ts (shell + create/unlock)  vault.ts (the unlocked screen)
+├─ manager/             manager.ts (entry/router)  app.ts (the shell)
+│  ├─ state.ts          what the tab is looking at; the only thing that fetches
+│  ├─ sidebar.ts  list.ts  detail.ts  settings.ts  dialog.ts
+├─ ui/                  dom.ts  favicon.ts  incognito-prompt.ts  virtual-list.ts  strings.ts
+│                       styles.css
 └─ shared/              messages.ts  settings.ts  result.ts  time.ts  url.ts
 ```
 
@@ -590,9 +595,16 @@ JSON-serialises what it is given, so a byte array comes back as `{"0":12,"1":…
 of quota per byte of ciphertext, and a silent shape change on the way out.
 
 `vm.settings` holds `theme`, `idleTimeoutMinutes`, `providerId`, `lockOnBrowserBlur`,
-`stripTrackingParams` and `reuseIncognitoWindow`. It is deliberately plaintext and deliberately
-incapable of holding vault content: the lock screen has to honour the theme, and the auto-lock alarm
-has to be armed, before any key exists.
+`stripTrackingParams`, `reuseIncognitoWindow` and `sortBy`. It is deliberately plaintext and
+deliberately incapable of holding vault content: the lock screen has to honour the theme, and the
+auto-lock alarm has to be armed, before any key exists.
+
+`sortBy` is one order for the whole manager rather than one per folder, and that is a privacy
+decision rather than a simplification. A per-folder preference has to be keyed by folder id, and
+this file is plaintext, so it would put a map of folder ids on disk — leaking how many folders a
+vault has and which of them are used. Small, but exactly the shape INV-6 exists to keep out of
+`storage.local`. The same reasoning rules out user-defined saved filters: a saved filter is a query
+string the user composed out of their own bookmarks, and there is nowhere plaintext to keep one.
 Reading it never throws — a corrupted blob falls back to defaults field by field, because a bad theme
 value must not be able to keep someone out of their vault.
 

@@ -14,6 +14,40 @@ below.
 
 ### Added
 
+- **There is a manager now** — a full page rather than a popup, and the place the vault actually
+  lives. Folders down the left with the count of everything inside them, your bookmarks in the
+  middle, and whatever you have selected on the right, ready to edit.
+- **Folders, nested as deep as you like.** Deleting one asks what should happen to what is inside:
+  keep it, one level up, or delete it too. There is no default and no preselected answer, because
+  one of those two loses a subtree and the other rearranges your tree.
+- **Tags and notes on any bookmark.** Tags are chips rather than a comma-separated box, so what you
+  see is what gets stored. Renaming a tag renames it on every bookmark that carries it, from the
+  sidebar. Notes hold about four thousand characters, with a counter, and are truncated rather than
+  refused — nobody should lose what they typed to a limit they could not see coming.
+- **Search that understands what you are asking.** Bare words match titles, addresses, tags and
+  notes; `tag:`, `folder:`, `host:` and `in:note` narrow it. Matches are highlighted in the results,
+  so it is clear *why* something matched. It searches the whole vault, or just the folder you are
+  standing in.
+- **Sorting** by date added, date modified, title, recently opened or most opened, and it is
+  remembered. A search with real words in it is ordered by best match instead — a result that is
+  third because it happens to be older is a search that failed — and the control says so rather than
+  sitting there doing nothing.
+- **Select many and act on them at once.** Click, ctrl-click, shift-click for a range, or select
+  everything in view; then move, tag, untag or delete the lot. A bulk delete is one **Undo**, not
+  one per bookmark. If any part of a bulk action is impossible, none of it happens — you are told,
+  rather than left with half of it done.
+- **The keyboard works.** `/` jumps to search, `j`/`k` walk the list, Enter opens, `e` edits, Delete
+  removes, Escape clears. The folder tree takes arrow keys the way a tree should.
+- **Five thousand bookmarks scroll smoothly**, because only the rows on screen exist. Screen readers
+  are still told the real size of the list, not the size of the window onto it.
+- **Settings moved somewhere they fit**, and gained two things the popup had no room for: changing
+  your master password — which re-wraps a 32-byte key and leaves every bookmark exactly where it
+  was, so it is instant however large your vault — and destroying the vault, behind a typed phrase
+  and then a second confirmation.
+- An accessibility pass over the whole manager: it is one tab stop per region rather than one per
+  row, every control has a name, selection is marked with a bar as well as a colour, and automated
+  checks find no critical or serious problems.
+
 - **You can put bookmarks in the vault now, and open them.** Four ways to save the page you are
   looking at: the **Add this page** button in the popup, **Add to VaultaMark** in the right-click
   menu, **Add link to VaultaMark** on a link you have not opened, and
@@ -162,8 +196,19 @@ below.
 
 ### Changed
 
+- The popup keeps its settings, and they are now also in the manager, where there is room to explain
+  them.
 - The popup is a real interface rather than a build-version placeholder, and both extension pages now
   share one set of design tokens with light and dark themes.
+
+### Fixed
+
+- Opening a bookmark recorded that you had opened it 300 milliseconds later, which Chrome was free to
+  never get around to — the count and the timestamp could be lost. They are written immediately now,
+  which matters because you can sort by them.
+- Two bookmarks saved in the same millisecond could swap places between one look at the list and the
+  next. The order is now fully determined, so a list that has not changed does not rearrange itself
+  under you.
 - The 10-character minimum master password is now enforced where the vault is written, not only in
   the interface — so no future code path can create a permanently weak vault by forgetting to check.
   Length is counted in characters as a person counts them, so ten emoji are ten characters.

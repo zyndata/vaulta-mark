@@ -271,7 +271,8 @@ test('renders five thousand bookmarks without putting five thousand rows in the 
     }
     return Date.now() - started;
   });
-  // eslint-disable-next-line no-console -- the seed cost is the reason for the timeout above.
+  // Reported because it is most of this test's runtime and none of what it measures — a reader
+  // watching CI should be able to tell seeding from rendering.
   console.log(`seeded 5,000 bookmarks in ${String(Math.round(seedMs / 1000))} s`);
   await seeder.close();
 
