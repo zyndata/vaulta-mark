@@ -14,7 +14,11 @@ import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../../m
 let mock: ChromeMock;
 
 function deps(): CommandDeps {
-  return { lock: vi.fn(() => Promise.resolve()), touch: vi.fn(() => Promise.resolve(null)) };
+  return {
+    lock: vi.fn(() => Promise.resolve()),
+    touch: vi.fn(() => Promise.resolve(null)),
+    addActiveTab: vi.fn(() => Promise.resolve()),
+  };
 }
 
 beforeEach(() => {
@@ -51,10 +55,10 @@ describe('handleCommand', () => {
     ]);
   });
 
-  it('counts add-current-tab as activity until Phase 5 wires the add pipeline', async () => {
+  it('vaults the active tab on add-current-tab', async () => {
     const d = deps();
     await handleCommand('add-current-tab', d);
-    expect(d.touch).toHaveBeenCalledTimes(1);
+    expect(d.addActiveTab).toHaveBeenCalledTimes(1);
     expect(d.lock).not.toHaveBeenCalled();
   });
 
@@ -63,6 +67,7 @@ describe('handleCommand', () => {
     await handleCommand('vaultamark-from-a-previous-version', d);
     expect(d.lock).not.toHaveBeenCalled();
     expect(d.touch).not.toHaveBeenCalled();
+    expect(d.addActiveTab).not.toHaveBeenCalled();
     expect(mock.createdTabs).toEqual([]);
   });
 });

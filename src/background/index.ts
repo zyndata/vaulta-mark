@@ -23,9 +23,19 @@ import {
   type Request,
   type Response,
 } from '../shared/messages.js';
-import { VaultLockedError, VaultStateError, WeakPasswordError } from '../vault/errors.js';
+import {
+  ItemNotFoundError,
+  UnsupportedUrlError,
+  VaultLockedError,
+  VaultStateError,
+  WeakPasswordError,
+} from '../vault/errors.js';
+import { NoActiveTabError } from './add.js';
 import { armHousekeeping, registerLifecycleListeners } from './autolock.js';
+import { clearBadge, flashBadge, type BadgeKind } from './badge.js';
 import { registerCommandListener } from './commands.js';
+import { installContextMenus, registerContextMenuListener } from './contextmenu.js';
+import * as items from './items.js';
 import * as session from './session.js';
 
 /**
@@ -42,8 +52,17 @@ export function toErrorCode(error: unknown): ErrorCode {
   if (error instanceof CorruptVaultError) return 'CORRUPT_VAULT';
   if (error instanceof VaultLockedError) return 'VAULT_LOCKED';
   if (error instanceof VaultStateError) return 'VAULT_STATE';
+  if (error instanceof ItemNotFoundError) return 'ITEM_NOT_FOUND';
+  if (error instanceof NoActiveTabError) return 'NO_ACTIVE_TAB';
+  if (error instanceof UnsupportedUrlError) return URL_ERROR_CODES[error.reason];
   return 'UNKNOWN';
 }
+
+const URL_ERROR_CODES = {
+  'internal-page': 'URL_INTERNAL_PAGE',
+  'local-file': 'URL_LOCAL_FILE',
+  'unsupported-scheme': 'URL_UNSUPPORTED_SCHEME',
+} as const satisfies Record<UnsupportedUrlError['reason'], ErrorCode>;
 
 /** Route one validated request. Never throws: every failure becomes an `ERROR` response. */
 export async function handleRequest(request: Request): Promise<Response> {
@@ -80,6 +99,39 @@ export async function handleRequest(request: Request): Promise<Response> {
         return { type: 'SETTINGS', settings: await session.settings() };
       case 'SET_SETTINGS':
         return { type: 'SETTINGS', settings: await session.updateSettings(request.settings) };
+      case 'ADD_ACTIVE_TAB': {
+        const result = await items.addActiveTab();
+        return { type: 'ADDED', status: result.status, item: result.item };
+      }
+      case 'ADD_URL': {
+        const result = await items.addUrl(request.url, request.title);
+        return { type: 'ADDED', status: result.status, item: result.item };
+      }
+      case 'LIST_ITEMS': {
+        const result = await items.list({
+          ...(request.query === undefined ? {} : { query: request.query }),
+          ...(request.limit === undefined ? {} : { limit: request.limit }),
+        });
+        return { type: 'ITEMS', items: result.items, total: result.total };
+      }
+      case 'OPEN_ITEM':
+        return {
+          type: 'OPENED',
+          status: await items.open(request.id, {
+            ...(request.force === undefined ? {} : { force: request.force }),
+            ...(request.clearHistoryAfter === undefined
+              ? {}
+              : { clearHistoryAfter: request.clearHistoryAfter }),
+          }),
+        };
+      case 'DELETE_ITEM':
+        await items.remove(request.id);
+        return { type: 'OK' };
+      case 'RESTORE_ITEM':
+        await items.restore(request.id);
+        return { type: 'OK' };
+      case 'INCOGNITO_ACCESS':
+        return await items.incognitoAccess(request.recheck ?? false);
     }
   } catch (error) {
     // Nothing here may reach a log: a request carries a master password, and the errors that come
@@ -99,21 +151,49 @@ registerLifecycleListeners({
   settings: () => session.settings(),
 });
 
+/**
+ * Add from an entry point that has no window to answer in.
+ *
+ * The keyboard shortcut and the context menu both land here. Their only channel back to the user is
+ * the toolbar badge, so every outcome — including the failures — gets a glyph. Nothing is logged:
+ * the failure paths carry the URL that failed, which is exactly the thing that must never reach a
+ * console (INV-6's spirit, and the "never log a URL" rule).
+ */
+async function addFromGesture(add: () => Promise<{ status: 'added' | 'duplicate' }>): Promise<void> {
+  let kind: BadgeKind;
+  try {
+    kind = (await add()).status === 'duplicate' ? 'duplicate' : 'added';
+  } catch (error) {
+    kind = toErrorCode(error) === 'VAULT_LOCKED' ? 'locked' : 'refused';
+  }
+  await flashBadge(kind);
+}
+
 registerCommandListener({
   lock: (reason) => session.lock({ reason, flush: reason !== 'panic' }),
   touch: () => session.touch(),
+  addActiveTab: () => addFromGesture(() => items.addActiveTab()),
+});
+
+registerContextMenuListener({
+  addActiveTab: () => addFromGesture(() => items.addActiveTab()),
+  addUrl: (url, title) => addFromGesture(() => items.addUrl(url, title)),
 });
 
 /**
  * Once-per-browser-session setup.
  *
  * Both events, because `onInstalled` fires on install and update while `onStartup` fires on every
- * browser launch, and neither implies the other. Everything in here is idempotent.
+ * browser launch, and neither implies the other. Everything in here is idempotent — the context
+ * menus in particular, which `installContextMenus` removes before it creates, because
+ * `contextMenus.create` fails on a duplicate id rather than replacing it.
  */
 function onStart(): void {
   void (async () => {
     await session.hardenSessionStorage();
     await armHousekeeping();
+    await installContextMenus();
+    await clearBadge();
   })();
 }
 

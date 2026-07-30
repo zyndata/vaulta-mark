@@ -258,6 +258,15 @@ export interface ChromeMock {
   readonly createdWindows: { url?: string | string[]; incognito?: boolean }[];
   /** Alarms currently armed, by name. */
   readonly alarms: Map<string, { periodInMinutes?: number; scheduledTime: number }>;
+  /**
+   * Drop every registered listener, the way MV3 tearing the service worker down does.
+   *
+   * Call this before re-importing the worker in a test that simulates a restart. Without it the
+   * old module registry keeps answering messages alongside the new one — two workers over one
+   * storage area, which is a state Chrome never produces and which leaks unawaited writes into
+   * whatever runs next.
+   */
+  terminateWorker(): void;
   /** Fire `chrome.runtime.onInstalled`. */
   triggerInstalled(reason?: string): void;
   /** Fire `chrome.runtime.onStartup`. */
@@ -274,7 +283,19 @@ export interface ChromeMock {
    */
   triggerIdleState(state: 'active' | 'idle' | 'locked'): void;
   /** Tabs created via `chrome.tabs.create`, in order. */
-  readonly createdTabs: { url?: string }[];
+  readonly createdTabs: { url?: string; windowId?: number }[];
+  /** The tabs `chrome.tabs.query` answers with. Replace the contents to change the active tab. */
+  readonly openTabs: { id: number; url?: string; title?: string; active?: boolean }[];
+  /** The windows `chrome.windows.getAll` answers with, plus everything `create` appended. */
+  readonly openWindows: { id: number; incognito: boolean; type: string }[];
+  /** What `chrome.extension.isAllowedIncognitoAccess()` answers. Off, as a fresh install is. */
+  incognitoAccess: boolean;
+  /** Context menus currently created, by id. `removeAll` empties it. */
+  readonly menus: Map<string, { title?: string; contexts?: readonly string[] }>;
+  /** Fire `chrome.contextMenus.onClicked`. */
+  triggerMenuClick(info: { menuItemId: string; linkUrl?: string; selectionText?: string }): void;
+  /** The toolbar badge's current text, as `chrome.action.setBadgeText` left it. */
+  badgeText(): string;
   /** `chrome.idle.setDetectionInterval`'s last argument, or `undefined` if never called. */
   idleDetectionInterval(): number | undefined;
   /** Send a message the way a popup would, resolving with the first response given. */
@@ -290,6 +311,8 @@ export interface ChromeMockOptions {
   clock?: Clock;
   manifestVersion?: string;
   grantedPermissions?: readonly string[];
+  /** Whether "Allow in Incognito" starts on. Off by default, as it is on a fresh install. */
+  incognitoAccess?: boolean;
 }
 
 export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
@@ -331,6 +354,11 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   type FocusListener = (windowId: number) => void;
   type CommandListener = (name: string) => void;
   type IdleListener = (state: 'active' | 'idle' | 'locked') => void;
+  type MenuListener = (info: {
+    menuItemId: string;
+    linkUrl?: string;
+    selectionText?: string;
+  }) => void;
 
   const onMessage = new Event<MessageListener>();
   const onInstalled = new Event<InstalledListener>();
@@ -339,6 +367,7 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   const onFocusChanged = new Event<FocusListener>();
   const onCommand = new Event<CommandListener>();
   const onIdleStateChanged = new Event<IdleListener>();
+  const onMenuClicked = new Event<MenuListener>();
 
   const grantedPermissions = new Set<string>([
     'storage',
@@ -351,9 +380,14 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   ]);
 
   const createdWindows: { url?: string | string[]; incognito?: boolean }[] = [];
-  const createdTabs: { url?: string }[] = [];
+  const createdTabs: { url?: string; windowId?: number }[] = [];
+  const openTabs: { id: number; url?: string; title?: string; active?: boolean }[] = [];
+  const openWindows: { id: number; incognito: boolean; type: string }[] = [];
+  const menus = new Map<string, { title?: string; contexts?: readonly string[] }>();
   const alarms = new Map<string, { periodInMinutes?: number; scheduledTime: number }>();
   let idleDetectionInterval: number | undefined;
+  let incognitoAccess = options.incognitoAccess ?? false;
+  let badgeText = '';
 
   const sendMessage = (message: unknown): Promise<unknown> =>
     new Promise((resolve) => {
@@ -415,20 +449,70 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
       WINDOW_ID_NONE: -1,
       create: (options_: { url?: string | string[]; incognito?: boolean }) => {
         createdWindows.push(options_);
-        return Promise.resolve({
-          id: createdWindows.length,
+        const window_ = {
+          id: 1000 + createdWindows.length,
           incognito: options_.incognito ?? false,
-        });
+          type: 'normal',
+        };
+        openWindows.push(window_);
+        return Promise.resolve(window_);
+      },
+      getAll: (query?: { windowTypes?: string[] }) =>
+        Promise.resolve(
+          openWindows.filter(
+            (window_) => query?.windowTypes === undefined || query.windowTypes.includes(window_.type),
+          ),
+        ),
+      update: (windowId: number) => {
+        const window_ = openWindows.find((candidate) => candidate.id === windowId);
+        if (window_ === undefined) return Promise.reject(new Error(`No window with id ${windowId}`));
+        return Promise.resolve(window_);
       },
       remove: () => Promise.resolve(),
       onFocusChanged,
     },
     tabs: {
-      create: (options_: { url?: string }) => {
+      create: (options_: { url?: string; windowId?: number }) => {
         createdTabs.push(options_);
         return Promise.resolve({ id: createdTabs.length, url: options_.url });
       },
+      // `activeTab` is what makes `url` and `title` readable here without a host permission, so a
+      // tab whose grant is missing is modelled as one with no `url` — which is what Chrome does.
+      query: (query: { active?: boolean }) =>
+        Promise.resolve(
+          openTabs.filter((tab) => query.active !== true || tab.active === true),
+        ),
       remove: () => Promise.resolve(),
+    },
+    extension: {
+      isAllowedIncognitoAccess: () => Promise.resolve(incognitoAccess),
+    },
+    contextMenus: {
+      create: (properties: { id?: string; title?: string; contexts?: readonly string[] }) => {
+        const id = properties.id ?? `generated-${menus.size}`;
+        if (menus.has(id)) throw new Error(`Cannot create item with duplicate id ${id}`);
+        menus.set(id, { ...(properties.title === undefined ? {} : { title: properties.title }),
+          ...(properties.contexts === undefined ? {} : { contexts: properties.contexts }) });
+        return id;
+      },
+      remove: (id: string) => {
+        menus.delete(id);
+        return Promise.resolve();
+      },
+      removeAll: () => {
+        menus.clear();
+        return Promise.resolve();
+      },
+      onClicked: onMenuClicked,
+    },
+    action: {
+      setBadgeText: (details: { text?: string }) => {
+        badgeText = details.text ?? '';
+        return Promise.resolve();
+      },
+      getBadgeText: () => Promise.resolve(badgeText),
+      setBadgeBackgroundColor: () => Promise.resolve(),
+      setTitle: () => Promise.resolve(),
     },
     commands: {
       getAll: () => Promise.resolve([]),
@@ -478,7 +562,34 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     grantedPermissions,
     createdWindows,
     createdTabs,
+    openTabs,
+    openWindows,
+    menus,
     alarms,
+    get incognitoAccess() {
+      return incognitoAccess;
+    },
+    set incognitoAccess(allowed: boolean) {
+      incognitoAccess = allowed;
+    },
+    badgeText: () => badgeText,
+    terminateWorker: () => {
+      for (const event of [
+        onMessage,
+        onInstalled,
+        onStartup,
+        onAlarm,
+        onFocusChanged,
+        onCommand,
+        onIdleStateChanged,
+        onMenuClicked,
+      ]) {
+        event.listeners.clear();
+      }
+    },
+    triggerMenuClick: (info) => {
+      for (const listener of onMenuClicked.listeners) listener(info);
+    },
     triggerInstalled: (reason = 'install') => {
       for (const listener of onInstalled.listeners) listener({ reason });
     },

@@ -20,8 +20,12 @@ const URL = 'https://example.invalid/private';
 
 let mock: ChromeMock;
 
-/** Import the worker as a cold MV3 start does: fresh module registry, existing storage. */
+/**
+ * Import the worker as a cold MV3 start does: the old worker's listeners go with it, the module
+ * registry is fresh, and `storage.local` is exactly as the previous worker left it.
+ */
 async function startWorker(): Promise<void> {
+  mock.terminateWorker();
   vi.resetModules();
   await import('../../src/background/index.js');
 }

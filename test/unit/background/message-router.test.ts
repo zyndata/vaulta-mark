@@ -164,6 +164,7 @@ describe('errors on the wire', () => {
   it('maps every error class in the taxonomy', async () => {
     const crypto = await import('../../../src/crypto/errors.js');
     const vault = await import('../../../src/vault/errors.js');
+    const add = await import('../../../src/background/add.js');
 
     expect(worker.toErrorCode(new crypto.WrongPasswordError())).toBe('WRONG_PASSWORD');
     expect(worker.toErrorCode(new crypto.CorruptVaultError())).toBe('CORRUPT_VAULT');
@@ -171,7 +172,15 @@ describe('errors on the wire', () => {
     expect(worker.toErrorCode(new vault.WeakPasswordError(10))).toBe('PASSWORD_TOO_SHORT');
     expect(worker.toErrorCode(new vault.VaultLockedError('reading'))).toBe('VAULT_LOCKED');
     expect(worker.toErrorCode(new vault.VaultStateError('nope'))).toBe('VAULT_STATE');
-    expect(worker.toErrorCode(new vault.ItemNotFoundError('x'))).toBe('UNKNOWN');
+    expect(worker.toErrorCode(new vault.ItemNotFoundError('x'))).toBe('ITEM_NOT_FOUND');
+    expect(worker.toErrorCode(new vault.UnsupportedUrlError('internal-page'))).toBe(
+      'URL_INTERNAL_PAGE',
+    );
+    expect(worker.toErrorCode(new vault.UnsupportedUrlError('local-file'))).toBe('URL_LOCAL_FILE');
+    expect(worker.toErrorCode(new vault.UnsupportedUrlError('unsupported-scheme'))).toBe(
+      'URL_UNSUPPORTED_SCHEME',
+    );
+    expect(worker.toErrorCode(new add.NoActiveTabError())).toBe('NO_ACTIVE_TAB');
     expect(worker.toErrorCode(new Error('something else'))).toBe('UNKNOWN');
     expect(worker.toErrorCode('not even an error')).toBe('UNKNOWN');
   });
@@ -223,6 +232,66 @@ describe('listeners registered during initial evaluation', () => {
       expect(mock.createdTabs).toHaveLength(1);
     });
   });
+
+  it('creates the context menus on install and on browser start', async () => {
+    mock.triggerInstalled();
+    await vi.waitFor(() => {
+      expect(mock.menus.size).toBe(2);
+    });
+
+    // `contextMenus.create` throws on a duplicate id, and the worker restarts constantly — so a
+    // second start has to be a no-op rather than an exception nobody sees.
+    mock.triggerStartup();
+    await vi.waitFor(() => {
+      expect(mock.menus.size).toBe(2);
+    });
+  });
+
+  it('vaults the active tab from the keyboard shortcut and says so on the badge', async () => {
+    await mock.sendMessage({ type: 'UNLOCK', password: PASSWORD });
+    mock.openTabs.push({ id: 1, url: 'https://example.com/x', title: 'X', active: true });
+
+    mock.triggerCommand('add-current-tab');
+
+    await vi.waitFor(() => {
+      expect(mock.badgeText()).toBe('✓');
+    });
+    const listed = (await mock.sendMessage({ type: 'LIST_ITEMS' })) as { total: number };
+    expect(listed.total).toBe(2);
+  }, 30_000);
+
+  it('says on the badge that the vault is locked, since a shortcut has no window', async () => {
+    mock.openTabs.push({ id: 1, url: 'https://example.com/x', title: 'X', active: true });
+    mock.triggerCommand('add-current-tab');
+
+    await vi.waitFor(() => {
+      expect(mock.badgeText()).toBe('🔒');
+    });
+  });
+
+  it('vaults a link from the context menu', async () => {
+    await mock.sendMessage({ type: 'UNLOCK', password: PASSWORD });
+    mock.triggerMenuClick({ menuItemId: 'vm.add-link', linkUrl: 'https://example.com/linked' });
+
+    await vi.waitFor(() => {
+      expect(mock.badgeText()).toBe('✓');
+    });
+    const listed = (await mock.sendMessage({ type: 'LIST_ITEMS', query: 'linked' })) as {
+      total: number;
+    };
+    expect(listed.total).toBe(1);
+  }, 30_000);
+
+  it('flags a page it will not vault, rather than failing silently', async () => {
+    await mock.sendMessage({ type: 'UNLOCK', password: PASSWORD });
+    mock.openTabs.push({ id: 1, url: 'chrome://settings/', title: 'Settings', active: true });
+
+    mock.triggerMenuClick({ menuItemId: 'vm.add-page' });
+
+    await vi.waitFor(() => {
+      expect(mock.badgeText()).toBe('!');
+    });
+  }, 30_000);
 
   it('locks on blur only once the setting is on', async () => {
     await mock.sendMessage({ type: 'UNLOCK', password: PASSWORD });

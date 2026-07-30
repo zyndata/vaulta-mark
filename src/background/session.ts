@@ -33,6 +33,7 @@ import {
   deadlineFrom,
   neverExpires,
 } from './autolock.js';
+import { forgetIncognitoAccess } from './incognito.js';
 
 /** The single `chrome.storage.session` key VaultaMark owns (ARCHITECTURE §5.5). */
 export const SESSION_KEY = 'vm.session';
@@ -158,6 +159,9 @@ export async function lock(options: LockOptions = {}): Promise<void> {
   // written by a later phase cannot survive a lock by being forgotten here.
   await chrome.storage.session.clear();
   await clearAutolock();
+  // "Cached per session" (§9) means per *unlocked* session: the next unlock re-reads the toggle
+  // rather than inheriting an answer from before the user was last sent to fix it.
+  forgetIncognitoAccess();
   await broadcast({ type: 'SESSION_LOCKED', reason });
 }
 
@@ -292,6 +296,7 @@ export async function updateSettings(patch: SettingsPatch): Promise<VaultSetting
     providerId: patch.providerId ?? current.providerId,
     lockOnBrowserBlur: patch.lockOnBrowserBlur ?? current.lockOnBrowserBlur,
     stripTrackingParams: patch.stripTrackingParams ?? current.stripTrackingParams,
+    reuseIncognitoWindow: patch.reuseIncognitoWindow ?? current.reuseIncognitoWindow,
   };
   await writeSettings(next);
   applyIdleDetection(next);

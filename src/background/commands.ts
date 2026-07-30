@@ -25,6 +25,8 @@ export interface CommandDeps {
   readonly lock: (reason: LockReason) => Promise<void>;
   /** Re-arms the idle window. */
   readonly touch: () => Promise<unknown>;
+  /** Vault the active tab and report the outcome on the toolbar badge — there is no window here. */
+  readonly addActiveTab: () => Promise<void>;
 }
 
 /** The manager page, in a tab of its own. */
@@ -44,10 +46,10 @@ export async function handleCommand(name: string, deps: CommandDeps): Promise<vo
       await openManager();
       return;
     case 'add-current-tab':
-      // Phase 5 owns the add pipeline (`background/add.ts`) and wires it here. The command is
-      // declared and dispatched from this phase so the shortcut exists in the first build a human
-      // installs; until then, pressing it counts as activity, which is what it means.
-      await deps.touch();
+      // The keystroke is the user gesture that grants `activeTab` for the tab in front of them,
+      // which is the whole reason this entry point can read a URL without a host permission (D25).
+      // `addActiveTab` touches the idle window itself, on the path where there is a vault to touch.
+      await deps.addActiveTab();
       return;
     default:
       return;
