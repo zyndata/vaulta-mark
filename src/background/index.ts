@@ -18,6 +18,7 @@
 
 import { CorruptVaultError, UnsupportedSchemaError, WrongPasswordError } from '../crypto/errors.js';
 import {
+  broadcast,
   onRequest,
   type ErrorCode,
   type Request,
@@ -39,6 +40,9 @@ import { installContextMenus, registerContextMenuListener } from './contextmenu.
 import * as items from './items.js';
 import * as organize from './organize.js';
 import * as session from './session.js';
+import * as syncing from './syncing.js';
+import { configureSync, scheduleSync, syncNow } from '../sync/engine.js';
+import { CorruptRemote, PreconditionFailed, QuotaExceeded, RateLimited } from '../sync/provider.js';
 
 /**
  * Map a thrown error onto its wire code.
@@ -58,6 +62,16 @@ export function toErrorCode(error: unknown): ErrorCode {
   if (error instanceof InvalidMutationError) return 'INVALID_MUTATION';
   if (error instanceof NoActiveTabError) return 'NO_ACTIVE_TAB';
   if (error instanceof UnsupportedUrlError) return URL_ERROR_CODES[error.reason];
+  // A sync failure that reached a request handler — "sync now", or resolving a conflict. The
+  // detail is in the status the UI is already showing; this only has to not say "unknown".
+  if (
+    error instanceof QuotaExceeded ||
+    error instanceof RateLimited ||
+    error instanceof PreconditionFailed ||
+    error instanceof CorruptRemote
+  ) {
+    return 'SYNC_FAILED';
+  }
   return 'UNKNOWN';
 }
 
@@ -174,6 +188,19 @@ export async function handleRequest(request: Request): Promise<Response> {
       case 'DESTROY_VAULT':
         await session.destroyVault();
         return { type: 'OK' };
+
+      /* ---- sync (Phase 7) ---- */
+      case 'GET_SYNC_STATUS':
+        return await syncing.syncStatus();
+      case 'SYNC_NOW':
+        return await syncing.runSyncNow();
+      case 'LIST_CONFLICTS':
+        return { type: 'CONFLICTS', conflicts: await syncing.conflicts() };
+      case 'RESOLVE_CONFLICTS':
+        return {
+          type: 'COUNT',
+          count: await syncing.resolve(request.ids, request.resolution),
+        };
     }
   } catch (error) {
     // Nothing here may reach a log: a request carries a master password, and the errors that come
@@ -185,6 +212,33 @@ export async function handleRequest(request: Request): Promise<Response> {
 /* ------------------------------------------------------------------ registration */
 
 onRequest(handleRequest);
+
+/**
+ * The sync engine's window onto the rest of the extension.
+ *
+ * Injected rather than imported the other way round so `src/sync/**` never reaches for a session, a
+ * broadcast or a `chrome` namespace — which is what keeps the merge engine and the provider
+ * testable on their own.
+ */
+configureSync({
+  repository: () => session.currentRepository(),
+  onVaultChanged: () => broadcast({ type: 'VAULT_CHANGED' }),
+  onStatus: (status) => broadcast({ type: 'SYNC_CHANGED', status: { type: 'SYNC_STATUS', ...status } }),
+});
+
+/**
+ * Another device wrote to `chrome.storage.sync`.
+ *
+ * This is the whole of "zero-configuration sync": Chrome replicates the area between the profile's
+ * devices and tells us it changed, so there is nothing to poll and nothing to configure. Filtered
+ * to our own keys, because the area is shared with nothing but is still worth being explicit about,
+ * and ignored while locked — there is no key to merge with, and the next unlock syncs anyway.
+ */
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'sync') return;
+  if (!Object.keys(changes).some((key) => key.startsWith('vm.s.'))) return;
+  void syncNow();
+});
 
 registerLifecycleListeners({
   enforceDeadline: () => session.enforceDeadline(),
@@ -236,6 +290,9 @@ function onStart(): void {
     await armHousekeeping();
     await installContextMenus();
     await clearBadge();
+    // A browser that was closed for a week is the most likely moment for the remote to be ahead.
+    // Scheduled rather than immediate so it does not compete with the cold-start budget (§7.2).
+    scheduleSync();
   })();
 }
 

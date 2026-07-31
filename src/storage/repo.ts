@@ -23,6 +23,7 @@
  */
 
 import { fromBase64Url, toBase64Url, type Bytes } from '../crypto/codec.js';
+import type { AadPurpose } from '../crypto/envelope.js';
 import { CorruptVaultError, UnsupportedSchemaError } from '../crypto/errors.js';
 import { RECOMMENDED_KDF_PARAMS, deriveKek, generateKdfSalt } from '../crypto/kdf.js';
 import { generateDek, subkey, unwrapDek, wrapDek } from '../crypto/keys.js';
@@ -47,12 +48,13 @@ import {
   isDeleted,
   type BucketMeta,
   type BucketPayload,
+  type EncryptedVault,
   type ItemMap,
   type VaultHeader,
   type VaultItem,
 } from '../vault/types.js';
 import { bucketOf } from './buckets.js';
-import { bucketTag, openBucket, sealBucket } from './codec.js';
+import { bucketTag, openBucket, openJson, sealBucket, sealJson } from './codec.js';
 import { clearVault, readBuckets, readHeader, writeBuckets, writeHeader } from './local.js';
 import { partsFor } from './quota.js';
 
@@ -70,6 +72,20 @@ export interface VaultRepositoryOptions {
 export interface GetAllOptions {
   /** Include tombstones. Off by default — a deleted bookmark must not appear anywhere in the UI. */
   readonly includeDeleted?: boolean;
+}
+
+/**
+ * Sealing and opening, bound to an unlocked vault's keys — without handing the keys out.
+ *
+ * `src/sync/` has to keep two encrypted things of its own beside the buckets: the merge base and
+ * the pending conflicts (ARCHITECTURE §5.1). Both are vault content and both must be sealed
+ * (INV-6), and neither is a bucket. Rather than growing the repository a method per sync artefact,
+ * or exporting the DEK to a second module, the repository lends out this: the two operations, with
+ * the key already applied and no way to read it back.
+ */
+export interface VaultCipher {
+  seal(purpose: Exclude<AadPurpose, 'bucket'>, id: string, value: unknown): Promise<Bytes>;
+  open(purpose: Exclude<AadPurpose, 'bucket'>, id: string, sealed: Bytes): Promise<unknown>;
 }
 
 export class VaultRepository {
@@ -464,20 +480,122 @@ export class VaultRepository {
     return this.#dirtyBuckets;
   }
 
+  /* ---------------------------------------------------------------- sync (Phase 7) */
+
+  /**
+   * The local working copy as ciphertext: the header, and the sealed bytes already on disk.
+   *
+   * The bytes are read back rather than re-sealed, so a push sends exactly what `storage.local`
+   * holds and the two cannot drift. Callers that need to push a *different* item set — the sync
+   * engine does, while a conflict is pending — use {@link sealSnapshot} instead.
+   */
+  async exportEncrypted(): Promise<EncryptedVault> {
+    this.#assertUnlocked('exporting the vault');
+    const header = this.header();
+    await this.flush();
+    const stored = header.buckets.filter((meta) => meta.parts > 0).map((meta) => meta.i);
+    return { header: this.header(), buckets: await readBuckets(stored) };
+  }
+
+  /**
+   * Seal an arbitrary item set at this vault's current revision, writing nothing.
+   *
+   * Fresh IVs mean the ciphertext differs from what is on disk even for buckets that did not
+   * change — which is precisely why the header carries a keyed HMAC over each bucket's *plaintext*.
+   * A provider compares tags, not bytes, so re-sealing here does not turn into a full re-upload.
+   */
+  async sealSnapshot(items: ItemMap, vaultRev?: number): Promise<EncryptedVault> {
+    this.#assertUnlocked('sealing a vault snapshot');
+    const current = this.header();
+    const header: VaultHeader = { ...current, vaultRev: vaultRev ?? current.vaultRev };
+    const { sealed, metas } = await this.#sealBuckets(items, header);
+
+    const buckets = new Map<number, Bytes>();
+    for (const [index, bytes] of sealed) {
+      if (bytes !== null) buckets.set(index, bytes);
+    }
+    return {
+      header: { ...header, buckets: header.buckets.map((meta) => metas.get(meta.i) ?? meta) },
+      buckets,
+    };
+  }
+
+  /**
+   * Decrypt a vault that came off a provider.
+   *
+   * Every bucket tag is verified, so a remote assembled from parts written by two different pushes
+   * is rejected here rather than merged. Nothing local is touched: this answers "what do they
+   * have?", and the merge decides what to do about it.
+   */
+  async openEncrypted(vault: EncryptedVault): Promise<ItemMap> {
+    this.#assertUnlocked('reading a remote vault');
+    const raw: Record<string, unknown>[] = [];
+    for (const meta of vault.header.buckets) {
+      if (meta.parts === 0) continue;
+      const bytes = vault.buckets.get(meta.i);
+      if (bytes === undefined) {
+        throw new CorruptVaultError(`Remote header lists bucket ${meta.i}, which is not present.`);
+      }
+      const payload = await openBucket(
+        this.#requireItemsKey(),
+        this.#requireHmacKey(),
+        meta.i,
+        bytes,
+        meta.tag,
+      );
+      raw.push(...payload.items);
+    }
+    return toItemMap(migrate({ items: raw }, vault.header.schemaVersion).items);
+  }
+
+  /**
+   * Replace the entire item set, and adopt a header from elsewhere.
+   *
+   * Used after a pull or a merge. `deviceId` is deliberately **not** adopted: it labels this
+   * install, and taking the remote's would make every device in a profile claim to be the same one
+   * — which is the only thing the field is for (labelling the sides of a conflict). Everything else
+   * in the header, `kdf` and `wrappedDek` included, is vault-global and genuinely shared: that is
+   * how a password changed on one device reaches the others.
+   */
+  async replaceAll(items: ItemMap, header: VaultHeader): Promise<void> {
+    this.#throwDeferred();
+    this.#assertUnlocked('replacing the vault contents');
+    const current = this.header();
+
+    this.#items = items;
+    this.#bucketByItem = new Map();
+    for (const item of items.values()) {
+      this.#bucketByItem.set(item.id, await bucketOf(item.id, header.bucketCount));
+    }
+    this.#index = null;
+
+    this.#header = { ...header, deviceId: current.deviceId, updatedAt: this.#now() };
+    for (let i = 0; i < header.bucketCount; i++) this.#dirtyBuckets.add(i);
+    this.#headerDirty = true;
+    await this.flush();
+  }
+
+  /** Seal and open, with this vault's item key applied. See {@link VaultCipher}. */
+  cipher(): VaultCipher {
+    const key = this.#requireItemsKey();
+    return {
+      seal: (purpose, id, value) => sealJson(key, purpose, id, value),
+      open: (purpose, id, sealed) => openJson(key, purpose, id, sealed),
+    };
+  }
+
   /* ---------------------------------------------------------------- internals */
 
   async #writePending(): Promise<void> {
     const header = this.#header;
-    const itemsKey = this.#itemsKey;
-    const hmacKey = this.#hmacKey;
-    if (header === null || itemsKey === null || hmacKey === null) return;
+    if (header === null || this.#itemsKey === null || this.#hmacKey === null) return;
     if (this.#dirtyBuckets.size === 0 && !this.#headerDirty) return;
 
     const dirty = [...this.#dirtyBuckets].sort((a, b) => a - b);
     this.#dirtyBuckets.clear();
     this.#headerDirty = false;
     try {
-      await this.#writeBucketsAndHeader(header, dirty, itemsKey, hmacKey);
+      await this.#writeBucketsAndHeader(header, dirty);
     } catch (error) {
       // A failed write must stay pending: the items are still in memory and correct, and the next
       // flush has to try again rather than leave `storage.local` a revision behind for good.
@@ -487,31 +605,50 @@ export class VaultRepository {
     }
   }
 
-  async #writeBucketsAndHeader(
+  async #writeBucketsAndHeader(header: VaultHeader, dirty: readonly number[]): Promise<void> {
+    const { sealed, metas } = await this.#sealBuckets(this.#items, header, dirty);
+
+    if (sealed.size > 0) await writeBuckets(sealed);
+
+    const buckets = header.buckets.map((meta) => metas.get(meta.i) ?? meta);
+    const next: VaultHeader = { ...header, buckets };
+    this.#header = next;
+    await writeHeader(next);
+  }
+
+  /**
+   * Seal a set of buckets, and compute the header entries that describe them.
+   *
+   * Shared by the write path (which passes the dirty indices) and by {@link sealSnapshot} (which
+   * passes none, meaning all). A bucket that comes out empty is sealed as `null` — an empty bucket
+   * is deleted rather than stored, because sixteen sealed empty payloads would spend ~7 KB of a
+   * 100 KB sync quota to say nothing.
+   */
+  async #sealBuckets(
+    items: ItemMap,
     header: VaultHeader,
-    dirty: readonly number[],
-    itemsKey: CryptoKey,
-    hmacKey: CryptoKey,
-  ): Promise<void> {
-    const payloads = new Map<number, BucketPayload>();
-    for (const index of dirty) payloads.set(index, { items: [] });
+    only?: readonly number[],
+  ): Promise<{ sealed: Map<number, Bytes | null>; metas: Map<number, BucketMeta> }> {
+    const itemsKey = this.#requireItemsKey();
+    const hmacKey = this.#requireHmacKey();
+    const wanted = new Set(
+      only ?? Array.from({ length: header.bucketCount }, (_unused, index) => index),
+    );
+
     const grouped = new Map<number, VaultItem[]>();
-    for (const item of this.#items.values()) {
-      const index = this.#bucketByItem.get(item.id);
-      if (index === undefined || !payloads.has(index)) continue;
-      const bucket = grouped.get(index) ?? [];
-      bucket.push(item);
-      grouped.set(index, bucket);
-    }
-    for (const [index, items] of grouped) {
-      items.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-      payloads.set(index, { items });
+    for (const index of wanted) grouped.set(index, []);
+    for (const item of items.values()) {
+      const index =
+        this.#bucketByItem.get(item.id) ?? (await bucketOf(item.id, header.bucketCount));
+      grouped.get(index)?.push(item);
     }
 
     const sealed = new Map<number, Bytes | null>();
     const metas = new Map<number, BucketMeta>();
-    for (const [index, payload] of payloads) {
-      if (payload.items.length === 0) {
+    for (const [index, bucketItems] of grouped) {
+      bucketItems.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      const payload: BucketPayload = { items: bucketItems };
+      if (bucketItems.length === 0) {
         sealed.set(index, null);
         metas.set(index, {
           i: index,
@@ -525,13 +662,7 @@ export class VaultRepository {
       sealed.set(index, bytes);
       metas.set(index, { i: index, rev: header.vaultRev, parts: partsFor(bytes.length), tag });
     }
-
-    if (sealed.size > 0) await writeBuckets(sealed);
-
-    const buckets = header.buckets.map((meta) => metas.get(meta.i) ?? meta);
-    const next: VaultHeader = { ...header, buckets };
-    this.#header = next;
-    await writeHeader(next);
+    return { sealed, metas };
   }
 
   async #adoptKeys(dek: Bytes): Promise<void> {

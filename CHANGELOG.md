@@ -14,6 +14,24 @@ below.
 
 ### Added
 
+- **Your bookmarks are on your other computers now**, with nothing to set up. Every Chrome signed
+  into the same Google account gets the same vault, still encrypted — Google replicates a blob it
+  cannot read, and VaultaMark makes no network request of its own to make that happen. There is a
+  line in the toolbar saying when it last synced; clicking it syncs now.
+- **A vault edited in two places at once is merged, not overwritten.** Rename a bookmark on the
+  laptop and add a note to it on the desktop, and you end up with both. Tags added on either machine
+  are kept, tags you removed stay removed, and a bookmark deleted on one machine does not come back
+  from the other.
+- **When two devices genuinely disagree, you are asked.** Change the same field on both, or edit
+  something on one machine that you deleted on the other, and nothing is thrown away: a banner
+  appears, and a page shows both versions side by side with the fields that differ marked. Keep this
+  device's, keep the other one's, or keep both. Until you decide, the disputed bookmark shows this
+  device's version and everything *else* in your vault keeps syncing normally — a disagreement about
+  one bookmark does not hold up the rest.
+- **Settings shows how full Chrome sync is**, with a bar that changes colour at 70 % and again at
+  95 %. Chrome's storage is small — around a thousand bookmarks, fewer if you write long notes — and
+  the warning arrives early enough to be a decision rather than a rescue. Google Drive, which holds
+  far more, arrives in a later version.
 - **There is a manager now** — a full page rather than a popup, and the place the vault actually
   lives. Folders down the left with the count of everything inside them, your bookmarks in the
   middle, and whatever you have selected on the right, ready to edit.
@@ -213,6 +231,9 @@ below.
 
 ### Fixed
 
+- Nothing was lost to a browser that closed mid-sync. A sync that is interrupted after writing part
+  of the vault leaves a copy that does not add up; the next device to look at it notices, and repairs
+  it from its own copy rather than reading half a vault.
 - The sidebar had a horizontal scrollbar along the bottom at every width, because the folder rows
   were three pixels wider than the column they were in. Long tag names now shorten with an ellipsis
   instead of pushing the rename button out of view.

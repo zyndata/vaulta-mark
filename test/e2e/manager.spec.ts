@@ -277,6 +277,38 @@ test('has no critical or serious accessibility violations', async () => {
   await page.close();
 });
 
+/**
+ * Sync, in a real browser, against the real `chrome.storage.sync`.
+ *
+ * The two things worth checking outside a mock: that the vault reaches the sync area **as
+ * ciphertext**, and that getting it there involves no network request at all. The second is INV-4 in
+ * its sharpest form — Chrome sync is a network feature, and the point of the Chrome tier is that
+ * *we* never speak to it. The browser replicates the area; the extension only writes to it.
+ */
+test('syncs the vault into chrome.storage.sync, as ciphertext and without a request', async () => {
+  const page = await openPage('manager.html');
+  const before = requests.length;
+
+  const control = page.locator('.vm-sync');
+  await expect(control).toBeVisible();
+  await control.click();
+  await expect(control).toContainText(/last synced/iu);
+
+  const synced = await page.evaluate(() => chrome.storage.sync.get(null));
+  const keys = Object.keys(synced);
+  expect(keys).toContain('vm.s.meta');
+  expect(keys.some((key) => key.startsWith('vm.s.b'))).toBe(true);
+
+  // INV-6: nothing a reader of the synced blob could understand.
+  const blob = JSON.stringify(synced);
+  expect(blob).not.toContain('Mushroom risotto');
+  expect(blob).not.toContain('vaultamark-e2e.invalid');
+
+  expect(requests.slice(before)).toEqual([]);
+
+  await page.close();
+});
+
 test('drags a bookmark into a folder in the sidebar, and back out to the top level', async () => {
   const page = await openPage('manager.html');
   await vault(page, 'https://drag-e2e.invalid/one', 'Draggable one');

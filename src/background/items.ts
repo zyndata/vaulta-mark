@@ -20,6 +20,7 @@ import {
   type ItemSummary,
   type OpenStatus,
 } from '../shared/messages.js';
+import { scheduleSync } from '../sync/engine.js';
 import { ItemNotFoundError, VaultLockedError } from '../vault/errors.js';
 import type { Mutation } from '../vault/model.js';
 import { sortItems } from '../vault/sort.js';
@@ -89,7 +90,9 @@ async function addOptions(): Promise<{ stripTrackingParams: boolean }> {
 /** Tell open UIs to re-read, but only when something actually changed. */
 async function announce(result: AddResult): Promise<void> {
   await session.touch();
-  if (result.status === 'added') await broadcast({ type: 'VAULT_CHANGED' });
+  if (result.status !== 'added') return;
+  await broadcast({ type: 'VAULT_CHANGED' });
+  scheduleSync();
 }
 
 /* ------------------------------------------------------------------ listing */
@@ -159,6 +162,9 @@ export async function open(id: string, options: OpenOptions = {}): Promise<OpenS
   // visibly wrong list rather than a rounding error.
   await repo.flush();
   await session.touch();
+  // `openedAt` and `openCount` are sort keys on every device, not just this one, so an open is a
+  // change worth replicating — debounced like any other, so a run of clicks is one push.
+  scheduleSync();
   return status;
 }
 
@@ -199,6 +205,7 @@ async function mutate(ids: readonly string[], build: (id: string) => Mutation): 
   await repo.flush();
   await session.touch();
   await broadcast({ type: 'VAULT_CHANGED' });
+  scheduleSync();
 }
 
 /* ------------------------------------------------------------------ internals */

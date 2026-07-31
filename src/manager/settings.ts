@@ -13,7 +13,7 @@
  */
 
 import { estimateStrength, MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
-import { send } from '../shared/messages.js';
+import { send, type SyncStatusResponse } from '../shared/messages.js';
 import { h, matchesPhrase, msg, render } from '../ui/dom.js';
 import { errorText } from '../ui/strings.js';
 import {
@@ -22,6 +22,7 @@ import {
   type VaultSettings,
 } from '../vault/types.js';
 import { dialogField, openDialog } from './dialog.js';
+import { relativeTime, syncQuotaBar } from './sync.js';
 
 export interface SettingsDeps {
   readonly settings: VaultSettings;
@@ -31,16 +32,45 @@ export interface SettingsDeps {
 }
 
 export async function openSettings(deps: SettingsDeps): Promise<void> {
+  // Fetched before the dialog is built rather than filled in afterwards: a quota bar that appears a
+  // moment after the dialog does is a quota bar that moves the destroy button under the cursor.
+  const status = await send({ type: 'GET_SYNC_STATUS' });
+
   await openDialog<never>({
     heading: msg('settingsHeading'),
     body: [
       appearance(deps),
       section('settingsSectionLock', locking(deps)),
       section('settingsSectionBrowsing', browsing(deps)),
+      ...(status.type === 'ERROR' ? [] : [section('syncSectionHeading', sync(status))]),
       section('settingsSectionPassword', [changePassword()]),
       section('settingsSectionDanger', [destroyVault(deps)]),
     ],
   });
+}
+
+/**
+ * What sync is doing, and how much room is left.
+ *
+ * Read-only in Phase 7 on purpose: there is exactly one provider, so a picker would be a control
+ * with one option. Phase 10 adds Drive and the choice that goes with it.
+ */
+function sync(status: SyncStatusResponse): HTMLElement[] {
+  return [
+    h(
+      'p',
+      { class: 'vm-small vm-muted' },
+      msg(status.providerId === 'drive' ? 'syncProviderDrive' : 'syncProviderChrome'),
+    ),
+    h(
+      'p',
+      { class: 'vm-small vm-muted' },
+      status.lastSyncedAt === null
+        ? msg('syncNever')
+        : msg('syncLastSynced', [relativeTime(status.lastSyncedAt)]),
+    ),
+    syncQuotaBar(status),
+  ];
 }
 
 function section(headingKey: string, children: HTMLElement[]): HTMLElement {

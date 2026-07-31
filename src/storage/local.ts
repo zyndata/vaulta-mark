@@ -197,6 +197,32 @@ export async function readBaseMeta(): Promise<BaseMeta | null> {
   return raw === undefined ? null : (raw as BaseMeta);
 }
 
+/** Forget the merge base. The next sync then treats the remote as unrelated and merges from `null`. */
+export async function clearBase(): Promise<void> {
+  await area().remove([LOCAL_KEYS.base, LOCAL_KEYS.baseMeta]);
+}
+
+/* ------------------------------------------------------------------ conflicts (Phase 7) */
+
+/**
+ * The pending conflicts, sealed.
+ *
+ * Encrypted for the same reason the buckets are: a conflict record carries both versions of a
+ * bookmark in full — its title, its URL, its note — and INV-6 does not have an exception for
+ * "temporarily, while the user decides".
+ */
+export async function readConflicts(): Promise<Bytes | null> {
+  const raw = (await area().get(LOCAL_KEYS.conflicts))[LOCAL_KEYS.conflicts];
+  if (raw === undefined) return null;
+  if (typeof raw !== 'string') throw new CorruptVaultError('Stored conflicts are not base64url.');
+  return fromBase64Url(raw);
+}
+
+export async function writeConflicts(sealed: Bytes | null): Promise<void> {
+  if (sealed === null) await area().remove(LOCAL_KEYS.conflicts);
+  else await area().set({ [LOCAL_KEYS.conflicts]: toBase64Url(sealed) });
+}
+
 /* ------------------------------------------------------------------ settings */
 
 /**

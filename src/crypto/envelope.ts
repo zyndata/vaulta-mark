@@ -37,13 +37,13 @@ export const ENVELOPE_OVERHEAD_BYTES = 1 + IV_BYTES + TAG_BYTES;
  * introduced without a deliberate edit here — and therefore without a thought about whether it
  * needs its own HKDF subkey.
  */
-export type AadPurpose = 'bucket' | 'thumb' | 'base' | 'export';
+export type AadPurpose = 'bucket' | 'thumb' | 'base' | 'export' | 'conflicts';
 
 /**
  * The associated data bound to a sealed blob.
  *
  * `id` distinguishes slots within a purpose: the bucket index for `bucket`, the item id for
- * `thumb`, the empty string for the singletons (`base`, `export`).
+ * `thumb`, the empty string for the singletons (`base`, `export`, `conflicts`).
  */
 export interface Aad {
   readonly v: number;
