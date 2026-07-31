@@ -993,6 +993,35 @@ still on the remote and has nothing to decide. Resolving on both sides is possib
 edited the same bookmark again in the meantime — and simply raises the disagreement again rather than
 silently overwriting one of them. Each round strictly reduces the disagreement, so it terminates.
 
+### 6.5.1 Joining from a second device
+
+A profile with no vault of its own but a vault in the sync area is a **second computer**, not a
+first one, and it is offered the master password rather than the create form.
+
+Everything needed is already in the header the first device pushed: the KDF salt and the wrapped
+DEK (§3.1). So the whole of the setup is the password the user already knows — nothing is exported,
+copied, scanned or typed in beyond that. `session.state()` reports `adoptable` from a single
+`peek()`, asked only when there is no local vault; `UNLOCK` then routes to adoption instead of a
+local unlock, because from where the person is standing the two are the same act.
+
+`repo.adopt(vault, password)` derives the KEK from the *pulled* header, unwraps the DEK and decrypts
+every bucket **before writing anything**. A wrong password throws `WrongPasswordError` and leaves
+the profile exactly as empty as it was; writing the header first and validating second would leave a
+half-adopted vault behind every typo. `deviceId` is regenerated rather than inherited — it is the one
+header field that describes the install rather than the vault, and two devices claiming to be the
+same one would mislabel every side of every future conflict.
+
+The merge base is written as the last step, from the adopted item set at the remote's `vaultRev`.
+Without it the first sync after joining would find no base, read every item as a local add, and push
+the whole vault straight back at the device it came from.
+
+**Two vaults, one sync area.** Someone can decline to join and create a separate vault instead; the
+create screen says plainly that it will not sync with the one already there. If they do, the next
+sync pulls a vault whose ciphertext will not open under this device's key, and that is reported as
+`VaultMismatch` rather than as corruption. Nothing is damaged and nothing is overwritten — the
+mismatch is detected in `openEncrypted`, before anything is pushed — but the two cannot be merged,
+and the only ways out are to destroy one of them or to move one to a different backend.
+
 ### 6.6 Provider migration
 
 **chrome → drive**

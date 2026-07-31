@@ -44,7 +44,14 @@ function show(box: HTMLElement, text: string | null): void {
 
 /* ------------------------------------------------------------------ create screen */
 
-function createScreen(): HTMLElement {
+/**
+ * Whether the create screen was reached from a profile that had a synced vault to join.
+ *
+ * It changes nothing mechanically and everything about what the screen means: the same form is
+ * either "set up VaultaMark" or "deliberately keep a second, separate vault on this computer",
+ * and the second needs saying out loud because it cannot sync with the first.
+ */
+function createScreen(options: { separate?: boolean; onBack?: () => void } = {}): HTMLElement {
   const password = h('input', { type: 'password', autocomplete: 'new-password' });
   const confirm = h('input', { type: 'password', autocomplete: 'new-password' });
   const phrase = h('input', { type: 'text', autocomplete: 'off', spellcheck: 'false' });
@@ -162,7 +169,25 @@ function createScreen(): HTMLElement {
         void submitCreate();
       },
     },
-    h('p', { class: 'vm-small vm-muted' }, msg('createIntro')),
+    options.separate === true
+      ? h(
+          'div',
+          { class: 'vm-notice vm-notice--warning' },
+          h('p', null, h('strong', null, msg('adoptSeparateHeading'))),
+          h('p', null, msg('adoptSeparateBody')),
+          options.onBack === undefined
+            ? null
+            : h(
+                'button',
+                {
+                  type: 'button',
+                  class: 'vm-button vm-button--quiet vm-button--inline',
+                  onclick: options.onBack,
+                },
+                msg('adoptSeparateBack'),
+              ),
+        )
+      : h('p', { class: 'vm-small vm-muted' }, msg('createIntro')),
     field('createFieldPassword', password),
     meter,
     strength,
@@ -181,6 +206,77 @@ function createScreen(): HTMLElement {
     error,
     submit,
     blocked,
+  );
+}
+
+/* ------------------------------------------------------------------ adopt screen */
+
+/**
+ * This profile has no vault, but the sync area does.
+ *
+ * The screen a second computer gets. Everything needed to open the vault is already in the header
+ * the first device pushed — the KDF salt and the wrapped data key — so the master password is the
+ * whole of the setup: nothing to export, copy, scan or type in beyond what the user already knows.
+ *
+ * It sends the same `UNLOCK` the ordinary unlock screen sends. The service worker decides whether
+ * that means opening a local vault or joining a synced one, because from where the person is
+ * standing there is no difference.
+ */
+function adoptScreen(): HTMLElement {
+  const password = h('input', { type: 'password', autocomplete: 'current-password' });
+  const error = alertBox();
+  const submit = h('button', { class: 'vm-button', type: 'submit' }, msg('adoptButton'));
+
+  async function submitAdopt(): Promise<void> {
+    submit.disabled = true;
+    show(error, null);
+    // Joining derives the key and decrypts the whole vault, which is a moment of PBKDF2 and a few
+    // hundred bookmarks — long enough that a button which just goes quiet looks broken.
+    submit.textContent = msg('adoptWorking');
+    const response = await send({ type: 'UNLOCK', password: password.value });
+    submit.disabled = false;
+    submit.textContent = msg('adoptButton');
+    if (response.type === 'ERROR') {
+      show(error, errorText(response.code));
+      password.select();
+      return;
+    }
+    password.value = '';
+    await refresh();
+  }
+
+  queueMicrotask(() => {
+    password.focus();
+  });
+
+  return h(
+    'form',
+    {
+      onsubmit: (event: Event) => {
+        event.preventDefault();
+        void submitAdopt();
+      },
+    },
+    h(
+      'div',
+      { class: 'vm-notice' },
+      h('p', null, h('strong', null, msg('adoptHeading'))),
+      h('p', null, msg('adoptBody')),
+    ),
+    field('adoptFieldPassword', password),
+    error,
+    submit,
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'vm-button vm-button--quiet vm-button--inline',
+        onclick: () => {
+          render(root, createScreen({ separate: true, onBack: () => { render(root, adoptScreen()); } }));
+        },
+      },
+      msg('adoptCreateInstead'),
+    ),
   );
 }
 
@@ -246,7 +342,7 @@ async function refresh(): Promise<void> {
   }
 
   applyTheme(response.settings.theme, document.documentElement);
-  if (!response.exists) render(root, createScreen());
+  if (!response.exists) render(root, response.adoptable ? adoptScreen() : createScreen());
   else if (response.locked) render(root, unlockScreen());
   else render(root, vaultScreen({ state: response, refresh, errorText, patchSettings }));
 }

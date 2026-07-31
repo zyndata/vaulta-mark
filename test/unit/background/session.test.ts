@@ -326,6 +326,7 @@ describe('state', () => {
   it('reports a vault that exists but is locked', async () => {
     await expect(session.state()).resolves.toEqual({
       exists: true,
+      adoptable: false,
       locked: true,
       unlockedUntil: null,
     });
@@ -335,14 +336,34 @@ describe('state', () => {
     await mock.storage.local.clear();
     await expect(session.state()).resolves.toEqual({
       exists: false,
+      adoptable: false,
       locked: true,
       unlockedUntil: null,
     });
   });
 
+  it('does not go looking in sync for a profile that already has a vault', async () => {
+    // One `storage.sync` read per popup open, for an answer the create/unlock choice does not need
+    // once a local vault exists.
+    const reads: unknown[] = [];
+    const original = mock.storage.sync.get;
+    mock.storage.sync.get = (keys) => {
+      reads.push(keys);
+      return original(keys);
+    };
+    await session.state();
+    expect(reads).toEqual([]);
+    mock.storage.sync.get = original;
+  });
+
   it('reports an open vault', async () => {
     const unlockedUntil = await session.unlock(PASSWORD);
-    await expect(session.state()).resolves.toEqual({ exists: true, locked: false, unlockedUntil });
+    await expect(session.state()).resolves.toEqual({
+      exists: true,
+      adoptable: false,
+      locked: false,
+      unlockedUntil,
+    });
   }, 30_000);
 });
 

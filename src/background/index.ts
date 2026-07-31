@@ -94,6 +94,7 @@ export async function handleRequest(request: Request): Promise<Response> {
         return {
           type: 'STATE',
           exists: current.exists,
+          adoptable: current.adoptable,
           locked: current.locked,
           unlockedUntil: current.unlockedUntil,
           settings: await session.settings(),

@@ -23,9 +23,10 @@ import { fromBase64Url, toBase64Url } from '../crypto/codec.js';
 import { zero } from '../crypto/wipe.js';
 import { readHeader, readSettings, writeSettings } from '../storage/local.js';
 import { VaultRepository } from '../storage/repo.js';
+import { fetchRemote, hasRemoteVault, markAdopted } from '../sync/engine.js';
 import type { LockReason, SettingsPatch } from '../shared/messages.js';
 import { broadcast } from '../shared/messages.js';
-import { VaultLockedError } from '../vault/errors.js';
+import { VaultLockedError, VaultStateError } from '../vault/errors.js';
 import type { VaultSettings } from '../vault/types.js';
 import {
   applyIdleDetection,
@@ -50,6 +51,13 @@ interface SessionRecord {
 export interface SessionState {
   /** Whether this profile holds a vault at all — the difference between "create" and "unlock". */
   readonly exists: boolean;
+  /**
+   * There is no vault *here*, but there is one waiting in the sync area.
+   *
+   * The difference between "create a vault" and "this is a second computer — type the password you
+   * already have". Only ever true when {@link exists} is false.
+   */
+  readonly adoptable: boolean;
   readonly locked: boolean;
   readonly unlockedUntil: number | null;
 }
@@ -113,12 +121,40 @@ export async function createVault(password: string): Promise<number> {
   return await startSession(next);
 }
 
-/** Unlock with the master password. Throws `WrongPasswordError` on a failed DEK unwrap (D12). */
+/**
+ * Unlock with the master password.
+ *
+ * One entry point for two situations that are the same thing to the person typing: a vault that is
+ * already on this device, and a vault that is on another one and has been waiting in the sync area
+ * since. The second is how a second computer joins — there is nothing to export, copy or scan,
+ * because the KDF salt and the wrapped data key are in the header the other device already pushed.
+ *
+ * Throws `WrongPasswordError` on a failed DEK unwrap either way (D12), and `VaultStateError` when
+ * there is no vault in either place.
+ */
 export async function unlock(password: string): Promise<number> {
   const next = new VaultRepository();
-  await next.unlock(password);
+  if (await next.exists()) await next.unlock(password);
+  else await adoptSyncedVault(next, password);
   repository = next;
   return await startSession(next);
+}
+
+/**
+ * Join a vault that is already in the sync area.
+ *
+ * Ordered so a mistyped password costs nothing: the vault is pulled, then `adopt` derives the key
+ * and decrypts it *before* writing anything, so a failure leaves the profile as empty as it was.
+ * The merge base is recorded last — without it the first sync would see no base, read every item as
+ * a local add, and push the whole vault straight back at the device it just came from.
+ */
+async function adoptSyncedVault(repo: VaultRepository, password: string): Promise<void> {
+  const remote = await fetchRemote();
+  if (remote === null) {
+    throw new VaultStateError('There is no vault on this profile, and none in sync, to unlock.');
+  }
+  await repo.adopt(remote.vault, password);
+  await markAdopted(repo, repo.items(), remote.stamp, remote.vault.header.vaultRev);
 }
 
 async function startSession(repo: VaultRepository): Promise<number> {
@@ -215,13 +251,16 @@ async function forget(): Promise<void> {
 /** Everything a UI needs to pick a screen. Enforces the deadline as a side effect. */
 export async function state(): Promise<SessionState> {
   const exists = (await readHeader()) !== null;
+  // Asked only when there is nothing here. A peek is one `storage.sync` read, and a profile that
+  // already holds a vault would be paying it on every popup open for an answer nobody looks at.
+  const adoptable = exists ? false : await hasRemoteVault();
   const record = await readRecord();
-  if (record === null) return { exists, locked: true, unlockedUntil: null };
+  if (record === null) return { exists, adoptable, locked: true, unlockedUntil: null };
   if (record.unlockedUntil <= Date.now()) {
     await lock({ reason: 'expired' });
-    return { exists, locked: true, unlockedUntil: null };
+    return { exists, adoptable, locked: true, unlockedUntil: null };
   }
-  return { exists, locked: false, unlockedUntil: record.unlockedUntil };
+  return { exists, adoptable, locked: false, unlockedUntil: record.unlockedUntil };
 }
 
 /**

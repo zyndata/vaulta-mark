@@ -311,6 +311,13 @@ export interface StateResponse {
   readonly type: 'STATE';
   /** Whether this profile holds a vault at all — the difference between "create" and "unlock". */
   readonly exists: boolean;
+  /**
+   * There is no vault on this device, but one is waiting in the sync area.
+   *
+   * What makes a second computer a *second computer* rather than a second vault: the popup offers
+   * the password prompt instead of the create flow. Only ever true when {@link exists} is false.
+   */
+  readonly adoptable: boolean;
   readonly locked: boolean;
   /** Epoch ms at which the idle window expires, or `null` while locked. */
   readonly unlockedUntil: number | null;
@@ -546,6 +553,7 @@ export type SyncErrorCode =
   | 'CORRUPT_REMOTE'
   | 'PRECONDITION_FAILED'
   | 'VAULT_LOCKED'
+  | 'VAULT_MISMATCH'
   | 'UNKNOWN';
 
 /**

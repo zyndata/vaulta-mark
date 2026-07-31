@@ -18,6 +18,12 @@ below.
   into the same Google account gets the same vault, still encrypted — Google replicates a blob it
   cannot read, and VaultaMark makes no network request of its own to make that happen. There is a
   line in the toolbar saying when it last synced; clicking it syncs now.
+- **Setting up your second computer is just your master password.** Install VaultaMark on another
+  Chrome profile signed into the same account and it says *there is already a vault on your other
+  computer* — type the password and this machine joins it, with every folder, tag and note. There is
+  nothing to export, copy across or scan, because everything needed to open the vault is already in
+  the encrypted copy Chrome synced over. If you would rather keep a separate vault on that computer,
+  you can, and it says up front that the two will not sync with each other.
 - **A vault edited in two places at once is merged, not overwritten.** Rename a bookmark on the
   laptop and add a note to it on the desktop, and you end up with both. Tags added on either machine
   are kept, tags you removed stay removed, and a bookmark deleted on one machine does not come back

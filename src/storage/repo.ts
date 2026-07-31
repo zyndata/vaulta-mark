@@ -198,6 +198,45 @@ export class VaultRepository {
   }
 
   /**
+   * Take on a vault that arrived from a provider, on a device that has none of its own.
+   *
+   * This is how a second computer joins an existing vault. Everything needed is already in the
+   * header the other device pushed — the KDF salt and the wrapped DEK — so the master password is
+   * enough, and nothing has to be exported, copied or typed in by hand.
+   *
+   * **Nothing is written until the password is proven.** The KEK is derived and the DEK unwrapped
+   * from the *pulled* header, in memory; a wrong password throws `WrongPasswordError` here and
+   * leaves the profile exactly as empty as it was. Writing the header first and validating second
+   * would leave a half-adopted vault behind every mistyped password.
+   *
+   * The `deviceId` is deliberately **fresh** rather than inherited. It is the one header field that
+   * describes the install rather than the vault, and two devices claiming to be the same one would
+   * mislabel every side of every future conflict.
+   */
+  async adopt(vault: EncryptedVault, password: string): Promise<void> {
+    this.#throwDeferred();
+    if (await this.exists()) {
+      throw new VaultStateError('This profile already holds a vault; it cannot adopt another.');
+    }
+    if (vault.header.schemaVersion > SCHEMA_VERSION) {
+      throw new UnsupportedSchemaError(vault.header.schemaVersion, SCHEMA_VERSION);
+    }
+
+    const kek = await deriveKek(password, fromBase64Url(vault.header.kdf.salt), {
+      alg: vault.header.kdf.alg,
+      iterations: vault.header.kdf.iterations,
+    });
+    const dek = await unwrapDek(kek, vault.header.wrappedDek);
+    await this.#adoptKeys(dek);
+
+    // Decrypted before anything is committed, so a vault we cannot read does not become a vault we
+    // half-own. `deviceId` is replaced by `replaceAll`, which preserves whatever this header holds.
+    const items = await this.openEncrypted(vault);
+    this.#header = { ...vault.header, deviceId: crypto.randomUUID() };
+    await this.replaceAll(items, vault.header);
+  }
+
+  /**
    * Unlock from a DEK that is already in hand, skipping the KDF entirely.
    *
    * This is how an MV3 service worker survives being killed (ARCHITECTURE §7): the unlocked DEK

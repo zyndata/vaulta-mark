@@ -23,9 +23,10 @@
  * work rather than data.
  */
 
+import { CorruptVaultError } from '../crypto/errors.js';
 import { readBaseMeta, readSettings } from '../storage/local.js';
 import type { VaultRepository } from '../storage/repo.js';
-import type { BaseMeta, ItemMap, VaultHeader } from '../vault/types.js';
+import type { BaseMeta, EncryptedVault, ItemMap, VaultHeader } from '../vault/types.js';
 import { loadBase, loadConflicts, saveBase, saveConflicts } from './base.js';
 import { ChromeSyncProvider } from './chrome-provider.js';
 import { merge, outboundView, sameItems, type Conflict } from './merge.js';
@@ -36,6 +37,7 @@ import {
   PreconditionFailed,
   QuotaExceeded,
   RateLimited,
+  VaultMismatch,
   type ProviderId,
   type RemoteStamp,
   type SyncProvider,
@@ -63,6 +65,8 @@ export type SyncErrorCode =
   | 'CORRUPT_REMOTE'
   | 'PRECONDITION_FAILED'
   | 'VAULT_LOCKED'
+  /** Two different vaults are sharing one sync area. Neither is damaged; they cannot be merged. */
+  | 'VAULT_MISMATCH'
   | 'UNKNOWN';
 
 export interface SyncStatus {
@@ -336,7 +340,18 @@ async function reconcile(
   }
 
   phase = 'merging';
-  const remoteItems = await repo.openEncrypted(pulled);
+  let remoteItems: ItemMap;
+  try {
+    remoteItems = await repo.openEncrypted(pulled);
+  } catch (error) {
+    // Authenticated bytes that will not open under this vault's key are not corruption — they are
+    // somebody else's vault. Saying so is the difference between a status a user can act on and one
+    // that retries forever without explaining itself.
+    if (error instanceof CorruptVaultError) {
+      throw new VaultMismatch('The synced vault was written by a different vault.', { cause: error });
+    }
+    throw error;
+  }
   const base = await loadBase(cipher);
   const local = repo.items();
   const header = repo.header();
@@ -444,6 +459,58 @@ function mergeConflictSets(
   return [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
+/* ------------------------------------------------------------------ adopting a synced vault */
+
+/**
+ * Is there a vault waiting in the sync area?
+ *
+ * One `peek()` — the header and nothing else, no ciphertext and no key. Asked by a profile that has
+ * no vault of its own, to decide whether to offer *unlock* or *create*. Never throws: a backend
+ * that cannot answer is not a reason to keep someone out of a screen, and the worst case is being
+ * offered the create flow when a synced vault existed after all.
+ */
+export async function hasRemoteVault(): Promise<boolean> {
+  try {
+    const settings = await readSettings();
+    return (await providerFor(settings.providerId).peek()) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/** The synced vault as ciphertext, with the stamp it was read at. `null` if there is none. */
+export async function fetchRemote(): Promise<{ vault: EncryptedVault; stamp: RemoteStamp } | null> {
+  const settings = await readSettings();
+  const provider = providerFor(settings.providerId);
+  await provider.init();
+  const stamp = await provider.peek();
+  if (stamp === null) return null;
+  const vault = await provider.pullLight();
+  return vault === null ? null : { vault, stamp };
+}
+
+/**
+ * Record a freshly adopted vault as the merge base.
+ *
+ * Without this the next sync would see no base, treat every item as a local add, and push the whole
+ * vault straight back at the device it just came from. With it, the first sync after adoption
+ * correctly concludes there is nothing to do.
+ */
+export async function markAdopted(
+  repo: VaultRepository,
+  items: ItemMap,
+  stamp: RemoteStamp,
+  vaultRev: number,
+): Promise<void> {
+  const settings = await readSettings();
+  await saveBase(repo.cipher(), items, {
+    lastSyncedRev: vaultRev,
+    providerId: settings.providerId,
+    syncedAt: now(),
+    remoteHash: stamp.contentHash,
+  });
+}
+
 /* ------------------------------------------------------------------ conflict resolution */
 
 export type Resolution = 'mine' | 'theirs' | 'both';
@@ -486,6 +553,7 @@ export function toSyncErrorCode(error: unknown): SyncErrorCode {
   if (error instanceof AuthRequired) return 'AUTH_REQUIRED';
   if (error instanceof CorruptRemote) return 'CORRUPT_REMOTE';
   if (error instanceof PreconditionFailed) return 'PRECONDITION_FAILED';
+  if (error instanceof VaultMismatch) return 'VAULT_MISMATCH';
   return 'UNKNOWN';
 }
 

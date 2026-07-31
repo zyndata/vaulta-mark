@@ -1026,6 +1026,10 @@
     "message": "Another device wrote first. Merging and trying again.",
     "description": "Sync error: the compare-and-swap on push failed."
   },
+  "syncErrorVaultMismatch": {
+    "message": "The synced vault belongs to a different master password. Two separate vaults cannot share Chrome sync — one of them has to go.",
+    "description": "Sync error: the vault in the sync area cannot be opened with this device's key."
+  },
   "syncErrorVaultLocked": {
     "message": "Unlock the vault to sync it.",
     "description": "Sync error: the vault is locked, so there is no key to sync with."
@@ -1033,6 +1037,43 @@
   "syncErrorUnknown": {
     "message": "Syncing failed. It will be retried.",
     "description": "Sync error: anything not otherwise classified."
+  },
+
+  "adoptHeading": {
+    "message": "There is already a vault on your other computer",
+    "description": "Heading of the screen shown when a profile has no vault but the sync area does."
+  },
+  "adoptBody": {
+    "message": "Chrome has synced it here, still encrypted. Type the master password you use for it and this computer joins the same vault — there is nothing to export or copy across.",
+    "description": "Explanation on the adopt-a-synced-vault screen."
+  },
+  "adoptFieldPassword": {
+    "message": "Master password",
+    "description": "Label for the password field on the adopt screen."
+  },
+  "adoptButton": {
+    "message": "Use this vault here",
+    "description": "Button that joins the synced vault."
+  },
+  "adoptWorking": {
+    "message": "Opening…",
+    "description": "Label on the adopt button while the vault is being decrypted."
+  },
+  "adoptCreateInstead": {
+    "message": "Create a separate vault instead",
+    "description": "Secondary action that leaves the adopt screen for the create form."
+  },
+  "adoptSeparateHeading": {
+    "message": "This will not sync with your other computer",
+    "description": "Heading of the warning shown when creating a vault while a synced one exists."
+  },
+  "adoptSeparateBody": {
+    "message": "A second vault with its own password cannot merge with the one already in Chrome sync — the two would sit there refusing to sync until one is deleted. Only do this if you meant to keep them apart.",
+    "description": "Warning body shown when creating a vault while a synced one exists."
+  },
+  "adoptSeparateBack": {
+    "message": "Go back and use the existing vault",
+    "description": "Button returning from the create form to the adopt screen."
   },
 
   "syncSectionHeading": {

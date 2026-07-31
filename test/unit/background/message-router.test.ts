@@ -79,6 +79,7 @@ describe('message router', () => {
     await expect(mock.sendMessage({ type: 'GET_STATE' })).resolves.toEqual({
       type: 'STATE',
       exists: true,
+      adoptable: false,
       locked: true,
       unlockedUntil: null,
       settings: DEFAULT_SETTINGS,

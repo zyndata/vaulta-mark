@@ -48,6 +48,7 @@ export const SYNC_ERROR_KEYS: Record<SyncErrorCode, string> = {
   CORRUPT_REMOTE: 'syncErrorCorruptRemote',
   PRECONDITION_FAILED: 'syncErrorPreconditionFailed',
   VAULT_LOCKED: 'syncErrorVaultLocked',
+  VAULT_MISMATCH: 'syncErrorVaultMismatch',
   UNKNOWN: 'syncErrorUnknown',
 };
 

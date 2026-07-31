@@ -130,3 +130,15 @@ export class HeavyTierUnsupported extends SyncError {
 
 /** What came back is not a vault: a truncated part set, an unreadable header, a torn push. */
 export class CorruptRemote extends SyncError {}
+
+/**
+ * The synced vault cannot be opened with this device's key.
+ *
+ * Raised by the engine rather than by a provider — the provider moves bytes and has no way to know
+ * — but it belongs to this taxonomy because it is what a caller has to distinguish. It means two
+ * *different* vaults are sharing one sync area, which normally means someone created a second vault
+ * on a profile that already had one waiting. Neither side is damaged and neither will overwrite the
+ * other; they simply cannot be merged, and the only ways out are to destroy one of them or to move
+ * one to a different backend.
+ */
+export class VaultMismatch extends SyncError {}
