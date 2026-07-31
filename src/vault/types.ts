@@ -10,6 +10,8 @@
  * that first runs in the field.
  */
 
+import type { Bytes } from '../crypto/codec.js';
+
 /** Bumped whenever the decrypted payload shape changes. A bump needs a migration and a fixture. */
 export const SCHEMA_VERSION = 2;
 
@@ -74,6 +76,19 @@ export interface BucketMeta {
 /** What one bucket decrypts to. */
 export interface BucketPayload {
   readonly items: readonly VaultItem[];
+}
+
+/**
+ * A whole vault as ciphertext: the plaintext header, and the sealed bytes of every stored bucket.
+ *
+ * This is the only shape that crosses the `SyncProvider` boundary (ARCHITECTURE §6.1). A provider
+ * moves these bytes and never sees a key — which is what lets a backend be added without any of it
+ * being security-relevant. Buckets with `parts: 0` in the header are absent from the map: an empty
+ * bucket is not stored, on either side.
+ */
+export interface EncryptedVault {
+  readonly header: VaultHeader;
+  readonly buckets: ReadonlyMap<number, Bytes>;
 }
 
 export type VaultItem = Bookmark | Folder;
@@ -261,9 +276,23 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   detailWidth: DETAIL_WIDTH.initial,
 };
 
-/** `vm.baseMeta` — the plaintext bookkeeping beside the encrypted merge base. Phase 7 uses it. */
+/**
+ * `vm.baseMeta` — the plaintext bookkeeping beside the encrypted merge base.
+ *
+ * Deliberately contentless: a revision number, a provider id, a timestamp and a hash of the remote
+ * *header*. It is read before the vault is unlocked, so a lock screen can say when the vault last
+ * synced without a key — which is only defensible because none of it describes a bookmark.
+ */
 export interface BaseMeta {
   readonly lastSyncedRev: number;
   readonly providerId: VaultSettings['providerId'];
   readonly syncedAt: number;
+  /**
+   * `contentHash` of the remote stamp this base was written against.
+   *
+   * `lastSyncedRev` on its own cannot answer "has the remote moved?": two devices can both reach
+   * revision 7 with different contents, and a revision number that matches would then wave a
+   * genuinely divergent remote straight past the merge.
+   */
+  readonly remoteHash: string;
 }

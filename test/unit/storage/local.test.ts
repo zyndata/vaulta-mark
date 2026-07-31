@@ -143,7 +143,12 @@ describe('merge base', () => {
     expect(await readBaseMeta()).toBeNull();
 
     const sealed = new Uint8Array([9, 8, 7]);
-    const meta = { lastSyncedRev: 4, providerId: 'chrome' as const, syncedAt: 5 };
+    const meta = {
+      lastSyncedRev: 4,
+      providerId: 'chrome' as const,
+      syncedAt: 5,
+      remoteHash: 'aGFzaA',
+    };
     await writeBase(sealed, meta);
     expect([...(await readBase())!]).toEqual([...sealed]);
     expect(await readBaseMeta()).toEqual(meta);
