@@ -195,31 +195,56 @@ export async function status(): Promise<SyncStatus> {
 
 /* ------------------------------------------------------------------ the run */
 
+/**
+ * One run, and the outer guard that makes {@link syncNow} incapable of rejecting.
+ *
+ * The guard is not belt-and-braces. A sync is reached from a timer, and a timer can fire into a
+ * world that is no longer there: an MV3 worker torn down between the debounce and its deadline, an
+ * extension being reloaded, a test swapping the `chrome` global out from under it. There is nobody
+ * to report that to and nothing to retry it against — but an unhandled rejection from a background
+ * task is noise in a console that is supposed to stay empty, and in a service worker it is noise
+ * nobody will ever read.
+ */
 async function attempt(force: boolean): Promise<SyncStatus> {
-  const repo = await deps?.repository();
-  if (repo === null || repo === undefined) {
-    phase = 'locked';
-    return await status();
-  }
-
-  const settings = await readSettings();
-  const provider = providerFor(settings.providerId);
-  lastError = null;
-  retryAfterMs = null;
-
   try {
-    await provider.init();
-    const changed = await run(repo, provider, settings.providerId, force);
-    if (changed) await deps?.onVaultChanged?.();
+    const repo = await deps?.repository();
+    if (repo === null || repo === undefined) {
+      phase = 'locked';
+      return await status();
+    }
+
+    const settings = await readSettings();
+    const provider = providerFor(settings.providerId);
+    lastError = null;
+    retryAfterMs = null;
+
+    try {
+      await provider.init();
+      const changed = await run(repo, provider, settings.providerId, force);
+      if (changed) await deps?.onVaultChanged?.();
+    } catch (error) {
+      phase = 'error';
+      lastError = toSyncErrorCode(error);
+      retryAfterMs = error instanceof RateLimited ? error.retryAfterMs : null;
+    }
+
+    const current = await status();
+    await deps?.onStatus?.(current);
+    return current;
   } catch (error) {
     phase = 'error';
     lastError = toSyncErrorCode(error);
-    retryAfterMs = error instanceof RateLimited ? error.retryAfterMs : null;
+    return {
+      phase,
+      providerId: 'chrome',
+      lastSyncedAt: null,
+      conflicts: 0,
+      error: lastError,
+      retryAfterMs: null,
+      usedBytes: 0,
+      quotaBytes: 0,
+    };
   }
-
-  const current = await status();
-  await deps?.onStatus?.(current);
-  return current;
 }
 
 /** The state machine proper. Returns whether the local item set changed. */

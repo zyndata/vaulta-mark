@@ -211,6 +211,19 @@ describe('failure', () => {
     expect(result.retryAfterMs).toBe(42_000);
   });
 
+  it('never rejects, even when the world it was scheduled in has gone', async () => {
+    // A timer firing into a torn-down MV3 worker: there is no `chrome`, no session, and nobody to
+    // tell. An unhandled rejection from a background task is noise in a console that is supposed to
+    // stay empty, so the run reports and returns instead.
+    configureSync({
+      repository: () => Promise.reject(new ReferenceError('chrome is not defined')),
+    });
+    const result = await syncNow();
+    expect(result.phase).toBe('error');
+    expect(result.error).toBe('UNKNOWN');
+    expect(result.quotaBytes).toBe(0);
+  });
+
   it('clears the previous error once a run succeeds', async () => {
     useProvider(stubProvider({ peek: () => Promise.reject(new Offline('no network')) }));
     expect((await syncNow()).error).toBe('OFFLINE');
