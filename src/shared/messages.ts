@@ -22,7 +22,12 @@
 
 import type { FolderDeleteMode } from '../vault/model.js';
 import { isSortKey, type SortKey } from '../vault/sort.js';
-import type { VaultSettings } from '../vault/types.js';
+import {
+  DETAIL_WIDTH,
+  SIDEBAR_WIDTH,
+  clampPaneWidth,
+  type VaultSettings,
+} from '../vault/types.js';
 
 /* ------------------------------------------------------------------ requests */
 
@@ -813,6 +818,20 @@ export function parseSettingsPatch(raw: unknown): SettingsPatch | null {
   if (sortBy !== undefined) {
     if (!isSortKey(sortBy)) return null;
     patch.sortBy = sortBy;
+  }
+
+  // Clamped rather than rejected: the sender is a mouse drag, and the honest answer to "wider than
+  // the window" is the widest allowed, not a refused write that leaves the column where it was.
+  const sidebarWidth = raw['sidebarWidth'];
+  if (sidebarWidth !== undefined) {
+    if (typeof sidebarWidth !== 'number' || !Number.isFinite(sidebarWidth)) return null;
+    patch.sidebarWidth = clampPaneWidth(sidebarWidth, SIDEBAR_WIDTH);
+  }
+
+  const detailWidth = raw['detailWidth'];
+  if (detailWidth !== undefined) {
+    if (typeof detailWidth !== 'number' || !Number.isFinite(detailWidth)) return null;
+    patch.detailWidth = clampPaneWidth(detailWidth, DETAIL_WIDTH);
   }
 
   return patch;

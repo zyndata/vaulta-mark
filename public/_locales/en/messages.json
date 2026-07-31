@@ -687,6 +687,23 @@
     "description": "Undo toast after a bulk delete.",
     "placeholders": { "count": { "content": "$1", "example": "7" } }
   },
+  "movedCount": {
+    "message": "Moved $COUNT$ items.",
+    "description": "Confirmation after bookmarks are dragged into a folder.",
+    "placeholders": { "count": { "content": "$1", "example": "7" } }
+  },
+  "movedOne": {
+    "message": "Moved 1 item.",
+    "description": "Confirmation after a single bookmark is dragged into a folder."
+  },
+  "paneResizeSidebar": {
+    "message": "Resize the sidebar",
+    "description": "Accessible name for the drag handle between the sidebar and the list."
+  },
+  "paneResizeDetail": {
+    "message": "Resize the detail pane",
+    "description": "Accessible name for the drag handle between the list and the detail pane."
+  },
 
   "detailLabel": {
     "message": "Details",
@@ -853,6 +870,14 @@
     "message": "Renames it on every bookmark that carries it.",
     "description": "Explanation under the rename-tag field."
   },
+  "tagRenameUnchanged": {
+    "message": "That is already the tag’s name.",
+    "description": "Shown when a tag is renamed to what it is already called."
+  },
+  "tagBulkNothing": {
+    "message": "Enter at least one tag to add or remove.",
+    "description": "Shown when the bulk-tag dialog is submitted with both fields empty."
+  },
   "tagRenamed": {
     "message": "Renamed on $COUNT$ bookmarks.",
     "description": "Confirmation after a tag rename.",
@@ -872,6 +897,14 @@
   "dialogCancel": {
     "message": "Cancel",
     "description": "Cancel button, shared by every dialog."
+  },
+  "dialogInvalid": {
+    "message": "That cannot be used here.",
+    "description": "Fallback complaint when a dialog refuses to close on the value it was given."
+  },
+  "dialogNameRequired": {
+    "message": "Type a name — this cannot be empty.",
+    "description": "Shown when a name dialog is submitted with an empty field."
   },
   "dialogClose": {
     "message": "Close",

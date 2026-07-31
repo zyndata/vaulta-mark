@@ -24,6 +24,13 @@ export interface DialogOptions<T> {
    * field that has not been filled in yet refuses to close it.
    */
   readonly onConfirm?: () => T | null;
+  /**
+   * What to say when `onConfirm` refuses. Called at refusal time, so it can name the actual reason.
+   *
+   * Not optional in practice, only in the type: a dialog that quietly declines to close is one the
+   * user reads as broken, and "nothing happened" is the least useful thing a form can tell anyone.
+   */
+  readonly invalidMessage?: () => string;
   /** Focus this element once the dialog is open. */
   readonly focus?: HTMLElement;
   /** Style the confirming button as destructive. */
@@ -41,12 +48,25 @@ export function openDialog<T>(options: DialogOptions<T>): Promise<T | null> {
   return new Promise((resolve) => {
     let outcome: T | null = null;
 
+    // `role="alert"` rather than a bare paragraph: the message appears in response to a keystroke
+    // the user has already made, so it has to reach a screen reader without the focus moving to it.
+    const complaint = h('p', { class: 'vm-dialog-invalid vm-danger vm-small', role: 'alert' });
+    complaint.hidden = true;
+
     const form = h(
       'form',
       { method: 'dialog', class: 'vm-dialog-form' },
       h('h2', null, options.heading),
       h('div', { class: 'vm-dialog-body' }, ...options.body),
+      complaint,
     );
+
+    // The complaint is about a value that no longer exists once the user starts fixing it.
+    form.addEventListener('input', () => {
+      if (complaint.hidden) return;
+      complaint.hidden = true;
+      options.focus?.removeAttribute('aria-invalid');
+    });
 
     const cancel = h(
       'button',
@@ -76,7 +96,13 @@ export function openDialog<T>(options: DialogOptions<T>): Promise<T | null> {
       // is still empty has to be able to keep it open.
       event.preventDefault();
       const value = options.onConfirm?.() ?? null;
-      if (value === null) return;
+      if (value === null) {
+        complaint.textContent = options.invalidMessage?.() ?? msg('dialogInvalid');
+        complaint.hidden = false;
+        options.focus?.setAttribute('aria-invalid', 'true');
+        options.focus?.focus();
+        return;
+      }
       outcome = value;
       dialog.close();
     });
@@ -174,13 +200,22 @@ export function chooseDialog<T>(options: {
   });
 }
 
-/** Ask for one line of text. Resolves `null` when dismissed or left blank. */
+/**
+ * Ask for one line of text. Resolves `null` when dismissed; a blank answer is refused in place.
+ *
+ * "Refused in place" rather than "resolves null": a name is required by everything that asks for
+ * one, and a dialog that closed on an empty field would have to be reopened by the caller to say
+ * so. Emptying the box and pressing Enter says what is wrong and leaves the cursor where it can be
+ * fixed.
+ */
 export async function promptText(options: {
   readonly heading: string;
   readonly labelKey: string;
   readonly confirmLabel: string;
   readonly value?: string;
   readonly hint?: string;
+  /** Extra validation beyond "not blank". Returns a message to show, or `null` to accept. */
+  readonly validate?: (value: string) => string | null;
 }): Promise<string | null> {
   const input = h('input', {
     type: 'text',
@@ -188,14 +223,25 @@ export async function promptText(options: {
     spellcheck: 'false',
     value: options.value ?? '',
   });
+  let refusal = msg('dialogNameRequired');
   return await openDialog<string>({
     heading: options.heading,
     body: [dialogField(options.labelKey, input, options.hint)],
     confirmLabel: options.confirmLabel,
     focus: input,
+    invalidMessage: () => refusal,
     onConfirm: () => {
       const typed = input.value.trim();
-      return typed === '' ? null : typed;
+      if (typed === '') {
+        refusal = msg('dialogNameRequired');
+        return null;
+      }
+      const objection = options.validate?.(typed) ?? null;
+      if (objection !== null) {
+        refusal = objection;
+        return null;
+      }
+      return typed;
     },
   });
 }

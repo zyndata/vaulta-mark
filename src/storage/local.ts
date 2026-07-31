@@ -17,10 +17,14 @@ import { fromBase64Url, toBase64Url, type Bytes } from '../crypto/codec.js';
 import { CorruptVaultError } from '../crypto/errors.js';
 import {
   DEFAULT_SETTINGS,
+  DETAIL_WIDTH,
+  SIDEBAR_WIDTH,
   VAULT_MAGIC,
+  clampPaneWidth,
   isSortKey,
   type BaseMeta,
   type BucketMeta,
+  type PaneWidth,
   type VaultHeader,
   type VaultSettings,
 } from '../vault/types.js';
@@ -230,7 +234,14 @@ export async function readSettings(): Promise<VaultSettings> {
         ? stored.reuseIncognitoWindow
         : DEFAULT_SETTINGS.reuseIncognitoWindow,
     sortBy: isSortKey(stored.sortBy) ? stored.sortBy : DEFAULT_SETTINGS.sortBy,
+    sidebarWidth: paneWidth(stored.sidebarWidth, SIDEBAR_WIDTH),
+    detailWidth: paneWidth(stored.detailWidth, DETAIL_WIDTH),
   };
+}
+
+/** A stored column width, clamped — see {@link clampPaneWidth}. Anything else is the default. */
+function paneWidth(value: unknown, bounds: PaneWidth): number {
+  return typeof value === 'number' ? clampPaneWidth(value, bounds) : bounds.initial;
 }
 
 export async function writeSettings(settings: VaultSettings): Promise<void> {

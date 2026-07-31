@@ -595,7 +595,8 @@ JSON-serialises what it is given, so a byte array comes back as `{"0":12,"1":…
 of quota per byte of ciphertext, and a silent shape change on the way out.
 
 `vm.settings` holds `theme`, `idleTimeoutMinutes`, `providerId`, `lockOnBrowserBlur`,
-`stripTrackingParams`, `reuseIncognitoWindow` and `sortBy`. It is deliberately plaintext and
+`stripTrackingParams`, `reuseIncognitoWindow`, `sortBy` and the manager's two column widths
+(`sidebarWidth`, `detailWidth`). It is deliberately plaintext and
 deliberately incapable of holding vault content: the lock screen has to honour the theme, and the
 auto-lock alarm has to be armed, before any key exists.
 
@@ -607,6 +608,12 @@ vault has and which of them are used. Small, but exactly the shape INV-6 exists 
 string the user composed out of their own bookmarks, and there is nowhere plaintext to keep one.
 Reading it never throws — a corrupted blob falls back to defaults field by field, because a bad theme
 value must not be able to keep someone out of their vault.
+
+The column widths are the line that reasoning draws, seen from the other side: a width describes the
+window, not what is in it, so it says nothing about the vault however carefully it is read. Both are
+clamped into range on the way in *and* on the way out — a stored width is only as trustworthy as the
+last thing that wrote it, and a column of −4,000 px is a manager that cannot be used again without
+clearing storage by hand.
 
 `idleTimeoutMinutes` is in minutes, defaults to **10**, and **`0` means "never auto-lock"** — the
 value the UI offers as *Never*. A negative or non-finite value is corruption and falls back to the

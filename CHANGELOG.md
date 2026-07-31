@@ -47,6 +47,16 @@ below.
 - An accessibility pass over the whole manager: it is one tab stop per region rather than one per
   row, every control has a name, selection is marked with a bar as well as a colour, and automated
   checks find no critical or serious problems.
+- **Drag bookmarks into folders** — onto a folder in the list, onto one in the sidebar, or onto
+  **All bookmarks** to bring them back out. Dragging one of several selected bookmarks takes all of
+  them. A folder cannot be dropped inside itself, so the gesture refuses instead of failing. Nothing
+  about a bookmark travels on the drag itself: what leaves the page is a list of internal ids, never
+  a title or an address, because a drag can end in any other application on your computer.
+- **The columns can be resized.** Drag the divider beside the sidebar or the detail pane, or focus
+  it and use the arrow keys; double-click restores the default. The widths are remembered, and both
+  panes now start wider than they did.
+- Dialogs say *why* they will not close. Renaming a tag to nothing, or opening the bulk-tag box and
+  filling in neither field, used to look like a broken button.
 
 - **You can put bookmarks in the vault now, and open them.** Four ways to save the page you are
   looking at: the **Add this page** button in the popup, **Add to VaultaMark** in the right-click
@@ -202,6 +212,17 @@ below.
   share one set of design tokens with light and dark themes.
 
 ### Fixed
+
+- The sidebar had a horizontal scrollbar along the bottom at every width, because the folder rows
+  were three pixels wider than the column they were in. Long tag names now shorten with an ellipsis
+  instead of pushing the rename button out of view.
+- Clicking a bookmark in the manager did not give the list the keyboard, so the arrow keys scrolled
+  past the row you had just selected instead of moving to it, and Delete did nothing at all. Both
+  work now, on the row you clicked.
+- Picking a tag in the sidebar and then **Untagged** kept showing the tagged bookmarks, with both
+  entries lit up as if they were somehow both true. Going somewhere clears the filter that got you
+  there, and a tag now filters your whole vault rather than quietly only the folder you were
+  standing in.
 
 - Opening a bookmark recorded that you had opened it 300 milliseconds later, which Chrome was free to
   never get around to — the count and the timestamp could be lost. They are written immediately now,

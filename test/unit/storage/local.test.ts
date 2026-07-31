@@ -22,7 +22,9 @@ import {
 } from '../../../src/storage/local.js';
 import {
   DEFAULT_SETTINGS,
+  DETAIL_WIDTH,
   IDLE_TIMEOUT_NEVER,
+  SIDEBAR_WIDTH,
   VAULT_MAGIC,
   type VaultHeader,
 } from '../../../src/vault/types.js';
@@ -189,6 +191,22 @@ describe('settings', () => {
     expect((await readSettings()).idleTimeoutMinutes).toBe(DEFAULT_SETTINGS.idleTimeoutMinutes);
     await mock.storage.local.set({ [LOCAL_KEYS.settings]: 'not an object' });
     expect(await readSettings()).toEqual(DEFAULT_SETTINGS);
+  });
+
+  it('forces a stored pane width back into range', async () => {
+    // A width is only as trustworthy as the last thing that wrote it, and a column of −4,000 px is
+    // a manager nobody can use again without clearing storage by hand.
+    await mock.storage.local.set({
+      [LOCAL_KEYS.settings]: { ...DEFAULT_SETTINGS, sidebarWidth: -4_000, detailWidth: 99_999 },
+    });
+    const settings = await readSettings();
+    expect(settings.sidebarWidth).toBe(SIDEBAR_WIDTH.min);
+    expect(settings.detailWidth).toBe(DETAIL_WIDTH.max);
+
+    await mock.storage.local.set({
+      [LOCAL_KEYS.settings]: { ...DEFAULT_SETTINGS, sidebarWidth: 'wide' },
+    });
+    expect((await readSettings()).sidebarWidth).toBe(SIDEBAR_WIDTH.initial);
   });
 
   it('holds no vault content', async () => {

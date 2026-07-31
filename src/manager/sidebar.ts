@@ -16,9 +16,10 @@
  * plaintext by design. The two built-in filters below need nothing persisted.
  */
 
-import { h, msg, render, type Child } from '../ui/dom.js';
+import { h, msg, render } from '../ui/dom.js';
 import type { FolderNode, TagCount, TreeResponse } from '../shared/messages.js';
 import { ROOT_ID } from '../vault/types.js';
+import { dropZone } from './dnd.js';
 import type { Scope } from './state.js';
 
 export interface SidebarDeps {
@@ -29,6 +30,9 @@ export interface SidebarDeps {
   readonly searchFor: (query: string) => void;
   readonly newFolder: () => void;
   readonly renameTag: (tag: string) => void;
+  /** Whether the drag in flight may land in this folder. `ROOT_ID` is the top level. */
+  readonly acceptsDrop: (folderId: string) => boolean;
+  readonly onDropInFolder: (folderId: string) => void;
 }
 
 interface TreeNode extends FolderNode {
@@ -44,18 +48,29 @@ export function sidebar(deps: SidebarDeps): HTMLElement {
 
   const scopeIsAll = deps.scope.kind === 'folder' && deps.scope.folderId === ROOT_ID;
 
+  // The top level is a drop target too: without it, a bookmark that went into a folder by drag
+  // could only come back out through the *Move to…* dialog.
+  const allBookmarks = navButton(
+    msg('navAllBookmarks'),
+    tree?.total,
+    scopeIsAll && deps.query === '',
+    () => {
+      deps.goTo({ kind: 'folder', folderId: ROOT_ID });
+    },
+  );
+  dropZone(allBookmarks, {
+    accepts: () => deps.acceptsDrop(ROOT_ID),
+    onDrop: () => {
+      deps.onDropInFolder(ROOT_ID);
+    },
+  });
+
   render(
     nav,
     h(
       'ul',
       { class: 'vm-nav-list' },
-      h(
-        'li',
-        null,
-        navButton(msg('navAllBookmarks'), tree?.total, scopeIsAll && deps.query === '', () => {
-          deps.goTo({ kind: 'folder', folderId: ROOT_ID });
-        }),
-      ),
+      h('li', null, allBookmarks),
       h(
         'li',
         null,
@@ -172,6 +187,13 @@ function treeItem(
     ),
   );
   item.dataset['folderId'] = node.id;
+
+  dropZone(item, {
+    accepts: () => deps.acceptsDrop(node.id),
+    onDrop: () => {
+      deps.onDropInFolder(node.id);
+    },
+  });
 
   if (hasChildren && open) item.append(build(node.children, level + 1));
   return item;
@@ -335,7 +357,7 @@ function navButton(
   count: number | undefined,
   current: boolean,
   onClick: () => void,
-): Child {
+): HTMLElement {
   return h(
     'button',
     {

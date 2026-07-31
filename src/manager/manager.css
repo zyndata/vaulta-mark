@@ -103,11 +103,49 @@ body.vm-manager {
 
 /* ------------------------------------------------------------------ layout */
 
+/*
+ * The two side columns are custom properties rather than fixed tracks: `app.ts` writes them from
+ * `vm.settings` on load and again on every pixel of a resize drag, and a custom property is the one
+ * thing that can be changed that often without touching a rule.
+ *
+ * The fallbacks are the defaults in `vault/types.ts`. They matter for the moment before the script
+ * runs, and they are the reason a stylesheet-only reader can still see how wide the columns are.
+ */
 .vm-layout {
   display: grid;
-  grid-template-columns: 15rem minmax(0, 1fr) 20rem;
+  grid-template-columns:
+    var(--vm-sidebar-width, 16.5rem) auto minmax(0, 1fr)
+    auto var(--vm-detail-width, 24rem);
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/*
+ * The grab handle between two columns. Four pixels wide, with a larger hit area than it looks like:
+ * a splitter you have to aim at is one people give up on.
+ */
+.vm-resizer {
+  position: relative;
+  width: 4px;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.vm-resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0 -3px;
+}
+
+.vm-resizer:hover,
+.vm-resizer.is-dragging {
+  background: var(--vm-accent);
+}
+
+.vm-resizer:focus-visible {
+  outline: var(--vm-focus);
+  outline-offset: -1px;
 }
 
 .vm-sidebar-slot,
@@ -140,6 +178,11 @@ body.vm-manager {
 
   .vm-layout {
     grid-template-columns: 1fr;
+  }
+
+  /* One column has nothing to divide. */
+  .vm-resizer {
+    display: none;
   }
 
   .vm-sidebar-slot,
@@ -196,6 +239,13 @@ body.vm-manager {
   gap: 0.4rem;
   align-items: center;
   justify-content: space-between;
+  /*
+   * Load-bearing, and only for the `span`: a `button` is border-box in the UA stylesheet, so the
+   * two form controls in this rule were fine and the folder row was not. Its padding and left bar
+   * were added *outside* the 100 %, which put the tree three pixels past the column and gave the
+   * sidebar a horizontal scrollbar at every width.
+   */
+  box-sizing: border-box;
   width: 100%;
   padding: 0.3rem 0.4rem;
   border: 0;
@@ -250,7 +300,17 @@ body.vm-manager {
   align-items: center;
 }
 
+/*
+ * The tag is the part that gives. Without an explicit floor it refuses to shrink past its own
+ * content and pushes the rename button out of the column — a horizontal scrollbar caused by a tag
+ * whose name is longer than a narrow sidebar, which is what the ellipsis is there to handle.
+ */
+.vm-tag {
+  min-width: 0;
+}
+
 .vm-tag-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -341,6 +401,13 @@ body.vm-manager {
   padding: 0 0.6rem;
   border-left: 3px solid transparent;
   cursor: default;
+  /*
+   * Not decoration: this is what keeps a shift-click from painting a text selection across every
+   * row it passes over. The list used to `preventDefault()` the mousedown for it, which also
+   * stopped the listbox taking focus — and a listbox without focus is one where the arrow keys
+   * only scroll and Delete does nothing.
+   */
+  user-select: none;
 }
 
 .vm-row:hover {
@@ -356,6 +423,18 @@ body.vm-manager {
 .vm-row.is-cursor {
   outline: var(--vm-focus);
   outline-offset: -2px;
+}
+
+/*
+ * Where a drop would land. Outlined rather than tinted, because the two things it has to be
+ * distinguishable from — a hovered row and a selected one — are both tints already.
+ */
+.vm-row.is-drop-target,
+.vm-nav-button.is-drop-target,
+.vm-tree-item.is-drop-target > .vm-tree-row {
+  outline: 2px dashed var(--vm-accent);
+  outline-offset: -2px;
+  background: var(--vm-surface);
 }
 
 .vm-row-folder {
@@ -521,6 +600,10 @@ body.vm-manager {
 .vm-dialog-body {
   max-height: min(60vh, 32rem);
   overflow-y: auto;
+}
+
+.vm-dialog-invalid {
+  margin: 0.5rem 0 0;
 }
 
 .vm-dialog-actions,

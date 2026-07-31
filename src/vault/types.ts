@@ -197,6 +197,40 @@ export interface VaultSettings {
    * kind of shape INV-6 exists to keep out of `storage.local`.
    */
   readonly sortBy: SortKey;
+  /**
+   * Widths of the manager's two side columns, in CSS pixels.
+   *
+   * Two numbers about the window's furniture, not about its contents: a column width describes the
+   * screen, not a bookmark, which is what keeps it on the right side of INV-6 where a per-folder
+   * preference is not. Stored so a resized window opens the way it was left.
+   */
+  readonly sidebarWidth: number;
+  readonly detailWidth: number;
+}
+
+/** Bounds and starting width for a resizable manager column, in CSS pixels. */
+export interface PaneWidth {
+  readonly min: number;
+  readonly max: number;
+  readonly initial: number;
+}
+
+/** Wide enough for a folder tree with a few levels of nesting, narrow enough to leave a list. */
+export const SIDEBAR_WIDTH: PaneWidth = { min: 160, max: 520, initial: 264 };
+
+/** The detail pane is a form: it needs room for a URL and a note without wrapping every line. */
+export const DETAIL_WIDTH: PaneWidth = { min: 240, max: 720, initial: 384 };
+
+/**
+ * A pane width, forced into range.
+ *
+ * Applied on the way in *and* on the way out: a stored width is only as trustworthy as the last
+ * thing that wrote it, and a column of −4,000 px is a manager nobody can use without clearing
+ * storage.
+ */
+export function clampPaneWidth(value: number, bounds: PaneWidth): number {
+  if (!Number.isFinite(value)) return bounds.initial;
+  return Math.round(Math.min(bounds.max, Math.max(bounds.min, value)));
 }
 
 /**
@@ -223,6 +257,8 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   // them is a separate incognito session that has to be closed separately to end it.
   reuseIncognitoWindow: true,
   sortBy: DEFAULT_SORT,
+  sidebarWidth: SIDEBAR_WIDTH.initial,
+  detailWidth: DETAIL_WIDTH.initial,
 };
 
 /** `vm.baseMeta` — the plaintext bookkeeping beside the encrypted merge base. Phase 7 uses it. */

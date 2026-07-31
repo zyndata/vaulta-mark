@@ -13,12 +13,17 @@
  * destroyed and created again while nothing about that item changed. Selection therefore lives in
  * a set of ids held by the caller, never in a class on an element: a selected row that scrolls out
  * of view and back must come back selected.
+ *
+ * Rows are also drag sources, and folder rows are drop targets (`dnd.ts`). Dragging is a shortcut,
+ * never the only route: everything it does is also on the toolbar's *Move to…*, because a pointer
+ * gesture is unavailable to a keyboard and awkward on a list five thousand rows long.
  */
 
 import { h, msg } from '../ui/dom.js';
 import { displayHost, faviconImage } from '../ui/favicon.js';
 import { matchRanges } from '../vault/search.js';
 import { VirtualList } from '../ui/virtual-list.js';
+import { dropZone, startItemDrag } from './dnd.js';
 import type { ListRow } from '../shared/messages.js';
 
 /** Must match `.vm-row` in manager.css — the windowing arithmetic depends on it. */
@@ -30,6 +35,11 @@ export interface ListDeps {
   /** Enter, or a double click. A folder opens *into*; a bookmark opens in incognito. */
   readonly onActivate: (row: ListRow) => void;
   readonly onKey: (event: KeyboardEvent) => void;
+  /** A drag is starting on this row. Returns the ids to carry, or none to refuse it. */
+  readonly onDragStart: (index: number) => readonly string[];
+  /** Whether the drag in flight may land in this folder. */
+  readonly acceptsDrop: (folderId: string) => boolean;
+  readonly onDropInFolder: (folderId: string) => void;
 }
 
 export class BookmarkList {
@@ -40,6 +50,15 @@ export class BookmarkList {
   #selection: ReadonlySet<string> = new Set();
   #terms: readonly string[] = [];
   #cursor = -1;
+  /**
+   * A plain click on an already-selected row, held until the mouse comes back up.
+   *
+   * Collapsing a multi-selection to one row on `mousedown` is what makes a group undraggable: by
+   * the time the drag starts there is nothing left to drag but the row under the pointer. Every
+   * file manager defers it to `mouseup`, and so does this — a click still collapses, a drag no
+   * longer does.
+   */
+  #pendingCollapse: number | null = null;
 
   constructor(deps: ListDeps) {
     this.#deps = deps;
@@ -100,18 +119,54 @@ export class BookmarkList {
       class: `vm-row${selected ? ' is-selected' : ''}${index === this.#cursor ? ' is-cursor' : ''}`,
       role: 'option',
       id: row.id,
+      draggable: 'true',
       'aria-selected': selected ? 'true' : 'false',
     });
 
     element.addEventListener('mousedown', (event: MouseEvent) => {
-      // `mousedown`, not `click`: shift-clicking a range in a listbox otherwise paints a text
-      // selection across every row it passes over.
-      event.preventDefault();
+      // Deliberately *not* `preventDefault()`: that would stop the listbox taking focus, and a
+      // listbox without focus is one where Delete deletes nothing and the arrow keys only scroll.
+      // The text selection a shift-click would otherwise paint is handled by `user-select: none`
+      // on the row instead.
+      const plain = !event.ctrlKey && !event.metaKey && !event.shiftKey;
+      if (plain && this.#selection.has(row.id) && this.#selection.size > 1) {
+        this.#pendingCollapse = index;
+        return;
+      }
+      this.#pendingCollapse = null;
       this.#deps.onSelect(index, { toggle: event.ctrlKey || event.metaKey, range: event.shiftKey });
+    });
+    element.addEventListener('mouseup', () => {
+      if (this.#pendingCollapse === index) {
+        this.#pendingCollapse = null;
+        this.#deps.onSelect(index, { toggle: false, range: false });
+      }
+      // Focus lands here rather than on the `mousedown`, and this is the whole reason Delete and
+      // the arrow keys work on a clicked row: selecting one rebuilds the window, which detaches the
+      // element the mousedown was dispatched on, and Chromium answers a mousedown whose target left
+      // the document by focusing nothing at all. A mouseup has no focus behaviour of its own to
+      // fight with, so this is the point where it sticks.
+      this.element.focus();
     });
     element.addEventListener('dblclick', () => {
       this.#deps.onActivate(row);
     });
+
+    element.addEventListener('dragstart', (event: DragEvent) => {
+      // The drag won the race against `mouseup`, so the selection it started from is the one to
+      // carry — and the collapse it was holding is now the wrong answer.
+      this.#pendingCollapse = null;
+      if (!startItemDrag(event, this.#deps.onDragStart(index))) event.preventDefault();
+    });
+
+    if (row.type === 'folder') {
+      dropZone(element, {
+        accepts: () => this.#deps.acceptsDrop(row.id),
+        onDrop: () => {
+          this.#deps.onDropInFolder(row.id);
+        },
+      });
+    }
 
     const icon =
       row.type === 'folder'

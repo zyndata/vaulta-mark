@@ -17,7 +17,14 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
-import { chromium, expect, test, type BrowserContext, type Page } from '@playwright/test';
+import {
+  chromium,
+  expect,
+  test,
+  type BrowserContext,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
@@ -58,6 +65,25 @@ async function vault(page: Page, url: string, title: string): Promise<void> {
     ([u, t]) => chrome.runtime.sendMessage({ type: 'ADD_URL', url: u, title: t }),
     [url, title],
   );
+}
+
+/**
+ * Drag `source` onto `target` with real mouse input.
+ *
+ * Not `locator.dragTo()`: HTML5 drag-and-drop needs the pointer to *move over* the target while the
+ * button is down, and a single jump lands a `drop` on an element that was never told to accept one.
+ * The second move at the same coordinates is what makes Chromium emit the last `dragover` before
+ * the button comes up.
+ */
+async function dragOnto(page: Page, source: Locator, target: Locator): Promise<void> {
+  const from = await source.boundingBox();
+  const to = await target.boundingBox();
+  if (from === null || to === null) throw new Error('drag needs two visible elements');
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2);
+  await page.mouse.up();
 }
 
 /**
@@ -251,6 +277,149 @@ test('has no critical or serious accessibility violations', async () => {
   await page.close();
 });
 
+test('drags a bookmark into a folder in the sidebar, and back out to the top level', async () => {
+  const page = await openPage('manager.html');
+  await vault(page, 'https://drag-e2e.invalid/one', 'Draggable one');
+  await page.reload();
+
+  await page.getByRole('button', { name: 'New folder' }).click();
+  await page.getByLabel('Folder name').fill('Dropped in');
+  await page.getByRole('button', { name: 'Create folder' }).click();
+  const folder = page.getByRole('treeitem', { name: /Dropped in/ });
+  await expect(folder).toBeVisible();
+
+  await dragOnto(page, row(page, 'Draggable one'), folder);
+  await expect(page.getByText('Moved 1 item.')).toBeVisible();
+  // Gone from the top level, and inside the folder it was dropped on.
+  await expect(row(page, 'Draggable one')).toHaveCount(0);
+  await folder.click();
+  await expect(row(page, 'Draggable one')).toBeVisible();
+
+  // The top level is a target too, or a drag would be a one-way trip.
+  await dragOnto(page, row(page, 'Draggable one'), page.getByRole('button', { name: 'All bookmarks' }));
+  await expect(row(page, 'Draggable one')).toHaveCount(0);
+  await page.getByRole('button', { name: 'All bookmarks' }).click();
+  await expect(row(page, 'Draggable one')).toBeVisible();
+
+  // A folder row in the list is the same target by the nearer route.
+  await dragOnto(page, row(page, 'Draggable one'), row(page, 'Dropped in'));
+  await expect(row(page, 'Draggable one')).toHaveCount(0);
+  await folder.click();
+  await expect(row(page, 'Draggable one')).toBeVisible();
+
+  await expect(page.locator('#vm-status .vm-notice--danger')).toHaveCount(0);
+  await page.close();
+});
+
+test('clicking a row hands the list the focus, so the arrows and Delete work on it', async () => {
+  // The bug this pins: the row's `mousedown` used to `preventDefault()`, which stopped the listbox
+  // taking focus — the arrow keys scrolled the list without moving the cursor, and Delete, which is
+  // only bound on the listbox, did nothing at all.
+  const page = await openPage('manager.html');
+  await vault(page, 'https://keys-e2e.invalid/alpha', 'Keyboard alpha');
+  await vault(page, 'https://keys-e2e.invalid/beta', 'Keyboard beta');
+  await page.reload();
+
+  const listbox = page.locator('.vm-vlist');
+  await row(page, 'Keyboard alpha').click();
+  await expect(listbox).toBeFocused();
+
+  const onAlpha = await listbox.getAttribute('aria-activedescendant');
+  expect(onAlpha).not.toBeNull();
+  await page.keyboard.press('ArrowDown');
+  expect(await listbox.getAttribute('aria-activedescendant')).not.toBe(onAlpha);
+  await page.keyboard.press('ArrowUp');
+  expect(await listbox.getAttribute('aria-activedescendant')).toBe(onAlpha);
+
+  await expect(page.getByText('1 selected')).toBeVisible();
+  await page.keyboard.press('Delete');
+  await expect(row(page, 'Keyboard alpha')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible();
+
+  await page.close();
+});
+
+test('a tag filter and Untagged are alternatives, not layers', async () => {
+  // Both used to end up highlighted at once: navigating left the tag query in the search box, and
+  // a query outranks the scope, so "Untagged" answered with the tagged bookmarks it was showing.
+  const page = await openPage('manager.html');
+  await vault(page, 'https://scope-e2e.invalid/tagged', 'Scoped tagged');
+  await vault(page, 'https://scope-e2e.invalid/plain', 'Scoped plain');
+  await page.reload();
+
+  await row(page, 'Scoped tagged').click();
+  await page.getByRole('textbox', { name: 'Tags' }).fill('scoped');
+  await page.getByRole('textbox', { name: 'Tags' }).press('Enter');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+
+  await page.getByRole('button', { name: /Show bookmarks tagged scoped/ }).click();
+  await expect(row(page, 'Scoped tagged')).toBeVisible();
+  await expect(row(page, 'Scoped plain')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Untagged' }).click();
+  await expect(row(page, 'Scoped plain')).toBeVisible();
+  await expect(row(page, 'Scoped tagged')).toHaveCount(0);
+  // The filter that got us here is gone from the box, and exactly one place is current.
+  await expect(page.getByLabel('Search your vault')).toHaveValue('');
+  await expect(page.locator('.vm-sidebar .is-current')).toHaveCount(1);
+
+  // ---------------------------------------------------------------- an empty rename is refused
+  await page.getByRole('button', { name: 'Rename the tag scoped' }).click();
+  await page.getByLabel('New name').fill('   ');
+  await page.getByRole('button', { name: 'Rename', exact: true }).click();
+  // Still open, and saying why — it used to swallow the submit and look broken.
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('cannot be empty');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('button', { name: /Show bookmarks tagged scoped/ })).toBeVisible();
+
+  await page.close();
+});
+
+test('the side columns can be dragged wider, and stay that way', async () => {
+  const page = await openPage('manager.html');
+  await expect(page.locator('.vm-row').first()).toBeVisible();
+
+  const sidebar = page.locator('.vm-sidebar-slot');
+  const handle = page.getByRole('separator', { name: 'Resize the sidebar' });
+  const before = (await sidebar.boundingBox())?.width ?? 0;
+  /** Nothing in the sidebar sticks out of it — a column that scrolls sideways is a bug. */
+  const fitsSideways = async (): Promise<boolean> =>
+    await sidebar.evaluate((element) => element.scrollWidth <= element.clientWidth);
+  expect(await fitsSideways(), 'sidebar at its default width').toBe(true);
+  const grip = await handle.boundingBox();
+  if (grip === null) throw new Error('no resizer');
+
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + 80, grip.y + grip.height / 2, { steps: 10 });
+  await page.mouse.up();
+
+  const dragged = (await sidebar.boundingBox())?.width ?? 0;
+  expect(dragged).toBeGreaterThan(before + 60);
+
+  // A splitter that only a mouse can move is one a keyboard user is stuck with.
+  await handle.focus();
+  await page.keyboard.press('ArrowRight');
+  expect((await sidebar.boundingBox())?.width ?? 0).toBeGreaterThan(dragged);
+
+  // Both ends of the range: the folder tree and the tag rows fit the column at either extreme.
+  await page.keyboard.press('End');
+  expect(await fitsSideways(), 'sidebar at its widest').toBe(true);
+  await page.keyboard.press('Home');
+  expect(await fitsSideways(), 'sidebar at its narrowest').toBe(true);
+  await page.keyboard.press('End');
+
+  // Persisted: the write is debounced, so give it its 300 ms before reloading.
+  const settled = (await sidebar.boundingBox())?.width ?? 0;
+  await page.waitForTimeout(600);
+  await page.reload();
+  await expect(page.locator('.vm-row').first()).toBeVisible();
+  expect(Math.abs(((await sidebar.boundingBox())?.width ?? 0) - settled)).toBeLessThan(2);
+
+  await page.close();
+});
+
 test('renders five thousand bookmarks without putting five thousand rows in the page', async () => {
   // PLAN §9 Phase 6's budget. The load-bearing assertion is the row count: a list that renders
   // every item passes a timing check on a fast machine and falls over on a slow one.
@@ -261,6 +430,12 @@ test('renders five thousand bookmarks without putting five thousand rows in the 
   test.setTimeout(600_000);
 
   const seeder = await openPage('manager.html');
+  // Counted rather than assumed: every test in this file shares one vault, and hard-coding what is
+  // in it makes this test fail for whatever the test above it happened to add.
+  await expect(seeder.locator('.vm-row').first()).toBeVisible();
+  const before = Number(
+    await seeder.getByRole('button', { name: 'All bookmarks' }).locator('.vm-count').innerText(),
+  );
   const seedMs = await seeder.evaluate(async () => {
     const started = Date.now();
     for (let i = 0; i < 5_000; i++) {
@@ -283,7 +458,9 @@ test('renders five thousand bookmarks without putting five thousand rows in the 
   await expect(page.locator('.vm-row').first()).toBeVisible();
   const elapsed = Date.now() - started;
 
-  await expect(page.getByRole('button', { name: 'All bookmarks' })).toContainText('5003');
+  await expect(page.getByRole('button', { name: 'All bookmarks' })).toContainText(
+    String(before + 5_000),
+  );
   // What fits, plus the overscan — not five thousand.
   expect(await page.locator('.vm-row').count()).toBeLessThan(60);
   // The canvas still claims the full height, so the scrollbar tells the truth.

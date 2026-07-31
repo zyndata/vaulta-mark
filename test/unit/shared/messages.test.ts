@@ -13,6 +13,7 @@ import {
   type Request,
   type Response,
 } from '../../../src/shared/messages.js';
+import { DETAIL_WIDTH, SIDEBAR_WIDTH } from '../../../src/vault/types.js';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../../mocks/chrome.js';
 
 let mock: ChromeMock;
@@ -305,6 +306,19 @@ describe('parseSettingsPatch', () => {
 
   it('accepts 0 minutes, which is how "never auto-lock" is spelled', () => {
     expect(parseSettingsPatch({ idleTimeoutMinutes: 0 })).toEqual({ idleTimeoutMinutes: 0 });
+  });
+
+  it('clamps a pane width instead of refusing it', () => {
+    // The sender is a mouse drag against the edge of the window, and "the widest allowed" is a
+    // better answer to it than a refused write that leaves the column where it was.
+    expect(parseSettingsPatch({ sidebarWidth: 300 })).toEqual({ sidebarWidth: 300 });
+    expect(parseSettingsPatch({ sidebarWidth: 4_000 })).toEqual({
+      sidebarWidth: SIDEBAR_WIDTH.max,
+    });
+    expect(parseSettingsPatch({ detailWidth: -20 })).toEqual({ detailWidth: DETAIL_WIDTH.min });
+    // Non-numbers are still a bug in the caller, not a gesture, and are refused with the patch.
+    expect(parseSettingsPatch({ detailWidth: '400' })).toBeNull();
+    expect(parseSettingsPatch({ sidebarWidth: Number.NaN })).toBeNull();
   });
 
   it('rejects the whole patch on any bad field rather than half-applying it', () => {

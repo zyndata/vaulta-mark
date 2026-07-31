@@ -335,6 +335,8 @@ export async function updateSettings(patch: SettingsPatch): Promise<VaultSetting
     stripTrackingParams: patch.stripTrackingParams ?? current.stripTrackingParams,
     reuseIncognitoWindow: patch.reuseIncognitoWindow ?? current.reuseIncognitoWindow,
     sortBy: patch.sortBy ?? current.sortBy,
+    sidebarWidth: patch.sidebarWidth ?? current.sidebarWidth,
+    detailWidth: patch.detailWidth ?? current.detailWidth,
   };
   await writeSettings(next);
   applyIdleDetection(next);

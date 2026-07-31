@@ -21,8 +21,15 @@ import {
 } from '../shared/messages.js';
 import { applyTheme, h, msg, qs, render } from '../ui/dom.js';
 import { errorText } from '../ui/strings.js';
+import { normalizeTags } from '../vault/model.js';
 import { SORT_KEYS, isSortKey, type SortKey } from '../vault/sort.js';
-import { ROOT_ID, type VaultSettings } from '../vault/types.js';
+import {
+  DETAIL_WIDTH,
+  ROOT_ID,
+  SIDEBAR_WIDTH,
+  clampPaneWidth,
+  type VaultSettings,
+} from '../vault/types.js';
 import { chooseDialog, dialogField, openDialog, promptText } from './dialog.js';
 import { detailPane } from './detail.js';
 import { BookmarkList } from './list.js';
@@ -48,6 +55,9 @@ const UNDO_MS = 8_000;
 
 /** How long a confirmation sits in the live region before it clears itself. */
 const STATUS_MS = 6_000;
+
+/** A dragged or arrowed column width settles before it is written to settings. */
+const WIDTH_SAVE_MS = 300;
 
 export function mountManager(root: HTMLElement, initial: StateResponse): void {
   const state: ManagerState = initialState();
@@ -104,9 +114,160 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     onKey: (event) => {
       onListKey(event);
     },
+    onDragStart: (index) => beginDrag(index),
+    acceptsDrop: (folderId) => acceptsDrop(folderId),
+    onDropInFolder: (folderId) => {
+      void dropInFolder(folderId);
+    },
   });
 
   const listSlot = h('div', { class: 'vm-list-slot' }, list.element, emptySlot);
+
+  /* ---------------------------------------------------------------- the columns */
+
+  /**
+   * The two resizable columns: where each one's width is kept, and what it may be.
+   *
+   * A width is a number about the window rather than about the vault, which is what makes it
+   * storable in plaintext `vm.settings` at all (ARCHITECTURE §5.1) — and worth storing, because a
+   * column dragged to a comfortable width and reset by the next window is a column nobody drags
+   * twice.
+   */
+  const PANES = {
+    sidebar: { bounds: SIDEBAR_WIDTH, property: '--vm-sidebar-width', label: 'paneResizeSidebar' },
+    detail: { bounds: DETAIL_WIDTH, property: '--vm-detail-width', label: 'paneResizeDetail' },
+  } as const;
+  type Pane = keyof typeof PANES;
+  const PANE_KEYS = ['sidebar', 'detail'] as const;
+
+  const resizers = new Map<Pane, HTMLElement>();
+
+  function widthOf(pane: Pane): number {
+    const stored = pane === 'sidebar' ? settings.sidebarWidth : settings.detailWidth;
+    return clampPaneWidth(stored, PANES[pane].bounds);
+  }
+
+  function setPaneWidth(pane: Pane, value: number): void {
+    const width = clampPaneWidth(value, PANES[pane].bounds);
+    settings =
+      pane === 'sidebar' ? { ...settings, sidebarWidth: width } : { ...settings, detailWidth: width };
+    applyPaneWidths();
+  }
+
+  /** Push the widths into the grid. The columns are two custom properties, not two rules. */
+  function applyPaneWidths(): void {
+    for (const pane of PANE_KEYS) {
+      const width = widthOf(pane);
+      layout.style.setProperty(PANES[pane].property, `${String(width)}px`);
+      resizers.get(pane)?.setAttribute('aria-valuenow', String(width));
+    }
+  }
+
+  /**
+   * Persist the widths, once the dragging stops.
+   *
+   * Debounced because the events that change a width arrive by the dozen — a pointer move, a held
+   * arrow key — and each write is a storage round trip the user is waiting on a repaint behind.
+   */
+  let widthTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function savePaneWidths(): void {
+    if (widthTimer !== null) clearTimeout(widthTimer);
+    widthTimer = setTimeout(() => {
+      widthTimer = null;
+      void send({
+        type: 'SET_SETTINGS',
+        settings: { sidebarWidth: settings.sidebarWidth, detailWidth: settings.detailWidth },
+      });
+    }, WIDTH_SAVE_MS);
+  }
+
+  /**
+   * The grab handle between two columns.
+   *
+   * A focusable `separator` is the window-splitter pattern, so it carries `aria-valuenow` and moves
+   * on the arrow keys: a three-column layout whose proportions can only be changed with a mouse is
+   * one a keyboard user is stuck with. Double-click restores the default, which is the way out of a
+   * column dragged to a width that hid something.
+   */
+  function paneResizer(pane: Pane): HTMLElement {
+    const spec = PANES[pane];
+    const handle = h('div', {
+      class: 'vm-resizer',
+      role: 'separator',
+      tabindex: 0,
+      'aria-orientation': 'vertical',
+      'aria-label': msg(spec.label),
+      'aria-valuemin': spec.bounds.min,
+      'aria-valuemax': spec.bounds.max,
+      'aria-valuenow': spec.bounds.initial,
+    });
+    resizers.set(pane, handle);
+
+    handle.addEventListener('pointerdown', (event: PointerEvent) => {
+      // Pointer capture rather than listeners on the window: the pointer leaves a handle this
+      // narrow on the first move, and the drag has to keep following it after it has.
+      handle.setPointerCapture(event.pointerId);
+      handle.classList.add('is-dragging');
+      event.preventDefault();
+    });
+
+    handle.addEventListener('pointermove', (event: PointerEvent) => {
+      if (!handle.hasPointerCapture(event.pointerId)) return;
+      const box = layout.getBoundingClientRect();
+      setPaneWidth(pane, pane === 'sidebar' ? event.clientX - box.left : box.right - event.clientX);
+    });
+
+    const release = (event: PointerEvent): void => {
+      if (!handle.hasPointerCapture(event.pointerId)) return;
+      handle.releasePointerCapture(event.pointerId);
+      handle.classList.remove('is-dragging');
+      savePaneWidths();
+    };
+    handle.addEventListener('pointerup', release);
+    handle.addEventListener('pointercancel', release);
+
+    handle.addEventListener('dblclick', () => {
+      setPaneWidth(pane, spec.bounds.initial);
+      savePaneWidths();
+    });
+
+    handle.addEventListener('keydown', (event: KeyboardEvent) => {
+      // Right always means "the separator moves right", which grows the sidebar and shrinks the
+      // detail pane. Anything else makes one of the two handles feel inverted.
+      const step = (event.shiftKey ? 64 : 16) * (pane === 'sidebar' ? 1 : -1);
+      switch (event.key) {
+        case 'ArrowRight':
+          setPaneWidth(pane, widthOf(pane) + step);
+          break;
+        case 'ArrowLeft':
+          setPaneWidth(pane, widthOf(pane) - step);
+          break;
+        case 'Home':
+          setPaneWidth(pane, spec.bounds.min);
+          break;
+        case 'End':
+          setPaneWidth(pane, spec.bounds.max);
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+      savePaneWidths();
+    });
+
+    return handle;
+  }
+
+  const layout = h(
+    'div',
+    { class: 'vm-layout' },
+    sidebarSlot,
+    paneResizer('sidebar'),
+    h('section', { class: 'vm-main' }, crumbSlot, actionSlot, countSlot, listSlot),
+    paneResizer('detail'),
+    detailSlot,
+  );
 
   render(
     root,
@@ -151,15 +312,11 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
         msg('managerLockButton'),
       ),
     ),
-    h(
-      'div',
-      { class: 'vm-layout' },
-      sidebarSlot,
-      h('section', { class: 'vm-main' }, crumbSlot, actionSlot, countSlot, listSlot),
-      detailSlot,
-    ),
+    layout,
     toastSlot,
   );
+
+  applyPaneWidths();
 
   /* ---------------------------------------------------------------- painting */
 
@@ -179,15 +336,24 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
           cancelSearchTimer();
           search.value = query;
           state.query = query;
+          // A tag is a filter over the whole vault, not over wherever the user happens to be
+          // standing. Leaving the scope alone would answer with a silent subset and light up two
+          // sidebar entries at once — which is exactly what "Untagged" plus a tag used to do.
+          state.scope = { kind: 'folder', folderId: ROOT_ID };
           state.selection.clear();
           state.cursor = -1;
-          void reloadView();
+          // `reloadAll`, not `reloadView`: the sidebar's own highlight is what just changed.
+          void reloadAll();
         },
         newFolder: () => {
           void createFolder();
         },
         renameTag: (tag) => {
           void renameTag(tag);
+        },
+        acceptsDrop: (folderId) => acceptsDrop(folderId),
+        onDropInFolder: (folderId) => {
+          void dropInFolder(folderId);
         },
       }),
     );
@@ -372,13 +538,66 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     state.scope = scope;
     state.selection.clear();
     state.cursor = -1;
-    // Navigating to a folder is not a search; leaving the box filled would show its results instead.
-    if (scope.kind === 'folder') {
-      cancelSearchTimer();
-      search.value = '';
-      state.query = '';
-    }
+    // Navigating is not searching, wherever it is going. A filter left in the box outranks the
+    // scope in `listView`, so clicking "Untagged" with `tag:dev` still in the search field used to
+    // land on the same tagged bookmarks it was already showing — with both entries highlighted.
+    cancelSearchTimer();
+    search.value = '';
+    state.query = '';
     void reloadAll();
+  }
+
+  /* ---------------------------------------------------------------- dragging */
+
+  /**
+   * The ids the drag in flight is carrying.
+   *
+   * Held here rather than read back off the `DataTransfer`, because a drop target has to decide
+   * whether it can accept during `dragover`, and `dataTransfer.getData` is deliberately unreadable
+   * until the drop (`dnd.ts`). One drag at a time, so one variable.
+   */
+  let dragging: readonly string[] = [];
+
+  function beginDrag(index: number): readonly string[] {
+    const row = rowsOf(state)[index];
+    if (row === undefined) return [];
+    // Dragging a row that was not selected selects it first: a gesture whose scope is invisible
+    // until it lands is one people have to undo to find out what it did.
+    if (!state.selection.has(row.id)) selectAt(index, { toggle: false, range: false });
+    dragging = [...state.selection];
+    return dragging;
+  }
+
+  /**
+   * Whether the drag may land in this folder.
+   *
+   * Refused up front rather than left to the worker, because `repo.apply` is all-or-nothing: one
+   * folder dropped into its own subtree would refuse the other thirty-nine moves in the same batch.
+   */
+  function acceptsDrop(folderId: string): boolean {
+    if (dragging.length === 0 || dragging.includes(folderId)) return false;
+    const parents = new Map(
+      (state.tree?.folders ?? []).map((folder) => [folder.id, folder.parentId]),
+    );
+    let at = parents.get(folderId);
+    for (let depth = 0; at !== undefined && at !== ROOT_ID && depth <= parents.size; depth++) {
+      if (dragging.includes(at)) return false;
+      at = parents.get(at);
+    }
+    return true;
+  }
+
+  async function dropInFolder(parentId: string): Promise<void> {
+    const ids = dragging;
+    dragging = [];
+    if (ids.length === 0) return;
+    const response = await send({ type: 'MOVE_ITEMS', ids, parentId });
+    if (response.type === 'ERROR') {
+      warn(response.code);
+      return;
+    }
+    await reloadAll();
+    say(response.count === 1 ? msg('movedOne') : msg('movedCount', [String(response.count)]));
   }
 
   /* ---------------------------------------------------------------- selection */
@@ -560,6 +779,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       ],
       confirmLabel: msg('tagBulkApply'),
       focus: add,
+      invalidMessage: () => msg('tagBulkNothing'),
       onConfirm: () => {
         const value = { add: splitTags(add.value), remove: splitTags(remove.value) };
         return value.add.length === 0 && value.remove.length === 0 ? null : value;
@@ -584,6 +804,13 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       confirmLabel: msg('folderRename'),
       value: tag,
       hint: msg('tagRenameEverywhere'),
+      // Blank is refused by `promptText` itself. This catches the other answer that would look
+      // like it worked and rename nothing: the same tag back, in different letters or spacing.
+      validate: (value) => {
+        const [normalized] = normalizeTags([value]);
+        if (normalized === undefined) return msg('dialogNameRequired');
+        return normalized === tag ? msg('tagRenameUnchanged') : null;
+      },
     });
     if (to === null) return;
     const response = await send({ type: 'RENAME_TAG', from: tag, to });
@@ -715,6 +942,12 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     void reloadView();
   });
 
+  // A drag dropped on nothing still has to end. Without this the last drag's ids would still be
+  // there for the next drop target that asked.
+  document.addEventListener('dragend', () => {
+    dragging = [];
+  });
+
   document.addEventListener('keydown', (event: KeyboardEvent) => {
     // `/` focuses the search box — unless the user is typing into something, where a slash is a
     // slash.
@@ -728,6 +961,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     if (message.type === 'SETTINGS_CHANGED') {
       settings = message.settings;
       applyTheme(settings.theme, document.documentElement);
+      applyPaneWidths();
       return;
     }
     if (message.type === 'VAULT_CHANGED') {
