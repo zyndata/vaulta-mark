@@ -135,6 +135,35 @@ most time to rediscover are that an MV3 extension needs a **persistent context**
 `--load-extension` rather than Playwright's default browser fixture, and that it needs
 `channel: 'chromium'` — the default headless build does not run extensions at all.
 
+### 5.1 Sync across two profiles, by hand
+
+Two things about sync cannot be automated, and both need doing before a release that touches
+`src/sync/**`.
+
+Playwright cannot sign a browser into a Google account, so `test/e2e/adopt.spec.ts` replicates
+`chrome.storage.sync` between two persistent contexts by hand — accurate, but it proves our side of
+the boundary rather than Chrome's. And `chrome.storage.sync` replication for an **unpacked**
+extension is undocumented; it works because both profiles derive the same extension id from the same
+`dist` path, which is a property of load-unpacked rather than a guarantee.
+
+The manual pass, on two profiles signed into one Google account:
+
+1. In both, `chrome://settings/syncSetup` → *Manage what you sync* → **Extensions** on.
+   `chrome.storage.sync` rides that datatype; with it off nothing replicates.
+2. Load the same `dist/` in both via *Load unpacked*, and check the ids on `chrome://extensions`
+   **match**. Two different ids are two different extensions and nothing will ever sync.
+3. Profile A: create a vault, add a few bookmarks, click the sync line in the manager's toolbar.
+   It should settle on *Last synced now*.
+4. Profile B, after replication lands (seconds, occasionally a minute or two): open the popup. It
+   must offer **"There is already a vault on your other computer"**, not the create form. The check
+   runs on popup open, so reopen it if replication was still in flight.
+5. A deliberately wrong password first: refused, screen unchanged, no vault created.
+6. The real password: profile B lands on the unlocked popup with profile A's bookmarks, folders,
+   tags and notes intact.
+7. Both directions: add on B, sync, sync A, and the bookmark appears — then the reverse.
+8. The conflict path: rename the *same* bookmark differently on both without syncing in between,
+   then sync A and sync B. B should raise the banner and show both versions side by side.
+
 ---
 
 ## 6. The invariant scanners
