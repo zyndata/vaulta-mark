@@ -11,7 +11,7 @@
  */
 
 import { MIN_PASSWORD_LENGTH, type PasswordWarning } from '../crypto/password.js';
-import type { ErrorCode, LockReason } from '../shared/messages.js';
+import type { ErrorCode, LockReason, SyncErrorCode } from '../shared/messages.js';
 import { msg } from './dom.js';
 
 export const ERROR_KEYS: Record<ErrorCode, string> = {
@@ -27,9 +27,33 @@ export const ERROR_KEYS: Record<ErrorCode, string> = {
   URL_INTERNAL_PAGE: 'errorUrlInternalPage',
   URL_LOCAL_FILE: 'errorUrlLocalFile',
   URL_UNSUPPORTED_SCHEME: 'errorUrlUnsupportedScheme',
+  SYNC_FAILED: 'errorSyncFailed',
   UNREACHABLE: 'errorUnreachable',
   UNKNOWN: 'errorUnknown',
 };
+
+/**
+ * Why a sync failed, in words.
+ *
+ * A separate table from {@link ERROR_KEYS} because these are not failures of something the user
+ * just did: they describe a background process, they are shown in a status line rather than beside
+ * a button, and most of them are temporary. "Sync storage is full" needs a different tone — and a
+ * different call to action — from "that URL cannot be vaulted".
+ */
+export const SYNC_ERROR_KEYS: Record<SyncErrorCode, string> = {
+  QUOTA_EXCEEDED: 'syncErrorQuotaExceeded',
+  RATE_LIMITED: 'syncErrorRateLimited',
+  OFFLINE: 'syncErrorOffline',
+  AUTH_REQUIRED: 'syncErrorAuthRequired',
+  CORRUPT_REMOTE: 'syncErrorCorruptRemote',
+  PRECONDITION_FAILED: 'syncErrorPreconditionFailed',
+  VAULT_LOCKED: 'syncErrorVaultLocked',
+  UNKNOWN: 'syncErrorUnknown',
+};
+
+export function syncErrorText(code: SyncErrorCode): string {
+  return msg(SYNC_ERROR_KEYS[code]);
+}
 
 export const WARNING_KEYS: Record<PasswordWarning, string> = {
   'too-short': 'warnTooShort',

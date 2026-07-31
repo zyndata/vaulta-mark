@@ -1,0 +1,485 @@
+/**
+ * The sync orchestrator (ARCHITECTURE §6.3): what runs, in what order, and what happens when it is
+ * interrupted.
+ *
+ * Everything here is written for a runtime that can be killed at any instruction. An MV3 service
+ * worker is torn down after ~30 seconds of inactivity, so there is no such thing as a sync that is
+ * "in progress" across a wake: every trigger re-derives the whole situation from three durable
+ * facts — `vm.baseMeta`, the local buckets, and a fresh `peek()` — and does the right thing from
+ * wherever it finds itself. Nothing is remembered in a module variable that matters.
+ *
+ * The order of writes is the part worth reading twice:
+ *
+ * 1. **The merged vault is written locally first.** A crash after this leaves a device holding the
+ *    merge it computed, which is the one copy nobody else can reconstruct.
+ * 2. **Conflicts are persisted next**, before anything is pushed, so a crash cannot lose the record
+ *    of a disagreement while still pushing the resolution of it.
+ * 3. **Then the push**, buckets before header (the provider's job).
+ * 4. **The merge base is written last, and only after the push succeeded**, because the base means
+ *    exactly one thing: *this is what the remote has*. Writing it earlier would be a lie the next
+ *    merge believes.
+ *
+ * And the rule that makes all of it safe: {@link merge} is idempotent, so redoing any step costs
+ * work rather than data.
+ */
+
+import { readBaseMeta, readSettings } from '../storage/local.js';
+import type { VaultRepository } from '../storage/repo.js';
+import type { BaseMeta, ItemMap, VaultHeader } from '../vault/types.js';
+import { loadBase, loadConflicts, saveBase, saveConflicts } from './base.js';
+import { ChromeSyncProvider } from './chrome-provider.js';
+import { merge, outboundView, sameItems, type Conflict } from './merge.js';
+import {
+  AuthRequired,
+  CorruptRemote,
+  Offline,
+  PreconditionFailed,
+  QuotaExceeded,
+  RateLimited,
+  type ProviderId,
+  type RemoteStamp,
+  type SyncProvider,
+} from './provider.js';
+
+/** Where the state machine is. Reported to the UI; never persisted. */
+export type SyncPhase =
+  | 'idle'
+  | 'peeking'
+  | 'pulling'
+  | 'merging'
+  | 'pushing'
+  /** Finished, but there are unresolved conflicts. The vault is fully usable. */
+  | 'conflict'
+  | 'error'
+  /** The vault is locked, so there is nothing to sync and no key to sync it with. */
+  | 'locked';
+
+/** The wire form of a sync failure. Same reasoning as `ErrorCode` in `shared/messages.ts`. */
+export type SyncErrorCode =
+  | 'QUOTA_EXCEEDED'
+  | 'RATE_LIMITED'
+  | 'OFFLINE'
+  | 'AUTH_REQUIRED'
+  | 'CORRUPT_REMOTE'
+  | 'PRECONDITION_FAILED'
+  | 'VAULT_LOCKED'
+  | 'UNKNOWN';
+
+export interface SyncStatus {
+  readonly phase: SyncPhase;
+  readonly providerId: ProviderId;
+  /** Epoch ms of the last successful sync, or `null` if this device has never completed one. */
+  readonly lastSyncedAt: number | null;
+  readonly conflicts: number;
+  readonly error: SyncErrorCode | null;
+  /** How long to wait before the next attempt is worth making, when the error says so. */
+  readonly retryAfterMs: number | null;
+  readonly usedBytes: number;
+  readonly quotaBytes: number;
+}
+
+/** Everything the engine needs from the rest of the extension, injected so it stays testable. */
+export interface EngineDeps {
+  /** The unlocked vault, or `null`. Enforces the idle deadline before answering (session.ts). */
+  readonly repository: () => Promise<VaultRepository | null>;
+  readonly provider?: (id: ProviderId) => SyncProvider;
+  readonly now?: () => number;
+  /** Told after a sync changed the local item set, so open UIs reload. */
+  readonly onVaultChanged?: () => void | Promise<void>;
+  readonly onStatus?: (status: SyncStatus) => void | Promise<void>;
+}
+
+/** How long a local change waits for its neighbours before it is pushed (§6.3). */
+export const LOCAL_CHANGE_DEBOUNCE_MS = 3_000;
+
+export interface SyncOptions {
+  /**
+   * Push even when nothing looks to have moved.
+   *
+   * Resolving a conflict as "keep mine" changes no bookmark — the item already holds this device's
+   * version, and the only thing that moved is the record that was keeping it out of the outbound
+   * view. Without this the engine would see an unchanged `vaultRev`, conclude there was nothing to
+   * send, and leave the resolution on one device.
+   */
+  readonly force?: boolean;
+}
+
+let deps: EngineDeps | null = null;
+let inFlight: Promise<SyncStatus> | null = null;
+/** Set when a trigger arrives during a sync: the run in flight cannot include what it did not see. */
+let rerun = false;
+let debounce: ReturnType<typeof setTimeout> | null = null;
+let phase: SyncPhase = 'idle';
+let lastError: SyncErrorCode | null = null;
+let retryAfterMs: number | null = null;
+
+export function configureSync(next: EngineDeps): void {
+  deps = next;
+}
+
+/** Test seam: drop the injected dependencies, the cached provider, and any pending debounce. */
+export function resetSync(): void {
+  if (debounce !== null) clearTimeout(debounce);
+  debounce = null;
+  deps = null;
+  inFlight = null;
+  rerun = false;
+  phase = 'idle';
+  lastError = null;
+  retryAfterMs = null;
+  chromeProvider = null;
+}
+
+/**
+ * A local change happened. Push it, once the burst it belongs to has settled.
+ *
+ * Debounced rather than immediate because a bulk tag of forty bookmarks is one revision but arrives
+ * as one message, and because typing a note is a change per keystroke to everything upstream of the
+ * repository's own coalescer.
+ */
+export function scheduleSync(delayMs: number = LOCAL_CHANGE_DEBOUNCE_MS): void {
+  if (debounce !== null) clearTimeout(debounce);
+  debounce = setTimeout(() => {
+    debounce = null;
+    void syncNow();
+  }, delayMs);
+}
+
+/**
+ * Run a sync, or join the one already running.
+ *
+ * Single-flight: concurrent triggers coalesce into one run, and a trigger that arrives *during* a
+ * run schedules exactly one more afterwards — the run in flight peeked before that change existed
+ * and cannot be assumed to have carried it.
+ */
+export async function syncNow(options: SyncOptions = {}): Promise<SyncStatus> {
+  if (inFlight !== null) {
+    rerun = true;
+    return await inFlight;
+  }
+  const run = (async () => {
+    try {
+      return await attempt(options.force === true);
+    } finally {
+      inFlight = null;
+    }
+  })();
+  inFlight = run;
+  const result = await run;
+  if (rerun) {
+    rerun = false;
+    return await syncNow(options);
+  }
+  return result;
+}
+
+export async function status(): Promise<SyncStatus> {
+  const settings = await readSettings();
+  const meta = await readBaseMeta();
+  const repo = await deps?.repository();
+  const conflicts = repo === null || repo === undefined ? 0 : (await loadConflicts(repo.cipher())).length;
+  const usage =
+    repo === null || repo === undefined
+      ? { usedBytes: 0, quotaBytes: 0 }
+      : await providerFor(settings.providerId).usage();
+  return {
+    phase: repo === null || repo === undefined ? 'locked' : conflicts > 0 ? 'conflict' : phase,
+    providerId: settings.providerId,
+    lastSyncedAt: meta?.syncedAt ?? null,
+    conflicts,
+    error: lastError,
+    retryAfterMs,
+    ...usage,
+  };
+}
+
+/* ------------------------------------------------------------------ the run */
+
+async function attempt(force: boolean): Promise<SyncStatus> {
+  const repo = await deps?.repository();
+  if (repo === null || repo === undefined) {
+    phase = 'locked';
+    return await status();
+  }
+
+  const settings = await readSettings();
+  const provider = providerFor(settings.providerId);
+  lastError = null;
+  retryAfterMs = null;
+
+  try {
+    await provider.init();
+    const changed = await run(repo, provider, settings.providerId, force);
+    if (changed) await deps?.onVaultChanged?.();
+  } catch (error) {
+    phase = 'error';
+    lastError = toSyncErrorCode(error);
+    retryAfterMs = error instanceof RateLimited ? error.retryAfterMs : null;
+  }
+
+  const current = await status();
+  await deps?.onStatus?.(current);
+  return current;
+}
+
+/** The state machine proper. Returns whether the local item set changed. */
+async function run(
+  repo: VaultRepository,
+  provider: SyncProvider,
+  providerId: ProviderId,
+  force: boolean,
+): Promise<boolean> {
+  const cipher = repo.cipher();
+  // Anything the coalescer is still holding is part of "what this device has", and a push that
+  // raced it would send a vault one edit behind and immediately need another round trip.
+  await repo.flush();
+
+  phase = 'peeking';
+  const remote = await provider.peek();
+  const meta = await readBaseMeta();
+  const conflicts = await loadConflicts(cipher);
+  const header = repo.header();
+
+  if (remote === null) {
+    // Nothing there yet: this device is the one that creates the remote vault.
+    await publish(repo, provider, providerId, repo.items(), conflicts, header.vaultRev, null);
+    return false;
+  }
+
+  const remoteMoved = meta?.remoteHash !== remote.contentHash;
+  const localMoved = meta?.lastSyncedRev !== header.vaultRev;
+
+  if (!remoteMoved && !localMoved && !force) {
+    phase = conflicts.length > 0 ? 'conflict' : 'idle';
+    return false;
+  }
+
+  if (!remoteMoved) {
+    try {
+      await publish(repo, provider, providerId, repo.items(), conflicts, header.vaultRev, remote);
+      return false;
+    } catch (error) {
+      // Someone wrote between the peek and the push. Their stamp is on the error, so there is
+      // nothing to re-read: fall straight through to the merge.
+      if (!(error instanceof PreconditionFailed)) throw error;
+    }
+  }
+
+  return await reconcile(repo, provider, providerId, conflicts);
+}
+
+/**
+ * Pull, merge, write, push.
+ *
+ * The pull is unconditional here even when the local side is clean: a "fast-path pull" that skipped
+ * the merge would have to trust that `lastSyncedRev` describes the local vault exactly, and the one
+ * case where it does not — a pending conflict, where the local side deliberately differs from what
+ * was last pushed — is exactly the case where overwriting local would discard the user's version.
+ * The merge is cheap and it is right in both cases.
+ */
+async function reconcile(
+  repo: VaultRepository,
+  provider: SyncProvider,
+  providerId: ProviderId,
+  pending: readonly Conflict[],
+): Promise<boolean> {
+  phase = 'pulling';
+  const cipher = repo.cipher();
+
+  let pulled;
+  try {
+    pulled = await provider.pullLight();
+  } catch (error) {
+    if (!(error instanceof CorruptRemote)) throw error;
+    // A torn remote: parts from one push under a header from another, which the bucket tags catch.
+    // Repairing it by pushing this device's copy loses nothing — a torn remote is a *partial* copy
+    // of some device's local state, and that device still has all of it and will push again.
+    await publish(
+      repo,
+      provider,
+      providerId,
+      repo.items(),
+      pending,
+      repo.header().vaultRev,
+      await provider.peek(),
+    );
+    return false;
+  }
+  if (pulled === null) {
+    await publish(repo, provider, providerId, repo.items(), pending, repo.header().vaultRev, null);
+    return false;
+  }
+
+  phase = 'merging';
+  const remoteItems = await repo.openEncrypted(pulled);
+  const base = await loadBase(cipher);
+  const local = repo.items();
+  const header = repo.header();
+
+  const result = merge(base, local, remoteItems, {
+    now: now(),
+    remoteDevice: pulled.header.deviceId,
+  });
+
+  const conflicts = mergeConflictSets(pending, result.conflicts);
+  const outbound = outboundView(result.merged, conflicts);
+
+  /*
+   * The remote already holds what we were about to send it.
+   *
+   * This is the case that decides whether two devices ever settle. Without it, every merge would
+   * end in a push at a fresh revision, the other device would see a moved remote, merge, push back
+   * at a fresher one, and the two would trade revisions forever without a single bookmark
+   * changing. Adopting the remote's `vaultRev` verbatim here — rather than inventing a higher one —
+   * is what lets both sides agree they are done.
+   */
+  if (sameItems(outbound, remoteItems)) {
+    await repo.replaceAll(result.merged, { ...pulled.header, vaultRev: pulled.header.vaultRev });
+    await saveConflicts(cipher, conflicts);
+    await saveBase(cipher, outbound, {
+      lastSyncedRev: pulled.header.vaultRev,
+      providerId,
+      syncedAt: now(),
+      remoteHash: (await provider.peek())?.contentHash ?? '',
+    });
+    phase = conflicts.length > 0 ? 'conflict' : 'idle';
+    return result.changed.length > 0;
+  }
+
+  const rev = Math.max(header.vaultRev, pulled.header.vaultRev) + 1;
+  await repo.replaceAll(result.merged, adoptHeader(header, pulled.header, rev));
+  await saveConflicts(cipher, conflicts);
+  await publish(repo, provider, providerId, result.merged, conflicts, rev, await provider.peek());
+  return result.changed.length > 0;
+}
+
+/**
+ * Seal, push, and record the result as the new merge base.
+ *
+ * What goes out is {@link outboundView}: this device's vault with the *remote* side put back for
+ * every unresolved conflict. That is §6.5 in one line — nothing is pushed for a conflicted item, so
+ * the other device's answer survives untouched, while the rest of the vault keeps syncing normally.
+ */
+async function publish(
+  repo: VaultRepository,
+  provider: SyncProvider,
+  providerId: ProviderId,
+  items: ItemMap,
+  conflicts: readonly Conflict[],
+  vaultRev: number,
+  expect: RemoteStamp | null,
+): Promise<void> {
+  phase = 'pushing';
+  const outbound = outboundView(items, conflicts);
+  const vault = await repo.sealSnapshot(outbound, vaultRev);
+  const stamp = await provider.pushLight(vault, expect);
+
+  const meta: BaseMeta = {
+    lastSyncedRev: vaultRev,
+    providerId,
+    syncedAt: now(),
+    remoteHash: stamp.contentHash,
+  };
+  await saveBase(repo.cipher(), outbound, meta);
+  phase = conflicts.length > 0 ? 'conflict' : 'idle';
+}
+
+/**
+ * The header the merged vault commits under.
+ *
+ * `kdf` and `wrappedDek` are vault-global rather than per-device — they are how a password changed
+ * on one machine reaches the others — so they come from whichever side is further along. Everything
+ * else that identifies *this install*, `deviceId` above all, is preserved by `replaceAll`.
+ */
+function adoptHeader(local: VaultHeader, remote: VaultHeader, rev: number): VaultHeader {
+  const authoritative = remote.vaultRev > local.vaultRev ? remote : local;
+  return {
+    ...local,
+    kdf: authoritative.kdf,
+    wrappedDek: authoritative.wrappedDek,
+    bucketCount: authoritative.bucketCount,
+    createdAt: Math.min(local.createdAt, remote.createdAt),
+    vaultRev: rev,
+  };
+}
+
+/**
+ * Fold freshly detected conflicts into the ones already waiting.
+ *
+ * Keyed by item id, newest wins: a second disagreement about the same bookmark supersedes the
+ * first, because the record carries whole versions and the older pair is a snapshot of a state
+ * neither device is in any more.
+ */
+function mergeConflictSets(
+  pending: readonly Conflict[],
+  fresh: readonly Conflict[],
+): readonly Conflict[] {
+  const byId = new Map(pending.map((conflict) => [conflict.id, conflict]));
+  for (const conflict of fresh) byId.set(conflict.id, conflict);
+  return [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/* ------------------------------------------------------------------ conflict resolution */
+
+export type Resolution = 'mine' | 'theirs' | 'both';
+
+/**
+ * What resolving a conflict does to the vault, expressed as the item the local side should hold.
+ *
+ * `mine` keeps what is already there and simply drops the record, which is what lets the next push
+ * carry it: an item stops being overlaid with the remote side the moment its conflict is gone.
+ * `theirs` adopts the other version. `both` keeps this device's and adds theirs beside it under a
+ * fresh id, which is the only answer that loses nothing at all — and the only one available when
+ * one side is a tombstone, where "keep both" would mean keeping a deletion.
+ */
+export function canKeepBoth(conflict: Conflict): boolean {
+  return conflict.kind !== 'edit-delete';
+}
+
+export async function listConflicts(repo: VaultRepository): Promise<Conflict[]> {
+  return await loadConflicts(repo.cipher());
+}
+
+/** Drop conflict records by item id, leaving the rest pending. */
+export async function forgetConflicts(
+  repo: VaultRepository,
+  ids: readonly string[],
+): Promise<Conflict[]> {
+  const cipher = repo.cipher();
+  const dropped = new Set(ids);
+  const kept = (await loadConflicts(cipher)).filter((conflict) => !dropped.has(conflict.id));
+  await saveConflicts(cipher, kept);
+  return kept;
+}
+
+/* ------------------------------------------------------------------ plumbing */
+
+export function toSyncErrorCode(error: unknown): SyncErrorCode {
+  if (error instanceof QuotaExceeded) return 'QUOTA_EXCEEDED';
+  if (error instanceof RateLimited) return 'RATE_LIMITED';
+  if (error instanceof Offline) return 'OFFLINE';
+  if (error instanceof AuthRequired) return 'AUTH_REQUIRED';
+  if (error instanceof CorruptRemote) return 'CORRUPT_REMOTE';
+  if (error instanceof PreconditionFailed) return 'PRECONDITION_FAILED';
+  return 'UNKNOWN';
+}
+
+let chromeProvider: SyncProvider | null = null;
+
+/**
+ * The live provider.
+ *
+ * Phase 7 ships one. `drive` is a settings value the UI cannot yet produce, and answering it with
+ * the Chrome provider is the honest fallback until Phase 10: the vault syncs somewhere real rather
+ * than silently nowhere.
+ */
+function providerFor(id: ProviderId): SyncProvider {
+  const custom = deps?.provider;
+  if (custom !== undefined) return custom(id);
+  chromeProvider ??= new ChromeSyncProvider();
+  return chromeProvider;
+}
+
+function now(): number {
+  return (deps?.now ?? Date.now)();
+}

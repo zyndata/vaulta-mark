@@ -233,6 +233,38 @@ export interface IncognitoAccessRequest {
   readonly recheck?: boolean;
 }
 
+/* --- sync (Phase 7) -------------------------------------------------------- */
+
+/** Where sync got to. Cheap, and answered while locked — the lock screen shows it too. */
+export interface GetSyncStatusRequest {
+  readonly type: 'GET_SYNC_STATUS';
+}
+
+/** "Sync now": run the whole state machine immediately rather than on the next trigger. */
+export interface SyncNowRequest {
+  readonly type: 'SYNC_NOW';
+}
+
+/** The unresolved disagreements, both versions of each. */
+export interface ListConflictsRequest {
+  readonly type: 'LIST_CONFLICTS';
+}
+
+/**
+ * Settle conflicts, one way for the whole batch.
+ *
+ * Plural because the conflict view offers "keep all mine" beside the per-item buttons, and because
+ * a batch is one `vaultRev` and one thing for the other device to merge — the same reasoning as
+ * {@link DeleteItemsRequest}.
+ */
+export interface ResolveConflictsRequest {
+  readonly type: 'RESOLVE_CONFLICTS';
+  readonly ids: readonly string[];
+  readonly resolution: ConflictResolution;
+}
+
+export type ConflictResolution = 'mine' | 'theirs' | 'both';
+
 export type Request =
   | PingRequest
   | GetStateRequest
@@ -259,7 +291,11 @@ export type Request =
   | TagItemsRequest
   | RenameTagRequest
   | ChangePasswordRequest
-  | DestroyVaultRequest;
+  | DestroyVaultRequest
+  | GetSyncStatusRequest
+  | SyncNowRequest
+  | ListConflictsRequest
+  | ResolveConflictsRequest;
 
 /** A partial settings update. Absent fields keep their stored value. */
 export type SettingsPatch = Partial<VaultSettings>;
@@ -443,6 +479,75 @@ export interface IncognitoAccessResponse {
   readonly settingsUrl: string;
 }
 
+/* --- sync (Phase 7) -------------------------------------------------------- */
+
+/**
+ * One side of a disagreement, flattened.
+ *
+ * A projection rather than the stored `VaultItem`, for the same reason {@link ItemSummary} is one:
+ * the conflict view renders a field-by-field comparison, and everything it does not render — the
+ * order key, the revision, the thumbnail record — is weight on the wire and one more shape for the
+ * UI to know about.
+ */
+export interface ConflictSide {
+  readonly title: string;
+  readonly url?: string;
+  readonly note: string;
+  readonly tags: readonly string[];
+  /** Title of the containing folder, or an empty string at the top level. */
+  readonly folder: string;
+  /** This side deleted the item. The other side, by definition, did not. */
+  readonly deleted: boolean;
+  readonly updatedAt: number;
+}
+
+export interface ConflictView {
+  readonly id: string;
+  readonly kind: 'field' | 'edit-delete' | 'add-add';
+  /** Which fields disagree, so the view can mark them rather than showing everything as changed. */
+  readonly fields: readonly string[];
+  readonly mine: ConflictSide;
+  readonly theirs: ConflictSide;
+  /** False when one side is a deletion: "keep both" would mean keeping a deletion. */
+  readonly canKeepBoth: boolean;
+  readonly detectedAt: number;
+}
+
+export interface ConflictsResponse {
+  readonly type: 'CONFLICTS';
+  readonly conflicts: readonly ConflictView[];
+}
+
+/**
+ * The sync status line.
+ *
+ * Deliberately answerable while the vault is locked — `phase: 'locked'`, the last sync time from
+ * plaintext `vm.baseMeta`, and nothing else — because "when did this last sync?" is a question
+ * worth answering on a lock screen, and none of it describes a bookmark.
+ */
+export interface SyncStatusResponse {
+  readonly type: 'SYNC_STATUS';
+  readonly phase: 'idle' | 'peeking' | 'pulling' | 'merging' | 'pushing' | 'conflict' | 'error' | 'locked';
+  readonly providerId: 'chrome' | 'drive';
+  readonly lastSyncedAt: number | null;
+  readonly conflicts: number;
+  readonly error: SyncErrorCode | null;
+  readonly retryAfterMs: number | null;
+  readonly usedBytes: number;
+  readonly quotaBytes: number;
+}
+
+/** Why a sync failed, as a code. Same reasoning as {@link ErrorCode}. */
+export type SyncErrorCode =
+  | 'QUOTA_EXCEEDED'
+  | 'RATE_LIMITED'
+  | 'OFFLINE'
+  | 'AUTH_REQUIRED'
+  | 'CORRUPT_REMOTE'
+  | 'PRECONDITION_FAILED'
+  | 'VAULT_LOCKED'
+  | 'UNKNOWN';
+
 /**
  * The wire form of a thrown error.
  *
@@ -479,6 +584,8 @@ export type ErrorCode =
   | 'URL_LOCAL_FILE'
   /** Any other scheme we refuse to store: `javascript:`, `data:`, `blob:`, and the long tail. */
   | 'URL_UNSUPPORTED_SCHEME'
+  /** A sync operation failed. What went wrong is in the sync status, not in this code. */
+  | 'SYNC_FAILED'
   /** The service worker did not answer at all. Only ever produced on the sender's side. */
   | 'UNREACHABLE'
   | 'UNKNOWN';
@@ -511,6 +618,10 @@ export interface ResponseMap {
   readonly RENAME_TAG: CountResponse;
   readonly CHANGE_PASSWORD: OkResponse;
   readonly DESTROY_VAULT: OkResponse;
+  readonly GET_SYNC_STATUS: SyncStatusResponse;
+  readonly SYNC_NOW: SyncStatusResponse;
+  readonly LIST_CONFLICTS: ConflictsResponse;
+  readonly RESOLVE_CONFLICTS: CountResponse;
 }
 
 export type ResponseFor<R extends Request> = ResponseMap[R['type']] | ErrorResponse;
@@ -548,12 +659,24 @@ export interface VaultChangedBroadcast {
   readonly type: 'VAULT_CHANGED';
 }
 
+/**
+ * Sync moved. Carries the whole status, because it is small and every listener wants all of it.
+ *
+ * Unlike {@link VaultChangedBroadcast}, which deliberately carries nothing: a status is four
+ * numbers and two enums, while the item set is the vault.
+ */
+export interface SyncChangedBroadcast {
+  readonly type: 'SYNC_CHANGED';
+  readonly status: SyncStatusResponse;
+}
+
 /** Service worker → open UIs. Never answered; `broadcast()` ignores the absence of a listener. */
 export type Broadcast =
   | SessionLockedBroadcast
   | SessionUnlockedBroadcast
   | SettingsChangedBroadcast
-  | VaultChangedBroadcast;
+  | VaultChangedBroadcast
+  | SyncChangedBroadcast;
 
 /* ------------------------------------------------------------------ parsing */
 
@@ -636,7 +759,17 @@ export function parseRequest(raw: unknown): Request | null {
     }
     case 'GET_TREE':
     case 'DESTROY_VAULT':
+    case 'GET_SYNC_STATUS':
+    case 'SYNC_NOW':
+    case 'LIST_CONFLICTS':
       return { type };
+    case 'RESOLVE_CONFLICTS': {
+      const ids = parseIdList(raw['ids']);
+      const resolution = raw['resolution'];
+      if (ids === null) return null;
+      if (resolution !== 'mine' && resolution !== 'theirs' && resolution !== 'both') return null;
+      return { type, ids, resolution };
+    }
     case 'LIST_VIEW': {
       const { folderId, query, sort, untagged } = raw;
       if (folderId !== undefined && !isNonEmptyString(folderId)) return null;
@@ -852,6 +985,8 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'ITEM',
   'CREATED',
   'COUNT',
+  'SYNC_STATUS',
+  'CONFLICTS',
   'ERROR',
 ]);
 
@@ -871,6 +1006,7 @@ const BROADCAST_TYPES: ReadonlySet<string> = new Set([
   'SESSION_UNLOCKED',
   'SETTINGS_CHANGED',
   'VAULT_CHANGED',
+  'SYNC_CHANGED',
 ]);
 
 export function parseBroadcast(raw: unknown): Broadcast | null {

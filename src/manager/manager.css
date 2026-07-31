@@ -700,3 +700,164 @@ body.vm-manager {
   font-size: 0.875rem;
   user-select: all;
 }
+
+/* ------------------------------------------------------------------ sync */
+
+/*
+ * The toolbar's sync control is a button that reads as a status line, because that is what it is:
+ * "last synced 3 minutes ago" is exactly the thing someone clicks when they want it to say
+ * "just now". Quiet until something is wrong, and then not quiet at all.
+ */
+.vm-sync {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--vm-radius);
+  background: none;
+  color: var(--vm-muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vm-sync:hover:not(:disabled) {
+  border-color: var(--vm-border);
+  color: var(--vm-fg);
+}
+
+.vm-sync:focus-visible {
+  outline: var(--vm-focus);
+  outline-offset: 2px;
+}
+
+.vm-sync--busy {
+  cursor: default;
+}
+
+.vm-sync--error {
+  color: var(--vm-danger);
+  border-color: var(--vm-danger);
+}
+
+.vm-quota {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.vm-quota-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-border);
+  overflow: hidden;
+}
+
+.vm-quota-fill {
+  height: 100%;
+  background: var(--vm-ok);
+}
+
+.vm-quota-track--warn .vm-quota-fill {
+  background: var(--vm-warning);
+}
+
+.vm-quota-track--full .vm-quota-fill {
+  background: var(--vm-danger);
+}
+
+/*
+ * The conflict banner is persistent and non-modal on purpose (ARCHITECTURE §6.5): a disagreement
+ * blocks nothing, and the rest of the vault keeps working and keeps syncing behind it.
+ */
+.vm-conflict-banner {
+  display: flex;
+  gap: var(--vm-gap);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--vm-border);
+  background: var(--vm-surface);
+}
+
+.vm-conflicts {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  overflow-y: auto;
+}
+
+.vm-conflict-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+
+.vm-conflict-list {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vm-conflict {
+  padding: 1rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-surface);
+}
+
+.vm-conflict h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+/* Two columns of equal weight: neither side is the recommended one, and the layout says so. */
+.vm-conflict-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--vm-gap);
+}
+
+.vm-conflict-side {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  padding: 0.75rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+}
+
+.vm-conflict-side h4 {
+  margin: 0;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vm-muted);
+}
+
+.vm-conflict-field {
+  display: grid;
+  gap: 0.15rem;
+}
+
+/* The fields that actually disagree are marked, so nothing else reads as changed. */
+.vm-conflict-field.is-changed {
+  padding-left: 0.5rem;
+  border-left: 3px solid var(--vm-accent);
+}
+
+.vm-conflict-value {
+  overflow-wrap: anywhere;
+}
+
+.vm-conflict-choices {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}

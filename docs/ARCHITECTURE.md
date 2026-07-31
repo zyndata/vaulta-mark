@@ -465,8 +465,13 @@ bytes 13..N   : AES-256-GCM ciphertext ‖ 128-bit tag
 AAD is the UTF-8 encoding of canonical JSON:
 
 ```jsonc
-{ "v": 2, "purpose": "bucket", "id": "7" }   // or "thumb"/"<itemId>", "base"/"", "export"/""
+{ "v": 2, "purpose": "bucket", "id": "7" }
+// or "thumb"/"<itemId>", "base"/"", "export"/"", "conflicts"/""
 ```
+
+`conflicts` was added in Phase 7 for `vm.conflicts` (§5.1). It is a purpose of its own rather than a
+second slot under `base` because the two hold different shapes with different lifetimes, and a purpose
+is exactly the thing that stops one being opened as the other.
 
 The AAD is rebuilt field by field, never stringified from the caller's object: JSON key order follows
 insertion order, so an AAD constructed with its fields in a different order would produce different
@@ -685,10 +690,21 @@ usable sync bytes            = 102,400
   ≈ 980 bookmarks
 ```
 
-**Documented ceilings:** ~600 bookmarks comfortable (leaves room for notes and growth), ~980
-theoretical. **Warn at 70 % of `QUOTA_BYTES`, block new adds at 95 %** with a "connect Drive" CTA.
-Phase 7 must measure a real fixture and correct these numbers in this file and the README if the
-measurement disagrees.
+**Measured, Phase 7.** `test/integration/sync-capacity.test.ts` builds a fixture of plausible
+bookmarks — varied hosts, varied slugs, a title of a few words, two short tags, no note — seals them
+with the real codec and pushes them through the real provider into a mock enforcing Chrome's actual
+limits, until the quota refuses another batch. It reaches **1,100 bookmarks** in ~100 KB, crossing the
+70 % warning at ~800.
+
+The derivation above is therefore conservative by about 12 %, which is the right direction to be
+wrong in. The published numbers stay where they are:
+
+**Documented ceilings:** ~600 bookmarks comfortable, ~1,000 hard. The gap between the measured 1,100
+and the quoted 600 is deliberate and is not slack for its own sake — the fixture carries no notes, and
+a note is up to 4 KB. A vault where one bookmark in ten has a paragraph attached hits the ceiling
+several hundred bookmarks earlier, and the number a user is given has to be the one that holds for
+their vault rather than for the fixture. **Warn at 70 % of `QUOTA_BYTES`, block new adds at 95 %** with
+a "connect Drive" CTA.
 
 Note also `MAX_ITEMS = 512`: at 7,600 chars/part, 512 parts would be 3.9 MB — the byte quota binds
 first, so item count is never the limiting factor.
@@ -799,52 +815,66 @@ Error taxonomy: `QuotaExceeded`, `RateLimited(retryAfterMs)`, `PreconditionFaile
 | `item.updatedAt` | per item | wall-clock ms, used only for display and as a tiebreaker |
 | `header.vaultRev` | per vault | monotonic counter, incremented on every committed local change |
 | `vm.baseMeta.lastSyncedRev` | local only | the `vaultRev` of the last state successfully synced |
+| `vm.baseMeta.remoteHash` | local only | `contentHash` of the remote stamp the base was written against |
 | `vm.base` | local only | the encrypted item set as of `lastSyncedRev` — the merge base |
 
 Wall clocks are never trusted for correctness. `updatedAt` breaks ties in the UI ("which looks newer")
 but every merge decision is made from the base comparison, not from timestamps.
 
+`remoteHash` exists because `lastSyncedRev` alone cannot answer *has the remote moved?*. Two devices
+can both reach revision 7 with entirely different contents, and a revision number that matched would
+wave a genuinely divergent remote straight past the merge. The hash is over the remote **header**,
+which already carries every bucket's tag, so comparing it costs one `peek()` and no decryption.
+
 ### 6.3 The sync state machine
 
 ```
         local change (debounced 3 s)
-        storage.onChanged from another device
-        chrome.runtime.onStartup / SW wake
-        idle → active
-        manual "Sync now"
+        storage.onChanged from another device      ← this is the whole of "zero configuration":
+        chrome.runtime.onStartup / SW wake            Chrome replicates the area and tells us
+        manual "Sync now"                             nothing to poll, nothing to set up
                  │
                  ▼
     ┌────────► IDLE
-    │            │  trigger (single-flight; concurrent triggers coalesce)
+    │            │  trigger (single-flight; concurrent triggers coalesce,
+    │            │           one that lands mid-run earns exactly one re-run)
     │            ▼
     │         PEEKING ── provider.peek() ──┐
-    │            │                          │
-    │   remote.vaultRev == lastSyncedRev    │  remote is null (first sync)
-    │            │                          │
+    │            │                          │ remote is null (first sync)
     │            ▼                          ▼
-    │      local dirty? ──no──► IDLE     PUSHING (create remote)
-    │            │yes
-    │            ▼
-    │         PUSHING (CAS on expect=remoteStamp)
-    │            │           │PreconditionFailed
-    │            │           └──────────────┐
-    │   local clean & remote ahead          │
-    │            ▼                          ▼
-    │         PULLING ──────────────────► MERGING
-    │            │                          │
-    │            ▼                    ┌─────┴─────┐
-    │      apply & set base       conflicts?    clean
-    │            │                    │           │
-    │            ▼                    ▼           ▼
-    └────────── IDLE              CONFLICT     PUSHING → set base → IDLE
-                                (banner, vault stays usable)
+    │   remoteHash unchanged?           PUSHING (create remote)
+    │       │yes          │no
+    │       ▼             ▼
+    │  vaultRev moved?  PULLING ─► MERGING ─► outbound == remote?
+    │   │no      │yes      │                    │yes            │no
+    │   ▼        ▼         │                    ▼               ▼
+    │  IDLE   PUSHING ─────┘             adopt remote rev    PUSHING
+    │           │PreconditionFailed        (push nothing)       │
+    │           └──────────────────────────────────────────► set base
+    │                                                            │
+    └────────────────────────────────────────────────────────► IDLE
+                                    conflicts pending ⇒ CONFLICT
+                                    (banner; the vault stays usable and
+                                     everything else keeps syncing)
 ```
 
 Every transition is restartable: the service worker can die at any point and the next trigger
-re-derives the correct state from `vm.baseMeta`, the local buckets, and a fresh `peek()`. Pushes are
-ordered **buckets first, header last**, so a crash mid-push leaves a remote whose header still points
-at the old revision — the new bucket bytes are simply unreferenced and are overwritten on the next
-push. Bucket HMAC tags in the header let a puller detect a torn state and re-pull.
+re-derives the correct state from `vm.baseMeta`, the local buckets, and a fresh `peek()`. Nothing is
+remembered in a module variable that matters.
+
+**The order of writes is the part that survives a crash.** The merged vault is written locally first,
+because it is the one copy nobody else can reconstruct. Conflicts are persisted next, before anything
+is pushed, so a crash cannot lose the record of a disagreement while pushing the resolution of it.
+Then the push, **buckets first, header last**, so a crash mid-push leaves a remote whose header still
+points at the old revision — the new bucket bytes are unreferenced and are overwritten by the next
+push. The merge base is written **last, and only after the push succeeded**, because the base means
+exactly one thing — *this is what the remote has* — and writing it earlier would be a lie the next
+merge believes.
+
+**A torn remote is repaired, not merged.** A puller whose bucket bytes do not match the tags in the
+header it read has found a push that was interrupted, and raises `CorruptRemote`. The engine's answer
+is to push its own copy over it. That loses nothing: a torn remote is by definition a *partial* copy
+of some device's local state, and that device still has all of it and will push again.
 
 ### 6.4 The merge algorithm
 
@@ -875,21 +905,60 @@ Field-level rules for the "both changed" case:
 - **`tags`**: set union of (local ∪ remote), minus tags removed on either side relative to base.
   Deliberately biased toward keeping data; documented, never a conflict.
 - **`thumb`**: the side with the newer `at` wins; no conflict (a thumbnail is derived data).
-- **`openedAt` / `openCount`**: `max` / `max`; never a conflict.
+- **`og`**: same rule as `thumb` — derived from a page rather than typed by a person, so the side
+  that changed it wins and two changed sides are settled by canonical byte order. Never a conflict.
+- **`openedAt` / `openCount`**: `max` / `max`; never a conflict. Opening a bookmark is deliberately
+  **not** an edit: a device that opened an item while another deleted it must not produce a prompt.
+- **`createdAt`**: `min`. An item cannot have been created twice; the later stamp belongs to whichever
+  device learned about it second.
 - **`updatedAt`**: `max` of the merged sides.
-- **`rev`**: set to the new `vaultRev`.
+- **`rev`**: `max(local.rev, remote.rev)`.
 
 Resulting `vaultRev = max(local.vaultRev, remote.vaultRev) + 1`.
 
-**Properties (property-tested in Phase 7):**
+> **`rev` was specified as "the new `vaultRev`" and had to change.** The new `vaultRev` is computed
+> *on the device doing the merge, at the moment it merges*, and `rev` lives inside the ciphertext —
+> so two devices merging the same pair of vaults minutes apart stamp different numbers, their bucket
+> plaintexts differ, their tags differ, and each sees the other as changed forever. That directly
+> contradicts the convergence property below. `max` of the two sides is symmetric, deterministic and
+> says the same thing about when the item last moved. Found by the order-independence property test,
+> not by reading.
+
+**Two things the merge does that the table above does not describe.**
+
+*Purges.* An id present in the base and **absent** from a side was purged there — its tombstone aged
+past the 90-day TTL and was dropped (D20). The purge propagates when the other side agrees the item is
+gone, and is overruled when the other side has since changed it: a restore, or an edit from a device
+that was offline for three months. A change outranks a purge.
+
+*Reattachment.* Two independently legal edits can produce an illegal tree — a folder deleted here
+while a bookmark was added to it there, or `A` moved into `B` on one device while `B` moved into `A`
+on the other. Neither is a conflict, because nobody disagreed about anything, but both leave live
+items that no folder listing can reach, and an item nobody can find is lost as surely as one that was
+dropped. After merging, any live item whose parent chain does not end at the root is reattached to the
+top level — the minimum number of links, so a placement the user *did* ask for is not discarded.
+
+**Properties (property-tested in Phase 7, over 200 seeded random scenarios each):**
 
 - *No loss*: every id present and non-tombstoned in `local` or `remote` appears in `merged` or in
-  `conflicts`. Nothing is ever dropped.
-- *Idempotent*: `merge(m, m, m) = m`.
-- *Order-independent*: `merge(b, l, r)` and `merge(b, r, l)` produce the same merged set and the same
-  conflict set, differing only in which side is labelled "mine".
-- *Convergent*: after both devices sync twice with no further local edits, their bucket sets are
-  byte-identical.
+  `conflicts`, unless it was in the base and the other side deleted or purged it. Nothing is dropped
+  that somebody did not ask to drop.
+- *Idempotent*: `merge(m, m, m) = m`, changing nothing and therefore costing no bucket write.
+- *Order-independent*: `merge(b, l, r)` and `merge(b, r, l)` produce the same conflict set with `mine`
+  and `theirs` swapped, and agree on every item that is not conflicted. They deliberately **differ**
+  on the conflicted items, because each run provisionally keeps its own side (§6.5) — and on those
+  items' descendants, which are reattached differently when the two sides disagree about a folder.
+- *Convergent*: after both devices sync twice with no further local edits, their **bucket tag tables**
+  are identical. Not their ciphertext: every seal draws a fresh IV, so two devices holding the same
+  bookmarks hold entirely different bytes. The tag is an HMAC over each bucket's canonical plaintext,
+  so equal tags mean equal contents — and it is the same comparison the provider uses to decide
+  whether a bucket needs writing at all.
+
+**What makes it terminate.** A merge that ends in a push at a fresh revision would be seen by the
+other device as a moved remote, merged, and pushed back at a fresher one, forever, without a single
+bookmark changing. So after merging, the engine compares the item set it was about to send against the
+one it just pulled; if they are the same, it adopts the remote's `vaultRev` verbatim and pushes
+nothing. That comparison is the reason two peers ever agree they are done.
 
 ### 6.5 Conflicts
 
@@ -901,9 +970,28 @@ a conflict is resolved:
 - a persistent, non-blocking banner shows the count
 - **nothing is pushed** for the conflicted items — the rest of the vault continues to sync normally
 
+**How "nothing is pushed for the conflicted items" is implemented.** Everything the engine sends is
+the local vault put through `outboundView`: the item set with the **remote** side restored for every
+unresolved conflict. The merge base is written from the same view. So a push cannot overwrite the
+other device's answer, the base honestly records what the remote holds, and the rest of the vault
+travels normally in the same push. Locally the item still shows this device's version, which is what
+keeps the vault usable while the banner is up.
+
 Resolution offers, per conflict: *keep mine*, *keep theirs*, *keep both* (duplicates the item with a
-new id and a `(conflicted copy)` title suffix), plus batch versions of each. Resolving commits a
-normal local change, which bumps `vaultRev` and pushes.
+new id and a `(conflicted copy)` title suffix), plus batch versions of each. *Keep both* is withheld
+when one side is a deletion — keeping both would mean keeping a deletion. Resolving builds the same
+mutations the manager would build if a person had typed the answer, applies them, and drops the
+record; the item then rejoins the outbound view and is pushed.
+
+*Keep mine* changes no bookmark at all — the item already holds this device's version, and the only
+thing that moved is the record that was keeping it out of the outbound view. The sync that follows a
+resolution is therefore forced rather than conditional, or the engine would see an unchanged
+`vaultRev`, conclude there was nothing to send, and leave the resolution on one device.
+
+**Only the device that discovered the divergence is prompted.** The other one sees its own version
+still on the remote and has nothing to decide. Resolving on both sides is possible — if each device
+edited the same bookmark again in the meantime — and simply raises the disagreement again rather than
+silently overwriting one of them. Each round strictly reduces the disagreement, so it terminates.
 
 ### 6.6 Provider migration
 

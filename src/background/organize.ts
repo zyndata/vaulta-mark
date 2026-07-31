@@ -54,6 +54,7 @@ import {
   type ItemMap,
   type VaultItem,
 } from '../vault/types.js';
+import { scheduleSync } from '../sync/engine.js';
 import type { VaultRepository } from '../storage/repo.js';
 import { vaultableUrl } from './add.js';
 import { requireVault } from './items.js';
@@ -266,7 +267,10 @@ async function commit(
   const changed = await repo.apply(mutations);
   await repo.flush();
   await session.touch();
-  if (changed.length > 0) await broadcast({ type: 'VAULT_CHANGED' });
+  if (changed.length > 0) {
+    await broadcast({ type: 'VAULT_CHANGED' });
+    scheduleSync();
+  }
   return changed;
 }
 

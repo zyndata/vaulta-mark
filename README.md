@@ -92,7 +92,7 @@ Use the encrypted export as your backup. Keep the password somewhere you trust.
 | | **Chrome sync** (default) | **Google Drive** (opt-in) |
 | --- | --- | --- |
 | Setup | none | one OAuth grant, `drive.file` scope |
-| Capacity | ~600 bookmarks | effectively unlimited |
+| Capacity | ~600 bookmarks comfortably, ~1,000 measured | effectively unlimited |
 | Links, titles, tags, notes, folders | ✅ | ✅ |
 | Favicons | ✅ | ✅ |
 | OG-image thumbnails | ❌ | ✅ |
@@ -151,8 +151,9 @@ The three test tiers — Vitest unit, Vitest integration, and Playwright E2E aga
 with the extension loaded — are `npm run test` and `npm run test:e2e`. Full setup, the build layout,
 and the invariant scanners: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-> The extension currently builds and loads, and does nothing yet: there is no vault, no UI beyond a
-> placeholder popup, and no sync. Those arrive in the phases described in [PLAN.md](PLAN.md).
+> The extension builds, loads and is usable: an encrypted vault, a full bookmark manager, and
+> zero-configuration sync across your own Chrome profiles. Google Drive sync, thumbnails, and
+> import/export arrive in the phases described in [PLAN.md](PLAN.md).
 
 ## Architecture
 

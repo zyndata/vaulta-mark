@@ -14,13 +14,15 @@
 import {
   onBroadcast,
   send,
+  type ConflictView,
   type ErrorCode,
   type ItemDetail,
   type ListRow,
   type StateResponse,
+  type SyncStatusResponse,
 } from '../shared/messages.js';
 import { applyTheme, h, msg, qs, render } from '../ui/dom.js';
-import { errorText } from '../ui/strings.js';
+import { errorText, syncErrorText } from '../ui/strings.js';
 import { normalizeTags } from '../vault/model.js';
 import { SORT_KEYS, isSortKey, type SortKey } from '../vault/sort.js';
 import {
@@ -35,6 +37,7 @@ import { detailPane } from './detail.js';
 import { BookmarkList } from './list.js';
 import { openSettings } from './settings.js';
 import { sidebar } from './sidebar.js';
+import { conflictBanner, conflictScreen, syncStatusButton } from './sync.js';
 import {
   cursorRow,
   initialState,
@@ -102,7 +105,13 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   const countSlot = h('p', { class: 'vm-count-line vm-small vm-muted', role: 'status' });
   const emptySlot = h('p', { class: 'vm-list-empty vm-muted' });
   const toastSlot = h('div', { class: 'vm-toast-slot' });
+  const syncSlot = h('div', { class: 'vm-sync-slot' });
+  const bannerSlot = h('div', { class: 'vm-banner-slot' });
+  const conflictSlot = h('div', { class: 'vm-conflict-slot', hidden: true });
   const status = qs(document, '#vm-status');
+
+  /** The last status the worker reported. `null` until the first answer arrives. */
+  let syncState: SyncStatusResponse | null = null;
 
   const list = new BookmarkList({
     onSelect: (index, modifiers) => {
@@ -277,6 +286,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       h('h1', { class: 'vm-wordmark' }, 'VaultaMark'),
       h('div', { class: 'vm-search-slot' }, search, h('span', { class: 'vm-small vm-muted' }, msg('managerSearchHint'))),
       sortSlot,
+      syncSlot,
       h(
         'button',
         {
@@ -312,11 +322,14 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
         msg('managerLockButton'),
       ),
     ),
+    bannerSlot,
     layout,
+    conflictSlot,
     toastSlot,
   );
 
   applyPaneWidths();
+  paintSync();
 
   /* ---------------------------------------------------------------- painting */
 
@@ -515,6 +528,107 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
 
   function warn(code: ErrorCode): void {
     say(errorText(code), 'danger');
+  }
+
+  /* ---------------------------------------------------------------- sync */
+
+  function paintSync(): void {
+    render(
+      syncSlot,
+      syncStatusButton({
+        status: syncState,
+        onSyncNow: () => {
+          void runSync();
+        },
+      }),
+    );
+    const pending = syncState?.conflicts ?? 0;
+    render(
+      bannerSlot,
+      pending === 0
+        ? null
+        : conflictBanner(pending, () => {
+            void showConflicts();
+          }),
+    );
+    // A banner that vanished because the last conflict was settled elsewhere must not leave the
+    // conflict screen up in front of an empty list.
+    if (pending === 0 && !conflictSlot.hidden) closeConflicts();
+  }
+
+  async function refreshSync(): Promise<void> {
+    const response = await send({ type: 'GET_SYNC_STATUS' });
+    if (response.type === 'ERROR') return;
+    syncState = response;
+    paintSync();
+  }
+
+  async function runSync(): Promise<void> {
+    const response = await send({ type: 'SYNC_NOW' });
+    if (response.type === 'ERROR') {
+      warn(response.code);
+      return;
+    }
+    syncState = response;
+    paintSync();
+    if (response.error !== null) say(syncErrorText(response.error), 'danger');
+  }
+
+  /**
+   * The conflict screen, in place of the three-column layout.
+   *
+   * A screen rather than a modal: settling a disagreement means reading two versions of a note and
+   * possibly going to look at something else first, and a dialog that has to be dismissed to do
+   * that is a dialog people dismiss without deciding.
+   */
+  async function showConflicts(): Promise<void> {
+    const response = await send({ type: 'LIST_CONFLICTS' });
+    if (response.type === 'ERROR') {
+      warn(response.code);
+      return;
+    }
+    paintConflicts(response.conflicts);
+    layout.hidden = true;
+    conflictSlot.hidden = false;
+    conflictSlot.querySelector('h2')?.scrollIntoView();
+  }
+
+  function paintConflicts(conflicts: readonly ConflictView[]): void {
+    render(
+      conflictSlot,
+      conflictScreen({
+        conflicts,
+        resolve: (ids, resolution) => {
+          void resolveConflicts(ids, resolution);
+        },
+        onBack: closeConflicts,
+      }),
+    );
+  }
+
+  function closeConflicts(): void {
+    conflictSlot.hidden = true;
+    layout.hidden = false;
+    render(conflictSlot);
+  }
+
+  async function resolveConflicts(
+    ids: readonly string[],
+    resolution: 'mine' | 'theirs' | 'both',
+  ): Promise<void> {
+    const response = await send({ type: 'RESOLVE_CONFLICTS', ids, resolution });
+    if (response.type === 'ERROR') {
+      warn(response.code);
+      return;
+    }
+    say(
+      response.count === 1
+        ? msg('conflictResolvedOne')
+        : msg('conflictResolvedCount', [String(response.count)]),
+    );
+    await refreshSync();
+    await reloadAll();
+    if (!conflictSlot.hidden) await showConflicts();
   }
 
   /* ---------------------------------------------------------------- loading */
@@ -968,6 +1082,11 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       void reloadAll();
       return;
     }
+    if (message.type === 'SYNC_CHANGED') {
+      syncState = message.status;
+      paintSync();
+      return;
+    }
     if (message.type === 'SESSION_LOCKED') {
       // Nothing decrypted may stay on screen, and the manager cannot unlock — that is the popup's
       // job, and it is one click away.
@@ -977,6 +1096,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
 
   applyTheme(settings.theme, document.documentElement);
   void reloadAll();
+  void refreshSync();
 }
 
 /** Spelled out rather than derived from the key, so a renamed sort key breaks the build. */

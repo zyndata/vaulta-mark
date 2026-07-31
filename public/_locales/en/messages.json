@@ -995,5 +995,188 @@
   "settingsDestroyed": {
     "message": "The vault has been erased.",
     "description": "Shown after the vault was destroyed."
+  },
+
+  "errorSyncFailed": {
+    "message": "That could not be synced. See the sync status for what went wrong.",
+    "description": "Error shown when a request that involved syncing failed."
+  },
+
+  "syncErrorQuotaExceeded": {
+    "message": "Chrome sync storage is full. Delete some bookmarks, or connect Google Drive for more room.",
+    "description": "Sync error: the vault no longer fits in chrome.storage.sync."
+  },
+  "syncErrorRateLimited": {
+    "message": "Syncing too often. This will catch up on its own in a moment.",
+    "description": "Sync error: the write-rate budget is spent."
+  },
+  "syncErrorOffline": {
+    "message": "No connection. Your bookmarks are safe on this device and will sync when you are back online.",
+    "description": "Sync error: no network."
+  },
+  "syncErrorAuthRequired": {
+    "message": "Sync needs you to sign in again.",
+    "description": "Sync error: the backend needs re-authorization."
+  },
+  "syncErrorCorruptRemote": {
+    "message": "The synced copy was left half-written by another device. This one will repair it.",
+    "description": "Sync error: the remote vault is torn."
+  },
+  "syncErrorPreconditionFailed": {
+    "message": "Another device wrote first. Merging and trying again.",
+    "description": "Sync error: the compare-and-swap on push failed."
+  },
+  "syncErrorVaultLocked": {
+    "message": "Unlock the vault to sync it.",
+    "description": "Sync error: the vault is locked, so there is no key to sync with."
+  },
+  "syncErrorUnknown": {
+    "message": "Syncing failed. It will be retried.",
+    "description": "Sync error: anything not otherwise classified."
+  },
+
+  "syncSectionHeading": {
+    "message": "Sync",
+    "description": "Heading of the sync section in settings."
+  },
+  "syncProviderChrome": {
+    "message": "Chrome sync",
+    "description": "Name of the chrome.storage.sync provider."
+  },
+  "syncProviderDrive": {
+    "message": "Google Drive",
+    "description": "Name of the Google Drive provider."
+  },
+  "syncNever": {
+    "message": "Not synced yet",
+    "description": "Shown in place of a last-synced time when this device has never completed a sync."
+  },
+  "syncLastSynced": {
+    "message": "Last synced $WHEN$",
+    "description": "The last successful sync, as a relative time.",
+    "placeholders": { "when": { "content": "$1", "example": "2 minutes ago" } }
+  },
+  "syncNowButton": {
+    "message": "Sync now",
+    "description": "Button that runs a sync immediately."
+  },
+  "syncBusy": {
+    "message": "Syncing…",
+    "description": "Shown while a sync is running."
+  },
+  "syncQuotaLabel": {
+    "message": "Sync storage",
+    "description": "Label for the sync quota bar."
+  },
+  "syncQuotaUsed": {
+    "message": "$USED$ of $TOTAL$ used",
+    "description": "The sync quota, in kilobytes.",
+    "placeholders": {
+      "used": { "content": "$1", "example": "42 kB" },
+      "total": { "content": "$2", "example": "100 kB" }
+    }
+  },
+  "syncQuotaWarn": {
+    "message": "This vault is filling up Chrome sync. Google Drive holds far more, and arrives in a later version.",
+    "description": "Shown when sync storage passes 70% full."
+  },
+  "syncQuotaFull": {
+    "message": "Chrome sync storage is full. New bookmarks stay on this device until you free some room.",
+    "description": "Shown when sync storage passes 95% full."
+  },
+
+  "conflictBannerOne": {
+    "message": "One bookmark changed on two devices at once.",
+    "description": "Persistent banner shown when exactly one conflict is pending."
+  },
+  "conflictBannerMany": {
+    "message": "$COUNT$ bookmarks changed on two devices at once.",
+    "description": "Persistent banner shown when several conflicts are pending.",
+    "placeholders": { "count": { "content": "$1", "example": "3" } }
+  },
+  "conflictReview": {
+    "message": "Review",
+    "description": "Button on the conflict banner that opens the conflict view."
+  },
+  "conflictHeading": {
+    "message": "Changed in two places",
+    "description": "Heading of the conflict resolution view."
+  },
+  "conflictIntro": {
+    "message": "These were edited on this device and on another one before the two could sync. Nothing has been thrown away — choose which version to keep. The rest of your vault keeps syncing meanwhile.",
+    "description": "Explanation at the top of the conflict resolution view."
+  },
+  "conflictMine": {
+    "message": "This device",
+    "description": "Column heading for the local version of a conflicted item."
+  },
+  "conflictTheirs": {
+    "message": "The other device",
+    "description": "Column heading for the remote version of a conflicted item."
+  },
+  "conflictDeletedSide": {
+    "message": "Deleted here",
+    "description": "Shown in place of a version when that side deleted the item."
+  },
+  "conflictKeepMine": {
+    "message": "Keep this device’s",
+    "description": "Button that resolves a conflict in favour of the local version."
+  },
+  "conflictKeepTheirs": {
+    "message": "Keep the other one",
+    "description": "Button that resolves a conflict in favour of the remote version."
+  },
+  "conflictKeepBoth": {
+    "message": "Keep both",
+    "description": "Button that resolves a conflict by duplicating the remote version under a new id."
+  },
+  "conflictKeepAllMine": {
+    "message": "Keep this device’s for all",
+    "description": "Batch action that resolves every pending conflict in favour of the local version."
+  },
+  "conflictKeepAllTheirs": {
+    "message": "Keep the other device’s for all",
+    "description": "Batch action that resolves every pending conflict in favour of the remote version."
+  },
+  "conflictCopySuffix": {
+    "message": "(conflicted copy)",
+    "description": "Appended to the title of the duplicate created by “keep both”."
+  },
+  "conflictResolvedOne": {
+    "message": "Settled.",
+    "description": "Confirmation after resolving one conflict."
+  },
+  "conflictResolvedCount": {
+    "message": "Settled $COUNT$ of them.",
+    "description": "Confirmation after resolving several conflicts.",
+    "placeholders": { "count": { "content": "$1", "example": "4" } }
+  },
+  "conflictFieldTitle": {
+    "message": "Title",
+    "description": "Field name in the conflict comparison."
+  },
+  "conflictFieldUrl": {
+    "message": "Address",
+    "description": "Field name in the conflict comparison."
+  },
+  "conflictFieldNote": {
+    "message": "Note",
+    "description": "Field name in the conflict comparison."
+  },
+  "conflictFieldFolder": {
+    "message": "Folder",
+    "description": "Field name in the conflict comparison."
+  },
+  "conflictFieldTags": {
+    "message": "Tags",
+    "description": "Field name in the conflict comparison."
+  },
+  "conflictBack": {
+    "message": "Back to bookmarks",
+    "description": "Button that leaves the conflict view."
+  },
+  "conflictNone": {
+    "message": "Nothing is in conflict.",
+    "description": "Shown in the conflict view when there is nothing to settle."
   }
 }
