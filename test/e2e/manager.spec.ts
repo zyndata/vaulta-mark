@@ -200,6 +200,9 @@ test('creates a folder, tags an item, finds it, bulk-moves it, and undoes a dele
   // ---------------------------------------------------------------- bulk delete, one undo
   await page.getByRole('button', { name: 'Select all' }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  // Confirmed first, undoable after — the same pair the popup offers.
+  await expect(page.getByRole('dialog')).toContainText('Delete 2 items?');
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page.getByText('Deleted 2 bookmarks.')).toBeVisible();
   await expect(page.locator('.vm-row')).toHaveCount(0);
 
@@ -364,7 +367,18 @@ test('clicking a row hands the list the focus, so the arrows and Delete work on 
   expect(await listbox.getAttribute('aria-activedescendant')).toBe(onAlpha);
 
   await expect(page.getByText('1 selected')).toBeVisible();
+
+  // Delete asks first, and a dismissed question leaves the bookmark alone. This is the whole
+  // reason the confirmation exists: the key is one row away from the arrows that got here.
   await page.keyboard.press('Delete');
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+  await expect(row(page, 'Keyboard alpha')).toBeVisible();
+  // `<dialog>` gives the focus back to whatever opened it, which is the whole reason the list is
+  // still operable by keyboard after a question.
+  await expect(listbox).toBeFocused();
+
+  await page.keyboard.press('Delete');
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(row(page, 'Keyboard alpha')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible();
 
@@ -448,6 +462,24 @@ test('the side columns can be dragged wider, and stay that way', async () => {
   await page.reload();
   await expect(page.locator('.vm-row').first()).toBeVisible();
   expect(Math.abs(((await sidebar.boundingBox())?.width ?? 0) - settled)).toBeLessThan(2);
+
+  await page.close();
+});
+
+test('a double click on a folder row opens it', async () => {
+  // The bug this pins: the list listened for `dblclick`, and never received one. Selecting a row
+  // calls `VirtualList.refresh()`, which rebuilds every row in the window — so the element the
+  // first click landed on was gone before the second arrived, and the browser had no shared target
+  // to fire the event at. Double-clicking a folder selected it twice and opened nothing.
+  const page = await openPage('manager.html');
+  await page.getByRole('button', { name: 'New folder' }).click();
+  await page.getByLabel('Folder name').fill('Doubleclick');
+  await page.getByRole('button', { name: 'Create folder' }).click();
+  await expect(row(page, 'Doubleclick')).toBeVisible();
+
+  await row(page, 'Doubleclick').dblclick();
+  await expect(page.locator('.vm-crumb')).toHaveText('Doubleclick');
+  await expect(page.getByText('This folder is empty.')).toBeVisible();
 
   await page.close();
 });

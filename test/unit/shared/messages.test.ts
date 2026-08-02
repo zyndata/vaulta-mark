@@ -136,8 +136,13 @@ describe('parseRequest', () => {
 
   /* --- the manager (Phase 6) --- */
 
-  it('takes GET_TREE and DESTROY_VAULT bare', () => {
-    for (const type of ['GET_TREE', 'DESTROY_VAULT'] as const) {
+  it('takes the payload-free manager requests bare', () => {
+    for (const type of [
+      'GET_TREE',
+      'DESTROY_VAULT',
+      'COUNT_TRACKING_PARAMS',
+      'STRIP_TRACKING_PARAMS',
+    ] as const) {
       expect(parseRequest({ type })).toEqual({ type });
       // Extra fields are dropped rather than rejected: the parser's output is what the router sees.
       expect(parseRequest({ type, extra: 'ignored' })).toEqual({ type });

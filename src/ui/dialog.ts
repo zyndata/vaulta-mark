@@ -1,17 +1,21 @@
 /**
- * Modal dialogs, on top of the platform's `<dialog>`.
+ * Modal dialogs, on top of the platform's `<dialog>` — the project's one way of asking a question.
  *
  * `showModal()` is doing real work here that a hand-rolled overlay would have to reimplement and
  * would get wrong: it traps focus, makes the rest of the page inert to assistive technology,
  * closes on Escape, and restores focus to whatever opened it. Chrome 116 is the floor (D-Chrome),
  * so it is available everywhere this ships.
  *
- * Every dialog in the manager resolves a promise: `null` for "the user backed out", a value for
- * "the user chose". That keeps the call sites linear — `const name = await promptText(…); if
- * (name === null) return;` — instead of scattering the follow-up across callbacks.
+ * Every dialog resolves a promise: `null` for "the user backed out", a value for "the user chose".
+ * That keeps the call sites linear — `const name = await promptText(…); if (name === null) return;`
+ * — instead of scattering the follow-up across callbacks.
+ *
+ * It lives in `src/ui/` rather than in the manager because the popup asks the same questions. A
+ * delete confirmed with a modal in one window and with nothing at all in the other is two products,
+ * and the one that asks for less is the one people learn the habit from.
  */
 
-import { append, h, msg, type Child } from '../ui/dom.js';
+import { append, h, msg, type Child } from './dom.js';
 
 export interface DialogOptions<T> {
   readonly heading: string;
@@ -119,7 +123,7 @@ export function openDialog<T>(options: DialogOptions<T>): Promise<T | null> {
   });
 }
 
-/** A labelled field, the shape every dialog in the manager uses. */
+/** A labelled field, the shape every dialog uses. */
 export function dialogField(labelKey: string, control: HTMLElement, hint?: string): HTMLElement {
   return h(
     'label',
@@ -128,6 +132,33 @@ export function dialogField(labelKey: string, control: HTMLElement, hint?: strin
     control,
     hint === undefined ? null : h('p', { class: 'vm-hint vm-small vm-muted' }, hint),
   );
+}
+
+/**
+ * "Are you sure?" — the only spelling of that question in this extension.
+ *
+ * Resolves `true` when the user confirms and `false` for every other way out, so a call site reads
+ * `if (!(await confirmDialog(…))) return;`.
+ *
+ * The confirming button carries a verb ("Delete"), never "OK": a dialog whose buttons are *Cancel*
+ * and *OK* makes the reader reconstruct what OK meant from the sentence above it, and the readers
+ * who do not reconstruct it are exactly the ones the dialog is there to stop.
+ */
+export async function confirmDialog(options: {
+  readonly heading: string;
+  /** Lines of body copy. Say what will happen, and what will not.  */
+  readonly body: Child[];
+  readonly confirmLabel: string;
+  readonly danger?: boolean;
+}): Promise<boolean> {
+  const answer = await openDialog<true>({
+    heading: options.heading,
+    body: options.body,
+    confirmLabel: options.confirmLabel,
+    onConfirm: () => true,
+    ...(options.danger === undefined ? {} : { danger: options.danger }),
+  });
+  return answer === true;
 }
 
 export interface Choice<T> {
@@ -244,4 +275,15 @@ export async function promptText(options: {
       return typed;
     },
   });
+}
+
+/**
+ * A paragraph in a dialog body, with `$1`-style substitution done by `_locales`.
+ *
+ * Here rather than at every call site because a dialog body is the one place in this UI where a
+ * bare string is the common case, and `h('p', null, msg(key))` four times in a row reads as
+ * structure that is not there.
+ */
+export function dialogText(key: string, substitutions?: readonly string[]): HTMLElement {
+  return h('p', null, msg(key, substitutions));
 }

@@ -7,9 +7,12 @@
     <script type="module" src="./popup.ts"></script>
   </head>
   <body class="vm-popup">
+    <!-- The right-hand slot belongs to whichever screen is up: the unlocked vault puts "Add this
+         page" there, and every other screen leaves it empty. The version number used to sit here
+         and now lives in the settings screen, which is a line of the bookmark list back. -->
     <header class="vm-header">
       <h1 class="vm-wordmark">VaultaMark</h1>
-      <p class="vm-small vm-muted" id="vm-version"></p>
+      <div class="vm-header-action" id="vm-header-action"></div>
     </header>
     <!-- Everything below the wordmark is built by popup.ts: which screen belongs here depends on
          whether a vault exists and whether it is unlocked, and neither is known until the service

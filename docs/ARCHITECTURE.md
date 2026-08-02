@@ -346,10 +346,15 @@ written case for a runtime dependency. This is not that case.
   max 64 chars, max 32 per item, deduped.
 - **URLs:** stored as the user's tab reported them, with these applied: lowercase scheme and host,
   strip the default port, keep the fragment (people bookmark anchors), keep the query. UTM stripping
-  is **off** by default and available as a setting; it removes campaign and click-identifier
+  is **on** by default and available as a setting; it removes campaign and click-identifier
   parameters only (`utm_*`, `gclid`, `fbclid`, `msclkid`, …) — nothing that could change which page
-  a URL resolves to, because the setting is a convenience and losing a working link to it would not
-  be. A separate key is computed for duplicate detection only (`duplicateKeyOf`:
+  a URL resolves to, which is what makes it safe to have on: none of it is load-bearing, and leaving
+  it makes the same article saved from two mailings look like two bookmarks. Switching the setting
+  on offers, once and only when there is something to offer, to apply the same strip to what is
+  already saved (`organize.countTracked` / `organize.stripTracked`, `ui/tracking.ts`); nothing is
+  ever rewritten without that being answered. Two bookmarks that collapse to the same address stay
+  two bookmarks — a clean-up of addresses is not a licence to delete one of them. A separate key is
+  computed for duplicate detection only (`duplicateKeyOf`:
   scheme+host+path+sorted query, fragment dropped, a bare origin's trailing slash normalised away)
   and **never stored**. A URL `URL` cannot parse is kept verbatim: this is a bookmark manager, not a
   validator, and a user should get back exactly what they saved.
@@ -604,6 +609,12 @@ of quota per byte of ciphertext, and a silent shape change on the way out.
 (`sidebarWidth`, `detailWidth`). It is deliberately plaintext and
 deliberately incapable of holding vault content: the lock screen has to honour the theme, and the
 auto-lock alarm has to be armed, before any key exists.
+
+It is also **per-profile**, and stays that way until Phase 10. A second Chrome profile that adopts
+the synced vault (§6, `repo.adopt`) gets the vault and the defaults — every preference has to be set
+again by hand. Phase 10 splits the record in two: the preferences that describe the *vault* travel
+with it inside the ciphertext, while `sidebarWidth`, `detailWidth` and `providerId` stay here,
+because a column width describes a screen and a provider id describes this profile's connection.
 
 `sortBy` is one order for the whole manager rather than one per folder, and that is a privacy
 decision rather than a simplification. A per-folder preference has to be keyed by folder id, and

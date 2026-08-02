@@ -198,7 +198,7 @@ export interface VaultSettings {
   readonly idleTimeoutMinutes: number;
   readonly providerId: 'chrome' | 'drive';
   readonly lockOnBrowserBlur: boolean;
-  /** Strip UTM parameters when saving a URL. Off by default (ARCHITECTURE §3.5). */
+  /** Strip UTM parameters when saving a URL. On by default (ARCHITECTURE §3.5). */
   readonly stripTrackingParams: boolean;
   /** Open vaulted links in the incognito window that is already open, if there is one (§9). */
   readonly reuseIncognitoWindow: boolean;
@@ -266,7 +266,12 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   // alt-tab. That is a posture worth offering and a bad one to impose; the idle timeout already
   // covers walking away. Opt in from the popup.
   lockOnBrowserBlur: false,
-  stripTrackingParams: false,
+  // On by default. The parameters it drops are campaign and click identifiers — none of them
+  // changes which page a URL resolves to — and a vault full of `?utm_source=newsletter` is a vault
+  // where the same page saved twice from two mailings looks like two bookmarks. Turning it on
+  // afterwards offers to clean what is already saved (`organize.trackingCleanup`); turning it off
+  // is one toggle away, and nothing already saved is touched by that.
+  stripTrackingParams: true,
   // On by default. Every vaulted link landing in the same incognito window is what people expect
   // from "open in incognito"; a new window per bookmark buries the browser in windows, and each of
   // them is a separate incognito session that has to be closed separately to end it.

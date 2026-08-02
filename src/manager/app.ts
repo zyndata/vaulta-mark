@@ -32,7 +32,14 @@ import {
   clampPaneWidth,
   type VaultSettings,
 } from '../vault/types.js';
-import { chooseDialog, dialogField, openDialog, promptText } from './dialog.js';
+import {
+  chooseDialog,
+  confirmDialog,
+  dialogField,
+  dialogText,
+  openDialog,
+  promptText,
+} from '../ui/dialog.js';
 import { detailPane } from './detail.js';
 import { BookmarkList } from './list.js';
 import { openSettings } from './settings.js';
@@ -295,6 +302,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
           onclick: () => {
             void openSettings({
               settings,
+              say,
               patch: async (patch) => {
                 const response = await send({ type: 'SET_SETTINGS', settings: patch });
                 if (response.type !== 'ERROR') {
@@ -933,10 +941,27 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     await reloadAll();
   }
 
-  /** Delete the selection, and offer one undo for the whole batch. */
+  /** Delete the selection, having asked, and offer one undo for the whole batch. */
   async function deleteSelection(): Promise<void> {
     const ids = [...state.selection];
     if (ids.length === 0) return;
+
+    // Asked before it happens *and* undoable for eight seconds after. The undo is the safety net
+    // for the delete you meant; the question is for the Delete key pressed at a list that had the
+    // focus without the user noticing — which no toast catches, because it is gone by the time
+    // anyone looks up.
+    const sole = soleSelection(state);
+    const confirmed = await confirmDialog({
+      heading:
+        ids.length === 1 && sole !== undefined
+          ? msg('deleteConfirmHeadingOne', [sole.title])
+          : msg('deleteConfirmHeading', [String(ids.length)]),
+      body: [dialogText('deleteConfirmBody')],
+      confirmLabel: msg('deleteConfirmButton'),
+      danger: true,
+    });
+    if (!confirmed) return;
+
     const response = await send({ type: 'DELETE_ITEMS', ids });
     if (response.type === 'ERROR') {
       warn(response.code);
@@ -947,7 +972,8 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
 
     const toast = h(
       'div',
-      { class: 'vm-toast', role: 'status' },
+      // The filling bar is the deadline, drawn (`ui/styles.css`). Same constant as the timer.
+      { class: 'vm-toast vm-toast--timed', role: 'status', style: `--vm-undo-ms: ${String(UNDO_MS)}ms` },
       h('span', null, msg('deletedCount', [String(ids.length)])),
       h(
         'button',

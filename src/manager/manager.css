@@ -276,7 +276,27 @@ body.vm-manager {
   cursor: pointer;
 }
 
-.vm-tree-title {
+/*
+ * The name is the part that gives, in the tree exactly as in the tag list below.
+ *
+ * Without the `flex` it does not claim the free space, and `justify-content: space-between` on the
+ * row hands that space to the *gaps* instead — which centres a short folder name between its twisty
+ * and its count while every tag beside it starts hard against the left edge. Two lists in one
+ * column, indented differently for no reason anyone could see.
+ */
+.vm-tree-title,
+.vm-tag-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The label in a nav button gives for the same reason: "All bookmarks" and its count. */
+.vm-nav-button > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -309,28 +329,7 @@ body.vm-manager {
   min-width: 0;
 }
 
-.vm-tag-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.vm-icon-button {
-  flex: none;
-  padding: 0.2rem 0.35rem;
-  border: 1px solid transparent;
-  border-radius: var(--vm-radius);
-  background: transparent;
-  color: var(--vm-muted);
-  font: inherit;
-  cursor: pointer;
-}
-
-.vm-icon-button:hover {
-  border-color: var(--vm-border);
-  color: var(--vm-fg);
-}
+/* `.vm-icon-button` is in src/ui/styles.css — the popup's settings cog is the same control. */
 
 /* ------------------------------------------------------------------ crumbs and actions */
 
@@ -351,6 +350,11 @@ body.vm-manager {
   color: var(--vm-accent);
   font: inherit;
   cursor: pointer;
+}
+
+.vm-crumb:hover {
+  background: var(--vm-hover);
+  text-decoration: underline;
 }
 
 .vm-crumb-sep {
@@ -507,13 +511,19 @@ body.vm-manager {
 }
 
 .vm-chip-remove {
-  padding: 0;
+  padding: 0 0.15rem;
   border: 0;
+  border-radius: var(--vm-radius);
   background: transparent;
   color: var(--vm-muted);
   font: inherit;
   line-height: 1;
   cursor: pointer;
+}
+
+.vm-chip-remove:hover {
+  background: var(--vm-hover-danger);
+  color: var(--vm-danger);
 }
 
 .vm-tag-field {
@@ -560,78 +570,8 @@ body.vm-manager {
   margin: 0.2rem 0 0;
 }
 
-.vm-danger {
-  color: var(--vm-danger);
-}
-
-.vm-ok {
-  color: var(--vm-ok);
-}
-
-/* ------------------------------------------------------------------ dialogs */
-
-.vm-dialog {
-  width: min(28rem, calc(100vw - 2rem));
-  padding: 0;
-  border: 1px solid var(--vm-border);
-  border-radius: var(--vm-radius);
-  background: var(--vm-bg);
-  color: var(--vm-fg);
-}
-
-.vm-dialog::backdrop {
-  background: rgb(0 0 0 / 45%);
-}
-
-.vm-dialog-form {
-  padding: 1rem 1.25rem 1.25rem;
-}
-
-.vm-dialog h2 {
-  margin: 0 0 0.75rem;
-  font-size: 1.0625rem;
-}
-
-.vm-dialog h3 {
-  margin: 1.25rem 0 0.5rem;
-  font-size: 0.9375rem;
-}
-
-.vm-dialog-body {
-  max-height: min(60vh, 32rem);
-  overflow-y: auto;
-}
-
-.vm-dialog-invalid {
-  margin: 0.5rem 0 0;
-}
-
-.vm-dialog-actions,
-.vm-choice {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  margin-top: 1rem;
-}
-
-.vm-choice {
-  flex-wrap: wrap;
-}
-
-.vm-choice .vm-button {
-  width: auto;
-}
-
-.vm-settings-section {
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--vm-border);
-}
-
-.vm-danger-zone {
-  padding: 0.5rem;
-  border: 1px solid var(--vm-danger);
-  border-radius: var(--vm-radius);
-}
+/* Dialogs, their sections and the two status colours live in src/ui/styles.css: the popup opens
+   the same dialogs from the same module (`ui/dialog.ts`). */
 
 /* ------------------------------------------------------------------ toast */
 

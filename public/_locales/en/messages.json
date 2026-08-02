@@ -303,10 +303,6 @@
     "message": "Undo",
     "description": "Button on the delete toast. Restores the bookmark under the same identity."
   },
-  "vaultSettingsSummary": {
-    "message": "Settings",
-    "description": "Disclosure that folds the popup's settings away below the bookmark list."
-  },
 
   "unlockedHeading": {
     "message": "Vault unlocked",
@@ -367,11 +363,51 @@
   },
   "settingsStripTracking": {
     "message": "Remove tracking parameters when saving",
-    "description": "Label for the strip-tracking-parameters toggle. Off by default."
+    "description": "Label for the strip-tracking-parameters toggle. On by default."
   },
   "settingsStripTrackingHint": {
-    "message": "Drops utm_*, fbclid, gclid and similar. Off by default: a few sites need parameters that look like tracking, and rewriting what you saved is not something to do quietly.",
+    "message": "Drops utm_*, fbclid, gclid and similar — campaign tags that no site needs to find the page. On by default, so the same article saved from two newsletters is one bookmark.",
     "description": "Explanation under the strip-tracking-parameters toggle."
+  },
+  "trackingCleanupHeading": {
+    "message": "Clean the bookmarks you already have?",
+    "description": "Heading of the dialog offered when the strip-tracking setting is switched on."
+  },
+  "trackingCleanupBody": {
+    "message": "$COUNT$ saved bookmarks still carry tracking parameters. They can be removed from those addresses now.",
+    "description": "Body of the tracking clean-up offer.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "trackingCleanupBodyOne": {
+    "message": "One saved bookmark still carries tracking parameters. They can be removed from its address now.",
+    "description": "Body of the tracking clean-up offer when exactly one bookmark is affected."
+  },
+  "trackingCleanupCaveat": {
+    "message": "Only the campaign tags are removed; nothing is deleted and every page still opens where it did. This cannot be undone.",
+    "description": "Second paragraph of the tracking clean-up offer. Says what it will not do, and that it is one-way."
+  },
+  "trackingCleanupButton": {
+    "message": "Clean them up",
+    "description": "Confirming button on the tracking clean-up offer."
+  },
+  "trackingCleaned": {
+    "message": "Cleaned $COUNT$ bookmarks.",
+    "description": "Reported after the tracking clean-up ran.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "trackingCleanedOne": {
+    "message": "Cleaned 1 bookmark.",
+    "description": "Reported after the tracking clean-up changed exactly one bookmark."
   },
 
   "incognitoHeading": {
@@ -911,9 +947,42 @@
     "description": "Close button, shared by every dialog."
   },
 
+  "deleteConfirmHeadingOne": {
+    "message": "Delete “$TITLE$”?",
+    "description": "Heading of the delete confirmation for a single bookmark or folder. Asked in the popup and in the manager alike.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "deleteConfirmHeading": {
+    "message": "Delete $COUNT$ items?",
+    "description": "Heading of the delete confirmation for a multiple selection.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "deleteConfirmBody": {
+    "message": "Undo is offered briefly afterwards. After that this cannot be reversed.",
+    "description": "Body of the delete confirmation. Deliberately does not name the number of seconds — the undo toast draws its own countdown, and a duration read before the delete is one nobody is still counting from after it."
+  },
+  "deleteConfirmButton": {
+    "message": "Delete",
+    "description": "Confirming button on the delete confirmation. A verb, never “OK”."
+  },
+
   "settingsHeading": {
     "message": "Settings",
-    "description": "Heading of the settings dialog."
+    "description": "Heading of the settings dialog, and the accessible name of the popup's settings cog."
+  },
+  "settingsBack": {
+    "message": "‹ Back",
+    "description": "Returns the popup from the settings screen to the bookmark list."
   },
   "settingsTheme": {
     "message": "Appearance",

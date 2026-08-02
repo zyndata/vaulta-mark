@@ -29,6 +29,19 @@ import type { ListRow } from '../shared/messages.js';
 /** Must match `.vm-row` in manager.css — the windowing arithmetic depends on it. */
 export const ROW_HEIGHT = 44;
 
+/**
+ * How long after a click a second one on the same row still counts as a double click.
+ *
+ * The list detects double clicks itself instead of listening for `dblclick`, and it has to: the
+ * first click changes the selection, `setSelection` calls `VirtualList.refresh()`, and refresh
+ * rebuilds every row in the window. The element the first click landed on is gone before the second
+ * one arrives, so the browser has no shared target to fire `dblclick` at — which is why
+ * double-clicking a folder used to select it twice and open nothing.
+ *
+ * 500 ms is Windows' own default double-click time, and Chromium's on every platform.
+ */
+const DOUBLE_CLICK_MS = 500;
+
 export interface ListDeps {
   /** Click, ctrl/cmd-click and shift-click all land here with the modifiers intact. */
   readonly onSelect: (index: number, modifiers: { toggle: boolean; range: boolean }) => void;
@@ -59,6 +72,14 @@ export class BookmarkList {
    * longer does.
    */
   #pendingCollapse: number | null = null;
+  /**
+   * The last plain left click, for {@link DOUBLE_CLICK_MS}.
+   *
+   * Keyed by item id and not by row index, and cleared whenever the data changes: an index means a
+   * different bookmark after a search, a folder change or a reload, and two clicks a moment apart
+   * on either side of one of those is two people's worth of intent, not a double click.
+   */
+  #lastClick: { id: string; at: number } | null = null;
 
   constructor(deps: ListDeps) {
     this.#deps = deps;
@@ -80,6 +101,7 @@ export class BookmarkList {
   /** Replace the rows. Resets the window; the caller re-applies selection and cursor after. */
   setRows(rows: readonly ListRow[], terms: readonly string[]): void {
     this.#terms = terms;
+    this.#lastClick = null;
     this.#list.setItems(rows);
   }
 
@@ -136,7 +158,7 @@ export class BookmarkList {
       this.#pendingCollapse = null;
       this.#deps.onSelect(index, { toggle: event.ctrlKey || event.metaKey, range: event.shiftKey });
     });
-    element.addEventListener('mouseup', () => {
+    element.addEventListener('mouseup', (event: MouseEvent) => {
       if (this.#pendingCollapse === index) {
         this.#pendingCollapse = null;
         this.#deps.onSelect(index, { toggle: false, range: false });
@@ -147,8 +169,18 @@ export class BookmarkList {
       // the document by focusing nothing at all. A mouseup has no focus behaviour of its own to
       // fight with, so this is the point where it sticks.
       this.element.focus();
-    });
-    element.addEventListener('dblclick', () => {
+
+      // A modified click is extending a selection, not opening anything, however fast it repeats.
+      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) {
+        this.#lastClick = null;
+        return;
+      }
+      const now = Date.now();
+      const previous = this.#lastClick;
+      this.#lastClick = { id: row.id, at: now };
+      if (previous?.id !== row.id || now - previous.at > DOUBLE_CLICK_MS) return;
+      // Cleared, so a third click starts a new pair rather than opening the row again.
+      this.#lastClick = null;
       this.#deps.onActivate(row);
     });
 

@@ -807,7 +807,7 @@ service-worker behaviour. First point at which a human can meaningfully click so
 
 **Tests**
 - `test/unit/background/add.test.ts` — normalization (trailing slash, `#`-fragment retention policy,
-  utm-stripping **off** by default with a setting), duplicate detection, scheme rejection.
+  utm-stripping **on** by default with a setting), duplicate detection, scheme rejection.
 - `test/unit/background/incognito.test.ts` — allowed → `windows.create` called with
   `{incognito:true}`; not allowed → no window created, `NEEDS_INCOGNITO_ACCESS` returned; reuse-window
   logic; explicit fallback creates a normal window **only** when the caller passes `force: true`.
@@ -1102,6 +1102,24 @@ clean two-way migration. Unlocks the heavy tier for Phase 11.
 - Settings → Sync: connect/disconnect Drive, show the Drive account email, "Sync now", last error,
   a link to the file in Drive, and a clear statement that VaultaMark can only see files it created.
 - Offline behaviour: queue and retry; the UI shows "offline, changes are saved locally".
+- **Settings travel with the vault.** `vm.settings` is per-profile today, so a second Chrome profile
+  on the same Google account joins the synced vault (Phase 7, `repo.adopt`) and then starts from the
+  defaults: theme, idle timeout, lock-on-blur, the tracking strip and the manager's column widths all
+  have to be set again by hand. Maintainer-reported, 2026-08-02. It lands here rather than earlier
+  because the fix is a *synced* settings record and this is the phase that already has to reason
+  about a settings payload crossing a provider.
+  - The record goes **inside the ciphertext**, not beside it. INV-6 is about vault *content* and a
+    theme is not content — but `chrome.storage.sync` is replicated by Google whatever it holds, and
+    "which of our users leaves the vault unlocked forever" is not a fact worth publishing in the
+    clear when encrypting it is free. It merges last-writer-wins per field on `updatedAt`; there is
+    no conflict UI for a preference.
+  - Two exclusions, and they are the reason this is a design item rather than a one-line move:
+    `sidebarWidth`/`detailWidth` describe a *screen*, so a laptop must not inherit a desktop's
+    column widths, and `providerId` describes *this profile's* connection, so syncing it would tell
+    a profile with no Drive token to use Drive. Both stay in the local `vm.settings`, which
+    therefore does not go away — it becomes the per-device half of a two-part record.
+  - A profile that has not adopted a vault has nothing to sync settings with; the local file is the
+    whole story there, exactly as now.
 
 **Out of scope:** thumbnails (Phase 11) — but `putThumb`/`getThumb` are implemented and tested here
 so Phase 11 only adds capture and UI.
@@ -1125,6 +1143,8 @@ so Phase 11 only adds capture and UI.
 - [ ] Migration both directions verified.
 - [ ] INV-4 test passes with Drive both on and off.
 - [ ] Only `drive.file` is ever requested (asserted against the manifest and the auth call).
+- [ ] A second profile that adopts the vault inherits the synced settings, and keeps its own column
+      widths and its own provider.
 
 **Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-10-done` and push.
 

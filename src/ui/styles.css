@@ -24,6 +24,22 @@
   --vm-radius: 6px;
   --vm-gap: 0.75rem;
   --vm-focus: 2px solid var(--vm-accent);
+
+  /*
+   * The three hover tints, defined once so every clickable thing in the extension answers the
+   * pointer the same way.
+   *
+   * They are `color-mix` over the *theme's own* tokens rather than fixed colours, and that is what
+   * makes one definition enough for both themes: a custom property is substituted where it is used,
+   * so `--vm-fg` inside resolves to whatever the element inherited. Mixing towards the foreground
+   * darkens in light mode and lightens in dark mode, which is the direction a hover should go in
+   * each. Mixing towards `transparent` keeps a ghost button's hover legible on any background —
+   * including the manager's toolbar, which is `--vm-surface` already and would swallow a hover
+   * painted with it.
+   */
+  --vm-hover: color-mix(in srgb, var(--vm-fg) 10%, transparent);
+  --vm-hover-accent: color-mix(in srgb, var(--vm-accent) 86%, var(--vm-fg));
+  --vm-hover-danger: color-mix(in srgb, var(--vm-danger) 14%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -147,6 +163,10 @@ body {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .vm-button:disabled {
@@ -174,8 +194,76 @@ body {
   font-size: 0.8125rem;
 }
 
+/*
+ * Hover, for everything that can be clicked.
+ *
+ * One rule per kind rather than per component: a button that lights up in the toolbar and a button
+ * that does nothing in a dialog are the same control to the person using them, and the one that
+ * does nothing reads as disabled. The exceptions are deliberate and few — a destructive button
+ * warms towards its own red rather than towards the foreground, because the one place a hover
+ * should not feel neutral is the one that erases something.
+ */
+.vm-button:hover:not(:disabled) {
+  background: var(--vm-hover-accent);
+}
+
+.vm-button--quiet:hover:not(:disabled) {
+  background: var(--vm-hover);
+  border-color: var(--vm-fg);
+}
+
+.vm-button--danger:hover:not(:disabled) {
+  background: var(--vm-hover-danger);
+  border-color: var(--vm-danger);
+}
+
+.vm-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/*
+ * A square button whose label is a glyph. Used for the popup's settings cog and the manager's tag
+ * rename, so the two live in the same place and hover the same way.
+ */
+.vm-icon-button {
+  flex: none;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: var(--vm-radius);
+  background: transparent;
+  color: var(--vm-muted);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.vm-icon-button:hover:not(:disabled) {
+  border-color: var(--vm-border);
+  background: var(--vm-hover);
+  color: var(--vm-fg);
+}
+
 .vm-link {
   color: var(--vm-accent);
+}
+
+.vm-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* A pointer that moves is a pointer someone is following. Nothing here is load-bearing. */
+@media (prefers-reduced-motion: reduce) {
+  .vm-button,
+  .vm-icon-button {
+    transition: none;
+  }
+
+  .vm-button:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 /* ------------------------------------------------------------------ favicons */
@@ -273,4 +361,133 @@ body {
 .vm-meter[data-score='3'] span:nth-child(-n + 4),
 .vm-meter[data-score='4'] span {
   background: var(--vm-ok);
+}
+
+/* ------------------------------------------------------------------ the undo window */
+
+/*
+ * How long is left to undo, drawn instead of written.
+ *
+ * The toast's own background is the bar, so nothing is added to the layout and the toast does not
+ * change height while it runs: a surface-coloured fill grows left to right over the page's own
+ * background, empty at 0 % of the window and full at 100 % of it, arriving at the far edge exactly
+ * as the offer expires and the toast goes. "Eight seconds" used to be a sentence in the
+ * confirmation dialog, which is the wrong place and the wrong moment — the deadline matters *after*
+ * the delete, and a number read a second earlier is one nobody is still counting from.
+ *
+ * `--vm-undo-ms` is set inline by whichever page built the toast, from the same constant that arms
+ * its `setTimeout`. Two clocks that could drift would be worse than no bar at all.
+ *
+ * `background-size` rather than a `width` on a child element or an animated custom property: it
+ * animates on the compositor, needs no extra DOM, and needs no `@property` registration to be
+ * interpolable.
+ */
+@keyframes vm-undo-window {
+  from {
+    background-size: 0% 100%;
+  }
+
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+/* Doubled deliberately: both pages set `background` on `.vm-toast` in their own sheet, and a
+   shorthand at equal specificity would win by order and blank the gradient out. */
+.vm-toast.vm-toast--timed {
+  background-color: var(--vm-bg);
+  background-image: linear-gradient(var(--vm-surface), var(--vm-surface));
+  background-repeat: no-repeat;
+  animation: vm-undo-window var(--vm-undo-ms, 8000ms) linear forwards;
+}
+
+/*
+ * Reduced motion gets the same information without the sweep: the fill advances in four steps
+ * rather than sliding. Removing it entirely would take away the only thing that says the offer
+ * expires.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .vm-toast.vm-toast--timed {
+    animation-timing-function: steps(4, end);
+  }
+}
+
+/* ------------------------------------------------------------------ status colours */
+
+.vm-danger {
+  color: var(--vm-danger);
+}
+
+.vm-ok {
+  color: var(--vm-ok);
+}
+
+/* ------------------------------------------------------------------ dialogs */
+
+/* Here rather than in manager.css because the popup asks the same questions (`ui/dialog.ts`). */
+.vm-dialog {
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 0;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+}
+
+.vm-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.vm-dialog-form {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.vm-dialog h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.0625rem;
+}
+
+.vm-dialog h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.9375rem;
+}
+
+.vm-dialog-body {
+  max-height: min(60vh, 32rem);
+  overflow-y: auto;
+}
+
+.vm-dialog-body p {
+  margin: 0 0 0.5rem;
+}
+
+.vm-dialog-invalid {
+  margin: 0.5rem 0 0;
+}
+
+.vm-dialog-actions,
+.vm-choice {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.vm-choice {
+  flex-wrap: wrap;
+}
+
+.vm-choice .vm-button {
+  width: auto;
+}
+
+.vm-settings-section {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--vm-border);
+}
+
+.vm-danger-zone {
+  padding: 0.5rem;
+  border: 1px solid var(--vm-danger);
+  border-radius: var(--vm-radius);
 }

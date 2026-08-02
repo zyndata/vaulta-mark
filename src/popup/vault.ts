@@ -9,9 +9,11 @@
  *
  * - **A duplicate is not an error.** Adding a page that is already vaulted answers with the item
  *   that was already there and offers to open it, because that is what the user was going to do.
- * - **A delete is undoable for eight seconds.** The delete is real and written through immediately
- *   — a popup that closes must not lose it — and undo restores the tombstone under the same id, so
- *   it stays one bookmark rather than becoming two on the next device.
+ * - **A delete is confirmed, and then undoable for eight seconds.** The confirmation is the
+ *   project's one dialog (`ui/dialog.ts`), the same question the manager asks; the delete behind it
+ *   is real and written through immediately — a popup that closes must not lose it — and undo
+ *   restores the tombstone under the same id, so it stays one bookmark rather than becoming two on
+ *   the next device.
  */
 
 import {
@@ -20,13 +22,10 @@ import {
   type ItemSummary,
   type StateResponse,
 } from '../shared/messages.js';
+import { confirmDialog, dialogText } from '../ui/dialog.js';
 import { h, msg, render } from '../ui/dom.js';
 import { displayHost, faviconImage } from '../ui/favicon.js';
-import {
-  IDLE_TIMEOUT_CHOICES,
-  IDLE_TIMEOUT_NEVER,
-  type VaultSettings,
-} from '../vault/types.js';
+import type { VaultSettings } from '../vault/types.js';
 
 /** How long the undo toast stays up, per PLAN §9 Phase 5. */
 const UNDO_MS = 8_000;
@@ -40,6 +39,16 @@ export interface VaultScreenDeps {
   readonly refresh: () => Promise<void>;
   readonly errorText: (code: ErrorCode) => string;
   readonly patchSettings: (patch: Partial<VaultSettings>) => Promise<void>;
+  /**
+   * Where "Add this page" goes.
+   *
+   * The header, filled by this screen rather than by the shell: the button's whole behaviour —
+   * duplicates, refusals, the notice it writes into — belongs to the vault screen, and only the
+   * vault screen may show it. A lock screen with an add button on it is a lock screen that lies.
+   */
+  readonly headerSlot: HTMLElement;
+  /** Swap the popup over to the settings screen. */
+  readonly openSettings: () => void;
 }
 
 export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
@@ -58,7 +67,7 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
   const addButton = h(
     'button',
     {
-      class: 'vm-button',
+      class: 'vm-button vm-button--inline vm-add-button',
       type: 'button',
       onclick: () => {
         void addCurrentPage();
@@ -66,6 +75,7 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
     },
     msg('vaultAddButton'),
   );
+  render(deps.headerSlot, addButton);
 
   let filterTimer: ReturnType<typeof setTimeout> | null = null;
   /** Guards against a slower earlier query landing on top of a later one. */
@@ -212,6 +222,17 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
   }
 
   async function deleteItem(item: ItemSummary): Promise<void> {
+    // The same question, in the same words, as the manager's delete. A "×" beside every row is a
+    // target the pointer finds by accident on its way to the row itself, and the undo toast below
+    // only helps someone who was looking at the popup when it happened.
+    const confirmed = await confirmDialog({
+      heading: msg('deleteConfirmHeadingOne', [item.title]),
+      body: [dialogText('deleteConfirmBody')],
+      confirmLabel: msg('deleteConfirmButton'),
+      danger: true,
+    });
+    if (!confirmed) return;
+
     const response = await send({ type: 'DELETE_ITEMS', ids: [item.id] });
     if (response.type === 'ERROR') {
       showNotice(deps.errorText(response.code), 'danger');
@@ -224,7 +245,10 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
   function showUndoToast(item: ItemSummary): void {
     const toast = h(
       'div',
-      { class: 'vm-toast', role: 'status' },
+      // The window the undo is open for is drawn rather than described: `--vm-undo-ms` drives the
+      // filling bar in `ui/styles.css`, and it comes from the same constant as the timer below so
+      // the bar cannot fill while the button still works, or the other way round.
+      { class: 'vm-toast vm-toast--timed', role: 'status', style: `--vm-undo-ms: ${String(UNDO_MS)}ms` },
       h('span', null, msg('vaultDeleted', [item.title])),
       h(
         'button',
@@ -264,125 +288,71 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
   return h(
     'div',
     { class: 'vm-vault' },
-    addButton,
     notice,
     h('div', { class: 'vm-field vm-field--filter' }, filter),
     listBox,
     summary,
     toastBox,
-    settingsPanel(deps),
-    h(
-      'div',
-      { class: 'vm-footer' },
-      h(
-        'button',
-        {
-          class: 'vm-button vm-button--danger vm-button--inline',
-          type: 'button',
-          onclick: () => {
-            void (async () => {
-              await send({ type: 'LOCK' });
-              await deps.refresh();
-            })();
-          },
-        },
-        msg('unlockedLockButton'),
-      ),
-      h('a', { class: 'vm-link', href: '/manager.html', target: '_blank' }, msg('popupOpenManager')),
-    ),
+    footer(deps),
   );
 }
 
-/* ------------------------------------------------------------------ settings */
-
-function idleChoiceLabel(minutes: number): string {
-  return minutes === IDLE_TIMEOUT_NEVER
-    ? msg('settingsIdleNever')
-    : msg('settingsIdleMinutes', [String(minutes)]);
-}
-
-function autoLockText(unlockedUntil: number | null, settings: VaultSettings): string {
-  if (settings.idleTimeoutMinutes <= IDLE_TIMEOUT_NEVER || unlockedUntil === null) {
-    return msg('unlockedAutoLockNever');
-  }
-  const minutes = Math.max(1, Math.round((unlockedUntil - Date.now()) / 60_000));
-  return msg('unlockedAutoLockIn', [String(minutes)]);
-}
+/* ------------------------------------------------------------------ footer */
 
 /**
- * The settings, folded away.
+ * Lock, manager, settings — the three things that are not a bookmark.
  *
- * A disclosure rather than the flat list Phase 4 shipped: the popup's job is now the vault, and
- * four toggles above the bookmarks would make the common case the least prominent thing on screen.
- * Everything here also appears in the manager's settings page from Phase 6.
+ * All three are words. A gear glyph is only obvious to people who have already learned it, and one
+ * icon between two labelled buttons reads as a different *kind* of control rather than as the third
+ * member of a row. Spread across the full width rather than centred as a group, so each one sits in
+ * a fixed place the pointer can learn.
+ *
+ * The order is left-to-right by how far each one takes you: locking keeps you here, the manager is
+ * the same vault in a bigger window, settings is somewhere else entirely.
  */
-function settingsPanel(deps: VaultScreenDeps): HTMLElement {
-  const { state } = deps;
-  const settings = state.settings;
-
-  const idleSelect = h(
-    'select',
-    {
-      onchange: (event: Event) => {
-        void deps.patchSettings({
-          idleTimeoutMinutes: Number((event.currentTarget as HTMLSelectElement).value),
-        });
-      },
-    },
-    ...IDLE_TIMEOUT_CHOICES.map((minutes) =>
-      h(
-        'option',
-        { value: String(minutes), selected: minutes === settings.idleTimeoutMinutes },
-        idleChoiceLabel(minutes),
-      ),
-    ),
-  );
-
-  return h(
-    'details',
-    { class: 'vm-settings' },
-    h('summary', null, msg('vaultSettingsSummary')),
-    h('p', { class: 'vm-small vm-muted' }, autoLockText(state.unlockedUntil, settings)),
-    h('label', { class: 'vm-field' }, h('span', null, msg('settingsIdleTimeout')), idleSelect),
-    toggle('vm-lock-on-blur', 'settingsLockOnBlur', 'settingsLockOnBlurHint', settings.lockOnBrowserBlur, (checked) =>
-      deps.patchSettings({ lockOnBrowserBlur: checked }),
-    ),
-    toggle(
-      'vm-reuse-incognito',
-      'settingsReuseWindow',
-      'settingsReuseWindowHint',
-      settings.reuseIncognitoWindow,
-      (checked) => deps.patchSettings({ reuseIncognitoWindow: checked }),
-    ),
-    toggle(
-      'vm-strip-tracking',
-      'settingsStripTracking',
-      'settingsStripTrackingHint',
-      settings.stripTrackingParams,
-      (checked) => deps.patchSettings({ stripTrackingParams: checked }),
-    ),
-  );
-}
-
-function toggle(
-  id: string,
-  labelKey: string,
-  hintKey: string,
-  checked: boolean,
-  onChange: (checked: boolean) => Promise<void>,
-): HTMLElement {
-  const input = h('input', {
-    type: 'checkbox',
-    id,
-    checked,
-    onchange: (event: Event) => {
-      void onChange((event.currentTarget as HTMLInputElement).checked);
-    },
-  });
+function footer(deps: VaultScreenDeps): HTMLElement {
   return h(
     'div',
-    null,
-    h('div', { class: 'vm-checkbox' }, input, h('label', { for: id }, msg(labelKey))),
-    h('p', { class: 'vm-hint vm-small vm-muted' }, msg(hintKey)),
+    { class: 'vm-footer' },
+    h(
+      'button',
+      {
+        class: 'vm-button vm-button--danger vm-button--inline',
+        type: 'button',
+        onclick: () => {
+          void (async () => {
+            await send({ type: 'LOCK' });
+            await deps.refresh();
+          })();
+        },
+      },
+      msg('unlockedLockButton'),
+    ),
+    h(
+      'button',
+      {
+        class: 'vm-button vm-button--quiet vm-button--inline',
+        type: 'button',
+        onclick: () => {
+          void (async () => {
+            // A tab rather than the `<a target="_blank">` this used to be: the popup closes the
+            // moment focus leaves it, and closing it ourselves afterwards is the difference
+            // between one manager tab and one manager tab plus a popup that outlived its window.
+            await chrome.tabs.create({ url: chrome.runtime.getURL('manager.html') });
+            window.close();
+          })();
+        },
+      },
+      msg('popupOpenManager'),
+    ),
+    h(
+      'button',
+      {
+        class: 'vm-button vm-button--quiet vm-button--inline',
+        type: 'button',
+        onclick: deps.openSettings,
+      },
+      msg('settingsHeading'),
+    ),
   );
 }

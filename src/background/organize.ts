@@ -247,6 +247,62 @@ export async function renameTag(from: string, to: string): Promise<number> {
   return (await commit(repo, renameTagMutations(repo.items(), from, to))).length;
 }
 
+/* ------------------------------------------------------------------ tracking parameters */
+
+/**
+ * Bookmarks already in the vault whose URL would change if the tracking strip were applied to it.
+ *
+ * Turning the setting on only changes what happens to the *next* thing saved, and a vault built
+ * before it was on keeps every `utm_source` it collected. The manager and the popup therefore offer
+ * to clean what is already there — but only when there is something to clean, which is what this
+ * counts.
+ *
+ * A URL the add pipeline would refuse today (an import from somewhere else, a scheme since removed
+ * from the allowlist) is skipped rather than rewritten: this is a tidy-up, and it has no business
+ * being the thing that discovers a bookmark is unopenable.
+ */
+function trackedCandidates(items: ItemMap): { readonly id: string; readonly url: string }[] {
+  const candidates: { id: string; url: string }[] = [];
+  for (const item of items.values()) {
+    if (isDeleted(item) || !isBookmark(item)) continue;
+    let cleaned: string;
+    try {
+      cleaned = vaultableUrl(item.url, { stripTrackingParams: true });
+    } catch {
+      continue;
+    }
+    if (cleaned !== item.url) candidates.push({ id: item.id, url: cleaned });
+  }
+  return candidates;
+}
+
+/** How many saved bookmarks carry a tracking parameter. Read-only; changes nothing. */
+export async function countTracked(): Promise<number> {
+  const repo = await requireVault();
+  await session.touch();
+  return trackedCandidates(repo.items()).length;
+}
+
+/**
+ * Strip tracking parameters from every bookmark already saved. Returns how many changed.
+ *
+ * One batch, so it is one revision and one thing for the merge engine to carry — and so a vault of
+ * five thousand bookmarks is not five thousand writes.
+ *
+ * Two bookmarks that differ only in their campaign parameters become two bookmarks with the same
+ * URL. Nothing here deletes one of them: this operation was asked for as a clean-up of addresses,
+ * and quietly removing a bookmark someone saved twice is a different, unasked-for decision.
+ */
+export async function stripTracked(): Promise<number> {
+  const repo = await requireVault();
+  const mutations: Mutation[] = trackedCandidates(repo.items()).map(({ id, url }) => ({
+    kind: 'update',
+    id,
+    patch: { url },
+  }));
+  return (await commit(repo, mutations)).length;
+}
+
 /* ------------------------------------------------------------------ internals */
 
 /**

@@ -183,6 +183,10 @@ export async function handleRequest(request: Request): Promise<Response> {
         };
       case 'RENAME_TAG':
         return { type: 'COUNT', count: await organize.renameTag(request.from, request.to) };
+      case 'COUNT_TRACKING_PARAMS':
+        return { type: 'COUNT', count: await organize.countTracked() };
+      case 'STRIP_TRACKING_PARAMS':
+        return { type: 'COUNT', count: await organize.stripTracked() };
       case 'CHANGE_PASSWORD':
         await session.changePassword(request.currentPassword, request.newPassword);
         return { type: 'OK' };

@@ -12,9 +12,10 @@
  * 1. **Refused, or accepted.** `chrome://`, our own pages, `about:`, `file://` and the long tail of
  *    schemes whose "bookmark" is a payload rather than a destination are rejected with a reason the
  *    UI can explain. A vault entry that cannot be reopened later is worse than a refusal now.
- * 2. **Normalized** by `vault/model.ts` (§3.5), plus the optional tracking-parameter strip, which is
- *    **off by default**: silently rewriting what someone saved is not a favour, and some of those
- *    parameters are load-bearing on the sites that use them.
+ * 2. **Normalized** by `vault/model.ts` (§3.5), plus the tracking-parameter strip, which is **on by
+ *    default**: every parameter in the list below is a campaign or click identifier that no site
+ *    resolves a page by, and leaving them on makes the same article saved from two newsletters look
+ *    like two different bookmarks.
  * 3. **Checked against what is already there** by `duplicateKeyOf` — same page, different fragment
  *    or query order, counts as the same page. A duplicate is not an error: the answer is "you
  *    already have this, want to open it?", which the caller gets as `status: 'duplicate'`.
@@ -87,7 +88,7 @@ const TRACKING_PARAMS: readonly string[] = [
 ];
 
 export interface AddOptions {
-  /** From `VaultSettings.stripTrackingParams`. Off by default (§3.5). */
+  /** From `VaultSettings.stripTrackingParams`. On by default (§3.5). */
   readonly stripTrackingParams?: boolean;
   readonly parentId?: string;
 }

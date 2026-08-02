@@ -20,12 +20,24 @@ import { onBroadcast, send, type LockReason } from '../shared/messages.js';
 import { applyTheme, h, matchesPhrase, msg, qs, render } from '../ui/dom.js';
 import { LOCK_REASON_KEYS, WARNING_KEYS, errorText } from '../ui/strings.js';
 import type { VaultSettings } from '../vault/types.js';
+import { settingsScreen } from './settings.js';
 import { vaultScreen } from './vault.js';
 
 const root = qs(document, '#vm-root');
+const headerAction = qs(document, '#vm-header-action');
 
 /** Why the vault locked while the popup was open. Shown once on the unlock screen, then cleared. */
 let lastLockReason: LockReason | null = null;
+
+/**
+ * Which of the two unlocked screens is up.
+ *
+ * Held here rather than inside the vault screen because a broadcast re-renders the whole shell, and
+ * a settings screen that fell back to the list every time the worker touched the vault would be one
+ * nobody could finish reading. It resets on lock: the settings are not what someone wants to see
+ * after typing their password.
+ */
+let unlockedScreen: 'vault' | 'settings' = 'vault';
 
 /* ------------------------------------------------------------------ shared pieces */
 
@@ -333,6 +345,10 @@ async function patchSettings(patch: Partial<VaultSettings>): Promise<void> {
 
 async function refresh(): Promise<void> {
   const response = await send({ type: 'GET_STATE' });
+  // Cleared on every repaint. Only the unlocked vault screen fills it, and it does so on its way
+  // in; anything left over from the screen before would be a button acting on a vault that is no
+  // longer open.
+  render(headerAction);
   if (response.type === 'ERROR') {
     render(
       root,
@@ -342,31 +358,78 @@ async function refresh(): Promise<void> {
   }
 
   applyTheme(response.settings.theme, document.documentElement);
-  if (!response.exists) render(root, response.adoptable ? adoptScreen() : createScreen());
-  else if (response.locked) render(root, unlockScreen());
-  else render(root, vaultScreen({ state: response, refresh, errorText, patchSettings }));
+  if (!response.exists) {
+    unlockedScreen = 'vault';
+    render(root, response.adoptable ? adoptScreen() : createScreen());
+  } else if (response.locked) {
+    unlockedScreen = 'vault';
+    render(root, unlockScreen());
+  } else if (unlockedScreen === 'settings') {
+    render(
+      root,
+      settingsScreen({
+        state: response,
+        patchSettings,
+        errorText,
+        onBack: () => {
+          unlockedScreen = 'vault';
+          void refresh();
+        },
+      }),
+    );
+  } else {
+    render(
+      root,
+      vaultScreen({
+        state: response,
+        refresh,
+        errorText,
+        patchSettings,
+        headerSlot: headerAction,
+        openSettings: () => {
+          unlockedScreen = 'settings';
+          void refresh();
+        },
+      }),
+    );
+  }
 }
 
+/**
+ * What the popup repaints for, spelled out one message at a time.
+ *
+ * It used to repaint for everything except `VAULT_CHANGED`, and that "except" was the bug: a delete
+ * schedules a sync, the sync settles three seconds later, the worker broadcasts `SYNC_CHANGED`, and
+ * the popup rebuilt its whole shell — taking the eight-second undo offer with it after three. The
+ * popup shows nothing about sync, so there was never anything to repaint for.
+ *
+ * A `switch` rather than a list of early returns because the union is closed: a broadcast added
+ * later stops compiling here until someone has decided whether this window cares about it.
+ */
 onBroadcast((message) => {
-  // `VAULT_CHANGED` is deliberately not handled: the popup is the only UI that can change the vault
-  // while it is open, and it re-reads its own list at the point it made the change. Re-rendering
-  // the whole shell here would throw away the filter the user is typing into.
-  if (message.type === 'VAULT_CHANGED') return;
-  if (message.type === 'SESSION_LOCKED') {
-    // A panic-lock is meant to leave nothing on screen, this popup included. Chrome gives an
-    // extension no way to close someone else's popup, so the popup closes itself.
-    if (message.reason === 'panic') {
-      window.close();
+  switch (message.type) {
+    // Neither repaints. The popup is the only UI that can change the vault while it is open and it
+    // re-reads its own list where it made the change, and it shows nothing at all about sync — so
+    // rebuilding the shell for either would only throw away the filter being typed into and the
+    // undo toast, which is the one thing on screen with a clock running.
+    case 'VAULT_CHANGED':
+    case 'SYNC_CHANGED':
       return;
-    }
-    lastLockReason = message.reason;
+    case 'SESSION_LOCKED':
+      // A panic-lock is meant to leave nothing on screen, this popup included. Chrome gives an
+      // extension no way to close someone else's popup, so the popup closes itself.
+      if (message.reason === 'panic') {
+        window.close();
+        return;
+      }
+      lastLockReason = message.reason;
+      break;
+    case 'SESSION_UNLOCKED':
+    case 'SETTINGS_CHANGED':
+      break;
   }
   void refresh();
 });
-
-qs(document, '#vm-version').textContent = msg('popupVersion', [
-  chrome.runtime.getManifest().version,
-]);
 
 render(root, h('p', { class: 'vm-small vm-muted' }, msg('popupLoading')));
 void refresh();

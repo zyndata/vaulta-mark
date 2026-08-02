@@ -1,25 +1,60 @@
 /* Popup layout only. Tokens and shared components live in src/ui/styles.css. */
 
 /*
- * Chrome clamps a popup at 800×600 px and will not scroll it for us beyond that, so the width and
- * the list's height are chosen to leave headroom: 24rem (384 px) wide, and a list that stops at
- * 22rem so the whole popup lands near 580 px with the settings folded away.
+ * Chrome clamps a popup at 800×600 px and will not scroll it for us beyond that, so both dimensions
+ * are fixed here and stay inside it: 26.4rem (422 px) wide and 37.5rem (600 px) tall.
+ *
+ * The width was 24rem through Phase 5. A tenth wider buys roughly six characters of every row's
+ * title and host — which is where the space goes, because a bookmark list is a column of truncated
+ * strings and the truncation is what makes one hard to scan.
+ *
+ * **The height is fixed and taken from the settings screen**, which is the tallest of them and which
+ * measures a couple of pixels *over* Chrome's cap — so it sets the height and the cap rounds it. A
+ * popup sized to its contents is a window that jumps every time you press something: going to
+ * settings grew it, coming back shrank it, and deleting the last bookmark shrank it again, moving
+ * the footer under the pointer each time. So the popup is one size, the list takes whatever room the
+ * rest of the screen leaves, and the buttons along the bottom are always in the same place.
  */
 body.vm-popup {
-  width: 24rem;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 26.4rem;
+  height: 37.5rem;
   padding: 0.875rem 1rem 1rem;
+}
+
+/*
+ * The screen fills what the header leaves, and scrolls if it has to.
+ *
+ * "If it has to" is the create screen — a password, a repeat, a strength meter, a no-recovery
+ * warning and a typed confirmation is more than 568 px of form. Chrome would otherwise scroll the
+ * popup itself, which it only does past 600 px and which leaves the header scrolling away with it.
+ */
+#vm-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .vm-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+  min-height: 1.9rem;
 }
 
 .vm-header p {
   margin: 0;
+}
+
+/* Empty on every screen but the unlocked vault, and it must not take a row when it is. */
+.vm-header-action:empty {
+  display: none;
 }
 
 .vm-warnings {
@@ -31,10 +66,6 @@ body.vm-popup {
   display: none;
 }
 
-.vm-danger {
-  color: var(--vm-danger);
-}
-
 .vm-blocked {
   margin: 0.5rem 0 0;
   text-align: center;
@@ -42,7 +73,7 @@ body.vm-popup {
 
 /* Sits under the control it explains, indented past the checkbox it belongs to. */
 .vm-hint {
-  margin: -0.4rem 0 0.75rem;
+  margin: -0.4rem 0 0.55rem;
   padding-left: 1.4rem;
 }
 
@@ -84,15 +115,23 @@ body.vm-popup {
   font: inherit;
 }
 
-.vm-vault > .vm-button {
-  margin-bottom: 0.625rem;
+/* The vault screen is the popup, minus the header: the filter at the top, the footer pinned to the
+   bottom, and the list taking everything between them. */
+.vm-vault {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
-/* The list is the part that scrolls, so the add button, the filter and the footer stay reachable
-   however many bookmarks are in the vault. There is no row cap behind this — favicons load lazily
-   (ui/favicon.ts), so the rows below the fold cost nothing until they are scrolled to. */
+/* The list is the part that scrolls, so the filter and the footer stay reachable however many
+   bookmarks are in the vault. There is no row cap behind this — favicons load lazily
+   (ui/favicon.ts), so the rows below the fold cost nothing until they are scrolled to.
+
+   No `max-height` any more: the popup is a fixed size, so the list is simply what is left over. */
 .vm-list {
-  max-height: 22rem;
+  flex: 1 1 auto;
+  min-height: 4rem;
   margin: 0;
   padding: 0;
   overflow-y: auto;
@@ -193,26 +232,70 @@ body.vm-popup {
   text-overflow: ellipsis;
 }
 
-.vm-settings {
-  margin-top: 0.75rem;
-  border-top: 1px solid var(--vm-border);
-  padding-top: 0.5rem;
+/* ------------------------------------------------------------------ the settings screen */
+
+/*
+ * A screen, not a disclosure — see the note at the top of settings.ts.
+ *
+ * The vertical rhythm here is tight on purpose, and it is the popup's height that decides how tight:
+ * this screen is the tallest one and Chrome will not give a popup more than 600 px. Loosening any of
+ * these margins puts the version line under the fold, which is a scrollbar for one line of text —
+ * and a scrollbar narrows the column, rewraps three paragraphs of hint text and makes the screen
+ * taller still.
+ */
+.vm-screen-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
 }
 
-.vm-settings summary {
-  cursor: pointer;
+.vm-screen-title {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.vm-settings-screen .vm-settings-section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.vm-settings-screen h3 {
+  margin: 0.6rem 0 0.35rem;
   font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--vm-muted);
 }
 
-.vm-settings[open] summary {
-  margin-bottom: 0.625rem;
+/* `auto` above it, so on the screens where the settings do not fill the popup the version still
+   sits on the floor rather than halfway up. */
+.vm-version-line {
+  margin: auto 0 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--vm-border);
+  text-align: center;
 }
 
+.vm-settings-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------------ footer */
+
+/* Lock, manager, settings — spread across the width rather than huddled in the middle, so each
+   button keeps a fixed place instead of shifting sideways when a label's length changes. `auto`
+   above it pins the row to the bottom of the popup on a short list as well as a full one. */
 .vm-footer {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   align-items: center;
   justify-content: space-between;
-  margin-top: 0.75rem;
+  flex: none;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--vm-border);
 }

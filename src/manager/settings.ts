@@ -14,19 +14,22 @@
 
 import { estimateStrength, MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
 import { send, type SyncStatusResponse } from '../shared/messages.js';
+import { dialogField, openDialog } from '../ui/dialog.js';
 import { h, matchesPhrase, msg, render } from '../ui/dom.js';
 import { errorText } from '../ui/strings.js';
+import { offerTrackingCleanup } from '../ui/tracking.js';
 import {
   IDLE_TIMEOUT_CHOICES,
   IDLE_TIMEOUT_NEVER,
   type VaultSettings,
 } from '../vault/types.js';
-import { dialogField, openDialog } from './dialog.js';
 import { relativeTime, syncQuotaBar } from './sync.js';
 
 export interface SettingsDeps {
   readonly settings: VaultSettings;
   readonly patch: (patch: Partial<VaultSettings>) => Promise<void>;
+  /** The page's live region. Used for outcomes that outlive this dialog, like a bulk clean-up. */
+  readonly say: (text: string) => void;
   /** Called after the vault has been erased, so the shell can repaint as "no vault". */
   readonly onDestroyed: () => void;
 }
@@ -151,9 +154,41 @@ function browsing(deps: SettingsDeps): HTMLElement[] {
       'settingsStripTracking',
       'settingsStripTrackingHint',
       deps.settings.stripTrackingParams,
-      (checked) => deps.patch({ stripTrackingParams: checked }),
+      async (checked) => {
+        await deps.patch({ stripTrackingParams: checked });
+        // Only on the way on: switching it off cannot put back parameters that are already gone,
+        // so there is nothing to offer.
+        if (checked) await offerCleanup(deps);
+      },
     ),
   ];
+}
+
+/**
+ * Wire `ui/tracking.ts` to its two messages.
+ *
+ * The result is announced through the page's live region rather than inside this dialog, because
+ * the clean-up outlives the dialog: it rewrites addresses across the whole vault, the list behind
+ * is what shows it, and a confirmation that disappears with the dialog is one nobody reads.
+ */
+async function offerCleanup(deps: SettingsDeps): Promise<void> {
+  await offerTrackingCleanup({
+    count: async () => {
+      const response = await send({ type: 'COUNT_TRACKING_PARAMS' });
+      // Nothing has changed if the count failed, and the offer comes back the next time the
+      // setting is switched on. Not worth a dialog.
+      return response.type === 'ERROR' ? 0 : response.count;
+    },
+    strip: async () => {
+      const response = await send({ type: 'STRIP_TRACKING_PARAMS' });
+      if (response.type === 'ERROR') {
+        deps.say(errorText(response.code));
+        return 0;
+      }
+      return response.count;
+    },
+    say: deps.say,
+  });
 }
 
 function toggle(

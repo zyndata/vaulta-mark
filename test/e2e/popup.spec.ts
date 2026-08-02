@@ -189,9 +189,23 @@ test('lists, filters, opens, deletes and undoes a bookmark without touching the 
 
   // ---------------------------------------------------------------- delete, then undo
   const final = await openPopup();
+  // The "×" beside a row is a target the pointer finds on its way to the row, so it asks — the
+  // same dialog, in the same words, that the manager asks. Dismissing it changes nothing.
   await final.getByRole('button', { name: new RegExp(`Delete .${PAGE_TITLE}`) }).click();
+  await final.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+  await expect(rowFor(final, PAGE_TITLE)).toBeVisible();
+
+  await final.getByRole('button', { name: new RegExp(`Delete .${PAGE_TITLE}`) }).click();
+  await final.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(final.getByText(new RegExp(`Deleted .${PAGE_TITLE}`))).toBeVisible();
   await expect(rowFor(final, PAGE_TITLE)).toHaveCount(0);
+
+  // **The offer has to last as long as it says it does.** A delete schedules a sync, the sync
+  // settles three seconds later, and the popup used to rebuild its whole shell on the status
+  // broadcast — so the undo, and the bar drawing its deadline, vanished at three seconds of eight.
+  // Four seconds is past that fuse and still inside the window.
+  await final.waitForTimeout(4_000);
+  await expect(final.locator('.vm-toast--timed')).toBeVisible();
 
   await final.getByRole('button', { name: 'Undo' }).click();
   await expect(rowFor(final, PAGE_TITLE)).toBeVisible();

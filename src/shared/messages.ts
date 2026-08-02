@@ -205,6 +205,21 @@ export interface RenameTagRequest {
 }
 
 /**
+ * How many saved bookmarks carry a tracking parameter.
+ *
+ * Asked when the strip-tracking setting is switched on, so the offer to clean what is already in
+ * the vault is only made when there is something to clean. Reads; changes nothing.
+ */
+export interface CountTrackingParamsRequest {
+  readonly type: 'COUNT_TRACKING_PARAMS';
+}
+
+/** Rewrite every saved URL that carries a tracking parameter, as one revision. */
+export interface StripTrackingParamsRequest {
+  readonly type: 'STRIP_TRACKING_PARAMS';
+}
+
+/**
  * Re-wrap the data key under a new password.
  *
  * The current password is required even though the vault is open: an unlocked session must not be
@@ -290,6 +305,8 @@ export type Request =
   | DeleteFolderRequest
   | TagItemsRequest
   | RenameTagRequest
+  | CountTrackingParamsRequest
+  | StripTrackingParamsRequest
   | ChangePasswordRequest
   | DestroyVaultRequest
   | GetSyncStatusRequest
@@ -624,6 +641,8 @@ export interface ResponseMap {
   readonly DELETE_FOLDER: OkResponse;
   readonly TAG_ITEMS: CountResponse;
   readonly RENAME_TAG: CountResponse;
+  readonly COUNT_TRACKING_PARAMS: CountResponse;
+  readonly STRIP_TRACKING_PARAMS: CountResponse;
   readonly CHANGE_PASSWORD: OkResponse;
   readonly DESTROY_VAULT: OkResponse;
   readonly GET_SYNC_STATUS: SyncStatusResponse;
@@ -766,6 +785,8 @@ export function parseRequest(raw: unknown): Request | null {
       return typeof recheck === 'boolean' ? { type, recheck } : null;
     }
     case 'GET_TREE':
+    case 'COUNT_TRACKING_PARAMS':
+    case 'STRIP_TRACKING_PARAMS':
     case 'DESTROY_VAULT':
     case 'GET_SYNC_STATUS':
     case 'SYNC_NOW':

@@ -646,6 +646,78 @@ describe('destroying the vault', () => {
   }, 30_000);
 });
 
+/* ------------------------------------------------------------------ tracking parameters */
+
+/**
+ * The clean-up offered when the strip-tracking setting is switched on.
+ *
+ * Seeded with the setting *off*, because with it on the add pipeline has already cleaned the URL
+ * and there would be nothing left for this to find — which is exactly the situation the feature
+ * exists for: a vault built before the setting was turned on.
+ */
+describe('cleaning tracking parameters out of a vault that already has them', () => {
+  async function seedDirty(): Promise<{ tracked: string; clean: string }> {
+    await send({ type: 'SET_SETTINGS', settings: { stripTrackingParams: false } });
+    const tracked = await addBookmark(
+      'https://example.com/article?utm_source=news&utm_medium=email&id=7',
+      'Article',
+    );
+    const clean = await addBookmark('https://example.com/plain?id=7', 'Plain');
+    await send({ type: 'SET_SETTINGS', settings: { stripTrackingParams: true } });
+    return { tracked, clean };
+  }
+
+  it('counts only the bookmarks whose address would actually change', async () => {
+    await seedDirty();
+    expect(await send({ type: 'COUNT_TRACKING_PARAMS' })).toEqual({ type: 'COUNT', count: 1 });
+  });
+
+  it('counts nothing on a vault that has none, so nothing is offered', async () => {
+    await addBookmark('https://example.com/plain?id=7', 'Plain');
+    expect(await send({ type: 'COUNT_TRACKING_PARAMS' })).toEqual({ type: 'COUNT', count: 0 });
+  });
+
+  it('strips the campaign tags and leaves every other parameter alone', async () => {
+    const { tracked, clean } = await seedDirty();
+
+    expect(await send({ type: 'STRIP_TRACKING_PARAMS' })).toEqual({ type: 'COUNT', count: 1 });
+    expect((await detail(tracked))?.['url']).toBe('https://example.com/article?id=7');
+    // Untouched, and it must be: a clean bookmark rewritten is a `updatedAt` bump and a sync push
+    // for nothing.
+    expect((await detail(clean))?.['url']).toBe('https://example.com/plain?id=7');
+  });
+
+  it('is idempotent — a second run finds nothing to do', async () => {
+    await seedDirty();
+    await send({ type: 'STRIP_TRACKING_PARAMS' });
+
+    expect(await send({ type: 'COUNT_TRACKING_PARAMS' })).toEqual({ type: 'COUNT', count: 0 });
+    expect(await send({ type: 'STRIP_TRACKING_PARAMS' })).toEqual({ type: 'COUNT', count: 0 });
+  });
+
+  it('ignores tombstones, so a deleted bookmark is neither counted nor resurrected', async () => {
+    const { tracked } = await seedDirty();
+    await send({ type: 'DELETE_ITEMS', ids: [tracked] });
+
+    expect(await send({ type: 'COUNT_TRACKING_PARAMS' })).toEqual({ type: 'COUNT', count: 0 });
+    expect(await send({ type: 'STRIP_TRACKING_PARAMS' })).toEqual({ type: 'COUNT', count: 0 });
+    expect(await detail(tracked)).toBeNull();
+  });
+
+  it('leaves two bookmarks that collapse to the same address as two bookmarks', async () => {
+    // Deliberate: this operation was asked for as a clean-up of addresses, and deleting a bookmark
+    // someone saved twice is a different decision that nobody made.
+    await send({ type: 'SET_SETTINGS', settings: { stripTrackingParams: false } });
+    await addBookmark('https://example.com/a?utm_source=one', 'From one');
+    await addBookmark('https://example.com/a?utm_source=two', 'From two');
+    await send({ type: 'SET_SETTINGS', settings: { stripTrackingParams: true } });
+
+    expect(await send({ type: 'STRIP_TRACKING_PARAMS' })).toEqual({ type: 'COUNT', count: 2 });
+    // Sorted newest-first by default; what this asserts is that both are still there.
+    expect([...(await titles())].sort()).toEqual(['From one', 'From two']);
+  });
+});
+
 /* ------------------------------------------------------------------ the locked vault */
 
 describe('a locked vault', () => {
@@ -663,6 +735,8 @@ describe('a locked vault', () => {
       { type: 'DELETE_FOLDER', id, mode: 'recursive' },
       { type: 'TAG_ITEMS', ids: [id], add: ['x'] },
       { type: 'RENAME_TAG', from: 'a', to: 'b' },
+      { type: 'COUNT_TRACKING_PARAMS' },
+      { type: 'STRIP_TRACKING_PARAMS' },
       { type: 'DELETE_ITEMS', ids: [id] },
       { type: 'RESTORE_ITEMS', ids: [id] },
       { type: 'CHANGE_PASSWORD', currentPassword: PASSWORD, newPassword: 'another long one' },

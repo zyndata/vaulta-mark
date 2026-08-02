@@ -230,16 +230,48 @@ below.
 
 ### Changed
 
+- **Deleting a bookmark asks first**, in the popup and in the manager alike, in the same words and
+  the same dialog. **Undo** is still there afterwards — it is the safety net for the delete you
+  meant, while the question is for the "×" your pointer found on its way to the row, and for the
+  Delete key pressed at a list you had not noticed was focused.
+- **The undo offer shows how long is left**, as a shaded band that fills across the message and
+  reaches the far edge exactly as the offer expires — rather than a number in the dialog before it.
+  How long you have to change your mind matters after the delete, not a second before it.
+- **Tracking parameters are removed by default** when you save a page. They are campaign tags —
+  `utm_*`, `fbclid`, `gclid` — that no site needs to find the page, and leaving them made the same
+  article saved from two newsletters look like two bookmarks. Turning the setting on offers, once
+  and only if you have any, to clean the addresses already in your vault; nothing is rewritten
+  without you pressing the button that says so, and nothing is ever deleted.
+- **The popup's settings are a screen of their own**, reached from the row of buttons along the
+  bottom — **Lock now**, **Open the manager**, **Settings**, spread across the width so each keeps
+  its own place — instead of an expander that pushed the list around when it opened. The version
+  number lives on that screen now, which gave the bookmark list back the line it was using in the
+  corner: that corner is **Add this page**.
+- **The popup is one size, whatever it is showing.** It used to grow when you opened the settings
+  and shrink when you came back, moving the buttons under your pointer. It is now as tall as Chrome
+  will allow a popup to be and a tenth wider than before, so the bookmark list gets every row that
+  fits, and titles and addresses get about six more characters before they are cut off.
 - The popup keeps its settings, and they are now also in the manager, where there is room to explain
   them.
 - The popup is a real interface rather than a build-version placeholder, and both extension pages now
   share one set of design tokens with light and dark themes.
+- Every button in both pages now responds to the pointer, from one set of hover rules rather than a
+  per-component decision — a button that does nothing when you hover it reads as a button that is
+  switched off.
 
 ### Fixed
 
 - Nothing was lost to a browser that closed mid-sync. A sync that is interrupted after writing part
   of the vault leaves a copy that does not add up; the next device to look at it notices, and repairs
   it from its own copy rather than reading half a vault.
+- The popup's **Undo** disappeared after about three seconds instead of the eight it offers. Deleting
+  a bookmark schedules a sync; the sync settled a moment later, and the popup rebuilt itself on the
+  news — taking the undo with it. It now lasts as long as it says.
+- Double-clicking a folder in the manager's list selected it twice and opened nothing. It opens the
+  folder now, the way double-clicking a folder does everywhere else.
+- Folder names in the sidebar sat adrift in the middle of their row while the tags underneath
+  started at the left edge — two lists in one column, indented differently for no visible reason.
+  Both start at the left now.
 - The sidebar had a horizontal scrollbar along the bottom at every width, because the folder rows
   were three pixels wider than the column they were in. Long tag names now shorten with an ellipsis
   instead of pushing the rename button out of view.
