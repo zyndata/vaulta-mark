@@ -412,8 +412,12 @@ onBroadcast((message) => {
     // re-reads its own list where it made the change, and it shows nothing at all about sync — so
     // rebuilding the shell for either would only throw away the filter being typed into and the
     // undo toast, which is the one thing on screen with a clock running.
+    // `IO_PROGRESS` joins them for the same reason: import and export live in the manager, and a
+    // popup rebuilding itself on every tick of somebody else's progress bar would be the same bug
+    // again, with a faster clock.
     case 'VAULT_CHANGED':
     case 'SYNC_CHANGED':
+    case 'IO_PROGRESS':
       return;
     case 'SESSION_LOCKED':
       // A panic-lock is meant to leave nothing on screen, this popup included. Chrome gives an

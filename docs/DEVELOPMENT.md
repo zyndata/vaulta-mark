@@ -164,6 +164,36 @@ The manual pass, on two profiles signed into one Google account:
 8. The conflict path: rename the *same* bookmark differently on both without syncing in between,
    then sync A and sync B. B should raise the banner and show both versions side by side.
 
+### 5.2 Native-bookmark import, by hand
+
+The other thing Playwright cannot do. `chrome.permissions.request` needs a user gesture and answers
+with a **browser-level** prompt that no automated context can accept, so the whole native-import
+path is covered against a mocked `chrome.bookmarks` in
+`test/unit/import/native-bookmarks.test.ts` and verified by hand before any release touching
+`src/import/**`.
+
+On a profile with real bookmarks in it — several folders, at least one nested, and ideally something
+the vault will refuse such as a `javascript:` bookmarklet or a `file://` link:
+
+1. Load `dist/` unpacked, create or unlock a vault, and open the manager → **Import & export** →
+   *Import from this browser*.
+2. It must say the permission has **not** been granted and offer the button, not silently show an
+   empty tree. Press it: Chrome's own prompt appears. **Decline it once** — the page should say so
+   and change nothing.
+3. Accept it. The tree appears with *Bookmarks bar* and *Other bookmarks* at the top level, matching
+   `chrome://bookmarks`.
+4. Tick one nested folder and one loose bookmark, and copy them in. Check in the vault that the
+   folder structure came across — a ticked bookmark brings its ancestor folders with it — and that
+   the count of skipped items matches the bookmarks you expected to be refused.
+5. **Check `chrome://bookmarks` is untouched.** This is the assertion that matters: an import is a
+   read (INV-5).
+6. Now press *Delete the originals from Chrome*. Confirm, and check that exactly the ticked items are
+   gone from `chrome://bookmarks` and nothing else is. Chrome refuses to delete its own permanent
+   folders, so a selection including *Bookmarks bar* should report those as failures and still
+   delete everything else.
+7. Type one of the deleted bookmarks' addresses into the omnibox: it should no longer be suggested.
+   That is the whole point of the second step, and the only way to see it is to look.
+8. Take the permission back on `chrome://extensions` and confirm the screen returns to step 2.
 ---
 
 ## 6. The invariant scanners

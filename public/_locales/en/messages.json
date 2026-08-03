@@ -1288,5 +1288,461 @@
   "conflictNone": {
     "message": "Nothing is in conflict.",
     "description": "Shown in the conflict view when there is nothing to settle."
+  },
+  "errorBookmarksPermission": {
+    "message": "VaultaMark needs permission to read this browser's bookmarks. Grant it on the import screen.",
+    "description": "Error shown when a bookmark import runs without the optional bookmarks permission."
+  },
+  "managerIoButton": {
+    "message": "Import & export",
+    "description": "Toolbar button that opens the import/export screen."
+  },
+  "ioHeading": {
+    "message": "Import & export",
+    "description": "Heading of the import/export screen."
+  },
+  "ioBack": {
+    "message": "Back to bookmarks",
+    "description": "Button that leaves the import/export screen."
+  },
+  "ioWorking": {
+    "message": "Working…",
+    "description": "Label on the progress bar during a long import or export."
+  },
+  "ioBackupHeading": {
+    "message": "Back up the vault",
+    "description": "Heading of the encrypted-export section."
+  },
+  "ioBackupHint": {
+    "message": "Saves an encrypted .vmv file containing every bookmark, folder, tag and note. Keep it somewhere safe — it is as valuable as the vault itself, and just as unreadable without its password.",
+    "description": "Explanation under the encrypted-export heading."
+  },
+  "ioBackupButton": {
+    "message": "Save a backup…",
+    "description": "Button that starts an encrypted export."
+  },
+  "ioBackupPasswordIntro": {
+    "message": "Choose the password this backup file will be locked with.",
+    "description": "First line of the export-password dialog."
+  },
+  "ioBackupUseVaultPassword": {
+    "message": "Use my vault password",
+    "description": "Radio: the export uses the master password."
+  },
+  "ioBackupUseOtherPassword": {
+    "message": "Use a different password for this file",
+    "description": "Radio: the export uses a password of its own."
+  },
+  "ioBackupPasswordLabel": {
+    "message": "Password",
+    "description": "Password field in the export dialog."
+  },
+  "ioBackupConfirmLabel": {
+    "message": "Confirm password",
+    "description": "Confirmation field, used only for a different export password."
+  },
+  "ioBackupConfirmHint": {
+    "message": "Only needed when the file gets a password of its own.",
+    "description": "Hint under the export confirmation field."
+  },
+  "ioBackupNoRecovery": {
+    "message": "There is no recovery for this file either. If you forget its password, the backup is gone.",
+    "description": "Warning in the export dialog."
+  },
+  "ioBackupPasswordRequired": {
+    "message": "Type the password first.",
+    "description": "Refusal when the export dialog is submitted with no password."
+  },
+  "ioBackupDone": {
+    "message": "Backup saved as $FILE$.",
+    "description": "Announced after an encrypted export.",
+    "placeholders": { "file": { "content": "$1", "example": "vaultamark-2026-08-03.vmv" } }
+  },
+  "ioRestoreHeading": {
+    "message": "Restore from a backup",
+    "description": "Heading of the import section."
+  },
+  "ioRestoreHint": {
+    "message": "Open a .vmv file. You will see what is in it and choose what to do with it before anything changes.",
+    "description": "Explanation under the import heading."
+  },
+  "ioRestoreFileLabel": {
+    "message": "Backup file",
+    "description": "Label on the file picker."
+  },
+  "ioRestoreUnreadable": {
+    "message": "That file could not be read.",
+    "description": "Shown when the browser cannot read the chosen file at all."
+  },
+  "ioRestorePasswordHeading": {
+    "message": "Open the backup",
+    "description": "Heading of the import-password dialog."
+  },
+  "ioRestorePasswordIntro": {
+    "message": "Type the password $FILE$ was saved with.",
+    "description": "First line of the import-password dialog.",
+    "placeholders": { "file": { "content": "$1", "example": "vaultamark-2026-08-03.vmv" } }
+  },
+  "ioRestorePasswordLabel": {
+    "message": "Backup password",
+    "description": "Password field in the import dialog."
+  },
+  "ioRestoreOpenButton": {
+    "message": "Open",
+    "description": "Button that decrypts the chosen backup."
+  },
+  "ioPreviewHeading": {
+    "message": "What is in this backup",
+    "description": "Heading of the import preview dialog."
+  },
+  "ioPreviewCounts": {
+    "message": "$BOOKMARKS$ bookmarks in $FOLDERS$ folders.",
+    "description": "Line of the import preview.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      },
+      "folders": {
+        "content": "$2",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCreated": {
+    "message": "Saved $WHEN$ by $BY$.",
+    "description": "Line of the import preview.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "3 August 2026, 14:02"
+      },
+      "by": {
+        "content": "$2",
+        "example": "VaultaMark 1.0.0"
+      }
+    }
+  },
+  "ioPreviewCreatedUnknown": {
+    "message": "This backup does not say when it was made.",
+    "description": "Line of the import preview when the file carries no date."
+  },
+  "ioPreviewKnown": {
+    "message": "$COUNT$ of them are already in this vault.",
+    "description": "Line of the import preview naming the overlap with the current vault.",
+    "placeholders": { "count": { "content": "$1", "example": "38" } }
+  },
+  "ioPreviewAllNew": {
+    "message": "None of them are in this vault yet.",
+    "description": "Line of the import preview when nothing overlaps."
+  },
+  "ioPreviewMergeExplained": {
+    "message": "Merge adds what is missing and keeps everything you already have. Where a bookmark differs on both sides, both versions are kept and you choose afterwards. Nothing is lost.",
+    "description": "Explanation of merge mode."
+  },
+  "ioPreviewReplaceExplained": {
+    "message": "Replace throws away the current vault and puts the backup in its place. You get one chance to undo it, for 24 hours.",
+    "description": "Explanation of replace mode."
+  },
+  "ioModeMerge": {
+    "message": "Merge into this vault",
+    "description": "Radio label for merge mode."
+  },
+  "ioModeReplace": {
+    "message": "Replace this vault entirely",
+    "description": "Radio label for replace mode."
+  },
+  "ioPreviewApply": {
+    "message": "Continue",
+    "description": "Button that applies the chosen import mode."
+  },
+  "ioPreviewPickMode": {
+    "message": "Choose merge or replace first.",
+    "description": "Refusal when the preview dialog is submitted with no mode chosen."
+  },
+  "ioImportDone": {
+    "message": "Imported $ADDED$ bookmarks. The vault now holds $TOTAL$ items.",
+    "description": "Announced after a successful import with no conflicts.",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "412"
+      },
+      "total": {
+        "content": "$2",
+        "example": "930"
+      }
+    }
+  },
+  "ioImportDoneConflicts": {
+    "message": "Imported $ADDED$ bookmarks. $CONFLICTS$ differ from what you already had — open the conflicts banner to choose.",
+    "description": "Announced after an import that produced conflicts.",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "412"
+      },
+      "conflicts": {
+        "content": "$2",
+        "example": "3"
+      }
+    }
+  },
+  "importReplaceHeading": {
+    "message": "Replace the whole vault?",
+    "description": "Heading of the first replace-import confirmation."
+  },
+  "importReplaceWarning": {
+    "message": "This removes all $CURRENT$ bookmarks currently in the vault and puts the backup's $INCOMING$ in their place.",
+    "description": "Warning in the replace-import confirmation.",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "930"
+      },
+      "incoming": {
+        "content": "$2",
+        "example": "412"
+      }
+    }
+  },
+  "importReplaceUndo": {
+    "message": "A copy of the current vault is kept for 24 hours, so this can be undone once.",
+    "description": "Reassurance in the replace-import confirmation."
+  },
+  "importReplaceNoUndo": {
+    "message": "This cannot be undone.",
+    "description": "Shown instead when no rollback copy will be kept."
+  },
+  "importReplacePhrase": {
+    "message": "REPLACE MY VAULT",
+    "description": "The phrase typed to confirm a replace-mode import. Keep it short and in capitals."
+  },
+  "importReplaceConfirmLabel": {
+    "message": "Type the phrase to continue",
+    "description": "Label on the typed-confirmation field."
+  },
+  "importReplaceConfirmHint": {
+    "message": "Type $PHRASE$ exactly.",
+    "description": "Hint under the typed-confirmation field.",
+    "placeholders": { "phrase": { "content": "$1", "example": "REPLACE MY VAULT" } }
+  },
+  "importReplaceConfirmRefused": {
+    "message": "That is not $PHRASE$.",
+    "description": "Refusal when the typed phrase does not match.",
+    "placeholders": { "phrase": { "content": "$1", "example": "REPLACE MY VAULT" } }
+  },
+  "importReplaceButton": {
+    "message": "Continue",
+    "description": "Button on the first replace confirmation."
+  },
+  "importReplaceLastHeading": {
+    "message": "Last chance",
+    "description": "Heading of the second replace confirmation."
+  },
+  "importReplaceLastBody": {
+    "message": "$COUNT$ bookmarks are about to be replaced. Press once more to go ahead.",
+    "description": "Body of the second replace confirmation.",
+    "placeholders": { "count": { "content": "$1", "example": "930" } }
+  },
+  "importReplaceLastButton": {
+    "message": "Replace the vault",
+    "description": "Button on the second replace confirmation."
+  },
+  "ioUndoAvailable": {
+    "message": "The vault from before the last import can still be restored until $WHEN$.",
+    "description": "Shown while a replace-import rollback is available.",
+    "placeholders": { "when": { "content": "$1", "example": "4 August 2026, 14:02" } }
+  },
+  "ioUndoButton": {
+    "message": "Undo the import",
+    "description": "Button that restores the pre-import vault."
+  },
+  "ioUndoHeading": {
+    "message": "Undo the import?",
+    "description": "Heading of the undo confirmation."
+  },
+  "ioUndoBody": {
+    "message": "The vault goes back to what it was before the import. Anything added or changed since then is lost, and this copy is used up.",
+    "description": "Body of the undo confirmation."
+  },
+  "ioUndoDone": {
+    "message": "The vault has been restored.",
+    "description": "Announced after a successful undo."
+  },
+  "ioNativeHeading": {
+    "message": "Import from this browser",
+    "description": "Heading of the native-bookmark section."
+  },
+  "ioNativeHint": {
+    "message": "Copy bookmarks out of Chrome and into the vault. Copying does not remove them from Chrome — that is a separate step, and it is the step that takes them out of the address bar.",
+    "description": "Explanation under the native-import heading."
+  },
+  "ioNativePermissionExplained": {
+    "message": "VaultaMark does not have permission to read this browser's bookmarks. It asks only when you use this feature, and you can take the permission back afterwards.",
+    "description": "Shown when the optional bookmarks permission has not been granted."
+  },
+  "ioNativeGrantButton": {
+    "message": "Allow reading bookmarks",
+    "description": "Button that requests the optional bookmarks permission."
+  },
+  "ioNativePermissionRefused": {
+    "message": "Permission was not granted, so there is nothing to show.",
+    "description": "Shown when the user declines the bookmarks permission prompt."
+  },
+  "ioNativeUntitled": {
+    "message": "(untitled)",
+    "description": "Stand-in for a bookmark or folder with no title."
+  },
+  "ioNativeImportButton": {
+    "message": "Copy the selection into the vault",
+    "description": "Button that imports the checked native bookmarks."
+  },
+  "ioNativeNothingSelected": {
+    "message": "Tick something first.",
+    "description": "Shown when an import or delete is pressed with nothing selected."
+  },
+  "ioNativeImported": {
+    "message": "Copied $BOOKMARKS$ bookmarks and $FOLDERS$ folders. $SKIPPED$ were skipped as duplicates or unsupported addresses.",
+    "description": "Announced after a native import.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "180"
+      },
+      "folders": {
+        "content": "$2",
+        "example": "12"
+      },
+      "skipped": {
+        "content": "$3",
+        "example": "4"
+      }
+    }
+  },
+  "ioNativeDeleteButton": {
+    "message": "Delete the originals from Chrome…",
+    "description": "Button that starts the separate native-deletion step."
+  },
+  "ioNativeDeleteHint": {
+    "message": "Deleting the Chrome copies is what removes those addresses from the address bar's suggestions. Nothing is deleted until you press the button above and confirm.",
+    "description": "Hint under the native-import buttons."
+  },
+  "ioNativeDeleteHeading": {
+    "message": "Delete $COUNT$ bookmarks from Chrome?",
+    "description": "Heading of the native-deletion confirmation.",
+    "placeholders": { "count": { "content": "$1", "example": "180" } }
+  },
+  "ioNativeDeleteBody": {
+    "message": "$COUNT$ selected bookmarks and folders will be removed from Chrome's own bookmarks.",
+    "description": "Body of the native-deletion confirmation.",
+    "placeholders": { "count": { "content": "$1", "example": "180" } }
+  },
+  "ioNativeDeleteWhy": {
+    "message": "This is what stops those addresses appearing in the address bar. Make sure they are in the vault first.",
+    "description": "Second line of the native-deletion confirmation."
+  },
+  "ioNativeDeleteNoUndo": {
+    "message": "VaultaMark cannot undo this. Chrome's own undo may still be able to.",
+    "description": "Third line of the native-deletion confirmation."
+  },
+  "ioNativeDeleteConfirm": {
+    "message": "Delete from Chrome",
+    "description": "Confirming button of the native-deletion dialog."
+  },
+  "ioNativeDeleted": {
+    "message": "Removed $COUNT$ bookmarks from Chrome.",
+    "description": "Announced after a successful native deletion.",
+    "placeholders": { "count": { "content": "$1", "example": "180" } }
+  },
+  "ioNativeDeletedPartial": {
+    "message": "Removed $COUNT$ bookmarks from Chrome. $FAILED$ could not be removed — Chrome's built-in folders cannot be deleted.",
+    "description": "Announced after a partially successful native deletion.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "178"
+      },
+      "failed": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "ioPlainHeading": {
+    "message": "Export as plain HTML",
+    "description": "Heading of the unencrypted-export section."
+  },
+  "ioPlainHint": {
+    "message": "Produces an ordinary bookmarks file that any browser can import. It is not encrypted, and it works against everything else on this page.",
+    "description": "Explanation under the plain-export heading."
+  },
+  "ioPlainButton": {
+    "message": "Export unencrypted…",
+    "description": "Button that starts the plain HTML export."
+  },
+  "ioPlainDone": {
+    "message": "Unencrypted file saved as $FILE$. Delete it when you are done with it.",
+    "description": "Announced after a plain HTML export.",
+    "placeholders": { "file": { "content": "$1", "example": "vaultamark-2026-08-03.html" } }
+  },
+  "exportPlainHeading": {
+    "message": "This file will not be encrypted",
+    "description": "Heading of the plain-export confirmation."
+  },
+  "exportPlainWarningUnencrypted": {
+    "message": "The file you are about to save is plain text. It is not protected by your password or by anything else.",
+    "description": "First warning in the plain-export confirmation."
+  },
+  "exportPlainWarningReadable": {
+    "message": "It lists all $COUNT$ of your vaulted addresses. Anything that can read the file — another person, a backup service, a program you installed — can read every one of them.",
+    "description": "Second warning in the plain-export confirmation.",
+    "placeholders": { "count": { "content": "$1", "example": "412" } }
+  },
+  "exportPlainWarningOmnibox": {
+    "message": "Importing it back into a browser puts those addresses into the address bar's suggestions again — which is the one thing VaultaMark exists to prevent.",
+    "description": "Third warning in the plain-export confirmation."
+  },
+  "exportPlainConfirmLabel": {
+    "message": "Type the phrase to continue",
+    "description": "Label on the typed-confirmation field of the plain export."
+  },
+  "exportPlainConfirmHint": {
+    "message": "Type $PHRASE$ exactly.",
+    "description": "Hint under the plain-export confirmation field.",
+    "placeholders": { "phrase": { "content": "$1", "example": "EXPORT UNENCRYPTED" } }
+  },
+  "exportPlainConfirmRefused": {
+    "message": "That is not $PHRASE$.",
+    "description": "Refusal when the typed phrase does not match.",
+    "placeholders": { "phrase": { "content": "$1", "example": "EXPORT UNENCRYPTED" } }
+  },
+  "exportPlainButton": {
+    "message": "Save the unencrypted file",
+    "description": "Confirming button of the plain-export dialog."
+  },
+  "htmlExportWarning1": {
+    "message": "WARNING — this file is NOT encrypted.",
+    "description": "Line 1 of the warning comment written at the top of the unencrypted export file."
+  },
+  "htmlExportWarning2": {
+    "message": "It lists every bookmark exported from VaultaMark in plain text.",
+    "description": "Line 2 of the warning comment written at the top of the unencrypted export file."
+  },
+  "htmlExportWarning3": {
+    "message": "Anything that can read this file can read every address in it.",
+    "description": "Line 3 of the warning comment written at the top of the unencrypted export file."
+  },
+  "htmlExportWarning4": {
+    "message": "Importing it into a browser puts those addresses back into the address bar's suggestions,",
+    "description": "Line 4 of the warning comment written at the top of the unencrypted export file."
+  },
+  "htmlExportWarning5": {
+    "message": "which is exactly what VaultaMark keeps them out of.",
+    "description": "Line 5 of the warning comment written at the top of the unencrypted export file."
+  },
+  "htmlExportWarning6": {
+    "message": "Delete it once you are done with it.",
+    "description": "Line 6 of the warning comment written at the top of the unencrypted export file."
   }
 }

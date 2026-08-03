@@ -1280,21 +1280,56 @@ version, and independent of the vault's own KDF parameters (the export password 
   "createdAt": 1750000000000,
   "createdBy": "VaultaMark 1.0.0",
   "kdf": { "alg": "PBKDF2-HMAC-SHA256", "iterations": 600000, "salt": "<b64url 32B>" },
+  "wrappedKey": { "iv": "<b64url 12B>", "ct": "<b64url 48B>" },   // AES-256-GCM(KEK, exportKey)
   "includesThumbs": false,
-  "payload": "<b64url of seal(exportKey, gzip(pad(JSON)), aad{v:1,purpose:'export',id:''})>",
+  "payload": "<b64url of seal(k_items, gzip(pad(JSON)), aad{v:formatVersion,purpose:'export',id:''})>",
   "thumbs": { "<itemId>": "<b64url sealed>" }    // present only when includesThumbs
 }
 ```
 
+**`wrappedKey` mirrors the vault's own two-level hierarchy (§4.1), and it is what makes the two
+failure modes distinguishable.** The container holds a random 32-byte export key wrapped under the
+KEK derived from the export password; the payload is sealed under `HKDF(exportKey, 'items')`. A wrong
+password therefore fails on 48 authenticated bytes and reports `WrongPasswordError`, while anything
+that fails *after* the wrap has opened can only be damage and reports `CorruptVaultError`. Sealing
+the payload directly under the KEK would collapse both into one indistinguishable GCM failure — and
+"your password is wrong" and "this backup is damaged" send a user down entirely different roads, one
+of which ends with a good backup being deleted. It costs 64 bytes.
+
+**The AAD binds `formatVersion`, not `SCHEMA_VERSION`.** A payload sealed under the writing build's
+vault schema would stop opening the day that schema moved on, in a format whose entire purpose is to
+still open then. This is why `src/io/export-encrypted.ts` seals the payload itself rather than going
+through `storage/codec.ts`'s `sealJson`, which binds the vault schema version by design.
+
 The payload plaintext is `{ items: VaultItem[] }` — the complete item set including tombstones
 younger than the purge window (so a merge-mode import does not resurrect deleted items).
+
+`includesThumbs` is written as `false` by every build up to Phase 11, because nothing captures
+thumbnails before then and there is no heavy tier to include. A reader that meets `true` opens the
+light tier and ignores `thumbs`: a thumbnail is a cache of something re-derivable from the page, and
+refusing an otherwise perfectly readable backup over one would be the wrong trade.
 
 Import modes:
 
 - **Merge** — runs the Phase-7 merge engine with an *empty base*, which by the table in §6.4 yields
-  adds for new ids and conflicts for divergent same-id items. Nothing is ever destroyed.
-- **Replace** — double confirmation plus a typed vault name; a one-shot rollback snapshot of the
-  previous vault is kept in `storage.local` for 24 hours.
+  adds for new ids and conflicts for divergent same-id items. Nothing is ever destroyed. Note what
+  this means for a backup of *this* vault taken before a deletion: the file says the bookmark is
+  alive, the vault says it was deleted, and that is an `edit-delete` conflict for the user to settle
+  — a merge import never silently undoes a deletion. Restoring is what **Replace** is for.
+  Conflicts raised this way carry `origin: 'import'`, which changes nothing about how they are merged
+  or shown and exactly one thing about what is pushed: `outboundView` (§6.5) withholds a conflicted
+  item so a push cannot overwrite *the other device's* answer, and a file is not a device with an
+  answer to protect. Substituting the file's version would propagate a backup's copy of a bookmark to
+  every device — a version the user has not chosen — so imported conflicts are pushed as the merged
+  vault holds them, which is this device's side, the one on screen.
+- **Replace** — double confirmation (a typed `REPLACE MY VAULT`, then a second dialog that says how
+  many bookmarks are about to go), plus a one-shot rollback snapshot of the previous vault in
+  `storage.local` for 24 hours. The snapshot is **sealed** (`purpose: 'rollback'`) — it is a complete
+  copy of the item set, and INV-6 has no exception for "temporarily". Beside it, `vm.rollbackMeta`
+  holds two timestamps and deliberately nothing else, so "is there an undo, and until when?" is
+  answerable without a key. Restoring consumes it; an expired one is deleted rather than merely
+  hidden, so an unused snapshot does not become a second copy of the vault that nobody knows is
+  there.
 
 **Plain HTML export** uses the Netscape bookmark-file format so any browser can import it. It is
 plaintext by definition. Gates: a dialog stating that the file reveals every vaulted URL to anything
@@ -1303,7 +1338,29 @@ that reads it, and that importing it into Chrome puts those URLs back into the o
 warning.
 
 Both exports are delivered with `URL.createObjectURL` + a synthetic `<a download>` click, so the
-`downloads` permission is never needed.
+`downloads` permission is never needed. The object URL is revoked in the same turn it is clicked: it
+is a live handle to a decrypted copy of the vault, and one left alive keeps that copy readable from
+the address bar for the lifetime of the page.
+
+**Importing from Chrome's own bookmarks** (`src/import/native-bookmarks.ts`) is the one module that
+may read `chrome.bookmarks` (INV-5), and it is split in two on purpose. Copying bookmarks into the
+vault does *not* remove them from Chrome, so it does not remove them from the omnibox either —
+deleting the native copies is what does, and that is a second, separately confirmed step with its own
+button and its own summary. It is a separate message (`DELETE_NATIVE`) rather than a flag on the
+import, because a flag would put "and delete the originals" one mis-click away from a copy, and
+VaultaMark cannot undo a bookmark deletion.
+
+The permission is requested **from the page**, during the click: `chrome.permissions.request` needs a
+user gesture and refuses to run in a service worker at all. Reading the tree is then the worker's
+job. Imported URLs go through the same allowlist as every other way into the vault
+(`background/add.ts`), so an import cannot store what the add button would refuse; what it skips is
+counted and reported rather than dropped in silence.
+
+An import commits as **one batch** — the `addMany` mutation (§3.4), which lays each parent's new
+children out in a single pass using `ordersBetween`. Adding items one at a time is quadratic twice
+over (`listChildren` per add, and a whole-map copy per add), which at the five thousand bookmarks a
+real profile can hold is tens of millions of operations in a worker MV3 is entitled to kill halfway
+through.
 
 ---
 

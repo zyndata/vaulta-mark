@@ -32,11 +32,13 @@ import {
   VaultStateError,
   WeakPasswordError,
 } from '../vault/errors.js';
+import { BookmarksPermissionError } from '../import/native-bookmarks.js';
 import { NoActiveTabError } from './add.js';
 import { armHousekeeping, registerLifecycleListeners } from './autolock.js';
 import { clearBadge, flashBadge, type BadgeKind } from './badge.js';
 import { registerCommandListener } from './commands.js';
 import { installContextMenus, registerContextMenuListener } from './contextmenu.js';
+import * as io from './io.js';
 import * as items from './items.js';
 import * as organize from './organize.js';
 import * as session from './session.js';
@@ -61,6 +63,7 @@ export function toErrorCode(error: unknown): ErrorCode {
   if (error instanceof ItemNotFoundError) return 'ITEM_NOT_FOUND';
   if (error instanceof InvalidMutationError) return 'INVALID_MUTATION';
   if (error instanceof NoActiveTabError) return 'NO_ACTIVE_TAB';
+  if (error instanceof BookmarksPermissionError) return 'BOOKMARKS_PERMISSION';
   if (error instanceof UnsupportedUrlError) return URL_ERROR_CODES[error.reason];
   // A sync failure that reached a request handler — "sync now", or resolving a conflict. The
   // detail is in the status the UI is already showing; this only has to not say "unknown".
@@ -206,6 +209,26 @@ export async function handleRequest(request: Request): Promise<Response> {
           type: 'COUNT',
           count: await syncing.resolve(request.ids, request.resolution),
         };
+
+      /* ---- import and export (Phase 8) ---- */
+      case 'EXPORT_VAULT':
+        return await io.exportEncrypted(request.password, request.mode);
+      case 'EXPORT_HTML':
+        return await io.exportPlainHtml();
+      case 'PREVIEW_IMPORT':
+        return await io.previewImport(request.file, request.password);
+      case 'IMPORT_VAULT':
+        return await io.runImport(request.file, request.password, request.mode);
+      case 'GET_ROLLBACK':
+        return await io.rollbackState();
+      case 'ROLLBACK_IMPORT':
+        return { type: 'COUNT', count: await io.undoImport() };
+      case 'NATIVE_TREE':
+        return await io.nativeTree();
+      case 'IMPORT_NATIVE':
+        return await io.importFromNative(request.ids, request.parentId);
+      case 'DELETE_NATIVE':
+        return await io.deleteFromNative(request.ids);
     }
   } catch (error) {
     // Nothing here may reach a log: a request carries a master password, and the errors that come

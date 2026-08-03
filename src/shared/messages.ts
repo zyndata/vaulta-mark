@@ -280,6 +280,84 @@ export interface ResolveConflictsRequest {
 
 export type ConflictResolution = 'mine' | 'theirs' | 'both';
 
+/* --- import and export (Phase 8) ------------------------------------------- */
+
+/**
+ * Produce a `.vmv` backup.
+ *
+ * The password is always typed, even when it is the vault's own: the service worker holds the data
+ * key, not the password, and a backup sealed under a mistyped password is one nobody discovers is
+ * unopenable until the day they need it. `mode: 'vault'` is checked against the vault before
+ * anything is sealed; `'custom'` is whatever the user chose, confirmed twice in the UI.
+ */
+export interface ExportVaultRequest {
+  readonly type: 'EXPORT_VAULT';
+  readonly password: string;
+  readonly mode: 'vault' | 'custom';
+}
+
+/**
+ * Produce the plain, unencrypted Netscape bookmark file.
+ *
+ * Carries no confirmation field, for the same reason {@link DestroyVaultRequest} carries none: there
+ * is no `externally_connectable`, so a message arriving here was sent by our own page, and the typed
+ * `EXPORT UNENCRYPTED` gate that has to be passed first lives in `ui/export-gate.ts` where a person
+ * can actually read what they are agreeing to.
+ */
+export interface ExportHtmlRequest {
+  readonly type: 'EXPORT_HTML';
+}
+
+/** What is in this file? Decrypts, validates and counts; writes nothing. */
+export interface PreviewImportRequest {
+  readonly type: 'PREVIEW_IMPORT';
+  readonly file: string;
+  readonly password: string;
+}
+
+/** Apply a previewed file. Re-reads it rather than trusting a handle a dead worker would have lost. */
+export interface ImportVaultRequest {
+  readonly type: 'IMPORT_VAULT';
+  readonly file: string;
+  readonly password: string;
+  readonly mode: 'merge' | 'replace';
+}
+
+/** Is there an undo for a replace-mode import, and until when? Answered while unlocked. */
+export interface GetRollbackRequest {
+  readonly type: 'GET_ROLLBACK';
+}
+
+/** Put the vault back the way it was before the last replace-mode import. One shot. */
+export interface RollbackImportRequest {
+  readonly type: 'ROLLBACK_IMPORT';
+}
+
+/** Chrome's own bookmark tree. Needs the optional `bookmarks` permission to have been granted. */
+export interface NativeTreeRequest {
+  readonly type: 'NATIVE_TREE';
+}
+
+/** Copy a selection of native bookmarks into the vault, preserving folders. */
+export interface ImportNativeRequest {
+  readonly type: 'IMPORT_NATIVE';
+  readonly ids: readonly string[];
+  /** File the imported tree inside this folder rather than at the top level. */
+  readonly parentId?: string;
+}
+
+/**
+ * Delete native bookmarks — the second, separate step (INV-5).
+ *
+ * Its own message rather than a flag on {@link ImportNativeRequest}, because a flag would put
+ * "and delete the originals" one mis-click away from an import, and Chrome's bookmark deletion has
+ * no undo we can offer.
+ */
+export interface DeleteNativeRequest {
+  readonly type: 'DELETE_NATIVE';
+  readonly ids: readonly string[];
+}
+
 export type Request =
   | PingRequest
   | GetStateRequest
@@ -312,7 +390,16 @@ export type Request =
   | GetSyncStatusRequest
   | SyncNowRequest
   | ListConflictsRequest
-  | ResolveConflictsRequest;
+  | ResolveConflictsRequest
+  | ExportVaultRequest
+  | ExportHtmlRequest
+  | PreviewImportRequest
+  | ImportVaultRequest
+  | GetRollbackRequest
+  | RollbackImportRequest
+  | NativeTreeRequest
+  | ImportNativeRequest
+  | DeleteNativeRequest;
 
 /** A partial settings update. Absent fields keep their stored value. */
 export type SettingsPatch = Partial<VaultSettings>;
@@ -573,6 +660,89 @@ export type SyncErrorCode =
   | 'VAULT_MISMATCH'
   | 'UNKNOWN';
 
+/* --- import and export (Phase 8) ------------------------------------------- */
+
+/**
+ * A file the page is about to hand to the user.
+ *
+ * The bytes cross `chrome.runtime` as text, which is the one place decrypted vault content is
+ * allowed to travel (see the note at the top of this file): the worker holds the key and the page
+ * holds the download. It is never written to storage on either side — the page turns it straight
+ * into an object URL and revokes it.
+ */
+export interface FileResponse {
+  readonly type: 'FILE';
+  readonly filename: string;
+  readonly mime: string;
+  readonly text: string;
+}
+
+/** What an import file holds, before anything is applied. */
+export interface ImportPreviewResponse {
+  readonly type: 'IMPORT_PREVIEW';
+  readonly bookmarks: number;
+  readonly folders: number;
+  /** Tombstones carried in the file, so a merge does not resurrect what was deleted. */
+  readonly deleted: number;
+  readonly oldest: number | null;
+  readonly newest: number | null;
+  readonly createdAt: number;
+  readonly createdBy: string;
+  readonly schemaVersion: number;
+  readonly includesThumbs: boolean;
+  /** Ids the vault already has — the ceiling on how many items a merge could disagree about. */
+  readonly known: number;
+}
+
+export interface ImportResultResponse {
+  readonly type: 'IMPORT_RESULT';
+  readonly mode: 'merge' | 'replace';
+  readonly total: number;
+  readonly added: number;
+  readonly updated: number;
+  readonly conflicts: number;
+  /** Whether an undo was kept. Replace mode only. */
+  readonly rollback: boolean;
+}
+
+export interface RollbackResponse {
+  readonly type: 'ROLLBACK';
+  readonly available: boolean;
+  readonly createdAt: number | null;
+  readonly expiresAt: number | null;
+}
+
+/** One node of Chrome's bookmark tree, as the picker renders it. */
+export interface NativeNodeView {
+  readonly id: string;
+  readonly title: string;
+  readonly url?: string;
+  readonly children?: readonly NativeNodeView[];
+}
+
+export interface NativeTreeResponse {
+  readonly type: 'NATIVE_TREE_STATE';
+  /** False when the optional `bookmarks` permission has not been granted; `nodes` is then empty. */
+  readonly granted: boolean;
+  readonly nodes: readonly NativeNodeView[];
+}
+
+export interface NativeImportResponse {
+  readonly type: 'NATIVE_IMPORT';
+  readonly bookmarks: number;
+  readonly folders: number;
+  readonly duplicates: number;
+  /** Bookmarks whose URL the vault will not store — `javascript:`, `file:`, a Chrome page. */
+  readonly skipped: number;
+}
+
+export interface NativeDeleteResponse {
+  readonly type: 'NATIVE_DELETE';
+  readonly removed: number;
+  /** Chrome refused these — its permanent folders cannot be deleted. */
+  readonly failed: number;
+}
+
 /**
  * The wire form of a thrown error.
  *
@@ -611,6 +781,8 @@ export type ErrorCode =
   | 'URL_UNSUPPORTED_SCHEME'
   /** A sync operation failed. What went wrong is in the sync status, not in this code. */
   | 'SYNC_FAILED'
+  /** Reading the browser's bookmarks needs the optional `bookmarks` permission, and it is not on. */
+  | 'BOOKMARKS_PERMISSION'
   /** The service worker did not answer at all. Only ever produced on the sender's side. */
   | 'UNREACHABLE'
   | 'UNKNOWN';
@@ -649,6 +821,15 @@ export interface ResponseMap {
   readonly SYNC_NOW: SyncStatusResponse;
   readonly LIST_CONFLICTS: ConflictsResponse;
   readonly RESOLVE_CONFLICTS: CountResponse;
+  readonly EXPORT_VAULT: FileResponse;
+  readonly EXPORT_HTML: FileResponse;
+  readonly PREVIEW_IMPORT: ImportPreviewResponse;
+  readonly IMPORT_VAULT: ImportResultResponse;
+  readonly GET_ROLLBACK: RollbackResponse;
+  readonly ROLLBACK_IMPORT: CountResponse;
+  readonly NATIVE_TREE: NativeTreeResponse;
+  readonly IMPORT_NATIVE: NativeImportResponse;
+  readonly DELETE_NATIVE: NativeDeleteResponse;
 }
 
 export type ResponseFor<R extends Request> = ResponseMap[R['type']] | ErrorResponse;
@@ -697,13 +878,31 @@ export interface SyncChangedBroadcast {
   readonly status: SyncStatusResponse;
 }
 
+/**
+ * How far along a long import or export is (Phase 8).
+ *
+ * Sent from the worker while it works, because the work is in the worker and the progress bar is in
+ * the page: a five-thousand-bookmark import is one message that takes seconds to answer, and a UI
+ * with nothing between the click and the answer is a UI people click again.
+ *
+ * Carries counts and a phase, never an item. `done`/`total` are units of work, not bookmarks that
+ * could be identified — and `total` may be zero for a phase whose length is not known in advance.
+ */
+export interface IoProgressBroadcast {
+  readonly type: 'IO_PROGRESS';
+  readonly job: 'export' | 'import' | 'native';
+  readonly done: number;
+  readonly total: number;
+}
+
 /** Service worker → open UIs. Never answered; `broadcast()` ignores the absence of a listener. */
 export type Broadcast =
   | SessionLockedBroadcast
   | SessionUnlockedBroadcast
   | SettingsChangedBroadcast
   | VaultChangedBroadcast
-  | SyncChangedBroadcast;
+  | SyncChangedBroadcast
+  | IoProgressBroadcast;
 
 /* ------------------------------------------------------------------ parsing */
 
@@ -791,7 +990,43 @@ export function parseRequest(raw: unknown): Request | null {
     case 'GET_SYNC_STATUS':
     case 'SYNC_NOW':
     case 'LIST_CONFLICTS':
+    case 'EXPORT_HTML':
+    case 'GET_ROLLBACK':
+    case 'ROLLBACK_IMPORT':
+    case 'NATIVE_TREE':
       return { type };
+    case 'EXPORT_VAULT': {
+      const password = raw['password'];
+      const mode = raw['mode'];
+      if (typeof password !== 'string') return null;
+      if (mode !== 'vault' && mode !== 'custom') return null;
+      return { type, password, mode };
+    }
+    case 'PREVIEW_IMPORT': {
+      const file = raw['file'];
+      const password = raw['password'];
+      if (!isNonEmptyString(file) || typeof password !== 'string') return null;
+      return { type, file, password };
+    }
+    case 'IMPORT_VAULT': {
+      const file = raw['file'];
+      const password = raw['password'];
+      const mode = raw['mode'];
+      if (!isNonEmptyString(file) || typeof password !== 'string') return null;
+      if (mode !== 'merge' && mode !== 'replace') return null;
+      return { type, file, password, mode };
+    }
+    case 'IMPORT_NATIVE': {
+      const ids = parseIdList(raw['ids']);
+      const parentId = raw['parentId'];
+      if (ids === null) return null;
+      if (parentId !== undefined && !isNonEmptyString(parentId)) return null;
+      return { type, ids, ...(parentId === undefined ? {} : { parentId }) };
+    }
+    case 'DELETE_NATIVE': {
+      const ids = parseIdList(raw['ids']);
+      return ids === null ? null : { type, ids };
+    }
     case 'RESOLVE_CONFLICTS': {
       const ids = parseIdList(raw['ids']);
       const resolution = raw['resolution'];
@@ -1016,6 +1251,13 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'COUNT',
   'SYNC_STATUS',
   'CONFLICTS',
+  'FILE',
+  'IMPORT_PREVIEW',
+  'IMPORT_RESULT',
+  'ROLLBACK',
+  'NATIVE_TREE_STATE',
+  'NATIVE_IMPORT',
+  'NATIVE_DELETE',
   'ERROR',
 ]);
 
@@ -1036,6 +1278,7 @@ const BROADCAST_TYPES: ReadonlySet<string> = new Set([
   'SETTINGS_CHANGED',
   'VAULT_CHANGED',
   'SYNC_CHANGED',
+  'IO_PROGRESS',
 ]);
 
 export function parseBroadcast(raw: unknown): Broadcast | null {

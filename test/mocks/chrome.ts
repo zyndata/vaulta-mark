@@ -292,6 +292,18 @@ export interface ChromeMock {
   incognitoAccess: boolean;
   /** Context menus currently created, by id. `removeAll` empties it. */
   readonly menus: Map<string, { title?: string; contexts?: readonly string[] }>;
+  /**
+   * Chrome's own bookmark tree, as `chrome.bookmarks.getTree` answers it.
+   *
+   * Replace the contents to change what an import sees. The outer node is the unnamed real root,
+   * exactly as Chrome reports it — `readNativeTree` drops it and promotes its children, and a mock
+   * that skipped it would let that bug through.
+   */
+  readonly bookmarkRoots: MockBookmarkNode[];
+  /** Ids passed to `chrome.bookmarks.removeTree`, in order. */
+  readonly removedBookmarks: string[];
+  /** Ids `removeTree` refuses, the way Chrome refuses its permanent folders. */
+  readonly undeletableBookmarks: Set<string>;
   /** Fire `chrome.contextMenus.onClicked`. */
   triggerMenuClick(info: { menuItemId: string; linkUrl?: string; selectionText?: string }): void;
   /** The toolbar badge's current text, as `chrome.action.setBadgeText` left it. */
@@ -305,6 +317,15 @@ export interface ChromeMock {
    * messages it received — which is how a test observes a broadcast from the service worker.
    */
   observeMessages(): unknown[];
+}
+
+/** One node of the mocked bookmark tree. Mirrors `chrome.bookmarks.BookmarkTreeNode`. */
+export interface MockBookmarkNode {
+  id: string;
+  title: string;
+  url?: string;
+  dateAdded?: number;
+  children?: MockBookmarkNode[];
 }
 
 export interface ChromeMockOptions {
@@ -384,6 +405,9 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   const openTabs: { id: number; url?: string; title?: string; active?: boolean }[] = [];
   const openWindows: { id: number; incognito: boolean; type: string }[] = [];
   const menus = new Map<string, { title?: string; contexts?: readonly string[] }>();
+  const bookmarkRoots: MockBookmarkNode[] = [{ id: '0', title: '', children: [] }];
+  const removedBookmarks: string[] = [];
+  const undeletableBookmarks = new Set<string>(['0', '1', '2']);
   const alarms = new Map<string, { periodInMinutes?: number; scheduledTime: number }>();
   let idleDetectionInterval: number | undefined;
   let incognitoAccess = options.incognitoAccess ?? false;
@@ -555,6 +579,31 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     },
   };
 
+  /**
+   * `chrome.bookmarks` exists only while the optional permission is granted.
+   *
+   * A **getter**, not a conditional property, because a permission granted at runtime makes the
+   * namespace appear at runtime — which is exactly the sequence the import screen performs (ask,
+   * then read). A snapshot taken when the mock was built would let a "read before the grant" bug
+   * pass in tests and fail in Chrome.
+   */
+  Object.defineProperty(api, 'bookmarks', {
+    enumerable: true,
+    get: () =>
+      grantedPermissions.has('bookmarks')
+        ? {
+            getTree: () => Promise.resolve(structuredClone(bookmarkRoots)),
+            removeTree: (id: string) => {
+              if (undeletableBookmarks.has(id)) {
+                return Promise.reject(new Error("Can't modify the root bookmark folders."));
+              }
+              removedBookmarks.push(id);
+              return Promise.resolve();
+            },
+          }
+        : undefined,
+  });
+
   return {
     chrome: api as unknown as typeof chrome,
     clock,
@@ -566,6 +615,9 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     openWindows,
     menus,
     alarms,
+    bookmarkRoots,
+    removedBookmarks,
+    undeletableBookmarks,
     get incognitoAccess() {
       return incognitoAccess;
     },

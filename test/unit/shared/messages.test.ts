@@ -240,6 +240,78 @@ describe('parseRequest', () => {
     // Length is the repository's rule, not the parser's — but the type is the parser's.
     expect(parseRequest({ type: 'CHANGE_PASSWORD', currentPassword: 'a', newPassword: 7 })).toBeNull();
   });
+
+  /* --- import and export (Phase 8) --- */
+
+  it('requires a password and a known mode on EXPORT_VAULT', () => {
+    expect(parseRequest({ type: 'EXPORT_VAULT', password: 'p', mode: 'vault' })).toEqual({
+      type: 'EXPORT_VAULT',
+      password: 'p',
+      mode: 'vault',
+    });
+    // An empty password is a legal string and refused by the vault, not by the parser.
+    expect(parseRequest({ type: 'EXPORT_VAULT', password: '', mode: 'custom' })).toEqual({
+      type: 'EXPORT_VAULT',
+      password: '',
+      mode: 'custom',
+    });
+    expect(parseRequest({ type: 'EXPORT_VAULT', password: 'p' })).toBeNull();
+    expect(parseRequest({ type: 'EXPORT_VAULT', password: 'p', mode: 'both' })).toBeNull();
+    expect(parseRequest({ type: 'EXPORT_VAULT', password: 7, mode: 'vault' })).toBeNull();
+  });
+
+  it('takes EXPORT_HTML with no confirmation field', () => {
+    // The typed `EXPORT UNENCRYPTED` gate is in the page, not on the wire — the same reasoning as
+    // DESTROY_VAULT. Anything reaching here was sent by our own code.
+    expect(parseRequest({ type: 'EXPORT_HTML' })).toEqual({ type: 'EXPORT_HTML' });
+  });
+
+  it('requires a non-empty file and a string password on the import messages', () => {
+    expect(parseRequest({ type: 'PREVIEW_IMPORT', file: '{}', password: '' })).toEqual({
+      type: 'PREVIEW_IMPORT',
+      file: '{}',
+      password: '',
+    });
+    expect(parseRequest({ type: 'PREVIEW_IMPORT', file: '', password: 'p' })).toBeNull();
+    expect(parseRequest({ type: 'PREVIEW_IMPORT', file: '{}' })).toBeNull();
+
+    expect(parseRequest({ type: 'IMPORT_VAULT', file: '{}', password: 'p', mode: 'merge' })).toEqual(
+      { type: 'IMPORT_VAULT', file: '{}', password: 'p', mode: 'merge' },
+    );
+    expect(parseRequest({ type: 'IMPORT_VAULT', file: '{}', password: 'p' })).toBeNull();
+    expect(
+      parseRequest({ type: 'IMPORT_VAULT', file: '{}', password: 'p', mode: 'overwrite' }),
+    ).toBeNull();
+  });
+
+  it('takes the payload-free import messages', () => {
+    for (const type of ['GET_ROLLBACK', 'ROLLBACK_IMPORT', 'NATIVE_TREE'] as const) {
+      expect(parseRequest({ type })).toEqual({ type });
+    }
+  });
+
+  it('requires a non-empty id list on the native messages', () => {
+    expect(parseRequest({ type: 'IMPORT_NATIVE', ids: ['1'] })).toEqual({
+      type: 'IMPORT_NATIVE',
+      ids: ['1'],
+    });
+    expect(parseRequest({ type: 'IMPORT_NATIVE', ids: ['1'], parentId: 'f1' })).toEqual({
+      type: 'IMPORT_NATIVE',
+      ids: ['1'],
+      parentId: 'f1',
+    });
+    expect(parseRequest({ type: 'IMPORT_NATIVE', ids: [] })).toBeNull();
+    expect(parseRequest({ type: 'IMPORT_NATIVE', ids: ['1'], parentId: '' })).toBeNull();
+
+    expect(parseRequest({ type: 'DELETE_NATIVE', ids: ['10'] })).toEqual({
+      type: 'DELETE_NATIVE',
+      ids: ['10'],
+    });
+    // "Delete nothing" answering OK is how a bug in a caller reaches a user as "sometimes it does
+    // nothing" — and this is the one message where the alternative is deleting the wrong thing.
+    expect(parseRequest({ type: 'DELETE_NATIVE', ids: [] })).toBeNull();
+    expect(parseRequest({ type: 'DELETE_NATIVE', ids: [7] })).toBeNull();
+  });
 });
 
 describe('parseItemEdit', () => {
@@ -361,6 +433,13 @@ describe('parseResponse / parseBroadcast', () => {
       'ITEMS',
       'OPENED',
       'INCOGNITO_ACCESS_STATE',
+      'FILE',
+      'IMPORT_PREVIEW',
+      'IMPORT_RESULT',
+      'ROLLBACK',
+      'NATIVE_TREE_STATE',
+      'NATIVE_IMPORT',
+      'NATIVE_DELETE',
       'ERROR',
     ]) {
       expect(parseResponse({ type })).toEqual({ type });
@@ -375,6 +454,7 @@ describe('parseResponse / parseBroadcast', () => {
       'SESSION_UNLOCKED',
       'SETTINGS_CHANGED',
       'VAULT_CHANGED',
+      'IO_PROGRESS',
     ]) {
       expect(parseBroadcast({ type })).toEqual({ type });
     }

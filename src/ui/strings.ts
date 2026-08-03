@@ -28,6 +28,7 @@ export const ERROR_KEYS: Record<ErrorCode, string> = {
   URL_LOCAL_FILE: 'errorUrlLocalFile',
   URL_UNSUPPORTED_SCHEME: 'errorUrlUnsupportedScheme',
   SYNC_FAILED: 'errorSyncFailed',
+  BOOKMARKS_PERMISSION: 'errorBookmarksPermission',
   UNREACHABLE: 'errorUnreachable',
   UNKNOWN: 'errorUnknown',
 };

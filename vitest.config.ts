@@ -35,6 +35,10 @@ export default defineConfig({
         'src/shared/**': { lines: 90, branches: 85 },
         'src/ui/**': { lines: 90, branches: 85 },
         'src/sync/**': { lines: 90, branches: 85 },
+        // Phase 8. A bug in either loses data outright — an export nobody can open, or an import
+        // that overwrites a vault — so they sit with crypto and storage rather than with the glue.
+        'src/io/**': { lines: 90, branches: 85 },
+        'src/import/**': { lines: 90, branches: 85 },
       },
     },
   },

@@ -323,18 +323,35 @@ describe('cold start', () => {
     mock = installChromeMock({ manifestVersion: '1.2.3' });
     const localGet = vi.spyOn(mock.storage.local, 'get');
     const sessionGet = vi.spyOn(mock.storage.session, 'get');
-    vi.resetModules();
 
-    const started = performance.now();
-    await import('../../../src/background/index.js');
-    const response = await mock.sendMessage({ type: 'PING' });
-    const elapsed = performance.now() - started;
+    /**
+     * The **best** of several cold starts, not a single one.
+     *
+     * The number this is guarding is a property of the code — how much work the entry point does
+     * before it can answer — and a single sample in a suite that runs sixty files in parallel
+     * measures the machine's scheduler as much as the worker. Anything that genuinely made startup
+     * expensive would be in every sample, so the minimum still catches it, while a run that lost its
+     * timeslice to another worker's PBKDF2 no longer fails the build.
+     *
+     * The first sample also pays for Vite transforming the module graph, which Chrome never does:
+     * the extension ships one already-bundled file. Later samples re-evaluate from a warm transform
+     * cache, which is the closer analogue of a service worker waking up.
+     */
+    let best = Number.POSITIVE_INFINITY;
+    for (let sample = 0; sample < 5; sample++) {
+      vi.resetModules();
+      const started = performance.now();
+      await import('../../../src/background/index.js');
+      const response = await mock.sendMessage({ type: 'PING' });
+      best = Math.min(best, performance.now() - started);
+      expect(response).toEqual({ type: 'PONG', version: '1.2.3' });
+      mock.terminateWorker();
+    }
 
-    expect(response).toEqual({ type: 'PONG', version: '1.2.3' });
     // The real guarantee behind the budget: the entry registers listeners and returns. Every
     // storage read, key derivation and decryption is lazy, so this holds however slow the runner is.
     expect(localGet).not.toHaveBeenCalled();
     expect(sessionGet).not.toHaveBeenCalled();
-    expect(elapsed).toBeLessThan(COLD_START_BUDGET_MS);
-  });
+    expect(best).toBeLessThan(COLD_START_BUDGET_MS);
+  }, 30_000);
 });

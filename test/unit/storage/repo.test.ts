@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fromBase64Url, toBase64Url } from '../../../src/crypto/codec.js';
 import {
@@ -277,6 +277,13 @@ describe('an unlocked vault', () => {
   });
 
   it('coalesces a burst of edits into one write', async () => {
+    // Fake timers, so the 5 ms window cannot expire *during* the burst.
+    //
+    // With a real timer this asserted that five awaited `apply` calls fit inside five milliseconds,
+    // which is true on an idle machine and a coin toss on a busy one — the suite runs sixty files in
+    // parallel. Freezing the clock tests what the sentence below actually claims: the coalescer arms
+    // one timer for a whole burst, and the flush that follows is one write.
+    vi.useFakeTimers();
     const fast = repository(5);
     try {
       restore(seeded);
@@ -296,6 +303,7 @@ describe('an unlocked vault', () => {
       expect(writes.length).toBeLessThanOrEqual(2);
     } finally {
       await fast.lock({ flush: false });
+      vi.useRealTimers();
     }
   }, 30_000);
 
