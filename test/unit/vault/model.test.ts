@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { InvalidMutationError, ItemNotFoundError } from '../../../src/vault/errors.js';
 import {
   addItem,
+  addItems,
   allTags,
   applyMutations,
   canonicalJson,
@@ -197,6 +198,134 @@ describe('addItem', () => {
     expect(() =>
       addItem(after, { type: 'bookmark', url: 'https://x.test/', parentId: ids.folder! }, ctx()),
     ).toThrow(InvalidMutationError);
+  });
+});
+
+describe('addItems', () => {
+  it('appends a whole tree in one pass, parents before children', () => {
+    const { items, changed } = addItems(
+      new Map(),
+      [
+        { type: 'folder', title: 'Work', id: 'f1' },
+        { type: 'bookmark', url: 'https://a.test/', title: 'A', parentId: 'f1' },
+        { type: 'bookmark', url: 'https://b.test/', title: 'B', parentId: 'f1' },
+      ],
+      ctx(),
+    );
+
+    expect(changed).toHaveLength(3);
+    const children = listChildren(items, 'f1');
+    expect(children.map((item) => item.title)).toEqual(['A', 'B']);
+    expect(compareOrder(children[0]!.order, children[1]!.order)).toBe(-1);
+  });
+
+  it('appends after the items already there', () => {
+    const { items, ids } = sampleVault();
+    const after = addItems(
+      items,
+      [{ type: 'bookmark', url: 'https://c.test/', title: 'Gamma', parentId: ids.folder! }],
+      ctx({}, 'bulk'),
+    ).items;
+    expect(listChildren(after, ids.folder!).map((item) => item.title)).toEqual([
+      'Alpha paper',
+      'Beta notes',
+      'Gamma',
+    ]);
+  });
+
+  it('produces the same result as adding them one at a time', () => {
+    // The fast path has to agree with the slow one, or an import produces a subtly different tree
+    // from the same bookmarks added by hand.
+    const inputs = [
+      { type: 'folder' as const, title: 'Work', id: 'f1' },
+      { type: 'bookmark' as const, url: 'https://a.test/', title: 'A', parentId: 'f1', id: 'b1' },
+      { type: 'bookmark' as const, url: 'https://b.test/', title: 'B', parentId: 'f1', id: 'b2' },
+      { type: 'bookmark' as const, url: 'https://c.test/', title: 'C', id: 'b3' },
+    ];
+    const bulk = addItems(new Map(), inputs, ctx()).items;
+    const oneByOne = applyMutations(
+      new Map(),
+      inputs.map((input) => ({ kind: 'add' as const, input })),
+      ctx(),
+    ).items;
+    expect(canonicalJson([...bulk.values()])).toBe(canonicalJson([...oneByOne.values()]));
+  });
+
+  it('rejects the whole batch when any one of it is invalid', () => {
+    const before = sampleVault().items;
+    expect(() =>
+      addItems(
+        before,
+        [
+          { type: 'bookmark', url: 'https://a.test/', title: 'A' },
+          { type: 'bookmark', url: 'https://b.test/', title: 'B', parentId: 'nowhere' },
+        ],
+        ctx({}, 'bulk'),
+      ),
+    ).toThrow(ItemNotFoundError);
+  });
+
+  it('rejects a duplicate id inside the batch', () => {
+    expect(() =>
+      addItems(
+        new Map(),
+        [
+          { type: 'bookmark', url: 'https://a.test/', title: 'A', id: 'same' },
+          { type: 'bookmark', url: 'https://b.test/', title: 'B', id: 'same' },
+        ],
+        ctx(),
+      ),
+    ).toThrow(InvalidMutationError);
+  });
+
+  it('rejects a bookmark used as a parent', () => {
+    const { items, ids } = sampleVault();
+    expect(() =>
+      addItems(
+        items,
+        [{ type: 'bookmark', url: 'https://a.test/', title: 'A', parentId: ids.alpha! }],
+        ctx({}, 'bulk'),
+      ),
+    ).toThrow(InvalidMutationError);
+  });
+
+  it('changes nothing for an empty batch', () => {
+    const { items } = sampleVault();
+    const result = addItems(items, [], ctx());
+    expect(result.items).toBe(items);
+    expect(result.changed).toEqual([]);
+  });
+
+  it('ignores tombstones when it works out where to append', () => {
+    const { items, ids } = sampleVault();
+    const withTombstone = deleteItem(items, ids.beta!, ctx()).items;
+    const after = addItems(
+      withTombstone,
+      [{ type: 'bookmark', url: 'https://c.test/', title: 'Gamma', parentId: ids.folder! }],
+      ctx({}, 'bulk'),
+    ).items;
+    expect(listChildren(after, ids.folder!).map((item) => item.title)).toEqual([
+      'Alpha paper',
+      'Gamma',
+    ]);
+  });
+
+  it('is reachable as a mutation, so a whole import is one batch', () => {
+    const result = applyMutations(
+      new Map(),
+      [
+        {
+          kind: 'addMany',
+          inputs: [
+            { type: 'folder', title: 'Work', id: 'f1' },
+            { type: 'bookmark', url: 'https://a.test/', title: 'A', parentId: 'f1' },
+          ],
+        },
+      ],
+      ctx(),
+    );
+    expect(result.changed).toHaveLength(2);
+    expect(result.changed.every((item) => item.rev === 2)).toBe(true);
   });
 });
 

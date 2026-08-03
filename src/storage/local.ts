@@ -25,6 +25,7 @@ import {
   type BaseMeta,
   type BucketMeta,
   type PaneWidth,
+  type RollbackMeta,
   type VaultHeader,
   type VaultSettings,
 } from '../vault/types.js';
@@ -40,6 +41,9 @@ export const LOCAL_KEYS = {
   thumbPrefix: 'vm.thumbs.',
   thumbsLru: 'vm.thumbsLru',
   conflicts: 'vm.conflicts',
+  /** The one-shot undo behind a replace-mode import. Sealed; expires after 24 hours (Phase 8). */
+  rollback: 'vm.rollback',
+  rollbackMeta: 'vm.rollbackMeta',
   onboarding: 'vm.onboarding',
 } as const;
 
@@ -221,6 +225,41 @@ export async function readConflicts(): Promise<Bytes | null> {
 export async function writeConflicts(sealed: Bytes | null): Promise<void> {
   if (sealed === null) await area().remove(LOCAL_KEYS.conflicts);
   else await area().set({ [LOCAL_KEYS.conflicts]: toBase64Url(sealed) });
+}
+
+/* ------------------------------------------------------------------ rollback (Phase 8) */
+
+/**
+ * The pre-replace snapshot behind a replace-mode import, and the plaintext note of when it expires.
+ *
+ * Sealed for the same reason the merge base is: it is a whole copy of the item set. The metadata
+ * beside it is two timestamps and nothing else, so it can be read — "is there an undo, and until
+ * when?" — without a key.
+ */
+export async function readRollback(): Promise<Bytes | null> {
+  const raw = (await area().get(LOCAL_KEYS.rollback))[LOCAL_KEYS.rollback];
+  if (raw === undefined) return null;
+  if (typeof raw !== 'string') throw new CorruptVaultError('Stored rollback is not base64url.');
+  return fromBase64Url(raw);
+}
+
+export async function readRollbackMeta(): Promise<RollbackMeta | null> {
+  const raw = (await area().get(LOCAL_KEYS.rollbackMeta))[LOCAL_KEYS.rollbackMeta];
+  if (raw === null || typeof raw !== 'object') return null;
+  const meta = raw as Partial<RollbackMeta>;
+  if (typeof meta.createdAt !== 'number' || typeof meta.expiresAt !== 'number') return null;
+  return { createdAt: meta.createdAt, expiresAt: meta.expiresAt };
+}
+
+export async function writeRollback(sealed: Bytes, meta: RollbackMeta): Promise<void> {
+  await area().set({
+    [LOCAL_KEYS.rollback]: toBase64Url(sealed),
+    [LOCAL_KEYS.rollbackMeta]: meta,
+  });
+}
+
+export async function clearRollback(): Promise<void> {
+  await area().remove([LOCAL_KEYS.rollback, LOCAL_KEYS.rollbackMeta]);
 }
 
 /* ------------------------------------------------------------------ settings */

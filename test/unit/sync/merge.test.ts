@@ -497,6 +497,74 @@ describe('outboundView', () => {
     expect(out.get('a')?.title).toBe('Theirs');
     expect(out.get('b')?.title).toBe('Bookmark b');
   });
+
+  it('leaves an imported conflict alone — a file is not a device with an answer to protect', () => {
+    // §6.5 withholds a conflicted item so a push cannot overwrite the *other device's* version.
+    // Nothing holds the imported version, so substituting it would push a backup's copy of a
+    // bookmark to every device — a version the user has not chosen.
+    const mine = bookmark('a', { title: 'Mine' });
+    const conflict: Conflict = {
+      id: 'a',
+      kind: 'add-add',
+      fields: ['title'],
+      mine,
+      theirs: bookmark('a', { title: 'From the file' }),
+      base: null,
+      detectedAt: T0,
+      origin: 'import',
+    };
+    expect(outboundView(itemMap(mine), [conflict]).get('a')?.title).toBe('Mine');
+  });
+
+  it('still withholds the sync conflicts when an import conflict sits beside them', () => {
+    const sideBySide: Conflict[] = [
+      {
+        id: 'a',
+        kind: 'field',
+        fields: ['title'],
+        mine: bookmark('a', { title: 'Mine' }),
+        theirs: bookmark('a', { title: 'Theirs' }),
+        base: bookmark('a'),
+        detectedAt: T0,
+      },
+      {
+        id: 'b',
+        kind: 'add-add',
+        fields: ['title'],
+        mine: bookmark('b', { title: 'Mine' }),
+        theirs: bookmark('b', { title: 'From the file' }),
+        base: null,
+        detectedAt: T0,
+        origin: 'import',
+      },
+    ];
+    const out = outboundView(itemMap(bookmark('a', { title: 'Mine' }), bookmark('b', { title: 'Mine' })), sideBySide);
+    expect(out.get('a')?.title).toBe('Theirs');
+    expect(out.get('b')?.title).toBe('Mine');
+  });
+});
+
+describe('the origin of a conflict', () => {
+  it('is absent for an ordinary sync merge', () => {
+    const result = merge(
+      itemMap(bookmark('a')),
+      itemMap(bookmark('a', { title: 'Mine' })),
+      itemMap(bookmark('a', { title: 'Theirs' })),
+      CTX,
+    );
+    expect(result.conflicts[0]?.origin).toBeUndefined();
+  });
+
+  it('is stamped on every conflict a merge against a file produces', () => {
+    const result = merge(
+      null,
+      itemMap(bookmark('a', { title: 'Mine' })),
+      itemMap(bookmark('a', { title: 'From the file' })),
+      { ...CTX, origin: 'import' },
+    );
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0]?.origin).toBe('import');
+  });
 });
 
 /* ------------------------------------------------------------------ the four properties */

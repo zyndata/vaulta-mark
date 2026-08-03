@@ -85,12 +85,21 @@ export interface Conflict {
   readonly detectedAt: number;
   /** `deviceId` from the remote header. A label for the UI; never an input to a merge decision. */
   readonly remoteDevice?: string;
+  /**
+   * Where the other side came from. Absent means a sync peer; `'import'` means a `.vmv` file.
+   *
+   * It changes nothing about how the conflict is merged or shown, and exactly one thing about what
+   * is pushed — see {@link outboundView}.
+   */
+  readonly origin?: 'import';
 }
 
 export interface MergeContext {
   /** Epoch ms, stamped on conflict records. Deliberately not consulted by any merge rule. */
   readonly now: number;
   readonly remoteDevice?: string;
+  /** Stamped onto every conflict this merge produces. See {@link Conflict.origin}. */
+  readonly origin?: 'import';
 }
 
 export interface MergeResult {
@@ -227,6 +236,7 @@ function conflictOf(
     base,
     detectedAt: ctx.now,
     ...(ctx.remoteDevice === undefined ? {} : { remoteDevice: ctx.remoteDevice }),
+    ...(ctx.origin === undefined ? {} : { origin: ctx.origin }),
   };
 }
 
@@ -466,11 +476,18 @@ function reachesRoot(merged: ReadonlyMap<string, VaultItem>, item: VaultItem): b
  * cannot overwrite the other device's answer, and the merge base records exactly what the remote
  * holds. Resolving a conflict removes its record, and the item rejoins the outbound view with
  * whatever the user chose.
+ *
+ * A conflict whose other side came from an **imported file** is deliberately left out of that rule.
+ * There is no device holding the imported version and nothing to protect it from: substituting it
+ * would push a backup's copy of a bookmark to every device, overwriting what the user actually has
+ * with a version they have not chosen. Those items go out exactly as the merged vault holds them —
+ * which is this device's side, the one on screen.
  */
 export function outboundView(items: ItemMap, conflicts: readonly Conflict[]): ItemMap {
-  if (conflicts.length === 0) return items;
+  const remoteSided = conflicts.filter((conflict) => conflict.origin === undefined);
+  if (remoteSided.length === 0) return items;
   const out = new Map(items);
-  for (const conflict of conflicts) out.set(conflict.id, conflict.theirs);
+  for (const conflict of remoteSided) out.set(conflict.id, conflict.theirs);
   return out;
 }
 

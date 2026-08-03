@@ -130,6 +130,9 @@ function parseConflicts(raw: unknown): Conflict[] {
       base: isItem(record.base) ? record.base : null,
       detectedAt: record.detectedAt,
       ...(typeof record.remoteDevice === 'string' ? { remoteDevice: record.remoteDevice } : {}),
+      // Load-bearing rather than decorative: `outboundView` reads it to decide whether the other
+      // side is a device whose answer must be protected, or a file that has no answer to protect.
+      ...(record.origin === 'import' ? { origin: 'import' as const } : {}),
     });
   }
   return out;

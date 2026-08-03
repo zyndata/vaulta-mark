@@ -28,7 +28,7 @@ import { CorruptVaultError, UnsupportedSchemaError } from '../crypto/errors.js';
 import { RECOMMENDED_KDF_PARAMS, deriveKek, generateKdfSalt } from '../crypto/kdf.js';
 import { generateDek, subkey, unwrapDek, wrapDek } from '../crypto/keys.js';
 import { MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
-import { Secret } from '../crypto/wipe.js';
+import { Secret, zero } from '../crypto/wipe.js';
 import { VaultLockedError, VaultStateError, WeakPasswordError } from '../vault/errors.js';
 import { migrate, needsMigration } from '../vault/migrate.js';
 import { applyMutations, purgeTombstones, toItemMap, type Mutation } from '../vault/model.js';
@@ -455,6 +455,27 @@ export class VaultRepository {
   }
 
   /**
+   * Prove that a password is this vault's, changing nothing.
+   *
+   * Verified against the **stored** wrap rather than against anything in memory: an unlocked session
+   * must not be a way to act on the master password without knowing it. Throws `WrongPasswordError`
+   * exactly where `unlock` would.
+   *
+   * Phase 8's export asks for this. Exporting under "my vault password" and being wrong about which
+   * password that was produces a backup file nobody can open — and the day that is discovered is the
+   * day the vault is already gone.
+   */
+  async verifyPassword(password: string): Promise<void> {
+    this.#assertUnlocked('verifying the master password');
+    const header = this.header();
+    const kek = await deriveKek(password, fromBase64Url(header.kdf.salt), {
+      alg: header.kdf.alg,
+      iterations: header.kdf.iterations,
+    });
+    zero(await unwrapDek(kek, header.wrappedDek));
+  }
+
+  /**
    * Re-wrap the DEK under a key derived from a new password.
    *
    * Thirty-two bytes are re-encrypted and nothing else moves: no bucket is touched, no ciphertext
@@ -470,13 +491,7 @@ export class VaultRepository {
     if (header === null || dek === null) throw new VaultLockedError('changing the password');
     assertPasswordLength(newPassword);
 
-    // Verify the current password against the stored wrap rather than against anything in memory:
-    // an unlocked session must not be a way to change the password without knowing it.
-    const currentKek = await deriveKek(currentPassword, fromBase64Url(header.kdf.salt), {
-      alg: header.kdf.alg,
-      iterations: header.kdf.iterations,
-    });
-    await unwrapDek(currentKek, header.wrappedDek);
+    await this.verifyPassword(currentPassword);
 
     const salt = generateKdfSalt();
     const kek = await deriveKek(newPassword, salt, RECOMMENDED_KDF_PARAMS);

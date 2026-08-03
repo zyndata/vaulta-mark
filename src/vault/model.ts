@@ -86,6 +86,8 @@ export interface ItemPatch {
 /** The mutation vocabulary `VaultRepository.apply()` speaks. */
 export type Mutation =
   | { readonly kind: 'add'; readonly input: AddItemInput }
+  /** Many adds at once, laid out in one pass — see {@link addItems}. */
+  | { readonly kind: 'addMany'; readonly inputs: readonly AddItemInput[] }
   | { readonly kind: 'update'; readonly id: string; readonly patch: ItemPatch }
   | { readonly kind: 'delete'; readonly id: string }
   | { readonly kind: 'restore'; readonly id: string }
@@ -193,6 +195,73 @@ export function addItem(items: ItemMap, input: AddItemInput, ctx: MutationContex
         };
 
   return { items: withItems(items, [item]), changed: [item] };
+}
+
+/**
+ * Add many items in one pass — the import path (Phase 8).
+ *
+ * `addItem` in a loop is quadratic twice over: it calls `listChildren` to find the last sibling,
+ * and `withItems` copies the whole map, both per item. At a few hundred that is invisible; at the
+ * five thousand a native-bookmark import can carry it is tens of millions of operations in a service
+ * worker that MV3 is entitled to kill halfway through. This walks the existing items **once** to
+ * learn each parent's last order key, then appends, so an import costs O(items + inputs).
+ *
+ * Inputs are processed in the order given, and an input may name a folder created earlier in the
+ * same call as its parent — which is what lets a whole imported tree arrive as one batch, and
+ * therefore as one revision.
+ *
+ * Validation is the same as {@link addItem}'s and just as strict: an unknown parent, a bookmark used
+ * as a parent, or a duplicate id rejects the **whole** batch. A half-applied import is a tree nobody
+ * asked for behind a perfectly valid GCM tag.
+ */
+export function addItems(
+  items: ItemMap,
+  inputs: readonly AddItemInput[],
+  ctx: MutationContext,
+): MutationResult {
+  if (inputs.length === 0) return { items, changed: [] };
+  const newId = ctx.newId ?? defaultNewId;
+
+  // One pass over what is already there: the highest order key among each parent's live children.
+  const lastOrder = new Map<string, string>();
+  for (const item of items.values()) {
+    if (isDeleted(item)) continue;
+    const current = lastOrder.get(item.parentId);
+    if (current === undefined || compareOrder(item.order, current) > 0) {
+      lastOrder.set(item.parentId, item.order);
+    }
+  }
+
+  const next = new Map(items);
+  const changed: VaultItem[] = [];
+  for (const input of inputs) {
+    const parentId = input.parentId ?? ROOT_ID;
+    assertUsableParent(next, parentId);
+
+    const id = input.id ?? newId();
+    if (next.has(id)) throw new InvalidMutationError(`An item with id ${id} already exists.`);
+
+    const order = orderBetween(lastOrder.get(parentId) ?? null, null);
+    lastOrder.set(parentId, order);
+
+    const base = { id, parentId, createdAt: ctx.now, updatedAt: ctx.now, order, rev: ctx.rev };
+    const item: VaultItem =
+      input.type === 'folder'
+        ? { ...base, type: 'folder', title: input.title.trim() }
+        : {
+            ...base,
+            type: 'bookmark',
+            title: input.title?.trim() ?? '',
+            url: normalizeUrl(input.url),
+            ...optionalTags(input.tags),
+            ...optionalNote(input.note),
+            ...(input.og === undefined ? {} : { og: input.og }),
+          };
+
+    next.set(id, item);
+    changed.push(item);
+  }
+  return { items: next, changed };
 }
 
 /** Edit an item's fields. Unmentioned fields are untouched; `null` clears an optional one. */
@@ -438,6 +507,8 @@ export function applyMutation(
   switch (mutation.kind) {
     case 'add':
       return addItem(items, mutation.input, ctx);
+    case 'addMany':
+      return addItems(items, mutation.inputs, ctx);
     case 'update':
       return updateItem(items, mutation.id, mutation.patch, ctx);
     case 'delete':

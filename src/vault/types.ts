@@ -301,3 +301,19 @@ export interface BaseMeta {
    */
   readonly remoteHash: string;
 }
+
+/**
+ * `vm.rollbackMeta` — the plaintext note beside the replace-import undo snapshot (Phase 8).
+ *
+ * Two timestamps, deliberately nothing else, for the same reason {@link BaseMeta} carries nothing:
+ * it sits in the clear in `storage.local`, and "how many bookmarks were in the vault before the
+ * import" is a fact about the vault's contents. The UI that needs a count has the snapshot open.
+ */
+export interface RollbackMeta {
+  readonly createdAt: number;
+  /** Epoch ms after which the snapshot is refused and discarded. 24 hours (§11). */
+  readonly expiresAt: number;
+}
+
+/** How long a replace-import's one-shot undo survives (ARCHITECTURE §11). */
+export const ROLLBACK_TTL_MS = 24 * 60 * 60 * 1000;
