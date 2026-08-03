@@ -14,6 +14,40 @@ below.
 
 ### Added
 
+- **You can get your bookmarks out, and back in again.** *Import & export* in the manager saves an
+  encrypted `.vmv` file holding every bookmark, folder, tag and note — locked with your vault
+  password or with one of its own, whichever you choose. It is a file you can keep anywhere: on a
+  drive, in a backup, in a cloud folder, all of which can read it exactly as well as they can read
+  your vault, which is to say not at all. It is also the answer to the question the rest of
+  VaultaMark cannot answer on its own: what happens when the computer is gone.
+- **Opening a backup shows you what is in it before anything changes** — how many bookmarks, how
+  many folders, when it was made, and how much of it this vault already has. Then you choose:
+  **merge** it into what you have, or **replace** everything with it.
+  - Merge never destroys anything. New bookmarks are added; where the file and your vault disagree
+    about the same bookmark, both versions are kept and you settle it afterwards, on the same screen
+    that settles disagreements between two computers. That includes a bookmark you deleted after the
+    backup was taken: the file says it is alive and your vault says it went, and a merge asks rather
+    than quietly undoing your deletion.
+  - Replace asks twice — a typed phrase, then a second confirmation naming the number of bookmarks
+    about to go — and keeps a copy of your old vault for **24 hours**, so the wrong file is one
+    button away from being undone rather than a disaster.
+- **A wrong password and a damaged file say different things.** "That password does not open this
+  backup" sends you to look for the password; "this file is damaged" sends you to your other copy.
+  Getting those two the wrong way round is how a good backup ends up deleted, so the file is built
+  to tell them apart.
+- **Import the bookmarks already in this browser.** VaultaMark asks for permission to read them only
+  when you use this, shows the tree with checkboxes, and copies what you tick into the vault with
+  the folder structure intact. You can hand the permission straight back afterwards.
+- **Deleting the browser's copies is a separate step, and it is the one that matters.** Copying a
+  bookmark into the vault does not take it out of the address bar's suggestions — deleting Chrome's
+  own copy does. So it has its own button, its own confirmation and its own summary of exactly what
+  will go. Nothing is ever deleted from Chrome as a side effect of an import.
+- **Plain HTML export**, for leaving — an ordinary bookmarks file any browser can import. It is
+  unencrypted by definition, so it sits behind a dialog that says so in three sentences and a typed
+  `EXPORT UNENCRYPTED`, and the file itself opens with the same warning for whoever finds it in six
+  months. Nothing about it is hidden, including the part where importing it into a browser puts
+  every address back into the suggestions VaultaMark exists to keep them out of.
+- Long imports and exports show a progress bar rather than a window that has stopped responding.
 - **Your bookmarks are on your other computers now**, with nothing to set up. Every Chrome signed
   into the same Google account gets the same vault, still encrypted — Google replicates a blob it
   cannot read, and VaultaMark makes no network request of its own to make that happen. There is a
@@ -261,6 +295,9 @@ below.
 
 ### Fixed
 
+- The manager's three-column layout stayed on screen underneath the conflict screen — invisible only
+  in the sense that something else was drawn over it, and still taking the clicks meant for what was
+  on top.
 - Nothing was lost to a browser that closed mid-sync. A sync that is interrupted after writing part
   of the vault leaves a copy that does not add up; the next device to look at it notices, and repairs
   it from its own copy rather than reading half a vault.

@@ -121,6 +121,17 @@ body.vm-manager {
 }
 
 /*
+ * `hidden` has to be spelled out, because `display: grid` above already beat the browser's own
+ * `[hidden] { display: none }`: a UA rule loses to any author rule, whatever the specificity. Both
+ * full-window screens — conflicts and import/export — put the three-column layout away by setting
+ * the attribute, and without this it stayed on screen underneath them, invisible only in the sense
+ * that something else was drawn on top. It still took the clicks.
+ */
+.vm-layout[hidden] {
+  display: none;
+}
+
+/*
  * The grab handle between two columns. Four pixels wide, with a larger hit area than it looks like:
  * a splitter you have to aim at is one people give up on.
  */
@@ -800,4 +811,117 @@ body.vm-manager {
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-top: 0.75rem;
+}
+
+/* ------------------------------------------------------------------ import & export */
+
+/*
+ * The import/export screen, laid out like the conflict screen: one readable column in the middle of
+ * the window rather than the three-pane grid, because every section here is a paragraph and a
+ * button and none of them belongs beside a bookmark list.
+ */
+.vm-io {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  overflow-y: auto;
+}
+
+.vm-io-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.vm-io-section {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--vm-border);
+}
+
+.vm-io-section h3 {
+  margin: 0;
+}
+
+.vm-io-section p {
+  margin: 0;
+  max-width: 60ch;
+}
+
+/* The last section is the unencrypted export. It is marked, because it undoes the other three. */
+.vm-io-section:last-of-type {
+  border-top-color: var(--vm-danger);
+}
+
+.vm-io-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.vm-io-preview {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.vm-io-progress:not(:empty) {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.vm-io-progress progress {
+  flex: 1 1 auto;
+  max-width: 24rem;
+}
+
+.vm-io-undo:not(:empty) {
+  width: 100%;
+}
+
+.vm-io-undo .vm-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/*
+ * The native-bookmark picker. Indentation is a custom property rather than nested padding so a row
+ * stays one grid line deep however far down the tree it is — a bookmark eight folders in should
+ * still have its title where the eye expects it, not pushed off the right edge.
+ */
+.vm-native-tree {
+  width: 100%;
+  max-height: 22rem;
+  overflow-y: auto;
+  padding: 0.5rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-surface);
+}
+
+.vm-native-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.1rem 0;
+  padding-left: calc(var(--vm-native-depth, 0) * 1.1rem);
+}
+
+.vm-native-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 24rem;
+}
+
+.vm-file {
+  max-width: 100%;
 }

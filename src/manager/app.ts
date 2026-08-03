@@ -41,6 +41,7 @@ import {
   promptText,
 } from '../ui/dialog.js';
 import { detailPane } from './detail.js';
+import { ioScreen, paintProgress } from './io.js';
 import { BookmarkList } from './list.js';
 import { openSettings } from './settings.js';
 import { sidebar } from './sidebar.js';
@@ -115,6 +116,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   const syncSlot = h('div', { class: 'vm-sync-slot' });
   const bannerSlot = h('div', { class: 'vm-banner-slot' });
   const conflictSlot = h('div', { class: 'vm-conflict-slot', hidden: true });
+  const ioSlot = h('div', { class: 'vm-io-slot', hidden: true });
   const status = qs(document, '#vm-status');
 
   /** The last status the worker reported. `null` until the first answer arrives. */
@@ -299,6 +301,15 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
         {
           type: 'button',
           class: 'vm-button vm-button--quiet vm-button--inline',
+          onclick: openIo,
+        },
+        msg('managerIoButton'),
+      ),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'vm-button vm-button--quiet vm-button--inline',
           onclick: () => {
             void openSettings({
               settings,
@@ -333,6 +344,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     bannerSlot,
     layout,
     conflictSlot,
+    ioSlot,
     toastSlot,
   );
 
@@ -637,6 +649,37 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     await refreshSync();
     await reloadAll();
     if (!conflictSlot.hidden) await showConflicts();
+  }
+
+  /* ---------------------------------------------------------------- import and export */
+
+  /**
+   * The import/export screen, in place of the three-column layout.
+   *
+   * A screen for the same reason the conflict view is one: every operation on it needs a paragraph
+   * before its button makes sense, and the native-bookmark picker is a tree of checkboxes that no
+   * dialog has room for.
+   */
+  function openIo(): void {
+    render(
+      ioSlot,
+      ioScreen({
+        say,
+        onBack: closeIo,
+        onVaultChanged: () => {
+          void reloadAll();
+        },
+      }),
+    );
+    layout.hidden = true;
+    ioSlot.hidden = false;
+    ioSlot.querySelector('h2')?.scrollIntoView();
+  }
+
+  function closeIo(): void {
+    ioSlot.hidden = true;
+    layout.hidden = false;
+    render(ioSlot);
   }
 
   /* ---------------------------------------------------------------- loading */
@@ -1111,6 +1154,12 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     if (message.type === 'SYNC_CHANGED') {
       syncState = message.status;
       paintSync();
+      return;
+    }
+    if (message.type === 'IO_PROGRESS') {
+      // Only while the screen that owns the bar is up. A progress broadcast that arrived because
+      // another window is exporting is not this window's to render.
+      if (!ioSlot.hidden) paintProgress(ioSlot, message.done, message.total);
       return;
     }
     if (message.type === 'SESSION_LOCKED') {
