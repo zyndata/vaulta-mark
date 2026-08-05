@@ -15,10 +15,10 @@
 import '../ui/styles.css';
 import './popup.css';
 
-import { MIN_PASSWORD_LENGTH, estimateStrength, passwordLength } from '../crypto/password.js';
 import { onBroadcast, send, type LockReason } from '../shared/messages.js';
-import { applyTheme, h, matchesPhrase, msg, qs, render } from '../ui/dom.js';
-import { LOCK_REASON_KEYS, WARNING_KEYS, errorText } from '../ui/strings.js';
+import { createVaultForm } from '../ui/create-form.js';
+import { applyTheme, h, msg, qs, render } from '../ui/dom.js';
+import { LOCK_REASON_KEYS, errorText } from '../ui/strings.js';
 import type { VaultSettings } from '../vault/types.js';
 import { settingsScreen } from './settings.js';
 import { vaultScreen } from './vault.js';
@@ -57,168 +57,23 @@ function show(box: HTMLElement, text: string | null): void {
 /* ------------------------------------------------------------------ create screen */
 
 /**
- * Whether the create screen was reached from a profile that had a synced vault to join.
+ * The vault-creation form, wired to this window.
  *
- * It changes nothing mechanically and everything about what the screen means: the same form is
- * either "set up VaultaMark" or "deliberately keep a second, separate vault on this computer",
- * and the second needs saying out loud because it cannot sync with the first.
+ * The form itself lives in `ui/create-form.ts`, because onboarding's step 2 creates a vault too and
+ * the no-recovery acknowledgement must be the same question in both places.
  */
 function createScreen(options: { separate?: boolean; onBack?: () => void } = {}): HTMLElement {
-  const password = h('input', { type: 'password', autocomplete: 'new-password' });
-  const confirm = h('input', { type: 'password', autocomplete: 'new-password' });
-  const phrase = h('input', { type: 'text', autocomplete: 'off', spellcheck: 'false' });
-
-  const meter = h(
-    'div',
-    { class: 'vm-meter', 'data-score': '0', 'aria-hidden': 'true' },
-    ...Array.from({ length: 5 }, () => h('span')),
-  );
-  const strength = h('p', { class: 'vm-small vm-muted', role: 'status' });
-  const warnings = h('ul', { class: 'vm-warnings vm-small vm-muted' });
-  const mismatch = h('p', { class: 'vm-small vm-danger', hidden: true });
-  const weak = h('p', { class: 'vm-notice vm-notice--warning', hidden: true });
-  const error = alertBox();
-  const submit = h('button', { class: 'vm-button', type: 'submit', disabled: true });
-  // A disabled button that will not say why is a dead end: three separate conditions gate it, and
-  // the one that is unmet is not always the one the user is looking at.
-  const blocked = h('p', { class: 'vm-blocked vm-small vm-muted', role: 'status', hidden: true });
-
-  /** Set once the user has seen the weak-password warning and chosen to go ahead anyway. */
-  let weakAcknowledged = false;
-  let acceptable = false;
-  /** Guards against a slower earlier `estimateStrength` landing on top of a later result. */
-  let latest = 0;
-
-  /**
-   * The first requirement the form is still waiting on, or `null` when it is ready.
-   *
-   * Ordered the way the fields are: naming the phrase while the password is too short would send
-   * someone to fix the thing they already got right.
-   */
-  function unmetRequirement(): string | null {
-    if (passwordLength(password.value) < MIN_PASSWORD_LENGTH) {
-      return msg('createNeedsLength', [String(MIN_PASSWORD_LENGTH)]);
-    }
-    if (password.value !== confirm.value) return msg('createNeedsMatch');
-    if (!matchesPhrase(phrase.value, msg('createConfirmPhrase'))) {
-      return msg('createNeedsPhrase', [msg('createConfirmPhrase')]);
-    }
-    return null;
-  }
-
-  function refreshSubmit(): void {
-    const matches = password.value.length > 0 && password.value === confirm.value;
-    show(mismatch, confirm.value.length > 0 && !matches ? msg('createPasswordsDiffer') : null);
-
-    const unmet = unmetRequirement();
-    submit.disabled = unmet !== null;
-    // Nothing to say before the user has typed anything: the form is not "blocked" yet, it is empty.
-    show(blocked, password.value.length > 0 ? unmet : null);
-    submit.textContent = msg(weakAcknowledged ? 'createButtonAnyway' : 'createButton');
-  }
-
-  async function refreshStrength(): Promise<void> {
-    const token = ++latest;
-    const typed = password.value;
-    if (typed.length === 0) {
-      meter.setAttribute('data-score', '0');
-      strength.textContent = '';
-      render(warnings);
-      acceptable = false;
-      return;
-    }
-    const estimate = await estimateStrength(typed);
-    if (token !== latest) return;
-    meter.setAttribute('data-score', String(estimate.score));
-    strength.textContent = msg('createStrength', [msg(`strength${String(estimate.score)}`)]);
-    render(warnings, ...estimate.warnings.map((code) => h('li', null, msg(WARNING_KEYS[code]))));
-    acceptable = estimate.acceptable;
-    // A password that has just become strong should not still sit behind an "are you sure".
-    if (acceptable) {
-      weakAcknowledged = false;
-      weak.hidden = true;
-    }
-    refreshSubmit();
-  }
-
-  async function submitCreate(): Promise<void> {
-    if (submit.disabled) return;
-    // Below "good" the flow asks a second time; it never refuses. Nobody is blocked from their own
-    // choice — we make sure it was one (ARCHITECTURE §4.6).
-    if (!acceptable && !weakAcknowledged) {
-      weakAcknowledged = true;
-      show(weak, msg('createWeakConfirm'));
-      refreshSubmit();
-      return;
-    }
-    submit.disabled = true;
-    show(error, null);
-    const response = await send({ type: 'CREATE_VAULT', password: password.value });
-    if (response.type === 'ERROR') {
-      show(error, errorText(response.code));
-      refreshSubmit();
-      return;
-    }
-    password.value = '';
-    confirm.value = '';
-    await refresh();
-  }
-
-  password.addEventListener('input', () => {
-    void refreshStrength();
-    refreshSubmit();
-  });
-  confirm.addEventListener('input', refreshSubmit);
-  phrase.addEventListener('input', refreshSubmit);
-
-  refreshSubmit();
-
-  return h(
-    'form',
-    {
-      onsubmit: (event: Event) => {
-        event.preventDefault();
-        void submitCreate();
-      },
+  return createVaultForm({
+    create: async (password) => {
+      const response = await send({ type: 'CREATE_VAULT', password });
+      return response.type === 'ERROR' ? response.code : null;
     },
-    options.separate === true
-      ? h(
-          'div',
-          { class: 'vm-notice vm-notice--warning' },
-          h('p', null, h('strong', null, msg('adoptSeparateHeading'))),
-          h('p', null, msg('adoptSeparateBody')),
-          options.onBack === undefined
-            ? null
-            : h(
-                'button',
-                {
-                  type: 'button',
-                  class: 'vm-button vm-button--quiet vm-button--inline',
-                  onclick: options.onBack,
-                },
-                msg('adoptSeparateBack'),
-              ),
-        )
-      : h('p', { class: 'vm-small vm-muted' }, msg('createIntro')),
-    field('createFieldPassword', password),
-    meter,
-    strength,
-    warnings,
-    field('createFieldConfirm', confirm),
-    mismatch,
-    h(
-      'div',
-      { class: 'vm-notice vm-notice--warning' },
-      h('p', null, h('strong', null, msg('createNoRecoveryHeading'))),
-      h('p', null, msg('createNoRecoveryBody')),
-    ),
-    field('createFieldPhrase', phrase),
-    h('p', { class: 'vm-small vm-muted' }, msg('createPhraseHint', [msg('createConfirmPhrase')])),
-    weak,
-    error,
-    submit,
-    blocked,
-  );
+    onCreated: () => {
+      void refresh();
+    },
+    ...(options.separate === undefined ? {} : { separate: options.separate }),
+    ...(options.onBack === undefined ? {} : { onBack: options.onBack }),
+  });
 }
 
 /* ------------------------------------------------------------------ adopt screen */

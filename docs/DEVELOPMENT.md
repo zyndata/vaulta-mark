@@ -19,6 +19,7 @@ npm run verify  # the gate: lint + type-check + test + build + invariant scan
 | `npm run dev` | Vite build in watch mode. Rebuilds `dist/` on every save. |
 | `npm run build` | Production build → `dist/`. |
 | `npm run zip` | Packages `dist/` → `release/vaulta-mark-<version>.zip` and prints its SHA-256. |
+| `npm run update-psl` | Refetches the Public Suffix List into `src/history/public-suffix.ts`. **Manual, and deliberately so** — that list decides which history entries a cleanup deletes, so it is never fetched at runtime and every refresh is a reviewed diff (ARCHITECTURE §12.1). |
 | `npm run test` | Vitest unit + integration, with coverage and its thresholds. |
 | `npm run test:watch` | Vitest in watch mode, no coverage. |
 | `npm run test:e2e` | Playwright, against a **built** `dist/`. See §5. |
@@ -194,6 +195,37 @@ the vault will refuse such as a `javascript:` bookmarklet or a `file://` link:
 7. Type one of the deleted bookmarks' addresses into the omnibox: it should no longer be suggested.
    That is the whole point of the second step, and the only way to see it is to look.
 8. Take the permission back on `chrome://extensions` and confirm the screen returns to step 2.
+
+### 5.3 History cleanup, by hand
+
+`chrome.permissions.request` is the same obstacle as in §5.2, and the consequence here is larger: the
+feature deletes real browsing history. The logic is covered against a mocked `chrome.history` in
+`test/unit/history/**` and `test/unit/background/history.test.ts` — including the exact `search` and
+`deleteUrl` call lists — but the permission prompt and Chrome's own history page need eyes.
+
+**Use a scratch profile.** This deletes browsing history for real, and there is no undo.
+
+1. In a profile with some history, visit two or three pages you are willing to lose, and one page on
+   a site you are **not** going to vault whose domain name *contains* one you are — `example.com`
+   vaulted and `notexample.community` visited is the shape that catches the bug this feature exists
+   to avoid.
+2. Vault the first pages. Open the manager → **Settings** → *Privacy*.
+3. It must explain the permission and offer the button, not reach for it. Press it and **decline
+   once**: the panel says so and the history settings stay off.
+4. Accept, then press *Check what would be removed*. Read the count, expand *Review the list*, and
+   check the sites against `chrome://history` yourself. The unvaulted look-alike must **not** be
+   listed.
+5. Confirm the deletion. The reported number should match the dry run. Check `chrome://history`: the
+   vaulted sites are gone and the look-alike is still there.
+6. Type one of the removed addresses into the omnibox. It should no longer be suggested — that is
+   the whole point, and the only way to see it is to look.
+7. Switch *Clear vaulted sites on lock* on, visit a vaulted site again, lock the vault, and check
+   `chrome://history`.
+8. Switch *Quick-close* on, open any page, press **Ctrl+Shift+X**. The tab closes and that site's
+   history goes — including for a site that is not in the vault, which is what the setting says it
+   does.
+9. Take the permission back on `chrome://extensions` and confirm the panel returns to step 3.
+
 ---
 
 ## 6. The invariant scanners

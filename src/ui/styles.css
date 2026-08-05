@@ -357,6 +357,10 @@ body {
   color: var(--vm-danger);
 }
 
+.vm-notice--ok {
+  border-left-color: var(--vm-ok);
+}
+
 .vm-notice p {
   margin: 0 0 0.35rem;
 }
@@ -543,4 +547,51 @@ body {
   padding: 0.5rem;
   border: 1px solid var(--vm-danger);
   border-radius: var(--vm-radius);
+}
+
+/* ------------------------------------------------------------------ history cleanup (Phase 9) */
+
+/*
+ * The panel that deletes browsing history, shared by onboarding step 5 and Settings → Privacy
+ * (`ui/history-cleanup.ts`). It re-renders itself through four states, so the container carries the
+ * spacing rather than each state having to remember it.
+ */
+.vm-cleanup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.vm-cleanup .vm-button {
+  width: auto;
+}
+
+.vm-cleanup .vm-notice {
+  margin-bottom: 0;
+}
+
+.vm-cleanup-review > ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.vm-cleanup-review summary {
+  cursor: pointer;
+}
+
+/* A stated fact with its explanation, rather than a control. Set apart so it does not read as one. */
+.vm-settings-note {
+  margin-top: 0.5rem;
+  padding-left: 0.625rem;
+  border-left: 2px solid var(--vm-border);
+}
+
+.vm-settings-note h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.9375rem;
+}
+
+.vm-settings-note p {
+  margin: 0 0 0.25rem;
 }

@@ -502,7 +502,7 @@ Drafts live in `docs/STORE_LISTING.md` (Phase 0) and are finalized in Phase 13.
 | Detailed description | Leads with the five differentiators; states the no-recovery warning; explains the two sync tiers | Phase 0 draft |
 | Category | Productivity | — |
 | Language | English | — |
-| Privacy policy URL | GitHub Pages URL for `docs/PRIVACY.md` | Phase 9 |
+| Privacy policy URL | GitHub Pages URL for `docs/PRIVACY.md` | **Blocked on a decision — see below** |
 | Single-purpose statement | "Store, organize, and open bookmarks from a password-encrypted vault that is kept separate from Chrome's own bookmarks." | Phase 0 draft |
 | Data-usage disclosures | **No data collected.** No data sold, no data used for anything beyond the single purpose, no data transferred except to the user's own Google Drive at their instruction. | Phase 13 |
 
@@ -518,9 +518,24 @@ Drafts live in `docs/STORE_LISTING.md` (Phase 0) and are finalized in Phase 13.
 | `favicon` | Displays each bookmark's site icon from Chrome's local favicon cache, so no icon request is sent to a third party. |
 | `identity` *(optional)* | Only when the user enables Google Drive sync: obtains an OAuth token for the `drive.file` scope so the encrypted vault can be stored in their own Drive. |
 | `https://www.googleapis.com/*` *(optional)* | Only when the user enables Google Drive sync: uploads and downloads the encrypted vault file. |
-| `history` *(optional)* | Only when the user runs the history-cleanup tool: removes history entries for domains they have vaulted, so those URLs stop appearing in address-bar autocomplete. |
+| `history` *(optional)* | Only when the user runs the history-cleanup tool, enables clearing on lock, or enables quick-close: removes history entries so vaulted URLs stop appearing in address-bar autocomplete. |
 | `bookmarks` *(optional)* | Only when the user imports existing Chrome bookmarks into the vault, and optionally deletes the originals afterwards at their request. |
 | `idle` *(optional)* | Only when the user enables locking on system idle. |
+
+**The privacy-policy URL is the one unresolved release blocker.** The document itself is finished and
+publishable (`docs/PRIVACY.md`, Phase 9), but the Store requires a **publicly reachable** URL and this
+repository is private ([PLAN.md §2.5, D36](../PLAN.md#25-project--process)). GitHub Pages on a private
+repository needs a paid plan. Three ways out, in the order they are worth considering:
+
+1. **Make the repository public** — a decision that has to be taken anyway before a source-available
+   release, and the one that costs nothing. Then Settings → Pages → Deploy from a branch → `main` /
+   `docs`, giving `https://zyndata.github.io/vaulta-mark/PRIVACY`.
+2. Keep it private and upgrade the plan so Pages works.
+3. Host the policy somewhere else entirely.
+
+Whichever is chosen, the URL must be **stable across releases** — never a `dev`-branch blob URL. This
+is a decision for the maintainer, not something a phase can settle, and it must be settled before
+submission day rather than on it.
 
 **Remote code:** answer **"No, I am not using remote code."** Every byte of executable code is in the
 package; [INV-1/INV-2](../PLAN.md#4-hard-invariants) are CI-enforced and the verification scripts are

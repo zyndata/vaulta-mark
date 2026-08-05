@@ -14,6 +14,45 @@ below.
 
 ### Added
 
+- **Installing VaultaMark now opens a five-screen setup guide**, once, on first install and never on
+  an update. It covers what the extension is for, creating your master password, allowing the
+  extension in incognito, which sync tier you are on, and — last — the two things Chrome still does
+  that a vault cannot reach.
+  - **The no-recovery warning cannot be skipped.** There is no password recovery of any kind, and the
+    only way past that screen is to create a vault, which means typing the confirmation sentence. No
+    button, no keyboard shortcut and no reload gets around it.
+  - **Allowing incognito can be postponed but not ignored.** It is a Chrome checkbox no extension is
+    allowed to reach, so the screen explains it, hands you the address to paste, and re-checks on
+    demand. Choosing *Skip for now* is a real answer — and leaves a reminder in the manager that
+    clears itself the moment you turn the setting on.
+  - The sync screen puts Chrome sync and Google Drive side by side with what each actually gives you,
+    including the ways Chrome sync is smaller. Drive is marked as arriving in a later release rather
+    than hidden, so nobody chooses in the dark.
+  - You can run the guide again at any time from **Settings → About**. It changes nothing — your
+    vault, password and settings are untouched.
+- **Vaulted pages can be cleared out of Chrome's history.** Saving a page to the vault never put it
+  in Chrome's bookmarks, but a page you *visited* before you saved it is still in your history,
+  still autocompleting in the address bar. Settings → Privacy now finds those entries and removes
+  them.
+  - **It shows you the count and the list before it deletes anything**, and asks once more after
+    that. "This will remove 143 entries across 27 sites" — with the sites, so you can disagree.
+  - **It only ever touches sites that are in your vault.** Chrome's history search matches on
+    substrings, so asking it about `example.com` also returns `notexample.community` and a blog post
+    that merely mentions the name. Every result is re-checked against the real site name before
+    anything is deleted, using a bundled copy of the Public Suffix List — which is what makes
+    `bbc.co.uk`, `example.com.au` and one person's `alice.github.io` come out right instead of
+    taking every British site, every Australian site, or everybody's GitHub Pages with them.
+  - The permission to read and delete history is asked for **at that moment**, with the reason on
+    screen, and never at install. You can hand it straight back.
+  - Two optional extras, both off by default and both plainly labelled as deleting real browsing
+    history: **clear vaulted sites on every lock**, and **quick-close** (Ctrl+Shift+X) — close the
+    current tab and delete that site's history in one keystroke.
+- **Settings gained a Privacy section and an About section.** Privacy holds the history tools and an
+  explanation of Chrome's own *"Autocomplete searches and URLs"* setting, which can suggest addresses
+  from signals no extension can see — with the address of the Chrome page that turns it off, and a
+  plain statement that we are not allowed to change it for you. About holds the version, the licence,
+  what the extension does and does not do with your data, and the button that replays the setup
+  guide.
 - **You can get your bookmarks out, and back in again.** *Import & export* in the manager saves an
   encrypted `.vmv` file holding every bookmark, folder, tag and note — locked with your vault
   password or with one of its own, whichever you choose. It is a file you can keep anywhere: on a
@@ -259,6 +298,15 @@ below.
 
 ### Changed
 
+- **The vault-creation screen is one screen now, not two.** The popup and the setup guide were about
+  to have their own versions of the same question, and a no-recovery warning that is a typed sentence
+  in one window and something weaker in the other is two products. Both use the same form.
+- **The security settings say the vault always locks when Chrome restarts**, rather than offering it
+  as a switch. It has always been true — the unlocked key is held in memory only and goes when Chrome
+  exits — and a toggle that can only ever be on is a claim about control that does not exist.
+- The extension declares a fourth keyboard shortcut, **Ctrl+Shift+X** for quick-close. It does
+  nothing at all until you switch quick-close on in Settings; it is declared from the start so it is
+  visible on Chrome's shortcuts page, where you can move it off a combination you already use.
 - **There is no unencrypted export.** One was built — a plain bookmarks file any browser can
   import, behind a typed `EXPORT UNENCRYPTED` and a warning written into the file itself — and then
   removed, because the gate was the only good thing about it. Importing such a file into a browser
@@ -303,6 +351,11 @@ below.
 
 ### Fixed
 
+- Work that has to happen at the moment the vault locks — clearing history for vaulted sites — would
+  have been skipped most of the time. The service worker is shut down every thirty seconds or so, and
+  the lock that matters is usually the one that wakes it back up: an idle timer, or a click on a
+  popup that has just started. It now reopens the vault for that last piece of work rather than
+  finding nothing there and moving on.
 - The manager's three-column layout stayed on screen underneath the conflict screen — invisible only
   in the sense that something else was drawn over it, and still taking the clicks meant for what was
   on top.

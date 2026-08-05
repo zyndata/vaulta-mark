@@ -1,20 +1,11 @@
 # VaultaMark Privacy Policy
 
 **Applies to:** the VaultaMark Chrome extension (all versions)
-**Last updated:** 2026-07-28
-**Status:** draft — this becomes the published policy at the first Chrome Web Store submission
-(Phase 9 sets the public URL; see [RELEASE §8](RELEASE.md#8-store-listing-checklist)).
+**Last updated:** 2026-08-05
 
-> **Publishing note (remove before publishing):** the Chrome Web Store requires a publicly reachable
-> URL. The intended host is GitHub Pages from the `docs/` folder of
-> <https://github.com/zyndata/vaulta-mark> — Settings → Pages → Deploy from a branch → `main` /
-> `docs`, giving `https://zyndata.github.io/vaulta-mark/PRIVACY`. Do not point the Store at a
-> `dev`-branch blob URL; it must stay stable across releases.
->
-> **The repository is private for now** ([PLAN.md §2.5, D36](../PLAN.md#25-project--process)), and
-> GitHub Pages on a private repository requires a paid plan. Before the first Store submission,
-> either make the repository public, upgrade the plan, or host this policy somewhere else entirely —
-> the Store will not accept a URL it cannot open. Decide this in Phase 9, not on submission day.
+*This document is publishable as it stands. Where it is hosted, and the decision about making the
+repository public in order to host it, is a release step rather than a content one — see
+[RELEASE §8](RELEASE.md#8-store-listing-checklist).*
 
 ---
 
@@ -42,7 +33,8 @@ never stored and never transmitted.
 | Page preview images (thumbnails), when enabled | `chrome.storage.local`, and your Google Drive if connected | ✅ Yes |
 | The same bookmark data, for syncing | `chrome.storage.sync` (your Chrome profile sync) **or** a file in your own Google Drive — whichever you chose | ✅ Yes |
 | Vault header: encryption parameters, a random salt, your wrapped key, revision counters | Alongside the vault | ⚠️ Plaintext by necessity — see below |
-| Settings: theme, idle-lock timeout, which sync tier is active | `chrome.storage.local` | Plaintext, contains no bookmark data |
+| Settings: theme, idle-lock timeout, which sync tier is active, feature toggles | `chrome.storage.local` | Plaintext, contains no bookmark data |
+| Setup progress: which of the five first-run screens you reached | `chrome.storage.local` | Plaintext — a step number and two yes/no answers, nothing else |
 | Your master password | **Nowhere.** Not stored, not transmitted, not recoverable. | — |
 | The unlocked key, while the vault is unlocked | `chrome.storage.session` — memory only, never written to disk, cleared when Chrome exits | — |
 
@@ -110,11 +102,35 @@ use the feature that needs one, and you can revoke it afterwards.
 | `alarms` | Locks the vault automatically after your configured idle timeout. | Always |
 | `favicon` | Shows each bookmark's site icon from Chrome's **local** cache, so no icon request goes to a third party. | Always |
 | `identity` + `https://www.googleapis.com/*` | Obtains an OAuth token for the `drive.file` scope and transfers the encrypted vault file. | **Optional** — only if you enable Drive sync |
-| `history` | Removes history entries for domains you have vaulted, so those URLs stop appearing in address-bar autocomplete. | **Optional** — only when you run the cleanup tool |
+| `history` | Removes history entries so vaulted URLs stop appearing in address-bar autocomplete. | **Optional** — only when you run the cleanup tool or switch on one of the history settings |
 | `bookmarks` | Imports your existing Chrome bookmarks into the vault, and deletes the originals afterwards **only** if you separately ask it to. | **Optional** — only during import |
 | `idle` | Locks the vault when your system goes idle. | **Optional** — only if you enable it |
 
 VaultaMark requests **no host permissions at install time**.
+
+## The history tools
+
+Saving a page to your vault does not remove it from Chrome's browsing history, and history
+autocompletes in the address bar on its own. VaultaMark offers three ways to close that gap. All
+three are **off until you turn them on**, all three need the optional `history` permission, and all
+three delete **real browsing history** — not merely entries related to VaultaMark.
+
+- **Clear history for vaulted sites.** Shows you the exact count and the list of sites first, and
+  deletes nothing until you confirm. The list of sites is worked out on your device from the
+  decrypted vault at the moment you press the button, and is never stored, logged or transmitted.
+  Sites you have not vaulted are never touched — VaultaMark re-checks every result against the real
+  site name before deleting anything, because Chrome's history search matches on substrings and
+  would otherwise return a stranger's site whose name happens to contain yours.
+- **Clear on lock.** The same cleanup, run automatically each time the vault locks, without asking.
+- **Quick-close (Ctrl+Shift+X).** Closes the current tab and deletes that site's history in one
+  keystroke. This one is deliberately *not* limited to sites in your vault, and it says so where it
+  is switched on.
+
+There is a fourth thing VaultaMark cannot do for you: Chrome's own **"Autocomplete searches and
+URLs"** setting sends what you type to your default search engine and can suggest addresses from
+signals no extension can see. The setup guide and Settings → Privacy explain it and give you the
+address of the Chrome setting page. Extensions are not permitted to open or change Chrome's settings
+pages, so this one is yours to do, and we say so rather than leaving you to assume it is handled.
 
 ## Incognito windows
 

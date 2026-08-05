@@ -1,10 +1,10 @@
 /**
- * The manager page's entry point: which of the two screens this tab is.
+ * The manager page's entry point: which of the three screens this tab is.
  *
- * Almost always it is the vault manager (`app.ts`). The exception is `#incognito=<itemId>`, the
- * guided prompt for "Allow in Incognito is off" (ARCHITECTURE §9), which lives on this page rather
- * than in the popup because it asks the user to paste an address into the address bar — and a popup
- * closes the moment they click there.
+ * Almost always it is the vault manager (`app.ts`). Two exceptions, both here because they ask the
+ * user to paste an address into the address bar and a popup closes the moment they click there:
+ * `#incognito=<itemId>` is the guided prompt for "Allow in Incognito is off" (ARCHITECTURE §9), and
+ * `?onboarding=1` is the first-run flow, opened once by `chrome.runtime.onInstalled`.
  *
  * Nothing expensive happens at import time. The page paints its loading line, asks the worker one
  * question, and builds whichever screen the answer calls for.
@@ -17,6 +17,8 @@ import { send } from '../shared/messages.js';
 import { applyTheme, h, localize, msg, qs, render } from '../ui/dom.js';
 import { incognitoPrompt } from '../ui/incognito-prompt.js';
 import { mountManager } from './app.js';
+import { mountOnboarding } from './onboarding/screen.js';
+import { resumeStep } from './onboarding/steps.js';
 
 const INCOGNITO_HASH = /^#incognito(?:=(.*))?$/u;
 
@@ -38,6 +40,13 @@ void (async () => {
     return;
   }
 
+  if (new URLSearchParams(location.search).has('onboarding')) {
+    if (await showOnboarding()) return;
+    // A completed flow reached by URL falls through to the manager rather than showing a wizard
+    // that has nothing left to say. "Replay onboarding" clears the stamp first, so it never lands
+    // here.
+  }
+
   // The manager reads and writes the vault, so it has nothing to show while the vault is shut. It
   // does not offer to unlock: the popup is the one surface that is always one click away, and two
   // unlock forms is two places to get the no-recovery warning wrong.
@@ -52,6 +61,37 @@ void (async () => {
 
   mountManager(root, state);
 })();
+
+/**
+ * The first-run flow, if it still has somewhere to resume.
+ *
+ * Returns whether it took over the page. `resumeStep` answers `null` for a record that has already
+ * been completed, which is the whole of "it never appears again" — the install tab opens this URL
+ * once, and nothing else stamps the record.
+ *
+ * Finishing reloads onto the plain manager rather than mounting it in place: the flow has just
+ * created a vault, and `mountManager` wants a `GET_STATE` taken *after* that, not the one this page
+ * loaded with.
+ */
+async function showOnboarding(): Promise<boolean> {
+  const record = await send({ type: 'GET_ONBOARDING' });
+  if (record.type === 'ERROR') return false;
+
+  const state = await send({ type: 'GET_STATE' });
+  const exists = state.type !== 'ERROR' && state.exists;
+  const step = resumeStep(record, exists);
+  if (step === null) return false;
+
+  mountOnboarding(root, {
+    step,
+    vaultExists: exists,
+    incognitoSkipped: record.incognitoSkipped,
+    onFinish: () => {
+      location.href = chrome.runtime.getURL('manager.html');
+    },
+  });
+  return true;
+}
 
 /**
  * The guided prompt, for a bookmark that could not be opened.

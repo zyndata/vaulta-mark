@@ -52,14 +52,18 @@ src/
 │  ├─ merge.ts  engine.ts  base.ts  migration.ts
 ├─ thumbs/              validate.ts  process.ts  store.ts
 ├─ import/              native-bookmarks.ts
+├─ history/             domain.ts (registrable domains)  cleanup.ts (chrome.history)
+│                       public-suffix.ts  ← generated, `npm run update-psl`
 ├─ io/                  export-encrypted.ts  import-encrypted.ts  rollback.ts
 ├─ content/             og-capture.ts   (injected on demand, never declared in the manifest)
 ├─ popup/               popup.ts (shell + create/unlock)  vault.ts (the unlocked screen)
 ├─ manager/             manager.ts (entry/router)  app.ts (the shell)
 │  ├─ state.ts          what the tab is looking at; the only thing that fetches
-│  ├─ sidebar.ts  list.ts  detail.ts  settings.ts  dialog.ts
+│  ├─ sidebar.ts  list.ts  detail.ts  settings.ts  dnd.ts  sync.ts  io.ts
+│  └─ onboarding/       steps.ts (the gates, pure)  screen.ts (the five screens)
 ├─ ui/                  dom.ts  favicon.ts  incognito-prompt.ts  virtual-list.ts  strings.ts
-│                       styles.css
+│                       dialog.ts  create-form.ts  address.ts  history-cleanup.ts
+│                       tracking.ts  export-gate.ts  styles.css
 └─ shared/              messages.ts  settings.ts  result.ts  time.ts  url.ts
 ```
 
@@ -598,15 +602,17 @@ the list and decompresses the shipped asset, so the three artefacts cannot drift
 | `vm.thumbs.<itemId>` | sealed thumbnail bytes | yes (`k_thumbs`) |
 | `vm.thumbsLru` | `{ itemId: lastViewedMs }` | no |
 | `vm.conflicts` | sealed pending-conflict records | yes (`k_items`) |
-| `vm.onboarding` | `{ completed, version, stepsSeen }` | no |
+| `vm.rollback` | sealed pre-replace-import snapshot (§11) | yes (`k_items`) |
+| `vm.rollbackMeta` | `{ createdAt, expiresAt }` | no (no content) |
+| `vm.onboarding` | `{ completedAt, step, incognitoSkipped }` (§12.5) | no (no content) |
 
 Every sealed value is stored as **base64url**, not as a `Uint8Array`. `chrome.storage.local`
 JSON-serialises what it is given, so a byte array comes back as `{"0":12,"1":…}` — roughly five bytes
 of quota per byte of ciphertext, and a silent shape change on the way out.
 
 `vm.settings` holds `theme`, `idleTimeoutMinutes`, `providerId`, `lockOnBrowserBlur`,
-`stripTrackingParams`, `reuseIncognitoWindow`, `sortBy` and the manager's two column widths
-(`sidebarWidth`, `detailWidth`). It is deliberately plaintext and
+`stripTrackingParams`, `reuseIncognitoWindow`, `clearHistoryOnLock`, `quickClose`, `sortBy` and the
+manager's two column widths (`sidebarWidth`, `detailWidth`). It is deliberately plaintext and
 deliberately incapable of holding vault content: the lock screen has to honour the theme, and the
 auto-lock alarm has to be armed, before any key exists.
 
@@ -630,6 +636,11 @@ window, not what is in it, so it says nothing about the vault however carefully 
 clamped into range on the way in *and* on the way out — a stored width is only as trustworthy as the
 last thing that wrote it, and a column of −4,000 px is a manager that cannot be used again without
 clearing storage by hand.
+
+`clearHistoryOnLock` and `quickClose` (§12) are the two settings here that delete data *outside* the
+vault, and both are off by default. They are booleans about behaviour: the domains they act on are
+derived from the decrypted vault at the moment they run and never written down, which is what keeps
+a feature whose whole subject is "which sites are in your vault" on the right side of INV-6.
 
 `idleTimeoutMinutes` is in minutes, defaults to **10**, and **`0` means "never auto-lock"** — the
 value the UI offers as *Never*. A negative or non-finite value is corruption and falls back to the
@@ -1370,15 +1381,35 @@ through.
 
 ### 12.1 Registrable-domain extraction
 
-**Decision:** bundle a *trimmed* Public Suffix List (ICANN section only, ~9,000 entries, ~60 KB gzipped,
-committed as a build-time-generated asset with a documented regeneration script). A naive
-"last two labels" heuristic is wrong for `co.uk`, `com.au`, `github.io`, and several hundred other
-common suffixes — and being wrong here means either failing to clean a domain the user asked to clean,
-or cleaning a *different* site's history. Both are unacceptable, so the 60 KB is worth it.
+**Decision:** bundle the Public Suffix List (~10,200 rules, ~140 KB of source text, ~43 KB gzipped),
+committed as a generated asset with a documented regeneration script. A naive "last two labels"
+heuristic is wrong for `co.uk`, `com.au`, `github.io`, and several hundred other common suffixes —
+and being wrong here means either failing to clean a domain the user asked to clean, or cleaning a
+*different* site's history. Both are unacceptable, so the bytes are worth it.
+
+> **Amended in Phase 9.** This paragraph originally said "a *trimmed* list, ICANN section only". That
+> was wrong, and the sentence above it says why: `github.io` — named in Phase 9's own test list — is
+> a **PRIVATE**-section rule, and so is `*.blogspot.com` and a few thousand others. Dropping the
+> section reduces `alice.github.io` to `github.io`, so a cleanup aimed at one person's pages would
+> delete every GitHub Pages site in the profile's history. That is precisely the failure this
+> section exists to prevent. Both sections are bundled. (The "~9,000 entries" figure in the original
+> text already described the whole list rather than the ICANN section, which has 6,949.)
+
+Implementation: `src/history/public-suffix.ts` (generated), `src/history/domain.ts` (the algorithm).
+Rules are **punycoded at generation time**, because `URL.hostname` is always in its ASCII form and a
+rule kept in Unicode could never match anything the extension sees. The three rule kinds — plain,
+`*.` wildcard, `!` exception — are stored as three newline-joined strings and turned into sets
+lazily, on the first lookup: the module is reachable from the service worker's initial evaluation,
+and the cold-start budget is 50 ms (§7.2). Measured cost of evaluating the literals: 0.06 ms.
 
 The list is a static asset, never fetched at runtime. Regeneration is a manual `npm run update-psl`
-that writes a dated file and requires a PR — no auto-updating from a URL (that would be remote data
-influencing a security-relevant decision).
+that writes a dated file and requires a reviewed diff — no auto-updating from a URL (that would be
+remote data influencing a security-relevant decision).
+
+An IP literal has no registrable domain in the PSL sense and is answered with **itself**, so a
+bookmark on a NAS or a dev box can still be cleaned; equality is the right containment test for
+those. A host that *is* a public suffix (`co.uk`), or has no dot at all (`localhost`), is answered
+with `null`, and every caller treats that as "do not touch it".
 
 ### 12.2 Clear history for vaulted domains
 
@@ -1392,7 +1423,27 @@ influencing a security-relevant decision).
 4. Show a dry run: "This will remove 143 entries across 27 domains. Review the list."
 5. On confirm, `chrome.history.deleteUrl` for each matched URL.
 
-Non-vaulted domains are never passed to `deleteUrl`. Phase 9's test asserts the exact call list.
+Non-vaulted domains are never passed to `deleteUrl`, nor to `search`: asking is already a question
+about somebody else's browsing. `test/unit/background/history.test.ts` asserts both call lists
+exactly.
+
+`maxResults: 0` is Chrome's "no limit" — `QueryOptions::max_count` defaults to 0 meaning unbounded,
+and the extension API only overrides it when `maxResults` is truthy. It reads like a bug and is not:
+Chrome's 100-result default would produce an accurate-looking dry run that then left most of the
+history it promised to remove.
+
+The dry run and the run share one function (`scanHistory`), and the run **re-scans** rather than
+trusting a URL list the page held onto: a preview can be minutes old and the worker can have been
+torn down and rebuilt since. The two numbers therefore agree by construction rather than by
+coincidence, and differ only when the history really has.
+
+**On lock.** `clearHistoryOnLock` (off by default) runs the same cleanup on every lock, and the queue
+of hosts left by the incognito fallback (`vm.historyQueue`, §9) is drained **unconditionally** —
+that tick was a promise about specific pages, so it is kept whatever the setting says. Both happen
+inside `session.lock()`, before the key is dropped, because the domain set comes from the decrypted
+vault; the worker is rehydrated from `storage.session` first if this instance is cold, which it
+usually is. A panic-lock skips both: immediacy is the point of that shortcut. The hook is injected
+from `background/index.ts` rather than imported, or `session.ts` and `items.ts` would cycle.
 
 ### 12.3 Quick-close
 
@@ -1400,12 +1451,60 @@ Optional, **off by default**, `Ctrl+Shift+X`: close the active tab and delete th
 history entries. The settings copy states plainly that this deletes real browsing history for that
 domain, not merely VaultaMark-related entries.
 
+Deliberately **not** limited to vaulted domains — a version that only cleaned pages already in the
+vault would silently do nothing on exactly the page someone reached for it on. The history goes
+before the tab does: Chrome writes the visit as the tab tears down, so closing first would leave the
+entry the keystroke was aimed at. It needs no unlocked vault, and does not touch the idle window: it
+is about the browser, not about the vault.
+
 ### 12.4 The URL-prediction reminder
 
 Chrome's "Autocomplete searches and URLs" setting sends what you type to your default search engine
 and can suggest URLs from signals we do not control. Onboarding step 5 and the Settings → Privacy
 section explain this and provide a copy-able `chrome://settings/?search=autocomplete` link with
 instructions. We cannot change the setting for the user, and we say so.
+
+The address is text in a `<code>` with a Copy button (`src/ui/address.ts`), never an `<a href>`:
+Chrome refuses to follow a `chrome://` link from an extension page, and a dead link is a worse
+instruction than a string the user can see and copy. The same widget carries
+`chrome://extensions/?id=…` in the incognito prompt (§9), for the same reason.
+
+---
+
+### 12.5 Onboarding
+
+A five-step flow on `manager.html?onboarding=1`, opened once by `chrome.runtime.onInstalled` with
+reason `install` — never on an *update*, because a browser that updated four extensions overnight
+and greeted the user with four tabs is how a flow teaches people to close it unread. It lives on the
+manager page rather than in the popup because step 3 asks the user to paste an address into the
+address bar, and a popup closes the moment they click there.
+
+The five screens are: what VaultaMark is · create your master password · allow in incognito · choose
+your sync tier · two things Chrome still does. The gates are pure functions in
+`src/manager/onboarding/steps.ts`, and there are exactly two:
+
+- **The password step is gated on `vaultExists`**, not on "the form said so". Nothing can set that
+  but a `CREATE_VAULT` that succeeded, and nothing can send one but a form whose typed no-recovery
+  phrase matched (`src/ui/create-form.ts`). There is no path from Next to step 3 that does not go
+  through a real vault. This is the Definition-of-done item.
+- **The incognito step is gated on "allowed **or** explicitly skipped"**. Nobody may be swept past it
+  without noticing, and nobody may be trapped on it either — there is no API that can turn the
+  setting on. A skip is recorded in `vm.onboarding` and leaves a persistent banner in the manager,
+  which clears itself the moment the toggle goes on.
+
+Going *back* is always allowed, including out of a step whose gate is shut: rewinding to re-read the
+introduction cannot un-create a vault, and a flow you can only go forwards through is one people
+click through without reading.
+
+Progress lives in `vm.onboarding` (`storage.local`, plaintext): a step number, two booleans and a
+completion timestamp. It is contentless in the same way `vm.baseMeta` is, and it has to be readable
+before a vault exists — the whole point of the flow is that it runs before a password does. The
+completion timestamp is stamped by the **worker**, not sent by the page. `resumeStep` answers `null`
+for a completed record, which is the whole of "it never appears again"; Settings → About →
+"Replay the setup guide" clears the stamp first.
+
+Every step re-reads the world rather than remembering it. Whether a vault exists and whether
+incognito access is on are both facts a user can change in another window.
 
 ---
 

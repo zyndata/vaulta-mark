@@ -1015,3 +1015,193 @@ body.vm-manager {
     transition: none;
   }
 }
+
+/* ------------------------------------------------------------------ onboarding (Phase 9) */
+
+/*
+ * The first-run flow (`manager/onboarding/`).
+ *
+ * A narrow column on an otherwise empty page, for the same reason `.vm-guide` is one: these are five
+ * screens of prose to read, not a layout to scan. The body is the only part that scrolls, so the
+ * step counter stays visible and Back/Next stay reachable — a wizard whose Next button is below the
+ * fold on the longest screen is one people abandon on that screen.
+ */
+.vm-onboarding {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 44rem;
+  height: 100vh;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 1.5rem;
+}
+
+.vm-onboarding-head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.vm-onboarding-head p {
+  margin: 0;
+}
+
+/* Five dots, the current one filled. `aria-hidden`: the step counter beside it says the same thing
+   in words, and two announcements of "step 3" is one too many. */
+.vm-onboarding-dots {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  margin: 0 0 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.vm-onboarding-dots li {
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1px solid var(--vm-border);
+  border-radius: 50%;
+}
+
+.vm-onboarding-dots li.is-current {
+  border-color: var(--vm-accent);
+  background: var(--vm-accent);
+}
+
+/* The scroller. `--vm-ring-room` on all four sides so a focus ring is not clipped at its edges —
+   see the note on the token; this box has fields in it on step 2. */
+.vm-onboarding-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: calc(-1 * var(--vm-ring-room));
+  padding: var(--vm-ring-room);
+}
+
+.vm-onboarding-foot {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  flex: none;
+  padding-top: 1rem;
+  border-top: 1px solid var(--vm-border);
+}
+
+.vm-onboarding-foot .vm-button {
+  width: auto;
+  min-width: 8rem;
+}
+
+.vm-onboarding-step h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+}
+
+.vm-onboarding-step h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.vm-onboarding-points {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.vm-onboarding-points li {
+  margin-bottom: 0.4rem;
+}
+
+.vm-onboarding-card {
+  margin: 1rem 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-surface);
+}
+
+.vm-onboarding-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+
+.vm-onboarding-actions .vm-button,
+.vm-onboarding-offer .vm-button {
+  width: auto;
+}
+
+/* The create form is the whole of step 2, and its submit is a full-width row inside this column. */
+.vm-onboarding-step form .vm-button {
+  width: 100%;
+}
+
+/*
+ * The sync-tier comparison.
+ *
+ * A table, because the decision is a comparison — capacity against previews against setup effort —
+ * and two paragraphs make the reader hold both in their head to compare them. It scrolls in its own
+ * box so a narrow window never makes the page scroll sideways.
+ */
+.vm-compare {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  margin: 1rem 0;
+  border-collapse: collapse;
+}
+
+.vm-compare th,
+.vm-compare td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--vm-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.vm-compare thead th {
+  background: var(--vm-surface);
+}
+
+.vm-compare tbody th {
+  font-weight: 600;
+  color: var(--vm-muted);
+}
+
+.vm-badge {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--vm-border);
+  border-radius: 999px;
+  background: var(--vm-bg);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--vm-muted);
+  white-space: nowrap;
+}
+
+/*
+ * The nudge left behind by skipping the incognito step.
+ *
+ * Shares the conflict banner's shape deliberately: both are persistent, non-modal statements that
+ * something is unfinished, and two different-looking bars saying "this needs attention" is one bar
+ * too many to learn.
+ */
+.vm-banner {
+  display: flex;
+  gap: var(--vm-gap);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--vm-border);
+  background: var(--vm-surface);
+}
+
+.vm-banner--warning {
+  border-left: 3px solid var(--vm-warning);
+}

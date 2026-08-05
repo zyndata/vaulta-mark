@@ -14,6 +14,7 @@
  * a bookmark manager that keeps its promise and one that quietly stops keeping it.
  */
 
+import { copyableAddress } from './address.js';
 import { h, msg, render } from './dom.js';
 
 export interface IncognitoPromptOptions {
@@ -85,43 +86,12 @@ function renderPrompt(
   );
 }
 
-/**
- * The address to paste, with a Copy button.
- *
- * Rendered as text in a `<code>` rather than as a link: an `<a href="chrome://…">` is a link Chrome
- * refuses to follow from an extension page, and a dead link is a worse instruction than a string
- * the user can see and copy.
- */
+/** The address to paste, with a Copy button. Shared with onboarding and Settings → Privacy. */
 function addressBlock(options: IncognitoPromptOptions): HTMLElement {
-  const feedback = h('span', { class: 'vm-small vm-muted', role: 'status' });
-  const copy = options.copy ?? ((text: string) => navigator.clipboard.writeText(text));
-
-  return h(
-    'span',
-    { class: 'vm-address' },
-    h('code', null, options.settingsUrl),
-    h(
-      'button',
-      {
-        class: 'vm-button vm-button--quiet vm-button--inline',
-        type: 'button',
-        onclick: () => {
-          void (async () => {
-            try {
-              await copy(options.settingsUrl);
-              feedback.textContent = msg('incognitoCopied');
-            } catch {
-              // A clipboard write can be refused (an unfocused document, a policy). The address is
-              // on screen either way, so this degrades to "select it yourself".
-              feedback.textContent = msg('incognitoCopyFailed');
-            }
-          })();
-        },
-      },
-      msg('incognitoCopyButton'),
-    ),
-    feedback,
-  );
+  return copyableAddress({
+    address: options.settingsUrl,
+    ...(options.copy === undefined ? {} : { copy: options.copy }),
+  });
 }
 
 /** The explicit fallback. Present only when there is an item it could open. */

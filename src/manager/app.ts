@@ -123,6 +123,47 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   let syncState: SyncStatusResponse | null = null;
 
   /**
+   * The nudge left behind by "skip for now" on onboarding's incognito step.
+   *
+   * `null` unless the flow was skipped *and* the toggle is still off. Half the promise of the product
+   * is that vaulted links open in incognito, and someone who skipped past that during setup has a
+   * VaultaMark that silently refuses to open anything — with the explanation on a screen they only
+   * reach by trying. This is the reminder that says so before they try.
+   *
+   * It clears itself: the moment `INCOGNITO_ACCESS` answers `true` there is nothing to nudge about,
+   * and the skip flag stays set in storage without ever being rendered again.
+   */
+  let incognitoNudge: HTMLElement | null = null;
+
+  async function refreshIncognitoNudge(): Promise<void> {
+    const record = await send({ type: 'GET_ONBOARDING' });
+    if (record.type === 'ERROR' || !record.incognitoSkipped) return;
+    const access = await send({ type: 'INCOGNITO_ACCESS' });
+    if (access.type === 'ERROR' || access.allowed) return;
+
+    incognitoNudge = h(
+      'div',
+      { class: 'vm-banner vm-banner--warning', role: 'status' },
+      h('span', null, msg('managerIncognitoNudge')),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'vm-button vm-button--quiet vm-button--inline',
+          // The guided prompt with no item behind it: the instructions and the Re-check button,
+          // without offering to open a bookmark in a normal window that nobody asked for.
+          onclick: () => {
+            location.hash = '#incognito';
+            location.reload();
+          },
+        },
+        msg('managerIncognitoNudgeFix'),
+      ),
+    );
+    paintSync();
+  }
+
+  /**
    * Which of the three full-window screens is up.
    *
    * One variable rather than three `hidden` attributes read back off the DOM, because the three are
@@ -596,6 +637,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
         : conflictBanner(pending, () => {
             void showConflicts();
           }),
+      incognitoNudge,
     );
     // A banner that vanished because the last conflict was settled elsewhere must not leave the
     // conflict screen up in front of an empty list. Only the conflict screen, though: this runs on
@@ -1199,6 +1241,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   applyTheme(settings.theme, document.documentElement);
   void reloadAll();
   void refreshSync();
+  void refreshIncognitoNudge();
 }
 
 /** Spelled out rather than derived from the key, so a renamed sort key breaks the build. */

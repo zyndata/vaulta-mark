@@ -13,11 +13,15 @@
  */
 
 import { estimateStrength, MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
+import { hasHistoryPermission, requestHistoryPermission } from '../history/cleanup.js';
 import { send, type SyncStatusResponse } from '../shared/messages.js';
+import { AUTOCOMPLETE_SETTINGS_URL, copyableAddress } from '../ui/address.js';
 import { dialogField, openDialog } from '../ui/dialog.js';
 import { h, matchesPhrase, msg, render } from '../ui/dom.js';
+import { historyCleanupPanel } from '../ui/history-cleanup.js';
 import { errorText } from '../ui/strings.js';
 import { offerTrackingCleanup } from '../ui/tracking.js';
+import { historyDeps } from './history.js';
 import {
   IDLE_TIMEOUT_CHOICES,
   IDLE_TIMEOUT_NEVER,
@@ -36,8 +40,11 @@ export interface SettingsDeps {
 
 export async function openSettings(deps: SettingsDeps): Promise<void> {
   // Fetched before the dialog is built rather than filled in afterwards: a quota bar that appears a
-  // moment after the dialog does is a quota bar that moves the destroy button under the cursor.
+  // moment after the dialog does is a quota bar that moves the destroy button under the cursor. The
+  // permission check is here for the same reason — the privacy section renders a different panel
+  // depending on the answer, and it must not swap under the pointer.
   const status = await send({ type: 'GET_SYNC_STATUS' });
+  const historyGranted = await hasHistoryPermission();
 
   await openDialog<never>({
     heading: msg('settingsHeading'),
@@ -45,11 +52,122 @@ export async function openSettings(deps: SettingsDeps): Promise<void> {
       appearance(deps),
       section('settingsSectionLock', locking(deps)),
       section('settingsSectionBrowsing', browsing(deps)),
+      section('settingsSectionPrivacy', privacy(deps, historyGranted)),
       ...(status.type === 'ERROR' ? [] : [section('syncSectionHeading', sync(status))]),
       section('settingsSectionPassword', [changePassword()]),
+      section('settingsSectionAbout', about()),
       section('settingsSectionDanger', [destroyVault(deps)]),
     ],
   });
+}
+
+/* ------------------------------------------------------------------ privacy */
+
+/**
+ * The history tools, and the one setting we cannot change for the user.
+ *
+ * Everything here is off until someone reads it. Two of the three controls delete real browsing
+ * history — not merely "VaultaMark-related entries" — and the third is a reminder that Chrome's own
+ * URL prediction can suggest addresses from signals no extension can reach (ARCHITECTURE §12.4).
+ * Saying that plainly is the whole feature: a privacy tool that let someone believe it had closed a
+ * hole it cannot reach would be worse than not having the section at all.
+ */
+function privacy(deps: SettingsDeps, historyGranted: boolean): HTMLElement[] {
+  return [
+    h('p', { class: 'vm-small vm-muted' }, msg('settingsHistoryIntro')),
+    historyCleanupPanel({ ...historyDeps(deps.say), granted: historyGranted }),
+    toggle(
+      'vm-set-clear-on-lock',
+      'settingsClearHistoryOnLock',
+      'settingsClearHistoryOnLockHint',
+      deps.settings.clearHistoryOnLock,
+      async (checked) => {
+        // The permission is asked for at the moment the switch goes on, from this click. A toggle
+        // that stored `true` and then silently did nothing on every lock because nobody had granted
+        // `history` is the worst kind of privacy setting.
+        if (checked && !(await requestHistoryPermission())) {
+          deps.say(msg('historyRefused'));
+          return;
+        }
+        await deps.patch({ clearHistoryOnLock: checked });
+      },
+    ),
+    toggle(
+      'vm-set-quick-close',
+      'settingsQuickClose',
+      'settingsQuickCloseHint',
+      deps.settings.quickClose,
+      async (checked) => {
+        if (checked && !(await requestHistoryPermission())) {
+          deps.say(msg('historyRefused'));
+          return;
+        }
+        await deps.patch({ quickClose: checked });
+      },
+    ),
+    h(
+      'div',
+      { class: 'vm-settings-note' },
+      h('h4', null, msg('settingsPredictionHeading')),
+      h('p', { class: 'vm-small vm-muted' }, msg('settingsPredictionBody')),
+      h(
+        'ol',
+        { class: 'vm-steps vm-small' },
+        h(
+          'li',
+          null,
+          msg('onboardingPredictionStep1'),
+          ' ',
+          copyableAddress({ address: AUTOCOMPLETE_SETTINGS_URL }),
+        ),
+        h('li', null, msg('onboardingPredictionStep2')),
+      ),
+      h('p', { class: 'vm-small vm-muted' }, msg('onboardingPredictionCaveat')),
+    ),
+  ];
+}
+
+/* ------------------------------------------------------------------ about */
+
+/**
+ * Version, licence, what the extension does with data, and the way back to the first-run flow.
+ *
+ * PLAN §9 asks for links to SECURITY.md and PRIVACY.md. They are not links, and cannot be: INV-3
+ * forbids any absolute URL in the shipped package that is not on `build/url-allowlist.json`, and
+ * putting `github.com` there to make an About box clickable would widen an invariant that exists to
+ * keep exfiltration paths out of the build. So the substance travels instead of the link — the
+ * policy in four sentences, and the repository named rather than addressed. The full documents ship
+ * with the source and are what the Store listing points at.
+ */
+function about(): HTMLElement[] {
+  return [
+    h(
+      'p',
+      { class: 'vm-small vm-muted' },
+      msg('settingsAboutVersion', [chrome.runtime.getManifest().version]),
+    ),
+    h('p', { class: 'vm-small vm-muted' }, msg('settingsAboutLicense')),
+    h('p', null, msg('settingsAboutPrivacy')),
+    h('p', { class: 'vm-small vm-muted' }, msg('settingsAboutSecurity')),
+    h('p', { class: 'vm-small vm-muted' }, msg('settingsAboutProject')),
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'vm-button vm-button--quiet',
+        onclick: () => {
+          void (async () => {
+            // The stamp is cleared *before* navigating, or the page would open the flow, find a
+            // completed record and fall straight through to the manager it came from.
+            await send({ type: 'SET_ONBOARDING', patch: { completed: false, step: 0 } });
+            location.href = chrome.runtime.getURL('manager.html?onboarding=1');
+          })();
+        },
+      },
+      msg('settingsReplayOnboarding'),
+    ),
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('settingsReplayOnboardingHint')),
+  ];
 }
 
 /**
@@ -136,6 +254,17 @@ function locking(deps: SettingsDeps): HTMLElement[] {
     dialogField('settingsIdleTimeout', idle),
     toggle('vm-set-blur', 'settingsLockOnBlur', 'settingsLockOnBlurHint', deps.settings.lockOnBrowserBlur, (checked) =>
       deps.patch({ lockOnBrowserBlur: checked }),
+    ),
+    // PLAN §9 lists "require password after restart" among the security settings. It is not a
+    // setting and cannot be one: the unlocked key lives in `chrome.storage.session`, which is
+    // memory-backed and emptied when Chrome exits (D14), so the vault locks on restart whatever
+    // anyone would have ticked. A toggle that could only ever be on and could never be turned off
+    // is a lie about how much control the user has, so this states the fact instead.
+    h(
+      'div',
+      { class: 'vm-settings-note' },
+      h('p', null, msg('settingsRestartLock')),
+      h('p', { class: 'vm-hint vm-small vm-muted' }, msg('settingsRestartLockHint')),
     ),
   ];
 }
