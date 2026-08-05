@@ -111,11 +111,23 @@ export async function queueHistoryCleanup(url: string): Promise<void> {
   await chrome.storage.session.set({ [HISTORY_QUEUE_KEY]: [...queued] });
 }
 
-/** The queued hosts. Phase 9 drains this; anything malformed is treated as an empty queue. */
+/** The queued hosts. `background/history.ts` drains this; anything malformed reads as empty. */
 export async function readHistoryQueue(): Promise<readonly string[]> {
   const raw = (await chrome.storage.session.get(HISTORY_QUEUE_KEY))[HISTORY_QUEUE_KEY];
   if (!Array.isArray(raw)) return [];
   return raw.filter((entry): entry is string => typeof entry === 'string');
+}
+
+/**
+ * Forget the queue.
+ *
+ * Called once the cleanup on lock has had its turn (`background/history.ts`). The lock clears the
+ * whole session area a moment later anyway; doing it explicitly here is what makes the drain
+ * one-shot rather than "whatever survived", including on the path where the permission was never
+ * granted and there was nothing to drain it *with*.
+ */
+export async function clearHistoryQueue(): Promise<void> {
+  await chrome.storage.session.remove(HISTORY_QUEUE_KEY);
 }
 
 /* ------------------------------------------------------------------ windows */

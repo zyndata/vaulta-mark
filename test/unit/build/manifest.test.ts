@@ -52,12 +52,15 @@ describe('generated manifest', () => {
     expect(manifest.incognito).toBe('spanning');
   });
 
-  it('declares the three keyboard commands', () => {
-    expect(Object.keys(manifest.commands ?? {}).sort()).toEqual([
+  it('declares the four keyboard commands, and no more — Chrome allows four suggested keys', () => {
+    const commands = Object.keys(manifest.commands ?? {});
+    expect(commands.sort()).toEqual([
       'add-current-tab',
       'open-manager',
       'panic-lock',
+      'quick-close',
     ]);
+    expect(commands).toHaveLength(4);
   });
 
   it('takes its version from package.json and floors Chrome at 116', () => {

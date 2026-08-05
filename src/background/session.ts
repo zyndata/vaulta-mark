@@ -21,13 +21,19 @@
 
 import { fromBase64Url, toBase64Url } from '../crypto/codec.js';
 import { zero } from '../crypto/wipe.js';
-import { readHeader, readSettings, writeSettings } from '../storage/local.js';
+import {
+  readHeader,
+  readOnboarding,
+  readSettings,
+  writeOnboarding,
+  writeSettings,
+} from '../storage/local.js';
 import { VaultRepository } from '../storage/repo.js';
 import { fetchRemote, hasRemoteVault, markAdopted } from '../sync/engine.js';
-import type { LockReason, SettingsPatch } from '../shared/messages.js';
+import type { LockReason, OnboardingPatch, SettingsPatch } from '../shared/messages.js';
 import { broadcast } from '../shared/messages.js';
 import { VaultLockedError, VaultStateError } from '../vault/errors.js';
-import type { VaultSettings } from '../vault/types.js';
+import type { OnboardingRecord, VaultSettings } from '../vault/types.js';
 import {
   applyIdleDetection,
   armAutolock,
@@ -75,6 +81,22 @@ export interface LockOptions {
  * {@link currentRepository}, which enforces the deadline first.
  */
 let repository: VaultRepository | null = null;
+
+/**
+ * Work that needs the open vault, run on the way into a lock.
+ *
+ * Injected from the service-worker entry rather than imported, for the same reason the sync engine's
+ * hooks are: `background/history.ts` reaches the vault through `items.ts`, which imports this file,
+ * so importing it back would be a cycle. This way the dependency runs one way and a test can lock a
+ * vault without a history implementation existing at all.
+ */
+type BeforeLock = (repo: VaultRepository, settings: VaultSettings) => Promise<void>;
+
+let beforeLock: BeforeLock | null = null;
+
+export function configureLockHooks(hooks: { readonly beforeLock: BeforeLock }): void {
+  beforeLock = hooks.beforeLock;
+}
 
 /**
  * Make the session area's trusted-contexts restriction explicit rather than implicit.
@@ -187,8 +209,20 @@ export async function lock(options: LockOptions = {}): Promise<void> {
   const reason = options.reason ?? 'manual';
   const flush = options.flush ?? reason !== 'panic';
 
-  const current = repository;
+  // **Rehydrated if this worker is cold**, not just read from the cache. MV3 tears the worker down
+  // every thirty seconds, so `repository` is null for most locks that matter — the idle alarm, the
+  // toolbar button on a popup that just woke us — and a hook that only ran when the cache happened
+  // to be warm would run almost never in the field, and always in a test.
+  let current = repository;
+  if (flush && current === null && beforeLock !== null) current = await rehydrateForLock();
   repository = null;
+
+  // History hygiene runs here or nowhere: it needs the decrypted vault, and one line further down
+  // there is no key. Skipped on a panic-lock for the same reason the flush is — someone reaching
+  // for that shortcut wants the key gone now, not after a few hundred `deleteUrl` round trips.
+  if (flush && current !== null && beforeLock !== null) {
+    await beforeLock(current, await readSettings());
+  }
 
   if (!flush) await chrome.storage.session.clear();
   if (current !== null) await current.lock({ flush });
@@ -223,6 +257,14 @@ export async function currentRepository(): Promise<VaultRepository | null> {
   const cached = repository;
   if (cached !== null && !cached.locked) return cached;
 
+  const next = await openFromRecord(record);
+  if (next === null) return null;
+  repository = next;
+  return next;
+}
+
+/** Rebuild a repository from a session record. The DEK buffer is a courier and is wiped either way. */
+async function openFromRecord(record: SessionRecord): Promise<VaultRepository | null> {
   const dek = fromBase64Url(record.dek);
   const next = new VaultRepository();
   try {
@@ -230,8 +272,29 @@ export async function currentRepository(): Promise<VaultRepository | null> {
   } finally {
     zero(dek);
   }
-  repository = next;
   return next;
+}
+
+/**
+ * The vault, for the work that happens *during* a lock.
+ *
+ * Deliberately does not go through {@link currentRepository}: that one locks an expired session,
+ * and calling it from inside `lock()` would recurse. It also deliberately does **not** check the
+ * deadline. An idle-expiry lock is exactly when "clear vaulted domains from history on every lock"
+ * is meant to fire, and the key it would use is the one this call is about to destroy a few lines
+ * later — the vault is not being opened, it is being closed with the lid still up.
+ *
+ * Never throws. A repository that will not rebuild is a lock that proceeds without the hook, which
+ * is the right way round to be wrong: the alternative is a key that stays in memory because a
+ * history deletion could not be set up.
+ */
+async function rehydrateForLock(): Promise<VaultRepository | null> {
+  try {
+    const record = await readRecord();
+    return record === null ? null : await openFromRecord(record);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -358,6 +421,37 @@ export async function settings(): Promise<VaultSettings> {
   return await readSettings();
 }
 
+/* ------------------------------------------------------------------ onboarding */
+
+export async function onboarding(): Promise<OnboardingRecord> {
+  return await readOnboarding();
+}
+
+/**
+ * Record progress through the first-run flow.
+ *
+ * The completion *timestamp* is stamped here rather than sent by the page — see `OnboardingPatch`.
+ * `completed: false` clears it, which is the whole of "Replay onboarding": the flow's own resume
+ * logic then sees an unfinished record and starts from the top.
+ */
+export async function updateOnboarding(patch: OnboardingPatch): Promise<OnboardingRecord> {
+  const current = await readOnboarding();
+  const next: OnboardingRecord = {
+    completedAt:
+      patch.completed === undefined
+        ? current.completedAt
+        : patch.completed
+          ? (current.completedAt ?? Date.now())
+          : null,
+    // A replay starts at the beginning unless the same patch says otherwise, so "run it again" does
+    // not drop the user back on the last step they finished.
+    step: patch.step ?? (patch.completed === false ? 0 : current.step),
+    incognitoSkipped: patch.incognitoSkipped ?? current.incognitoSkipped,
+  };
+  await writeOnboarding(next);
+  return next;
+}
+
 /**
  * Apply a settings patch.
  *
@@ -373,6 +467,8 @@ export async function updateSettings(patch: SettingsPatch): Promise<VaultSetting
     lockOnBrowserBlur: patch.lockOnBrowserBlur ?? current.lockOnBrowserBlur,
     stripTrackingParams: patch.stripTrackingParams ?? current.stripTrackingParams,
     reuseIncognitoWindow: patch.reuseIncognitoWindow ?? current.reuseIncognitoWindow,
+    clearHistoryOnLock: patch.clearHistoryOnLock ?? current.clearHistoryOnLock,
+    quickClose: patch.quickClose ?? current.quickClose,
     sortBy: patch.sortBy ?? current.sortBy,
     sidebarWidth: patch.sidebarWidth ?? current.sidebarWidth,
     detailWidth: patch.detailWidth ?? current.detailWidth,

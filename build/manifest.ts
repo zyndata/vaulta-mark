@@ -92,6 +92,14 @@ export function buildManifest(packageVersion: string): chrome.runtime.ManifestV3
         suggested_key: { default: 'Ctrl+Shift+B', mac: 'Command+Shift+B' },
         description: '__MSG_cmdManager__',
       },
+      // Phase 9, §12.3. Inert until the user switches it on in Settings → Privacy *and* grants the
+      // optional `history` permission; the binding exists from install so it is visible on
+      // chrome://extensions/shortcuts, where a user can move it off a combination they already use.
+      // This is the fourth and last suggested key — Chrome grants an extension no more than four.
+      'quick-close': {
+        suggested_key: { default: 'Ctrl+Shift+X', mac: 'Command+Shift+X' },
+        description: '__MSG_cmdQuickClose__',
+      },
     },
 
     // Deliberately empty, and verified empty: nothing we ship should be reachable from a web page.

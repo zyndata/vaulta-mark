@@ -21,9 +21,11 @@ import {
   broadcast,
   onRequest,
   type ErrorCode,
+  type OnboardingResponse,
   type Request,
   type Response,
 } from '../shared/messages.js';
+import type { OnboardingRecord } from '../vault/types.js';
 import {
   InvalidMutationError,
   ItemNotFoundError,
@@ -33,11 +35,13 @@ import {
   WeakPasswordError,
 } from '../vault/errors.js';
 import { BookmarksPermissionError } from '../import/native-bookmarks.js';
+import { HistoryPermissionError } from '../history/cleanup.js';
 import { NoActiveTabError } from './add.js';
 import { armHousekeeping, registerLifecycleListeners } from './autolock.js';
 import { clearBadge, flashBadge, type BadgeKind } from './badge.js';
 import { registerCommandListener } from './commands.js';
 import { installContextMenus, registerContextMenuListener } from './contextmenu.js';
+import * as history from './history.js';
 import * as io from './io.js';
 import * as items from './items.js';
 import * as organize from './organize.js';
@@ -64,6 +68,7 @@ export function toErrorCode(error: unknown): ErrorCode {
   if (error instanceof InvalidMutationError) return 'INVALID_MUTATION';
   if (error instanceof NoActiveTabError) return 'NO_ACTIVE_TAB';
   if (error instanceof BookmarksPermissionError) return 'BOOKMARKS_PERMISSION';
+  if (error instanceof HistoryPermissionError) return 'HISTORY_PERMISSION';
   if (error instanceof UnsupportedUrlError) return URL_ERROR_CODES[error.reason];
   // A sync failure that reached a request handler — "sync now", or resolving a conflict. The
   // detail is in the status the UI is already showing; this only has to not say "unknown".
@@ -76,6 +81,16 @@ export function toErrorCode(error: unknown): ErrorCode {
     return 'SYNC_FAILED';
   }
   return 'UNKNOWN';
+}
+
+/** The stored record, projected onto the wire. Two shapes rather than one, so neither drifts. */
+function toOnboardingResponse(record: OnboardingRecord): OnboardingResponse {
+  return {
+    type: 'ONBOARDING',
+    completedAt: record.completedAt,
+    step: record.step,
+    incognitoSkipped: record.incognitoSkipped,
+  };
 }
 
 const URL_ERROR_CODES = {
@@ -227,6 +242,16 @@ export async function handleRequest(request: Request): Promise<Response> {
         return await io.importFromNative(request.ids, request.parentId);
       case 'DELETE_NATIVE':
         return await io.deleteFromNative(request.ids);
+
+      /* ---- onboarding and history hygiene (Phase 9) ---- */
+      case 'GET_ONBOARDING':
+        return toOnboardingResponse(await session.onboarding());
+      case 'SET_ONBOARDING':
+        return toOnboardingResponse(await session.updateOnboarding(request.patch));
+      case 'PREVIEW_HISTORY_CLEANUP':
+        return await history.previewCleanup();
+      case 'CLEAR_VAULTED_HISTORY':
+        return await history.runCleanup();
     }
   } catch (error) {
     // Nothing here may reach a log: a request carries a master password, and the errors that come
@@ -295,6 +320,37 @@ registerCommandListener({
   lock: (reason) => session.lock({ reason, flush: reason !== 'panic' }),
   touch: () => session.touch(),
   addActiveTab: () => addFromGesture(() => items.addActiveTab()),
+  quickClose: () => quickCloseFromGesture(),
+});
+
+/**
+ * Ctrl+Shift+X: close the tab, and its domain's history with it (§12.3).
+ *
+ * The badge is the only channel a keyboard shortcut has, and it deliberately says nothing at all
+ * when the feature is switched off: the shortcut is then simply not ours, and a badge that flashed
+ * "refused" on a key combination the user has bound to something else would be noise about a feature
+ * they never enabled.
+ */
+async function quickCloseFromGesture(): Promise<void> {
+  let outcome: history.QuickCloseOutcome;
+  try {
+    outcome = await history.quickClose();
+  } catch {
+    outcome = 'refused';
+  }
+  if (outcome === 'disabled') return;
+  // On success the tab is gone and so, usually, is the window the badge sits on — flashing it is
+  // harmless and covers the case where it was the only tab of several.
+  await flashBadge(outcome === 'closed' ? 'added' : 'refused');
+}
+
+/**
+ * The vault is about to lock. Anything that needs the key runs now, or not at all.
+ *
+ * Injected rather than imported by `session.ts` — see `configureLockHooks`.
+ */
+session.configureLockHooks({
+  beforeLock: (repo, settings) => history.cleanOnLock(repo, settings),
 });
 
 registerContextMenuListener({
@@ -322,5 +378,20 @@ function onStart(): void {
   })();
 }
 
-chrome.runtime.onInstalled.addListener(onStart);
+/**
+ * First run: open the onboarding flow in a tab of its own.
+ *
+ * Only on `reason === 'install'`. An *update* must not reopen it — a browser that updated four
+ * extensions overnight and greeted the user with four tabs is how an onboarding flow teaches people
+ * to close it unread. A reinstall does count as an install, and that is the right answer: the
+ * profile has no vault and no record of the flow ever running.
+ *
+ * `manager.html`, not the popup, because the flow asks the user to paste an address into the address
+ * bar (step 3) — and a popup closes the moment they click there (ARCHITECTURE §9).
+ */
+chrome.runtime.onInstalled.addListener((details) => {
+  onStart();
+  if (details.reason !== 'install') return;
+  void chrome.tabs.create({ url: chrome.runtime.getURL('manager.html?onboarding=1') });
+});
 chrome.runtime.onStartup.addListener(onStart);

@@ -203,6 +203,16 @@ export interface VaultSettings {
   /** Open vaulted links in the incognito window that is already open, if there is one (§9). */
   readonly reuseIncognitoWindow: boolean;
   /**
+   * Clear history for every vaulted domain each time the vault locks (§12.2). Off by default.
+   *
+   * A boolean about behaviour, not about a bookmark: the *domains* it acts on are derived from the
+   * decrypted vault at the moment it runs and never written down, which is what keeps a feature
+   * whose whole subject is "which sites are in your vault" on the right side of INV-6.
+   */
+  readonly clearHistoryOnLock: boolean;
+  /** Ctrl+Shift+X closes the tab and deletes that domain's history (§12.3). Off by default. */
+  readonly quickClose: boolean;
+  /**
    * The order the manager's list is in.
    *
    * One setting for the whole manager rather than one per folder, and that is a privacy decision
@@ -276,6 +286,12 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   // from "open in incognito"; a new window per bookmark buries the browser in windows, and each of
   // them is a separate incognito session that has to be closed separately to end it.
   reuseIncognitoWindow: true,
+  // Both off by default, and both stay off until someone reads what they do. They are the two
+  // settings in this file that delete data outside the vault: one erases the browsing history of
+  // every site the vault knows about on every lock, the other erases a whole domain's history on a
+  // keystroke. Neither is a default anyone should discover by accident (§12.2, §12.3).
+  clearHistoryOnLock: false,
+  quickClose: false,
   sortBy: DEFAULT_SORT,
   sidebarWidth: SIDEBAR_WIDTH.initial,
   detailWidth: DETAIL_WIDTH.initial,
@@ -317,3 +333,31 @@ export interface RollbackMeta {
 
 /** How long a replace-import's one-shot undo survives (ARCHITECTURE §11). */
 export const ROLLBACK_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * `vm.onboarding` — how far the first-run flow got (Phase 9).
+ *
+ * Plaintext, and contentless in the same way {@link BaseMeta} is: a step number, two booleans and a
+ * timestamp. It has to be readable before there is a vault at all — the whole point of the flow is
+ * that it runs *before* a password exists — so it could not be inside the ciphertext even if it
+ * described something, and it deliberately describes nothing but the flow itself.
+ */
+export interface OnboardingRecord {
+  /** When the flow was finished, or `null` while it has not been. */
+  readonly completedAt: number | null;
+  /** The step to resume on, 0-based. A closed tab should not mean starting over. */
+  readonly step: number;
+  /**
+   * The user chose "skip for now" on the incognito step.
+   *
+   * Kept after completion on purpose: it is what puts the persistent nudge in the manager, and the
+   * nudge is the only thing left reminding someone that half the product is switched off.
+   */
+  readonly incognitoSkipped: boolean;
+}
+
+export const DEFAULT_ONBOARDING: OnboardingRecord = {
+  completedAt: null,
+  step: 0,
+  incognitoSkipped: false,
+};

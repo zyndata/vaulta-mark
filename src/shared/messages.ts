@@ -346,6 +346,35 @@ export interface DeleteNativeRequest {
   readonly ids: readonly string[];
 }
 
+/* --- onboarding and history hygiene (Phase 9) ------------------------------ */
+
+/** How far the first-run flow got. Answered while locked — it runs before a vault exists. */
+export interface GetOnboardingRequest {
+  readonly type: 'GET_ONBOARDING';
+}
+
+/** Record a step, a skip, or the completion. Also how "Replay onboarding" clears the stamp. */
+export interface SetOnboardingRequest {
+  readonly type: 'SET_ONBOARDING';
+  readonly patch: OnboardingPatch;
+}
+
+/**
+ * What a history cleanup *would* delete (ARCHITECTURE §12.2).
+ *
+ * Reads history and the vault; deletes nothing. Its answer is what the confirmation is written from,
+ * and the run that follows deletes from the same scan rather than re-deriving one — so "this will
+ * remove 143 entries" and "removed 143 entries" agree by construction.
+ */
+export interface PreviewHistoryCleanupRequest {
+  readonly type: 'PREVIEW_HISTORY_CLEANUP';
+}
+
+/** Do it. Deletes only URLs whose registrable domain is one the vault holds. */
+export interface ClearVaultedHistoryRequest {
+  readonly type: 'CLEAR_VAULTED_HISTORY';
+}
+
 export type Request =
   | PingRequest
   | GetStateRequest
@@ -386,10 +415,27 @@ export type Request =
   | RollbackImportRequest
   | NativeTreeRequest
   | ImportNativeRequest
-  | DeleteNativeRequest;
+  | DeleteNativeRequest
+  | GetOnboardingRequest
+  | SetOnboardingRequest
+  | PreviewHistoryCleanupRequest
+  | ClearVaultedHistoryRequest;
 
 /** A partial settings update. Absent fields keep their stored value. */
 export type SettingsPatch = Partial<VaultSettings>;
+
+/**
+ * A partial onboarding update.
+ *
+ * `completed` is a boolean rather than a timestamp because the *worker* stamps the clock: a page
+ * that could name the completion time could also name one in 1970 and turn the flow back on for
+ * everyone, and there is no reason for the wire to carry a number the receiver already knows.
+ */
+export interface OnboardingPatch {
+  readonly step?: number;
+  readonly incognitoSkipped?: boolean;
+  readonly completed?: boolean;
+}
 
 /* ------------------------------------------------------------------ responses */
 
@@ -730,6 +776,41 @@ export interface NativeDeleteResponse {
   readonly failed: number;
 }
 
+/* --- onboarding and history hygiene (Phase 9) ------------------------------ */
+
+export interface OnboardingResponse {
+  readonly type: 'ONBOARDING';
+  readonly completedAt: number | null;
+  readonly step: number;
+  readonly incognitoSkipped: boolean;
+}
+
+/** One vaulted domain and what it has in history. */
+export interface HistoryDomainCount {
+  readonly domain: string;
+  readonly entries: number;
+}
+
+/**
+ * The dry run.
+ *
+ * The per-domain list travels because §12.2 asks for "Review the list" and a count on its own is
+ * not reviewable — "143 entries across 27 domains" is a number you either accept or abandon, while
+ * a list is something you can disagree with. It is decrypted vault content, which is allowed on this
+ * wire and only on this wire (see the note at the top of this file): it goes to an extension page,
+ * while the vault is unlocked, and is never written down on either side.
+ */
+export interface HistoryPreviewResponse {
+  readonly type: 'HISTORY_PREVIEW';
+  /** False when the optional `history` permission has not been granted; the rest is then empty. */
+  readonly granted: boolean;
+  /** Only the domains that actually have history. Ordered as the vault yielded them. */
+  readonly domains: readonly HistoryDomainCount[];
+  /** How many distinct vaulted domains were searched, including the ones with nothing. */
+  readonly searched: number;
+  readonly entries: number;
+}
+
 /**
  * The wire form of a thrown error.
  *
@@ -770,6 +851,8 @@ export type ErrorCode =
   | 'SYNC_FAILED'
   /** Reading the browser's bookmarks needs the optional `bookmarks` permission, and it is not on. */
   | 'BOOKMARKS_PERMISSION'
+  /** Clearing history needs the optional `history` permission, and it is not on. */
+  | 'HISTORY_PERMISSION'
   /** The service worker did not answer at all. Only ever produced on the sender's side. */
   | 'UNREACHABLE'
   | 'UNKNOWN';
@@ -816,6 +899,10 @@ export interface ResponseMap {
   readonly NATIVE_TREE: NativeTreeResponse;
   readonly IMPORT_NATIVE: NativeImportResponse;
   readonly DELETE_NATIVE: NativeDeleteResponse;
+  readonly GET_ONBOARDING: OnboardingResponse;
+  readonly SET_ONBOARDING: OnboardingResponse;
+  readonly PREVIEW_HISTORY_CLEANUP: HistoryPreviewResponse;
+  readonly CLEAR_VAULTED_HISTORY: CountResponse;
 }
 
 export type ResponseFor<R extends Request> = ResponseMap[R['type']] | ErrorResponse;
@@ -979,7 +1066,14 @@ export function parseRequest(raw: unknown): Request | null {
     case 'GET_ROLLBACK':
     case 'ROLLBACK_IMPORT':
     case 'NATIVE_TREE':
+    case 'GET_ONBOARDING':
+    case 'PREVIEW_HISTORY_CLEANUP':
+    case 'CLEAR_VAULTED_HISTORY':
       return { type };
+    case 'SET_ONBOARDING': {
+      const patch = parseOnboardingPatch(raw['patch']);
+      return patch === null ? null : { type, patch };
+    }
     case 'EXPORT_VAULT': {
       const password = raw['password'];
       const mode = raw['mode'];
@@ -1150,6 +1244,32 @@ export function parseItemEdit(raw: unknown): ItemEdit | null {
   return patch;
 }
 
+/** Validate an onboarding update. Rejects the whole patch on any bad field, like the others here. */
+export function parseOnboardingPatch(raw: unknown): OnboardingPatch | null {
+  if (!isRecord(raw)) return null;
+  const patch: { -readonly [K in keyof OnboardingPatch]: OnboardingPatch[K] } = {};
+
+  const step = raw['step'];
+  if (step !== undefined) {
+    if (typeof step !== 'number' || !Number.isInteger(step) || step < 0) return null;
+    patch.step = step;
+  }
+
+  const incognitoSkipped = raw['incognitoSkipped'];
+  if (incognitoSkipped !== undefined) {
+    if (typeof incognitoSkipped !== 'boolean') return null;
+    patch.incognitoSkipped = incognitoSkipped;
+  }
+
+  const completed = raw['completed'];
+  if (completed !== undefined) {
+    if (typeof completed !== 'boolean') return null;
+    patch.completed = completed;
+  }
+
+  return patch;
+}
+
 /**
  * Validate a settings patch.
  *
@@ -1194,6 +1314,18 @@ export function parseSettingsPatch(raw: unknown): SettingsPatch | null {
   if (reuseIncognitoWindow !== undefined) {
     if (typeof reuseIncognitoWindow !== 'boolean') return null;
     patch.reuseIncognitoWindow = reuseIncognitoWindow;
+  }
+
+  const clearHistoryOnLock = raw['clearHistoryOnLock'];
+  if (clearHistoryOnLock !== undefined) {
+    if (typeof clearHistoryOnLock !== 'boolean') return null;
+    patch.clearHistoryOnLock = clearHistoryOnLock;
+  }
+
+  const quickClose = raw['quickClose'];
+  if (quickClose !== undefined) {
+    if (typeof quickClose !== 'boolean') return null;
+    patch.quickClose = quickClose;
   }
 
   const sortBy = raw['sortBy'];
@@ -1243,6 +1375,8 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'NATIVE_TREE_STATE',
   'NATIVE_IMPORT',
   'NATIVE_DELETE',
+  'ONBOARDING',
+  'HISTORY_PREVIEW',
   'ERROR',
 ]);
 

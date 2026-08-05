@@ -18,6 +18,7 @@ function deps(): CommandDeps {
     lock: vi.fn(() => Promise.resolve()),
     touch: vi.fn(() => Promise.resolve(null)),
     addActiveTab: vi.fn(() => Promise.resolve()),
+    quickClose: vi.fn(() => Promise.resolve()),
   };
 }
 

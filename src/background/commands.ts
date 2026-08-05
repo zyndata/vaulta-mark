@@ -11,7 +11,12 @@
 
 import type { LockReason } from '../shared/messages.js';
 
-export const COMMANDS = ['add-current-tab', 'panic-lock', 'open-manager'] as const;
+export const COMMANDS = [
+  'add-current-tab',
+  'panic-lock',
+  'open-manager',
+  'quick-close',
+] as const;
 
 export type CommandName = (typeof COMMANDS)[number];
 
@@ -27,6 +32,8 @@ export interface CommandDeps {
   readonly touch: () => Promise<unknown>;
   /** Vault the active tab and report the outcome on the toolbar badge — there is no window here. */
   readonly addActiveTab: () => Promise<void>;
+  /** Close the active tab and delete its domain's history (§12.3). Off unless enabled. */
+  readonly quickClose: () => Promise<void>;
 }
 
 /** The manager page, in a tab of its own. */
@@ -50,6 +57,11 @@ export async function handleCommand(name: string, deps: CommandDeps): Promise<vo
       // which is the whole reason this entry point can read a URL without a host permission (D25).
       // `addActiveTab` touches the idle window itself, on the path where there is a vault to touch.
       await deps.addActiveTab();
+      return;
+    case 'quick-close':
+      // Deliberately does *not* touch the idle window. Quick-close is about the browser rather than
+      // about the vault — it works while locked, and using it should not hold a vault open.
+      await deps.quickClose();
       return;
     default:
       return;

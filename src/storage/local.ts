@@ -16,6 +16,7 @@
 import { fromBase64Url, toBase64Url, type Bytes } from '../crypto/codec.js';
 import { CorruptVaultError } from '../crypto/errors.js';
 import {
+  DEFAULT_ONBOARDING,
   DEFAULT_SETTINGS,
   DETAIL_WIDTH,
   SIDEBAR_WIDTH,
@@ -24,6 +25,7 @@ import {
   isSortKey,
   type BaseMeta,
   type BucketMeta,
+  type OnboardingRecord,
   type PaneWidth,
   type RollbackMeta,
   type VaultHeader,
@@ -262,6 +264,39 @@ export async function clearRollback(): Promise<void> {
   await area().remove([LOCAL_KEYS.rollback, LOCAL_KEYS.rollbackMeta]);
 }
 
+/* ------------------------------------------------------------------ onboarding (Phase 9) */
+
+/**
+ * How far the first-run flow got.
+ *
+ * Never throws, for the same reason {@link readSettings} does not: the worst case of a corrupted
+ * record is that someone is shown the introduction a second time, and the worst case of throwing is
+ * that a fresh install cannot open the page that creates the vault.
+ */
+export async function readOnboarding(): Promise<OnboardingRecord> {
+  const raw = (await area().get(LOCAL_KEYS.onboarding))[LOCAL_KEYS.onboarding];
+  if (raw === null || typeof raw !== 'object') return DEFAULT_ONBOARDING;
+  const stored = raw as Partial<OnboardingRecord>;
+  return {
+    completedAt:
+      typeof stored.completedAt === 'number' && Number.isFinite(stored.completedAt)
+        ? stored.completedAt
+        : null,
+    step:
+      typeof stored.step === 'number' && Number.isInteger(stored.step) && stored.step >= 0
+        ? stored.step
+        : DEFAULT_ONBOARDING.step,
+    incognitoSkipped:
+      typeof stored.incognitoSkipped === 'boolean'
+        ? stored.incognitoSkipped
+        : DEFAULT_ONBOARDING.incognitoSkipped,
+  };
+}
+
+export async function writeOnboarding(record: OnboardingRecord): Promise<void> {
+  await area().set({ [LOCAL_KEYS.onboarding]: record });
+}
+
 /* ------------------------------------------------------------------ settings */
 
 /**
@@ -298,6 +333,12 @@ export async function readSettings(): Promise<VaultSettings> {
       typeof stored.reuseIncognitoWindow === 'boolean'
         ? stored.reuseIncognitoWindow
         : DEFAULT_SETTINGS.reuseIncognitoWindow,
+    clearHistoryOnLock:
+      typeof stored.clearHistoryOnLock === 'boolean'
+        ? stored.clearHistoryOnLock
+        : DEFAULT_SETTINGS.clearHistoryOnLock,
+    quickClose:
+      typeof stored.quickClose === 'boolean' ? stored.quickClose : DEFAULT_SETTINGS.quickClose,
     sortBy: isSortKey(stored.sortBy) ? stored.sortBy : DEFAULT_SETTINGS.sortBy,
     sidebarWidth: paneWidth(stored.sidebarWidth, SIDEBAR_WIDTH),
     detailWidth: paneWidth(stored.detailWidth, DETAIL_WIDTH),
