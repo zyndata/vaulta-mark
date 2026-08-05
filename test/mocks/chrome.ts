@@ -286,6 +286,8 @@ export interface ChromeMock {
   readonly createdTabs: { url?: string; windowId?: number }[];
   /** The tabs `chrome.tabs.query` answers with. Replace the contents to change the active tab. */
   readonly openTabs: { id: number; url?: string; title?: string; active?: boolean }[];
+  /** Tab ids passed to `chrome.tabs.remove`, in order. */
+  readonly removedTabs: number[];
   /** The windows `chrome.windows.getAll` answers with, plus everything `create` appended. */
   readonly openWindows: { id: number; incognito: boolean; type: string }[];
   /** What `chrome.extension.isAllowedIncognitoAccess()` answers. Off, as a fresh install is. */
@@ -300,6 +302,19 @@ export interface ChromeMock {
    * that skipped it would let that bug through.
    */
   readonly bookmarkRoots: MockBookmarkNode[];
+  /**
+   * The profile's browsing history, as `chrome.history.search` answers it.
+   *
+   * Push entries to set a scenario up. `deleteUrl` removes from here, so the state after a cleanup
+   * is observable rather than only the call list.
+   */
+  readonly historyEntries: MockHistoryEntry[];
+  /** The `text` of every `history.search`, in order. Non-vaulted domains must never appear. */
+  readonly historySearches: string[];
+  /** URLs passed to `chrome.history.deleteUrl`, in order. The exact list Phase 9 asserts on. */
+  readonly deletedHistory: string[];
+  /** URLs `deleteUrl` refuses, the way Chrome refuses one it does not consider deletable. */
+  readonly undeletableHistory: Set<string>;
   /** Ids passed to `chrome.bookmarks.removeTree`, in order. */
   readonly removedBookmarks: string[];
   /** Ids `removeTree` refuses, the way Chrome refuses its permanent folders. */
@@ -317,6 +332,14 @@ export interface ChromeMock {
    * messages it received — which is how a test observes a broadcast from the service worker.
    */
   observeMessages(): unknown[];
+}
+
+/** One entry of the mocked history. Mirrors the fields `chrome.history.HistoryItem` gives us. */
+export interface MockHistoryEntry {
+  url: string;
+  title?: string;
+  visitCount?: number;
+  lastVisitTime?: number;
 }
 
 /** One node of the mocked bookmark tree. Mirrors `chrome.bookmarks.BookmarkTreeNode`. */
@@ -402,12 +425,17 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
 
   const createdWindows: { url?: string | string[]; incognito?: boolean }[] = [];
   const createdTabs: { url?: string; windowId?: number }[] = [];
+  const removedTabs: number[] = [];
   const openTabs: { id: number; url?: string; title?: string; active?: boolean }[] = [];
   const openWindows: { id: number; incognito: boolean; type: string }[] = [];
   const menus = new Map<string, { title?: string; contexts?: readonly string[] }>();
   const bookmarkRoots: MockBookmarkNode[] = [{ id: '0', title: '', children: [] }];
   const removedBookmarks: string[] = [];
   const undeletableBookmarks = new Set<string>(['0', '1', '2']);
+  const historyEntries: MockHistoryEntry[] = [];
+  const historySearches: string[] = [];
+  const deletedHistory: string[] = [];
+  const undeletableHistory = new Set<string>();
   const alarms = new Map<string, { periodInMinutes?: number; scheduledTime: number }>();
   let idleDetectionInterval: number | undefined;
   let incognitoAccess = options.incognitoAccess ?? false;
@@ -506,7 +534,12 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
         Promise.resolve(
           openTabs.filter((tab) => query.active !== true || tab.active === true),
         ),
-      remove: () => Promise.resolve(),
+      remove: (tabId: number) => {
+        removedTabs.push(tabId);
+        const at = openTabs.findIndex((tab) => tab.id === tabId);
+        if (at >= 0) openTabs.splice(at, 1);
+        return Promise.resolve();
+      },
     },
     extension: {
       isAllowedIncognitoAccess: () => Promise.resolve(incognitoAccess),
@@ -580,6 +613,50 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   };
 
   /**
+   * `chrome.history` exists only while the optional permission is granted — a getter, for the same
+   * reason `bookmarks` is one: the namespace appears the moment the grant does.
+   *
+   * `search` reproduces the property that makes this feature hard to get right: it is a **substring**
+   * match over URL and title, so a query for `example.com` answers with `notexample.community` and
+   * with anything whose title happens to mention it. Any mock that matched on host would let the
+   * bug this whole module exists to prevent pass its tests.
+   */
+  Object.defineProperty(api, 'history', {
+    enumerable: true,
+    get: () =>
+      grantedPermissions.has('history')
+        ? {
+            search: (query: { text: string; maxResults?: number; startTime?: number }) => {
+              historySearches.push(query.text);
+              const text = query.text.toLowerCase();
+              const hits = historyEntries.filter(
+                (entry) =>
+                  entry.url.toLowerCase().includes(text) ||
+                  (entry.title ?? '').toLowerCase().includes(text),
+              );
+              // `maxResults: 0` is Chrome's "no limit"; anything else caps.
+              const capped =
+                query.maxResults === undefined || query.maxResults === 0
+                  ? hits
+                  : hits.slice(0, query.maxResults);
+              return Promise.resolve(capped.map((entry) => ({ ...entry })));
+            },
+            deleteUrl: (details: { url: string }) => {
+              // Chrome rejects a URL it does not consider deletable — a malformed one, or one that
+              // is no longer there. A cleanup must survive that without abandoning the batch.
+              if (undeletableHistory.has(details.url)) {
+                return Promise.reject(new Error('Url is invalid.'));
+              }
+              deletedHistory.push(details.url);
+              const at = historyEntries.findIndex((entry) => entry.url === details.url);
+              if (at >= 0) historyEntries.splice(at, 1);
+              return Promise.resolve();
+            },
+          }
+        : undefined,
+  });
+
+  /**
    * `chrome.bookmarks` exists only while the optional permission is granted.
    *
    * A **getter**, not a conditional property, because a permission granted at runtime makes the
@@ -611,10 +688,15 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     grantedPermissions,
     createdWindows,
     createdTabs,
+    removedTabs,
     openTabs,
     openWindows,
     menus,
     alarms,
+    historyEntries,
+    historySearches,
+    deletedHistory,
+    undeletableHistory,
     bookmarkRoots,
     removedBookmarks,
     undeletableBookmarks,

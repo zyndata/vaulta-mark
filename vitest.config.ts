@@ -39,6 +39,10 @@ export default defineConfig({
         // that overwrites a vault — so they sit with crypto and storage rather than with the glue.
         'src/io/**': { lines: 90, branches: 85 },
         'src/import/**': { lines: 90, branches: 85 },
+        // Phase 9. It decides which browsing-history entries get deleted, and being wrong means
+        // erasing a site the user never asked about — the same class of consequence as losing a
+        // bookmark, so the same gate. `public-suffix.ts` is generated data with no branches in it.
+        'src/history/**': { lines: 90, branches: 85 },
       },
     },
   },

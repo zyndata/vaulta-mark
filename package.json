@@ -17,6 +17,7 @@
     "dev": "vite build --watch --mode development",
     "build": "vite build",
     "zip": "node scripts/zip.mjs",
+    "update-psl": "node scripts/update-psl.mjs",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test --pass-with-no-tests",
