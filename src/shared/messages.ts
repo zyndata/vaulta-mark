@@ -296,18 +296,6 @@ export interface ExportVaultRequest {
   readonly mode: 'vault' | 'custom';
 }
 
-/**
- * Produce the plain, unencrypted Netscape bookmark file.
- *
- * Carries no confirmation field, for the same reason {@link DestroyVaultRequest} carries none: there
- * is no `externally_connectable`, so a message arriving here was sent by our own page, and the typed
- * `EXPORT UNENCRYPTED` gate that has to be passed first lives in `ui/export-gate.ts` where a person
- * can actually read what they are agreeing to.
- */
-export interface ExportHtmlRequest {
-  readonly type: 'EXPORT_HTML';
-}
-
 /** What is in this file? Decrypts, validates and counts; writes nothing. */
 export interface PreviewImportRequest {
   readonly type: 'PREVIEW_IMPORT';
@@ -392,7 +380,6 @@ export type Request =
   | ListConflictsRequest
   | ResolveConflictsRequest
   | ExportVaultRequest
-  | ExportHtmlRequest
   | PreviewImportRequest
   | ImportVaultRequest
   | GetRollbackRequest
@@ -822,7 +809,6 @@ export interface ResponseMap {
   readonly LIST_CONFLICTS: ConflictsResponse;
   readonly RESOLVE_CONFLICTS: CountResponse;
   readonly EXPORT_VAULT: FileResponse;
-  readonly EXPORT_HTML: FileResponse;
   readonly PREVIEW_IMPORT: ImportPreviewResponse;
   readonly IMPORT_VAULT: ImportResultResponse;
   readonly GET_ROLLBACK: RollbackResponse;
@@ -990,7 +976,6 @@ export function parseRequest(raw: unknown): Request | null {
     case 'GET_SYNC_STATUS':
     case 'SYNC_NOW':
     case 'LIST_CONFLICTS':
-    case 'EXPORT_HTML':
     case 'GET_ROLLBACK':
     case 'ROLLBACK_IMPORT':
     case 'NATIVE_TREE':

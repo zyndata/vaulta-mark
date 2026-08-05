@@ -122,6 +122,32 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   /** The last status the worker reported. `null` until the first answer arrives. */
   let syncState: SyncStatusResponse | null = null;
 
+  /**
+   * Which of the three full-window screens is up.
+   *
+   * One variable rather than three `hidden` attributes read back off the DOM, because the three are
+   * mutually exclusive and nothing was enforcing it: each screen only ever put the *layout* away and
+   * brought itself out, so opening import/export from the conflict screen left both on the page, one
+   * scrolled under the other. Worse, resolving the last conflict calls `paintSync`, which used to
+   * bring the layout back unconditionally — so settling a disagreement while looking at
+   * import/export put the bookmark list on screen above it. `showScreen` is now the only thing that
+   * touches those attributes, and it always says what all three of them are.
+   */
+  type Screen = 'list' | 'conflicts' | 'io';
+  let screen: Screen = 'list';
+
+  function showScreen(next: Screen): void {
+    screen = next;
+    layout.hidden = next !== 'list';
+    conflictSlot.hidden = next !== 'conflicts';
+    ioSlot.hidden = next !== 'io';
+    // A screen that is not on the page holds nothing: its contents are a snapshot of the vault
+    // taken when it opened, and one left parked in the DOM is stale data a screen reader in browse
+    // mode can still walk into.
+    if (next !== 'conflicts') render(conflictSlot);
+    if (next !== 'io') render(ioSlot);
+  }
+
   const list = new BookmarkList({
     onSelect: (index, modifiers) => {
       selectAt(index, modifiers);
@@ -572,8 +598,9 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
           }),
     );
     // A banner that vanished because the last conflict was settled elsewhere must not leave the
-    // conflict screen up in front of an empty list.
-    if (pending === 0 && !conflictSlot.hidden) closeConflicts();
+    // conflict screen up in front of an empty list. Only the conflict screen, though: this runs on
+    // every `SYNC_CHANGED`, and it used to bring the layout back from underneath import/export too.
+    if (pending === 0 && screen === 'conflicts') showScreen('list');
   }
 
   async function refreshSync(): Promise<void> {
@@ -607,10 +634,9 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       warn(response.code);
       return;
     }
+    showScreen('conflicts');
     paintConflicts(response.conflicts);
-    layout.hidden = true;
-    conflictSlot.hidden = false;
-    conflictSlot.querySelector('h2')?.scrollIntoView();
+    conflictSlot.scrollTop = 0;
   }
 
   function paintConflicts(conflicts: readonly ConflictView[]): void {
@@ -621,15 +647,11 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
         resolve: (ids, resolution) => {
           void resolveConflicts(ids, resolution);
         },
-        onBack: closeConflicts,
+        onBack: () => {
+          showScreen('list');
+        },
       }),
     );
-  }
-
-  function closeConflicts(): void {
-    conflictSlot.hidden = true;
-    layout.hidden = false;
-    render(conflictSlot);
   }
 
   async function resolveConflicts(
@@ -648,7 +670,8 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     );
     await refreshSync();
     await reloadAll();
-    if (!conflictSlot.hidden) await showConflicts();
+    // `refreshSync` may already have taken us back to the list, if that was the last one.
+    if (screen === 'conflicts') await showConflicts();
   }
 
   /* ---------------------------------------------------------------- import and export */
@@ -661,25 +684,29 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
    * dialog has room for.
    */
   function openIo(): void {
+    showScreen('io');
     render(
       ioSlot,
       ioScreen({
         say,
-        onBack: closeIo,
+        onBack: () => {
+          showScreen('list');
+        },
         onVaultChanged: () => {
           void reloadAll();
         },
+        onConflicts: () => {
+          // `refreshSync` first: the conflicts an import just produced are not in `syncState` yet,
+          // and leaving it stale would let the next `SYNC_CHANGED` conclude there is nothing to
+          // settle and close the screen the user was sent to.
+          void (async () => {
+            await refreshSync();
+            await showConflicts();
+          })();
+        },
       }),
     );
-    layout.hidden = true;
-    ioSlot.hidden = false;
-    ioSlot.querySelector('h2')?.scrollIntoView();
-  }
-
-  function closeIo(): void {
-    ioSlot.hidden = true;
-    layout.hidden = false;
-    render(ioSlot);
+    ioSlot.scrollTop = 0;
   }
 
   /* ---------------------------------------------------------------- loading */
@@ -1159,7 +1186,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     if (message.type === 'IO_PROGRESS') {
       // Only while the screen that owns the bar is up. A progress broadcast that arrived because
       // another window is exporting is not this window's to render.
-      if (!ioSlot.hidden) paintProgress(ioSlot, message.done, message.total);
+      if (screen === 'io') paintProgress(ioSlot, message.done, message.total);
       return;
     }
     if (message.type === 'SESSION_LOCKED') {

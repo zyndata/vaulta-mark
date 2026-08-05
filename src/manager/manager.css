@@ -132,6 +132,30 @@ body.vm-manager {
 }
 
 /*
+ * The two full-window screens scroll themselves.
+ *
+ * The body is `height: 100vh; overflow: hidden`, so a screen taller than the window is not scrolled
+ * by the page — it is *clipped* by it, silently. That is what hid the second half of a long conflict
+ * list: nine disagreements to settle, four of them reachable, and no scrollbar anywhere to say so.
+ * Each slot is the flex item that takes the leftover height and owns the scrolling, which is the
+ * same arrangement the list column uses.
+ */
+.vm-conflict-slot,
+.vm-io-slot {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* `display: flex` above beats the UA's `[hidden]`, exactly as `.vm-layout` does. */
+.vm-conflict-slot[hidden],
+.vm-io-slot[hidden] {
+  display: none;
+}
+
+/*
  * The grab handle between two columns. Four pixels wide, with a larger hit area than it looks like:
  * a splitter you have to aim at is one people give up on.
  */
@@ -584,6 +608,25 @@ body.vm-manager {
 /* Dialogs, their sections and the two status colours live in src/ui/styles.css: the popup opens
    the same dialogs from the same module (`ui/dialog.ts`). */
 
+/* ------------------------------------------------------------------ the live region */
+
+/*
+ * `#vm-status` is a sibling of `#vm-root` in the static markup, so it is a flex item of the body and
+ * sits under whichever screen is up. `flex: none` keeps it from taking height away from the list,
+ * and the rule only applies while it holds something — an empty live region must not draw a border
+ * across the bottom of the window.
+ */
+#vm-status:not(:empty) {
+  flex: none;
+  border-top: 1px solid var(--vm-border);
+}
+
+/* It is the last thing on the page, so it has nothing below to be spaced from. */
+#vm-status .vm-notice {
+  margin: 0;
+  border-radius: 0;
+}
+
 /* ------------------------------------------------------------------ toast */
 
 .vm-toast-slot {
@@ -731,11 +774,13 @@ body.vm-manager {
   background: var(--vm-surface);
 }
 
+/* The slot scrolls (`.vm-conflict-slot`); this is the readable column inside it. */
 .vm-conflicts {
+  width: 100%;
   max-width: 62rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
-  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .vm-conflict-actions {
@@ -821,10 +866,11 @@ body.vm-manager {
  * button and none of them belongs beside a bookmark list.
  */
 .vm-io {
+  width: 100%;
   max-width: 48rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
-  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .vm-io-head {
@@ -850,11 +896,6 @@ body.vm-manager {
 .vm-io-section p {
   margin: 0;
   max-width: 60ch;
-}
-
-/* The last section is the unencrypted export. It is marked, because it undoes the other three. */
-.vm-io-section:last-of-type {
-  border-top-color: var(--vm-danger);
 }
 
 .vm-io-actions {
@@ -893,6 +934,20 @@ body.vm-manager {
 }
 
 /*
+ * The native-bookmark section is a slot the script repaints between three different states — ask for
+ * the permission, show the tree, report an error — so it carries the section's own spacing rather
+ * than inheriting it. Without this its contents sat hard against each other while every other
+ * section on the page was spaced by `.vm-io-section`'s gap: the "Allow reading bookmarks" button was
+ * against the paragraph above it, and it is the same button as the ones that are not.
+ */
+.vm-io-native {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+  width: 100%;
+}
+
+/*
  * The native-bookmark picker. Indentation is a custom property rather than nested padding so a row
  * stays one grid line deep however far down the tree it is — a bookmark eight folders in should
  * still have its title where the eye expects it, not pushed off the right edge.
@@ -924,4 +979,39 @@ body.vm-manager {
 
 .vm-file {
   max-width: 100%;
+}
+
+/*
+ * The file picker's own button, made to match the rest of the page.
+ *
+ * `::file-selector-button` styles the real control rather than replacing it: the alternative — a
+ * hidden input behind a `<label>` dressed as a button — throws away the "no file chosen" text beside
+ * it, which is the only thing on the row that says whether anything has been picked, and it is text
+ * the browser writes in the browser's language. Nothing here changes the control's behaviour, so
+ * there is no downside beyond the rule itself. The colours are `.vm-button--quiet`'s.
+ */
+.vm-file::file-selector-button {
+  margin-right: 0.5rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: transparent;
+  color: var(--vm-fg);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.vm-file::file-selector-button:hover {
+  background: var(--vm-hover);
+  border-color: var(--vm-fg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vm-file::file-selector-button {
+    transition: none;
+  }
 }

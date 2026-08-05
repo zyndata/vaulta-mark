@@ -34,10 +34,6 @@ import {
   readNativeTree,
   type NativeNode,
 } from '../import/native-bookmarks.js';
-import {
-  DEFAULT_HTML_WARNING,
-  exportHtml,
-} from '../io/export-html.js';
 import { exportFilename, exportVault, serializeVmv } from '../io/export-encrypted.js';
 import {
   applyImport,
@@ -50,9 +46,8 @@ import { restoreRollback, rollbackOffer } from '../io/rollback.js';
 import { requireVault } from './items.js';
 import * as session from './session.js';
 
-/** The MIME types the two exports are handed to the page with. */
+/** The MIME type the backup is handed to the page with. */
 const VMV_MIME = 'application/octet-stream';
-const HTML_MIME = 'text/html';
 
 /* ------------------------------------------------------------------ exporting */
 
@@ -85,47 +80,10 @@ export async function exportEncrypted(
   });
   return {
     type: 'FILE',
-    filename: exportFilename(now, 'vmv'),
+    filename: exportFilename(now),
     mime: VMV_MIME,
     text: serializeVmv(file),
   };
-}
-
-/**
- * Render the vault as a plain Netscape bookmark file.
- *
- * The typed `EXPORT UNENCRYPTED` gate is in the page (`ui/export-gate.ts`) rather than on the wire,
- * for the reason spelled out on `ExportHtmlRequest`: `chrome.runtime` is reachable only from this
- * extension's own pages, so a confirmation field would be a string our own code passes to itself.
- * The warning that *does* travel is the one written into the file, which outlives the dialog.
- */
-export async function exportPlainHtml(): Promise<FileResponse> {
-  const repo = await requireVault();
-  await session.touch();
-  const now = Date.now();
-  const text = exportHtml(repo.items(), {
-    warning: localizedWarning(),
-    onProgress: (done, total) => {
-      void broadcast({ type: 'IO_PROGRESS', job: 'export', done, total });
-    },
-  });
-  return { type: 'FILE', filename: exportFilename(now, 'html'), mime: HTML_MIME, text };
-}
-
-/**
- * The warning comment, localized, falling back to the English one.
- *
- * `chrome.i18n` is available in a service worker, so the file the user opens in six months is in
- * the language they were using — and a missing key falls back rather than writing an empty comment,
- * because an unmarked plaintext dump of someone's bookmarks is the one outcome worth guarding.
- */
-function localizedWarning(): readonly string[] {
-  return DEFAULT_HTML_WARNING.map((fallback, index) => {
-    // Read straight from `chrome.i18n` rather than through `ui/dom.ts`: the dependency direction is
-    // one-way, and the service worker does not import the UI kit to read one string.
-    const localized = chrome.i18n.getMessage(`htmlExportWarning${String(index + 1)}`);
-    return localized === '' ? fallback : localized;
-  });
 }
 
 /* ------------------------------------------------------------------ importing */

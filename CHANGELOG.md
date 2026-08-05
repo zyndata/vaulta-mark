@@ -42,11 +42,6 @@ below.
   bookmark into the vault does not take it out of the address bar's suggestions — deleting Chrome's
   own copy does. So it has its own button, its own confirmation and its own summary of exactly what
   will go. Nothing is ever deleted from Chrome as a side effect of an import.
-- **Plain HTML export**, for leaving — an ordinary bookmarks file any browser can import. It is
-  unencrypted by definition, so it sits behind a dialog that says so in three sentences and a typed
-  `EXPORT UNENCRYPTED`, and the file itself opens with the same warning for whoever finds it in six
-  months. Nothing about it is hidden, including the part where importing it into a browser puts
-  every address back into the suggestions VaultaMark exists to keep them out of.
 - Long imports and exports show a progress bar rather than a window that has stopped responding.
 - **Your bookmarks are on your other computers now**, with nothing to set up. Every Chrome signed
   into the same Google account gets the same vault, still encrypted — Google replicates a blob it
@@ -264,6 +259,19 @@ below.
 
 ### Changed
 
+- **There is no unencrypted export.** One was built — a plain bookmarks file any browser can
+  import, behind a typed `EXPORT UNENCRYPTED` and a warning written into the file itself — and then
+  removed, because the gate was the only good thing about it. Importing such a file into a browser
+  puts every address back into the suggestions VaultaMark exists to keep them out of, which is the
+  product running backwards. The encrypted `.vmv` backup is how a vault leaves VaultaMark.
+- **The backup dialog only asks you to repeat a password when there is a new one to repeat.**
+  Choosing *use a different password* brings the second field out; using your vault password does
+  not show a box you are not allowed to fill in.
+- A password that turns out to be wrong is now answered **in the dialog you typed it into**, with
+  the file you picked still selected — rather than closing it and leaving a red line on the page
+  behind, which cost you the file as well as the password.
+- The **Choose file** button now looks like the other buttons around it rather than like a piece of
+  the browser that wandered in.
 - **Deleting a bookmark asks first**, in the popup and in the manager alike, in the same words and
   the same dialog. **Undo** is still there afterwards — it is the safety net for the delete you
   meant, while the question is for the "×" your pointer found on its way to the row, and for the
@@ -298,6 +306,40 @@ below.
 - The manager's three-column layout stayed on screen underneath the conflict screen — invisible only
   in the sense that something else was drawn over it, and still taking the clicks meant for what was
   on top.
+- **An import preview could claim more bookmarks were already here than the file contained** —
+  "38 of them are already in this vault" under a line reading "28 bookmarks in 1 folders". It was
+  counting deleted bookmarks the file still carries, which the two numbers above it do not. A count
+  larger than the thing it is a subset of is not a preview, it is a reason to distrust the screen.
+- The import preview's counts now agree with themselves: "1 bookmark in 1 folder", "One of them is
+  already in this vault", and a backup with no folders in it says so rather than reading "in 0
+  folders".
+- **A merge import that finds disagreements now takes you straight to the screen that settles
+  them**, instead of announcing a number on a page that cannot act on it.
+- **Long operations say they are working.** Opening a backup, sealing one, and applying an import
+  each spend over a second deriving a key from your password before there is anything to count —
+  during which the dialog or the page used to sit there looking like it had swallowed the press.
+- The **Confirm password** field in the backup dialog stayed on screen when *use my vault password*
+  was selected, despite being marked hidden.
+- Focus outlines were cut off on every full-width box in the popup — the master password, its
+  repeat, the typed confirmation and the bookmark filter — by the box that scrolls them. The
+  bookmark filter lost the top of its outline as well, being the first thing in that box, and the
+  bookmark list's scrollbar sat in the same column as the outline's right edge, crowding it.
+- **Long lists of conflicts could not be scrolled.** The conflict screen and the import/export
+  screen were both taller than the window with nothing to scroll them, so anything past the fold was
+  simply gone — with nine disagreements to settle and four of them reachable, and no scrollbar
+  anywhere to say the rest existed. Both screens scroll now.
+- **Two screens could be on the page at once.** Opening import/export from the conflict screen left
+  both, one under the other; and settling the last conflict while looking at import/export brought
+  the bookmark list back on top of it. The manager now shows exactly one of its three screens at a
+  time.
+- **Importing this browser's bookmarks twice made a second copy of every folder.** The bookmarks
+  inside were correctly recognised as ones the vault already had, so what it left behind was a set
+  of empty duplicate folders beside the real ones. A folder is now matched to the one already in the
+  same place under the same name, and importing the same selection again adds nothing.
+- The focus outline on a password field in a dialog was sliced off at both edges by the box around
+  it.
+- The "Allow reading bookmarks" button sat hard against the paragraph above it while every other
+  button on that screen was spaced away from its own.
 - Nothing was lost to a browser that closed mid-sync. A sync that is interrupted after writing part
   of the vault leaves a copy that does not add up; the next device to look at it notices, and repairs
   it from its own copy rather than reading half a vault.

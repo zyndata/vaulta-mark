@@ -3,8 +3,8 @@
  *
  * The journey this covers is the one nothing else can: a file actually leaving the browser and
  * coming back. Everything up to `FILE` is asserted in the unit suites; what needs a browser is the
- * object-URL download, the file input, the typed gate in front of the plaintext export, and the fact
- * that the whole of it works with **no `downloads` permission** in the manifest.
+ * object-URL download, the file input, the typed gate in front of a replace-mode import, and the
+ * fact that the whole of it works with **no `downloads` permission** in the manifest.
  *
  * Two harness limits shape it, both familiar from the other specs:
  *
@@ -30,7 +30,6 @@ const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
 const PASSWORD = 'correct horse battery staple';
 const CONFIRM_PHRASE = 'I understand';
-const EXPORT_PHRASE = 'EXPORT UNENCRYPTED';
 const REPLACE_PHRASE = 'REPLACE MY VAULT';
 
 const PAGES: readonly (readonly [string, string])[] = [
@@ -162,12 +161,23 @@ test('backs the vault up and restores it from the file', async () => {
 
   const open = page.getByRole('dialog');
   await expect(open.getByRole('heading', { name: 'Open the backup' })).toBeVisible();
+
+  // A wrong password is answered *in the dialog*. It has to be: the file input is cleared on change,
+  // so a dialog that closed to report the failure would cost the user the file they picked as well
+  // as the password they mistyped.
+  await open.getByLabel('Backup password').fill('not the password');
+  await open.getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(open.getByRole('alert')).toBeVisible();
+  await expect(open.getByRole('heading', { name: 'Open the backup' })).toBeVisible();
+
   await open.getByLabel('Backup password').fill(PASSWORD);
   await open.getByRole('button', { name: 'Open', exact: true }).click();
 
   const preview = page.getByRole('dialog');
   await expect(preview.getByRole('heading', { name: 'What is in this backup' })).toBeVisible();
-  await expect(preview.getByText('2 bookmarks in 0 folders.')).toBeVisible();
+  // The counts agree with themselves: two bookmarks, and no folder clause at all rather than
+  // "in 0 folders".
+  await expect(preview.getByText('2 bookmarks and no folders.')).toBeVisible();
 
   // **Replace**, not merge, because this is a restore.
   //
@@ -196,35 +206,45 @@ test('backs the vault up and restores it from the file', async () => {
   await expect(page.locator('.vm-row').filter({ hasText: 'Mushroom risotto' })).toBeVisible();
 });
 
-test('will not produce the plaintext file without the typed phrase', async () => {
+/**
+ * A merge that disagrees with the vault takes you to where the disagreement is settled.
+ *
+ * It runs after the test above and uses the file that one wrote, deliberately: the disagreement
+ * needs a backup and a vault that have diverged, and deleting a bookmark the backup still holds is
+ * the cheapest way to produce exactly one (§6.4 calls that an edit-delete conflict). What is being
+ * asserted is the navigation — a count announced on a page that cannot act on it leaves the reader
+ * to find the conflict screen for themselves, having been told something is wrong.
+ */
+test('a merge that produces conflicts opens the screen that settles them', async () => {
   const page = await openPage('manager.html');
-  await captureDownload(page);
+  const file = join(scratch, 'backup.vmv');
+
+  const doomed = page.locator('.vm-row').filter({ hasText: 'Overnight bread' });
+  await doomed.click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).last().click();
+  await expect(doomed).toHaveCount(0);
+
   await page.getByRole('button', { name: 'Import & export' }).click();
-  await page.getByRole('button', { name: 'Export unencrypted…' }).click();
+  await page.getByLabel('Backup file').setInputFiles(file);
 
-  const gate = page.getByRole('dialog');
-  await expect(gate.getByRole('heading', { name: 'This file will not be encrypted' })).toBeVisible();
+  const open = page.getByRole('dialog');
+  await open.getByLabel('Backup password').fill(PASSWORD);
+  await open.getByRole('button', { name: 'Open', exact: true }).click();
 
-  // Pressing the button with the box empty does nothing but complain.
-  await gate.getByRole('button', { name: 'Save the unencrypted file' }).click();
-  await expect(gate.getByRole('alert')).toBeVisible();
-  await expect(gate.getByRole('heading', { name: 'This file will not be encrypted' })).toBeVisible();
+  const preview = page.getByRole('dialog');
+  await expect(preview.getByRole('heading', { name: 'What is in this backup' })).toBeVisible();
+  await preview.getByLabel('Merge into this vault').check();
+  await preview.getByRole('button', { name: 'Continue' }).click();
 
-  // A near miss does not open it either.
-  await gate.getByLabel('Type the phrase to continue').fill('export');
-  await gate.getByRole('button', { name: 'Save the unencrypted file' }).click();
-  await expect(gate.getByRole('heading', { name: 'This file will not be encrypted' })).toBeVisible();
+  // No stop on the import screen: the conflict screen is where this ends.
+  await expect(page.getByRole('heading', { name: 'Changed in two places' })).toBeVisible();
+  await expect(page.locator('.vm-conflict')).toHaveCount(1);
 
-  // Nothing has been produced up to this point.
-  expect(await page.evaluate(() => (window as unknown as { __captured: { text: string } }).__captured.text)).toBe('');
+  // And exactly one screen is on the page — the import screen it came from is gone, not underneath.
+  await expect(page.locator('.vm-io')).toHaveCount(0);
+  await expect(page.locator('.vm-layout')).toBeHidden();
 
-  // And with the phrase, it is.
-  await gate.getByLabel('Type the phrase to continue').fill(EXPORT_PHRASE);
-  await gate.getByRole('button', { name: 'Save the unencrypted file' }).click();
-
-  const saved = await capturedFile(page);
-  expect(saved.text).toContain('<!DOCTYPE NETSCAPE-Bookmark-file-1>');
-  expect(saved.text).toContain('WARNING');
-  // It is the plaintext file it warned about — the URLs really are in there.
-  expect(saved.text).toContain('vaultamark-io.invalid');
+  await page.getByRole('button', { name: 'Keep this device’s', exact: true }).click();
+  await expect(page.locator('.vm-row').filter({ hasText: 'Mushroom risotto' })).toBeVisible();
 });

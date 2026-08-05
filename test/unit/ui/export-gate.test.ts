@@ -1,10 +1,10 @@
 /**
  * @vitest-environment jsdom
  *
- * The gates in front of the two destructive exports.
+ * The gate in front of the one destructive import.
  *
- * PLAN §9 Phase 8 asks for one property in particular and asks for it **at the UI layer**: the
- * plain-HTML export must be unreachable without the typed confirmation. That is what this file is
+ * PLAN §9 Phase 8 asks for one property in particular and asks for it **at the UI layer**: a
+ * replace-mode import must be unreachable without the typed confirmation. That is what this file is
  * for. Everything else — the wording, the ordering of the warnings — is checked because a gate that
  * has stopped saying what it is gating has stopped being a gate.
  *
@@ -14,8 +14,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { PLAIN_EXPORT_PHRASE } from '../../../src/io/export-html.js';
-import { confirmPlainExport, confirmReplaceImport } from '../../../src/ui/export-gate.js';
+import { confirmReplaceImport } from '../../../src/ui/export-gate.js';
 import { installChromeMock, uninstallChromeMock } from '../../mocks/chrome.js';
 
 function shimDialog(): void {
@@ -69,58 +68,6 @@ beforeEach(() => {
 
 afterEach(() => {
   uninstallChromeMock();
-});
-
-describe('confirmPlainExport', () => {
-  it('refuses to resolve true until the phrase has been typed', async () => {
-    const pending = confirmPlainExport({ bookmarks: 412 });
-
-    // Pressing the button with an empty box does nothing at all.
-    submit();
-    expect(document.querySelector('dialog')).not.toBe(null);
-    expect(complaint()).toBe('exportPlainConfirmRefused');
-
-    // Nor does a near miss.
-    typeInto('export');
-    submit();
-    expect(document.querySelector('dialog')).not.toBe(null);
-
-    typeInto(PLAIN_EXPORT_PHRASE);
-    submit();
-    expect(await pending).toBe(true);
-  });
-
-  it('resolves false when it is dismissed', async () => {
-    const pending = confirmPlainExport({ bookmarks: 1 });
-    cancel();
-    expect(await pending).toBe(false);
-  });
-
-  it('forgives case and spacing — the gate is there to make someone read, not to test typing', async () => {
-    const pending = confirmPlainExport({ bookmarks: 1 });
-    typeInto('  export   unencrypted  ');
-    submit();
-    expect(await pending).toBe(true);
-  });
-
-  it('says what the file is, who can read it, and what importing it undoes', async () => {
-    const pending = confirmPlainExport({ bookmarks: 412 });
-    const text = dialog().textContent;
-    expect(text).toContain('exportPlainWarningUnencrypted');
-    expect(text).toContain('exportPlainWarningReadable');
-    expect(text).toContain('exportPlainWarningOmnibox');
-    // And the first of them is styled as the warning it is, not as body copy.
-    expect(dialog().querySelector('.vm-notice--danger')).not.toBe(null);
-    cancel();
-    await pending;
-  });
-
-  it('marks its confirming button as destructive', async () => {
-    const pending = confirmPlainExport({ bookmarks: 1 });
-    expect(dialog().querySelector('.vm-button--danger')).not.toBe(null);
-    cancel();
-    await pending;
-  });
 });
 
 describe('confirmReplaceImport', () => {

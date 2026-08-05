@@ -213,8 +213,6 @@ export async function handleRequest(request: Request): Promise<Response> {
       /* ---- import and export (Phase 8) ---- */
       case 'EXPORT_VAULT':
         return await io.exportEncrypted(request.password, request.mode);
-      case 'EXPORT_HTML':
-        return await io.exportPlainHtml();
       case 'PREVIEW_IMPORT':
         return await io.previewImport(request.file, request.password);
       case 'IMPORT_VAULT':

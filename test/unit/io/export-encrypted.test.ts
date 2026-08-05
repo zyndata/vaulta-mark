@@ -123,7 +123,6 @@ describe('exportFilename', () => {
     // the 4th because the machine is east of UTC.
     const at = new Date(2026, 7, 3, 22, 15).getTime();
     expect(exportFilename(at)).toBe('vaultamark-2026-08-03.vmv');
-    expect(exportFilename(at, 'html')).toBe('vaultamark-2026-08-03.html');
   });
 
   it('pads single-digit months and days', () => {

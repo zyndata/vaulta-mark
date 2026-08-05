@@ -67,7 +67,18 @@ export interface ImportPreview {
   readonly createdBy: string;
   readonly schemaVersion: number;
   readonly includesThumbs: boolean;
-  /** How many of the file's ids the vault already has — the ceiling on how many can conflict. */
+  /**
+   * How many of the file's **live** items the vault already holds, live.
+   *
+   * It is the number the preview shows against the bookmark and folder counts beside it, so it has
+   * to be counted over the same items those are: an earlier version counted every id in the file the
+   * vault recognised, tombstones included, and a backup carrying nine deletions reported "38 of them
+   * are already in this vault" under a line reading "28 bookmarks in 1 folders". A count larger than
+   * the thing it is a subset of is not a preview, it is a reason to distrust the whole screen.
+   *
+   * A file's live item whose vault copy is a tombstone is deliberately *not* counted: that is
+   * something a merge has to ask about (§6.4), not something this vault already has.
+   */
   readonly known: number;
 }
 
@@ -199,11 +210,14 @@ export function previewOf(file: VmvFile, items: ItemMap, vault: ItemMap): Import
   let known = 0;
 
   for (const item of items.values()) {
-    if (vault.has(item.id)) known += 1;
     if (isDeleted(item)) {
       deleted += 1;
       continue;
     }
+    // Counted here, past the tombstone check, so `known` is a subset of the bookmarks and folders
+    // reported above it rather than a number over a different set of items entirely.
+    const mine = vault.get(item.id);
+    if (mine !== undefined && !isDeleted(mine)) known += 1;
     if (!isBookmark(item)) {
       folders += 1;
       continue;

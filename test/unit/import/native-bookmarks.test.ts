@@ -196,6 +196,58 @@ describe('importNative', () => {
     expect(again).toMatchObject({ bookmarks: 0, duplicates: 1 });
   }, 30_000);
 
+  it('reuses the folders it already made, so a repeated import adds nothing', async () => {
+    const repo = await repository();
+    const tree = await readNativeTree();
+    await importNative(repo, tree, ['1']);
+    const before = repo.header().vaultRev;
+
+    const again = await importNative(repo, tree, ['1']);
+
+    // Every bookmark is a duplicate and every folder is one the vault already has in that place, so
+    // the second run has nothing to write at all. It used to create a second, empty "Bookmarks bar"
+    // and a second, empty "Work" beside the first pair — the bookmarks inside them having been
+    // recognised as duplicates and filed nowhere.
+    expect(again).toEqual({ bookmarks: 0, folders: 0, duplicates: 2, skipped: 1 });
+    expect(titlesIn(repo).filter((title) => title === 'Work')).toHaveLength(1);
+    expect(titlesIn(repo).filter((title) => title === 'Bookmarks bar')).toHaveLength(1);
+    expect(repo.header().vaultRev).toBe(before);
+  }, 30_000);
+
+  it('adds what is new to the folder that is already there', async () => {
+    const repo = await repository();
+    await importNative(repo, await readNativeTree(), ['1']);
+
+    mock.bookmarkRoots[0]?.children?.[0]?.children?.[1]?.children?.push({
+      id: '112',
+      title: 'Notes',
+      url: 'https://example.com/notes',
+    });
+    const result = await importNative(repo, await readNativeTree(), ['1']);
+
+    expect(result).toMatchObject({ bookmarks: 1, folders: 0 });
+    const items = [...repo.items().values()];
+    const work = items.find((item) => item.title === 'Work');
+    expect(items.find((item) => item.title === 'Notes')?.parentId).toBe(work?.id);
+  }, 30_000);
+
+  it('matches a folder by its place, not by its name alone', async () => {
+    // Two folders called "Work" under two different parents are two folders. Collapsing them would
+    // move somebody's bookmarks, which is the failure the naive fix makes.
+    mock.bookmarkRoots[0]?.children?.[1]?.children?.push({
+      id: '22',
+      title: 'Work',
+      children: [{ id: '220', title: 'Elsewhere', url: 'https://elsewhere.test/work' }],
+    });
+    const repo = await repository();
+    await importNative(repo, await readNativeTree(), ['1', '2']);
+
+    const items = [...repo.items().values()];
+    const works = items.filter((item) => item.title === 'Work');
+    expect(works).toHaveLength(2);
+    expect(new Set(works.map((item) => item.parentId)).size).toBe(2);
+  }, 30_000);
+
   it('imports the same page twice in one tree only once', async () => {
     mock.bookmarkRoots[0]?.children?.[1]?.children?.push({
       id: '21',
@@ -284,6 +336,10 @@ describe('deleteNative', () => {
     expect(mock.removedBookmarks).toEqual(['10', '110']);
   });
 });
+
+function titlesIn(repo: VaultRepository): string[] {
+  return repo.getAll().map((item: VaultItem) => item.title);
+}
 
 function urlsIn(repo: VaultRepository): string[] {
   return repo

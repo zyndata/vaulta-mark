@@ -26,8 +26,14 @@ export interface DialogOptions<T> {
   /**
    * What the confirming button resolves with, or `null` to keep the dialog open — which is how a
    * field that has not been filled in yet refuses to close it.
+   *
+   * It may be async, and that is not a convenience: a password is only known to be wrong once
+   * something has tried it, and the answer takes a 600,000-iteration derivation to arrive. A dialog
+   * that closed first and reported the failure on the page behind it would make the user reopen it,
+   * re-pick the file and retype the password to correct a typo. While the promise is outstanding the
+   * dialog stays up with its buttons disabled, so the work cannot be started twice.
    */
-  readonly onConfirm?: () => T | null;
+  readonly onConfirm?: () => T | null | Promise<T | null>;
   /**
    * What to say when `onConfirm` refuses. Called at refusal time, so it can name the actual reason.
    *
@@ -57,12 +63,24 @@ export function openDialog<T>(options: DialogOptions<T>): Promise<T | null> {
     const complaint = h('p', { class: 'vm-dialog-invalid vm-danger vm-small', role: 'alert' });
     complaint.hidden = true;
 
+    // Shown while an async `onConfirm` is outstanding. Greyed-out buttons say "not now"; they do not
+    // say "something is happening", and a 600,000-iteration derivation is a second and a half of a
+    // dialog that otherwise looks like it swallowed the press.
+    const working = h(
+      'p',
+      { class: 'vm-dialog-working vm-small vm-muted', role: 'status' },
+      h('progress', { 'aria-hidden': 'true' }),
+      h('span', null, msg('ioWorking')),
+    );
+    working.hidden = true;
+
     const form = h(
       'form',
       { method: 'dialog', class: 'vm-dialog-form' },
       h('h2', null, options.heading),
       h('div', { class: 'vm-dialog-body' }, ...options.body),
       complaint,
+      working,
     );
 
     // The complaint is about a value that no longer exists once the user starts fixing it.
@@ -81,7 +99,7 @@ export function openDialog<T>(options: DialogOptions<T>): Promise<T | null> {
       dialog.close();
     });
 
-    const buttons: Child[] = [cancel];
+    const buttons: HTMLButtonElement[] = [cancel];
     if (options.confirmLabel !== undefined) {
       const confirm = h(
         'button',
@@ -95,23 +113,59 @@ export function openDialog<T>(options: DialogOptions<T>): Promise<T | null> {
     }
     append(form, h('div', { class: 'vm-dialog-actions' }, ...buttons));
 
+    /** True while an async `onConfirm` is outstanding. One answer at a time. */
+    let deciding = false;
+
+    function refuse(): void {
+      complaint.textContent = options.invalidMessage?.() ?? msg('dialogInvalid');
+      complaint.hidden = false;
+      options.focus?.setAttribute('aria-invalid', 'true');
+      options.focus?.focus();
+    }
+
     form.addEventListener('submit', (event) => {
       // The default `method="dialog"` submit closes the dialog before we can refuse: a field that
       // is still empty has to be able to keep it open.
       event.preventDefault();
-      const value = options.onConfirm?.() ?? null;
-      if (value === null) {
-        complaint.textContent = options.invalidMessage?.() ?? msg('dialogInvalid');
-        complaint.hidden = false;
-        options.focus?.setAttribute('aria-invalid', 'true');
-        options.focus?.focus();
+      if (deciding) return;
+
+      const answer = options.onConfirm?.() ?? null;
+      if (!(answer instanceof Promise)) {
+        if (answer === null) refuse();
+        else {
+          outcome = answer;
+          dialog.close();
+        }
         return;
       }
-      outcome = value;
-      dialog.close();
+
+      // The buttons go dead rather than the dialog going away: pressing Enter twice on a slow
+      // derivation must not run it twice, and Escape must not close a dialog whose answer is still
+      // in flight and about to try to reopen it.
+      deciding = true;
+      complaint.hidden = true;
+      working.hidden = false;
+      for (const button of buttons) button.disabled = true;
+      void answer
+        .then((value) => {
+          if (value === null) refuse();
+          else {
+            outcome = value;
+            dialog.close();
+          }
+        })
+        .finally(() => {
+          deciding = false;
+          working.hidden = true;
+          for (const button of buttons) button.disabled = false;
+        });
     });
 
     const dialog = h('dialog', { class: 'vm-dialog' }, form);
+    // Escape is the one way out that does not go through a button, so it needs the same guard.
+    dialog.addEventListener('cancel', (event) => {
+      if (deciding) event.preventDefault();
+    });
     dialog.addEventListener('close', () => {
       dialog.remove();
       resolve(outcome);

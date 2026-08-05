@@ -52,7 +52,7 @@ src/
 │  ├─ merge.ts  engine.ts  base.ts  migration.ts
 ├─ thumbs/              validate.ts  process.ts  store.ts
 ├─ import/              native-bookmarks.ts
-├─ io/                  export-encrypted.ts  import-encrypted.ts  export-html.ts
+├─ io/                  export-encrypted.ts  import-encrypted.ts  rollback.ts
 ├─ content/             og-capture.ts   (injected on demand, never declared in the manifest)
 ├─ popup/               popup.ts (shell + create/unlock)  vault.ts (the unlocked screen)
 ├─ manager/             manager.ts (entry/router)  app.ts (the shell)
@@ -1331,13 +1331,15 @@ Import modes:
   hidden, so an unused snapshot does not become a second copy of the vault that nobody knows is
   there.
 
-**Plain HTML export** uses the Netscape bookmark-file format so any browser can import it. It is
-plaintext by definition. Gates: a dialog stating that the file reveals every vaulted URL to anything
-that reads it, and that importing it into Chrome puts those URLs back into the omnibox; then a typed
-`EXPORT UNENCRYPTED` confirmation. The generated file begins with an HTML comment carrying the same
-warning.
+**There is no plaintext export.** A Netscape bookmark-file export was specified here and built in
+Phase 8 behind a typed `EXPORT UNENCRYPTED` gate; it was removed afterwards on the maintainer's call.
+The gate was doing its job, but the feature it gated is the product running backwards — a file that
+reveals every vaulted URL to anything that reads it, and that puts those URLs back into the omnibox
+the moment a browser imports it. The `.vmv` backup is the way a vault leaves this extension. Anyone
+who genuinely wants their bookmarks in Chrome has Chrome's own bookmark manager and a vault they can
+read; nothing here needs to make that one click away from a backup.
 
-Both exports are delivered with `URL.createObjectURL` + a synthetic `<a download>` click, so the
+The backup is delivered with `URL.createObjectURL` + a synthetic `<a download>` click, so the
 `downloads` permission is never needed. The object URL is revoked in the same turn it is clicked: it
 is a live handle to a decrypted copy of the vault, and one left alive keeps that copy readable from
 the address bar for the lifetime of the page.

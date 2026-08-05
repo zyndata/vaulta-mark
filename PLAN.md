@@ -302,7 +302,6 @@ These are enforced by CI (`npm run verify:invariants`), not just by convention. 
 | Bulk multi-select move & delete | **Core** | 6 |
 | `ChromeSyncProvider` + quota guard + 3-way merge + conflict UI | **Core** | 7 |
 | Encrypted export / import (`.vmv`) | **Core** | 8 |
-| Plain HTML export, clearly labelled unencrypted, with confirm gate | **Core** | 8 |
 | Import from Chrome native bookmarks + offer to delete natives | **Core** | 8 |
 | Onboarding: incognito, no-recovery, sync-tier tradeoff | **Core** | 9 |
 | Clear browsing history for vaulted domains (one click) | **Core** | 9 |
@@ -964,11 +963,6 @@ story for a corrupted vault.
   **preview** step (N bookmarks, M folders, date range) and a mode choice: **Merge** (uses the Phase-7
   merge engine with an empty base → adds and conflicts, never destroys) or **Replace** (double
   confirmation, keeps a one-shot local rollback snapshot for 24 h).
-- `src/io/export-html.ts` — Netscape bookmark-file format, importable by any browser. Gated behind a
-  **two-step** confirmation: a dialog stating in plain language that the file is **unencrypted
-  plaintext**, that anything that reads the file learns every vaulted URL, and that importing it into
-  Chrome puts the URLs back in the omnibox — plus a typed "EXPORT UNENCRYPTED" confirmation. The
-  file itself carries a leading HTML comment warning.
 - `src/import/native-bookmarks.ts` — requests the optional `bookmarks` permission in context; renders
   the native tree with checkboxes; imports the selection into the vault preserving folder structure;
   then **offers** (never automatically) to delete the native copies, explaining that deleting them is
@@ -984,15 +978,13 @@ story for a corrupted vault.
 - Truncated/tampered `.vmv` → `CorruptVaultError`, vault untouched.
 - Cross-schema: a v1-era `.vmv` fixture imports and migrates.
 - Merge-mode import reuses the Phase-7 engine and produces conflicts, not overwrites.
-- HTML export: valid Netscape format (parsed back by the importer), contains the warning comment, and
-  is unreachable without the typed confirmation (asserted at the UI layer).
 - Native import: mocked `chrome.bookmarks` tree → correct vault structure; deletion step is a
   separate call that does nothing unless explicitly invoked (**INV-5**: `chrome.bookmarks` is only
   ever read here, plus the explicit delete).
 
 **Definition of done**
 - [ ] Export → wipe → import restores a vault bit-for-bit (contents, not ciphertext).
-- [ ] Plain-HTML export cannot be produced without the typed confirmation.
+- [ ] A replace-mode import cannot be applied without the typed confirmation.
 - [ ] Native import + optional native deletion verified manually against a real profile; the manual
       check is written up in the commit message.
 

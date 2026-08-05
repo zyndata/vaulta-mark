@@ -260,12 +260,6 @@ describe('parseRequest', () => {
     expect(parseRequest({ type: 'EXPORT_VAULT', password: 7, mode: 'vault' })).toBeNull();
   });
 
-  it('takes EXPORT_HTML with no confirmation field', () => {
-    // The typed `EXPORT UNENCRYPTED` gate is in the page, not on the wire — the same reasoning as
-    // DESTROY_VAULT. Anything reaching here was sent by our own code.
-    expect(parseRequest({ type: 'EXPORT_HTML' })).toEqual({ type: 'EXPORT_HTML' });
-  });
-
   it('requires a non-empty file and a string password on the import messages', () => {
     expect(parseRequest({ type: 'PREVIEW_IMPORT', file: '{}', password: '' })).toEqual({
       type: 'PREVIEW_IMPORT',

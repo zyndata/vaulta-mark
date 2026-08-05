@@ -162,6 +162,74 @@ describe('openDialog', () => {
     expect(document.activeElement).toBe(input);
   });
 
+  it('waits for an async onConfirm, and keeps the dialog open when it refuses', async () => {
+    // The shape the import and backup dialogs use: the answer needs a round trip to the worker and a
+    // 600,000-iteration derivation, so "wrong password" arrives long after the button was pressed.
+    // Closing first and reporting behind would cost the user the file they picked as well.
+    let settle: (value: 'ok' | null) => void = () => undefined;
+    const onConfirm = vi.fn(
+      () =>
+        new Promise<'ok' | null>((resolve) => {
+          settle = resolve;
+        }),
+    );
+    const pending = openDialog<'ok'>({
+      heading: 'Open the backup',
+      body: [],
+      confirmLabel: 'Open',
+      onConfirm,
+      invalidMessage: () => 'that password does not open this file',
+    });
+
+    submit();
+    // The buttons go dead while it is outstanding, so Enter twice cannot start it twice — and
+    // something says so, because greyed-out buttons do not read as "working".
+    expect(button('Open').disabled).toBe(true);
+    expect(button('dialogCancel').disabled).toBe(true);
+    expect(dialog().querySelector('.vm-dialog-working')?.hasAttribute('hidden')).toBe(false);
+
+    settle(null);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(dialog().querySelector('.vm-dialog-working')?.hasAttribute('hidden')).toBe(true);
+    expect(dialog().open).toBe(true);
+    expect(dialog().querySelector('.vm-dialog-invalid')?.textContent).toBe(
+      'that password does not open this file',
+    );
+    expect(button('Open').disabled).toBe(false);
+
+    // And the second attempt, with the right answer, closes it with the value.
+    submit();
+    settle('ok');
+    expect(await pending).toBe('ok');
+    expect(onConfirm).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a second submit while an async onConfirm is still deciding', async () => {
+    let settle: (value: 'ok') => void = () => undefined;
+    const onConfirm = vi.fn(
+      () =>
+        new Promise<'ok'>((resolve) => {
+          settle = resolve;
+        }),
+    );
+    const pending = openDialog<'ok'>({
+      heading: 'Back up the vault',
+      body: [],
+      confirmLabel: 'Save',
+      onConfirm,
+    });
+
+    submit();
+    submit();
+    submit();
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+
+    settle('ok');
+    expect(await pending).toBe('ok');
+  });
+
   it('marks the confirming button as destructive only when asked', () => {
     void openDialog<string>({
       heading: 'Heading',

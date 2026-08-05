@@ -24,7 +24,7 @@
 import { vaultableUrl } from '../background/add.js';
 import type { VaultRepository } from '../storage/repo.js';
 import { duplicateKeyOf, type AddItemInput, type Mutation } from '../vault/model.js';
-import { ROOT_ID, isBookmark, isDeleted, type ItemMap } from '../vault/types.js';
+import { ROOT_ID, isDeleted, isFolder, type ItemMap } from '../vault/types.js';
 
 /** The optional permission this needs. Requested in context, never at install (D26). */
 export const BOOKMARKS_PERMISSION = 'bookmarks';
@@ -47,6 +47,7 @@ export interface NativeNode {
 
 export interface NativeImportResult {
   readonly bookmarks: number;
+  /** Folders **created**. One the vault already had under the same parent is reused, not counted. */
   readonly folders: number;
   /** Selected bookmarks the vault already held, matched by `duplicateKeyOf`. */
   readonly duplicates: number;
@@ -189,6 +190,13 @@ export interface NativeImportOptions {
  *
  * A folder whose entire contents were skipped is still created. Guessing that an empty folder was
  * not wanted is a guess, and the user ticked it.
+ *
+ * **Importing the same selection twice adds nothing the second time.** Bookmarks were always deduped
+ * by URL, but folders were not, so a repeated import used to leave a second, empty copy of every
+ * folder beside the first — every bookmark inside it having been recognised as a duplicate and
+ * filed nowhere. A folder is now matched to one the vault already holds under the same parent with
+ * the same name, and its contents are imported into that one. Matching is on the trimmed name and is
+ * case-sensitive, because two folders whose names differ only in case are two names on screen.
  */
 export async function importNative(
   repo: VaultRepository,
@@ -197,7 +205,9 @@ export async function importNative(
   options: NativeImportOptions = {},
 ): Promise<NativeImportResult> {
   const wanted = expandSelection(nodes, selection);
-  const existing = duplicateKeys(repo.items());
+  const items = repo.items();
+  const existing = duplicateKeys(items);
+  const foldersByPlace = folderIndex(items);
 
   const inputs: AddItemInput[] = [];
   let bookmarks = 0;
@@ -218,10 +228,17 @@ export async function importNative(
       if (done % PROGRESS_EVERY === 0) options.onProgress?.(done, total);
 
       if (node.url === undefined) {
-        const id = crypto.randomUUID();
+        const place = folderKey(parentId, node.title);
+        const reused = foldersByPlace.get(place);
+        const id = reused ?? crypto.randomUUID();
         vaultIdByNative.set(node.id, id);
-        inputs.push({ type: 'folder', id, title: node.title, parentId });
-        folders += 1;
+        if (reused === undefined) {
+          // Registered before the children are walked, so two identically named siblings in one
+          // selection land in one folder rather than in two the user cannot tell apart.
+          foldersByPlace.set(place, id);
+          inputs.push({ type: 'folder', id, title: node.title, parentId });
+          folders += 1;
+        }
         walk(node.children ?? [], id);
         continue;
       }
@@ -268,10 +285,41 @@ const PROGRESS_EVERY = 100;
 function duplicateKeys(items: ItemMap): Set<string> {
   const keys = new Set<string>();
   for (const item of items.values()) {
-    if (isDeleted(item) || !isBookmark(item)) continue;
+    if (isDeleted(item) || isFolder(item)) continue;
     keys.add(duplicateKeyOf(item.url));
   }
   return keys;
+}
+
+/**
+ * Where every live folder is: `parent + name` → id.
+ *
+ * The key is the *place* rather than the name alone, because two folders called "Recipes" under two
+ * different parents are two folders, and an import that collapsed them would move somebody's
+ * bookmarks. A tombstoned folder is not in here: the vault holds the record of it, but it is not
+ * somewhere an import may file anything.
+ */
+function folderIndex(items: ItemMap): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const item of items.values()) {
+    if (isDeleted(item) || !isFolder(item)) continue;
+    const key = folderKey(item.parentId, item.title);
+    // First writer wins. A vault that already holds two same-named siblings — which nothing here
+    // creates, but a merge of two devices can — picks one and stays with it.
+    if (!index.has(key)) index.set(key, item.id);
+  }
+  return index;
+}
+
+/**
+ * A separator that cannot appear in either half.
+ *
+ * NUL rather than anything printable: a folder called `x/y` under `a` and one called `y` under
+ * `a/x` join to the same string under a slash, and any separator a person can type is one they
+ * eventually will.
+ */
+function folderKey(parentId: string, title: string): string {
+  return `${parentId}\u0000${title.trim()}`;
 }
 
 /* ------------------------------------------------------------------ deleting the originals */

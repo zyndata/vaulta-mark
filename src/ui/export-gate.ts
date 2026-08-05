@@ -1,64 +1,19 @@
 /**
- * The gates in front of the two exports that can lose something.
+ * The gate in front of the one import that can lose something.
  *
- * Both are here rather than in `src/manager/` for the reason `dialog.ts` is: these are the sentences
+ * It is here rather than in `src/manager/` for the reason `dialog.ts` is: these are the sentences
  * that decide whether someone understood what they were about to do, and a question asked one way in
- * one window and another way in another is two products. They are callback-free and return a plain
- * answer, so a call site reads `if (!(await confirmPlainExport(…))) return;`.
+ * one window and another way in another is two products. It is callback-free and returns a plain
+ * answer, so a call site reads `if (!(await confirmReplaceImport(…))) return;`.
  *
- * **The plaintext export gate is a typed phrase, not a checkbox.** A checkbox beside a paragraph is
- * a reflex — the hand ticks it while the eye is already on the button. Typing `EXPORT UNENCRYPTED`
- * cannot be done without reading the phrase, and the phrase says what the file is. The same
- * reasoning gates vault creation ("there is no recovery") and vault destruction, and it is the only
- * gate in this project that has ever been asked for twice.
+ * **The gate is a typed phrase, not a checkbox.** A checkbox beside a paragraph is a reflex — the
+ * hand ticks it while the eye is already on the button. Typing `REPLACE MY VAULT` cannot be done
+ * without reading the phrase, and the phrase says what happens. The same reasoning gates vault
+ * creation ("there is no recovery") and vault destruction.
  */
 
-import { PLAIN_EXPORT_PHRASE } from '../io/export-html.js';
 import { dialogField, dialogText, openDialog } from './dialog.js';
 import { h, matchesPhrase, msg } from './dom.js';
-
-export interface PlainExportGateOptions {
-  /** How many bookmarks the file would list. Named in the warning: a number is harder to skim past. */
-  readonly bookmarks: number;
-}
-
-/**
- * "This file is not encrypted." Resolves `true` only when the phrase has been typed.
- *
- * Three statements, in the order that matters: what the file contains, who can read it, and what
- * importing it into a browser undoes. The last one is the one people have not thought about — it is
- * the whole premise of the product, running backwards.
- */
-export async function confirmPlainExport(options: PlainExportGateOptions): Promise<boolean> {
-  const typed = h('input', {
-    type: 'text',
-    autocomplete: 'off',
-    spellcheck: 'false',
-    'aria-describedby': 'vm-plain-export-hint',
-  });
-
-  const answer = await openDialog<true>({
-    heading: msg('exportPlainHeading'),
-    body: [
-      h('p', { class: 'vm-notice vm-notice--danger' }, msg('exportPlainWarningUnencrypted')),
-      dialogText('exportPlainWarningReadable', [String(options.bookmarks)]),
-      dialogText('exportPlainWarningOmnibox'),
-      dialogField(
-        'exportPlainConfirmLabel',
-        typed,
-        msg('exportPlainConfirmHint', [PLAIN_EXPORT_PHRASE]),
-      ),
-    ],
-    confirmLabel: msg('exportPlainButton'),
-    focus: typed,
-    danger: true,
-    invalidMessage: () => msg('exportPlainConfirmRefused', [PLAIN_EXPORT_PHRASE]),
-    // `matchesPhrase` forgives case and spacing, deliberately: the gate exists to make someone read
-    // the sentence, not to test their typing. Being fussy here only teaches people the box is broken.
-    onConfirm: () => (matchesPhrase(typed.value, PLAIN_EXPORT_PHRASE) ? true : null),
-  });
-  return answer === true;
-}
 
 export interface ReplaceImportGateOptions {
   /** Bookmarks in the file that would become the vault. */

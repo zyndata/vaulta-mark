@@ -175,6 +175,30 @@ describe('previewOf', () => {
     });
   }, 30_000);
 
+  it('never reports more already here than there is in the file', async () => {
+    // The file holds three live items (two bookmarks and a folder) and one tombstone. A vault that
+    // recognises every id in it — the tombstone included — must still not be told that four of three
+    // are already here. An earlier version counted every recognised id and produced exactly that:
+    // "38 of them are already in this vault" under a line reading "28 bookmarks in 1 folders".
+    const file = await sample();
+    const items = await openVmv(file, PASSWORD);
+    const vault = itemMap(folder('f1'), bookmark('b1'), bookmark('b2'), deleted(bookmark('b3')));
+
+    const preview = previewOf(file, items, vault);
+    expect(preview.known).toBe(3);
+    expect(preview.known).toBeLessThanOrEqual(preview.bookmarks + preview.folders);
+  }, 30_000);
+
+  it('does not count a bookmark this vault has deleted as one it already has', async () => {
+    // The file says alive, the vault says deleted. That is a question a merge asks (§6.4), not
+    // something this vault already holds.
+    const file = await sample();
+    const items = await openVmv(file, PASSWORD);
+    const vault = itemMap(deleted(bookmark('b1')), bookmark('b2'));
+
+    expect(previewOf(file, items, vault).known).toBe(1);
+  }, 30_000);
+
   it('answers with null dates for a file holding no live bookmarks', async () => {
     const file = await sample();
     const preview = previewOf(file, itemMap(folder('f9')), new Map());

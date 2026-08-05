@@ -147,12 +147,12 @@ export function serializeVmv(file: VmvFile): string {
  * The date and nothing else. A name carrying a bookmark count or a vault label would put vault
  * facts into a filename that ends up in a downloads folder, a backup index and a cloud drive.
  */
-export function exportFilename(at: number, extension: 'vmv' | 'html' = 'vmv'): string {
+export function exportFilename(at: number): string {
   const date = new Date(at);
   const parts = [
     String(date.getFullYear()).padStart(4, '0'),
     String(date.getMonth() + 1).padStart(2, '0'),
     String(date.getDate()).padStart(2, '0'),
   ];
-  return `vaultamark-${parts.join('-')}.${extension}`;
+  return `vaultamark-${parts.join('-')}.vmv`;
 }

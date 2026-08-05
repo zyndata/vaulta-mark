@@ -26,6 +26,27 @@
   --vm-focus: 2px solid var(--vm-accent);
 
   /*
+   * How much room a focus ring needs outside the box it belongs to, for the boxes that clip.
+   *
+   * `overflow` on either axis makes an element clip on **both** — the two axes cannot disagree, so
+   * `overflow-y: auto` clips horizontally too — and it clips at the padding edge. An outline is
+   * drawn *outside* the border box, so a `width: 100%` field flush against a scroll container loses
+   * its ring wherever the two edges meet: left and right always, and the top as well when the field
+   * is the first thing in the box.
+   *
+   * The ring itself needs 4px (`--vm-focus`'s 2px, plus 2px of `outline-offset`). This is 6px, and
+   * the extra 2px are the point: at exactly 4px the ring's outer edge lands exactly on the clip
+   * boundary, and the popup is 26.4rem wide — 422.4 px, so every box inside it sits on a fractional
+   * boundary and rounds where it likes. It was measured shaved at 4px.
+   *
+   * Apply it as `margin: calc(-1 * var(--vm-ring-room)); padding: var(--vm-ring-room)` on all four
+   * sides. That pair is layout-neutral by construction — the box grows outward exactly as far as
+   * its own contents move inward — so nothing shifts and only transparent padding overlaps whatever
+   * is next to it.
+   */
+  --vm-ring-room: 6px;
+
+  /*
    * The three hover tints, defined once so every clickable thing in the extension answers the
    * pointer the same way.
    *
@@ -118,6 +139,16 @@ body {
 .vm-field {
   display: block;
   margin: 0 0 var(--vm-gap);
+}
+
+/*
+ * The UA's `[hidden] { display: none }` loses to *any* author rule, whatever the specificity — the
+ * same trap `.vm-layout` documents in manager.css. Without this, the backup dialog's "Confirm
+ * password" field stayed on screen after being marked hidden, which is exactly the field that must
+ * not be there while the vault's own password is the one being used.
+ */
+.vm-field[hidden] {
+  display: none;
 }
 
 .vm-field > span {
@@ -452,9 +483,14 @@ body {
   font-size: 0.9375rem;
 }
 
+/* Scrolls, therefore clips, therefore needs the room — on every side, since a dialog body can and
+   does begin with a field. `--vm-ring-room` above says why the pair is layout-neutral. */
 .vm-dialog-body {
+  box-sizing: border-box;
   max-height: min(60vh, 32rem);
   overflow-y: auto;
+  margin: calc(-1 * var(--vm-ring-room));
+  padding: var(--vm-ring-room);
 }
 
 .vm-dialog-body p {
@@ -463,6 +499,23 @@ body {
 
 .vm-dialog-invalid {
   margin: 0.5rem 0 0;
+}
+
+.vm-dialog-working {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.5rem 0 0;
+}
+
+/* `display: flex` above beats the UA's `[hidden]`, so it has to be spelled out. */
+.vm-dialog-working[hidden] {
+  display: none;
+}
+
+.vm-dialog-working progress {
+  flex: 1 1 auto;
+  max-width: 8rem;
 }
 
 .vm-dialog-actions,

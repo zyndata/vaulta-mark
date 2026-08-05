@@ -1397,7 +1397,7 @@
   },
   "ioPreviewCounts": {
     "message": "$BOOKMARKS$ bookmarks in $FOLDERS$ folders.",
-    "description": "Line of the import preview.",
+    "description": "Line of the import preview. Both counts plural; the three keys after it are the singular forms.",
     "placeholders": {
       "bookmarks": {
         "content": "$1",
@@ -1408,6 +1408,58 @@
         "example": "19"
       }
     }
+  },
+  "ioPreviewCountsOneBookmark": {
+    "message": "$BOOKMARKS$ bookmark in $FOLDERS$ folders.",
+    "description": "Line of the import preview when the file holds exactly one bookmark.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      },
+      "folders": {
+        "content": "$2",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCountsOneFolder": {
+    "message": "$BOOKMARKS$ bookmarks in $FOLDERS$ folder.",
+    "description": "Line of the import preview when the file holds exactly one folder.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      },
+      "folders": {
+        "content": "$2",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCountsOneEach": {
+    "message": "$BOOKMARKS$ bookmark in $FOLDERS$ folder.",
+    "description": "Line of the import preview when the file holds exactly one of each.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      },
+      "folders": {
+        "content": "$2",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCountsNoFolders": {
+    "message": "$BOOKMARKS$ bookmarks and no folders.",
+    "description": "Line of the import preview when the file holds no folders at all.",
+    "placeholders": { "bookmarks": { "content": "$1", "example": "412" } }
+  },
+  "ioPreviewCountsOneNoFolders": {
+    "message": "$BOOKMARKS$ bookmark and no folders.",
+    "description": "Line of the import preview when the file holds one bookmark and no folders.",
+    "placeholders": { "bookmarks": { "content": "$1", "example": "1" } }
   },
   "ioPreviewCreated": {
     "message": "Saved $WHEN$ by $BY$.",
@@ -1431,6 +1483,10 @@
     "message": "$COUNT$ of them are already in this vault.",
     "description": "Line of the import preview naming the overlap with the current vault.",
     "placeholders": { "count": { "content": "$1", "example": "38" } }
+  },
+  "ioPreviewKnownOne": {
+    "message": "One of them is already in this vault.",
+    "description": "Line of the import preview when exactly one item overlaps."
   },
   "ioPreviewAllNew": {
     "message": "None of them are in this vault yet.",
@@ -1668,81 +1724,5 @@
         "example": "2"
       }
     }
-  },
-  "ioPlainHeading": {
-    "message": "Export as plain HTML",
-    "description": "Heading of the unencrypted-export section."
-  },
-  "ioPlainHint": {
-    "message": "Produces an ordinary bookmarks file that any browser can import. It is not encrypted, and it works against everything else on this page.",
-    "description": "Explanation under the plain-export heading."
-  },
-  "ioPlainButton": {
-    "message": "Export unencrypted…",
-    "description": "Button that starts the plain HTML export."
-  },
-  "ioPlainDone": {
-    "message": "Unencrypted file saved as $FILE$. Delete it when you are done with it.",
-    "description": "Announced after a plain HTML export.",
-    "placeholders": { "file": { "content": "$1", "example": "vaultamark-2026-08-03.html" } }
-  },
-  "exportPlainHeading": {
-    "message": "This file will not be encrypted",
-    "description": "Heading of the plain-export confirmation."
-  },
-  "exportPlainWarningUnencrypted": {
-    "message": "The file you are about to save is plain text. It is not protected by your password or by anything else.",
-    "description": "First warning in the plain-export confirmation."
-  },
-  "exportPlainWarningReadable": {
-    "message": "It lists all $COUNT$ of your vaulted addresses. Anything that can read the file — another person, a backup service, a program you installed — can read every one of them.",
-    "description": "Second warning in the plain-export confirmation.",
-    "placeholders": { "count": { "content": "$1", "example": "412" } }
-  },
-  "exportPlainWarningOmnibox": {
-    "message": "Importing it back into a browser puts those addresses into the address bar's suggestions again — which is the one thing VaultaMark exists to prevent.",
-    "description": "Third warning in the plain-export confirmation."
-  },
-  "exportPlainConfirmLabel": {
-    "message": "Type the phrase to continue",
-    "description": "Label on the typed-confirmation field of the plain export."
-  },
-  "exportPlainConfirmHint": {
-    "message": "Type $PHRASE$ exactly.",
-    "description": "Hint under the plain-export confirmation field.",
-    "placeholders": { "phrase": { "content": "$1", "example": "EXPORT UNENCRYPTED" } }
-  },
-  "exportPlainConfirmRefused": {
-    "message": "That is not $PHRASE$.",
-    "description": "Refusal when the typed phrase does not match.",
-    "placeholders": { "phrase": { "content": "$1", "example": "EXPORT UNENCRYPTED" } }
-  },
-  "exportPlainButton": {
-    "message": "Save the unencrypted file",
-    "description": "Confirming button of the plain-export dialog."
-  },
-  "htmlExportWarning1": {
-    "message": "WARNING — this file is NOT encrypted.",
-    "description": "Line 1 of the warning comment written at the top of the unencrypted export file."
-  },
-  "htmlExportWarning2": {
-    "message": "It lists every bookmark exported from VaultaMark in plain text.",
-    "description": "Line 2 of the warning comment written at the top of the unencrypted export file."
-  },
-  "htmlExportWarning3": {
-    "message": "Anything that can read this file can read every address in it.",
-    "description": "Line 3 of the warning comment written at the top of the unencrypted export file."
-  },
-  "htmlExportWarning4": {
-    "message": "Importing it into a browser puts those addresses back into the address bar's suggestions,",
-    "description": "Line 4 of the warning comment written at the top of the unencrypted export file."
-  },
-  "htmlExportWarning5": {
-    "message": "which is exactly what VaultaMark keeps them out of.",
-    "description": "Line 5 of the warning comment written at the top of the unencrypted export file."
-  },
-  "htmlExportWarning6": {
-    "message": "Delete it once you are done with it.",
-    "description": "Line 6 of the warning comment written at the top of the unencrypted export file."
   }
 }

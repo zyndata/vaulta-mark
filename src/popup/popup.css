@@ -31,12 +31,21 @@ body.vm-popup {
  * warning and a typed confirmation is more than 568 px of form. Chrome would otherwise scroll the
  * popup itself, which it only does past 600 px and which leaves the header scrolling away with it.
  */
+/*
+ * `--vm-ring-room` on all four sides: this box scrolls, and a scroll box clips (see `ui/styles.css`,
+ * where the value and the reasoning live). It is the popup's only clipping ancestor, and everything
+ * a person types into is inside it — the master password, its repeat, the typed confirmation, the
+ * vault filter, all `width: 100%`. The filter is also the *first* thing in here on the unlocked
+ * screen, its top edge exactly on this box's, so inline padding alone left the top of its ring cut.
+ */
 #vm-root {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  margin: calc(-1 * var(--vm-ring-room));
+  padding: var(--vm-ring-room);
 }
 
 .vm-header {
@@ -132,8 +141,23 @@ body.vm-popup {
 .vm-list {
   flex: 1 1 auto;
   min-height: 4rem;
+  /*
+   * Room for a row's focus ring — and **no negative margin at all**, deliberately, unlike
+   * `#vm-root` above.
+   *
+   * This is the one box on the screen that carries a scrollbar, and a scrollbar is painted at the
+   * inline end of the border box. Widening the box by 12 px to keep the rows where they were also
+   * moved the scrollbar 6 px out, past the right edge of everything else on the screen and directly
+   * under the filter's own focus ring — sharing its column, an arrow-button's height below it. The
+   * ring was no longer clipped; it was crowded.
+   *
+   * So the box stays exactly where it is and the rows move in instead. The scrollbar now sits
+   * inside the filter's width, and the filter's ring is drawn outside it, with nothing shared. The
+   * twelve pixels come out of the space for rows, because this is `flex: 1 1 auto` and the footer
+   * is pinned below it.
+   */
   margin: 0;
-  padding: 0;
+  padding: var(--vm-ring-room);
   overflow-y: auto;
   list-style: none;
 }

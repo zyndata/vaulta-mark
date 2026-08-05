@@ -6,14 +6,12 @@
  * the native-bookmark picker is a tree of several hundred checkboxes. A modal that has to be
  * dismissed to go and look at something is a modal people dismiss without deciding.
  *
- * Four things it does, in the order it presents them:
+ * Three things it does, in the order it presents them:
  *
  * 1. **Back up** — a `.vmv` under the vault password or one of its own.
  * 2. **Restore** — pick a file, see what is in it, then choose *merge* or *replace*.
  * 3. **Import from this browser** — the optional `bookmarks` permission, a tree with checkboxes,
  *    and then, separately and only if asked for, deleting the originals.
- * 4. **Export as plain HTML** — last, under its own heading, behind the typed gate, because it is
- *    the one thing on this page that undoes the product.
  *
  * The file is handed over with an object URL and a synthetic `<a download>` click. That is why
  * VaultaMark needs no `downloads` permission (INV-9) — and why the URL is revoked immediately
@@ -27,7 +25,7 @@ import {
 } from '../shared/messages.js';
 import { confirmDialog, dialogField, dialogText, openDialog } from '../ui/dialog.js';
 import { append, h, msg, render } from '../ui/dom.js';
-import { confirmPlainExport, confirmReplaceImport } from '../ui/export-gate.js';
+import { confirmReplaceImport } from '../ui/export-gate.js';
 import { errorText } from '../ui/strings.js';
 import { MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
 import { requestBookmarksPermission } from '../import/native-bookmarks.js';
@@ -38,6 +36,20 @@ export interface IoScreenDeps {
   readonly onBack: () => void;
   /** Called after anything changed the vault, so the list behind reloads. */
   readonly onVaultChanged: () => void;
+  /**
+   * Go and settle the disagreements an import produced.
+   *
+   * A merge that finds the same bookmark changed on both sides leaves conflicts, and the screen that
+   * settles them is somewhere else entirely. Announcing the number and leaving the reader on this
+   * page makes them find that screen for themselves, having been told there is something wrong.
+   */
+  readonly onConflicts: () => void;
+}
+
+/** Everything the screen's own sections get: the caller's callbacks, plus its busy indicator. */
+interface Io extends IoScreenDeps {
+  /** Run something slow with the bar up. Nested calls keep one bar; see {@link busyRunner}. */
+  readonly busy: <T>(run: () => Promise<T>) => Promise<T>;
 }
 
 /** Build the screen. Everything it needs it asks for; nothing is passed in but callbacks. */
@@ -59,13 +71,8 @@ export function ioScreen(deps: IoScreenDeps): HTMLElement {
     progress,
   );
 
-  append(
-    root,
-    backupSection(deps),
-    restoreSection(deps),
-    nativeSection(deps),
-    plainSection(deps),
-  );
+  const io: Io = { ...deps, busy: busyRunner(progress) };
+  append(root, backupSection(io), restoreSection(io), nativeSection(io));
   return root;
 }
 
@@ -79,12 +86,56 @@ export function paintProgress(root: HTMLElement, done: number, total: number): v
   const slot = root.querySelector<HTMLElement>('.vm-io-progress');
   if (slot === null) return;
   if (total <= 0 || done >= total) {
-    render(slot);
+    idle(slot);
     return;
   }
   render(
     slot,
     h('progress', { max: String(total), value: String(done), 'aria-label': msg('ioWorking') }),
+    h('span', { class: 'vm-small vm-muted' }, msg('ioWorking')),
+  );
+}
+
+/**
+ * Something is happening, and there is nothing to say about how far along it is.
+ *
+ * A merge import spends its first second and a half in a 600,000-iteration derivation, before there
+ * is a single item to count — and `IO_PROGRESS` cannot report on work that has not started. Without
+ * this the screen sat still through it: the dialog closed, nothing changed, and then some time later
+ * the answer arrived. A bar with no value is the honest shape for that: it says *working*, and it
+ * does not invent a number.
+ *
+ * Handed over to the real, counted bar the moment the worker has something to count.
+ */
+function busyRunner(slot: HTMLElement): <T>(run: () => Promise<T>) => Promise<T> {
+  // Depth rather than a boolean: a restore is several requests deep and the bar must not blink out
+  // between two of them.
+  let depth = 0;
+  return async <T,>(run: () => Promise<T>): Promise<T> => {
+    depth += 1;
+    slot.dataset['busy'] = 'true';
+    idle(slot);
+    try {
+      return await run();
+    } finally {
+      depth -= 1;
+      if (depth === 0) {
+        delete slot.dataset['busy'];
+        render(slot);
+      }
+    }
+  };
+}
+
+/** What the slot shows when nothing is being counted: the indeterminate bar, or nothing at all. */
+function idle(slot: HTMLElement): void {
+  if (slot.dataset['busy'] !== 'true') {
+    render(slot);
+    return;
+  }
+  render(
+    slot,
+    h('progress', { 'aria-label': msg('ioWorking') }),
     h('span', { class: 'vm-small vm-muted' }, msg('ioWorking')),
   );
 }
@@ -113,7 +164,7 @@ function button(labelKey: string, onClick: () => void, danger = false): HTMLButt
 
 /* ------------------------------------------------------------------ 1. backup */
 
-function backupSection(deps: IoScreenDeps): HTMLElement {
+function backupSection(deps: Io): HTMLElement {
   return section(
     'ioBackupHeading',
     'ioBackupHint',
@@ -124,47 +175,50 @@ function backupSection(deps: IoScreenDeps): HTMLElement {
 }
 
 /**
- * Ask which password the backup should use, then produce it.
+ * Ask which password the backup should use, and produce it **without closing the question**.
  *
  * "My vault password" is the default because a second password is a second thing to lose, and a
  * backup nobody can open is not a backup. It still has to be **typed**: the worker holds the data
- * key, not the password, so there is nothing it could check a silent choice against.
+ * key, not the password, so there is nothing it could check a silent choice against — which means
+ * the one answer that can be wrong is only found to be wrong after the worker has tried it. So the
+ * sealing happens *inside* `onConfirm`: a mistyped password is a complaint under the field that is
+ * still on screen with the cursor in it, not a red line on the page behind a dialog that has gone.
  */
-async function runBackup(deps: IoScreenDeps): Promise<void> {
-  const chosen = await askExportPassword();
-  if (chosen === null) return;
-
-  const response = await send({
-    type: 'EXPORT_VAULT',
-    password: chosen.password,
-    mode: chosen.mode,
-  });
-  if (response.type === 'ERROR') {
-    deps.say(errorText(response.code), 'danger');
-    return;
-  }
-  downloadFile(response.filename, response.mime, response.text);
-  deps.say(msg('ioBackupDone', [response.filename]));
+async function runBackup(deps: Io): Promise<void> {
+  const file = await askExportPassword();
+  if (file === null) return;
+  downloadFile(file.filename, file.mime, file.text);
+  deps.say(msg('ioBackupDone', [file.filename]));
 }
 
-async function askExportPassword(): Promise<{ password: string; mode: 'vault' | 'custom' } | null> {
+/** What a completed backup hands back: exactly the fields `downloadFile` needs. */
+interface BackupFile {
+  readonly filename: string;
+  readonly mime: string;
+  readonly text: string;
+}
+
+async function askExportPassword(): Promise<BackupFile | null> {
   const useVault = h('input', { type: 'radio', name: 'vm-export-pw', id: 'vm-export-pw-vault', checked: true });
   const useOther = h('input', { type: 'radio', name: 'vm-export-pw', id: 'vm-export-pw-other' });
   const password = h('input', { type: 'password', autocomplete: 'current-password' });
-  const confirm = h('input', { type: 'password', autocomplete: 'new-password', disabled: true });
+  const confirm = h('input', { type: 'password', autocomplete: 'new-password' });
+  const confirmField = dialogField('ioBackupConfirmLabel', confirm, msg('ioBackupConfirmHint'));
 
+  // Hidden rather than disabled while the vault's own password is being used. A disabled box is
+  // still a box, and a form that shows a field nobody may fill in is asking a question it has
+  // already answered — the field belongs to "use a different password" and appears with it.
   const sync = (): void => {
-    confirm.disabled = !useOther.checked;
-    password.setAttribute(
-      'autocomplete',
-      useOther.checked ? 'new-password' : 'current-password',
-    );
+    confirmField.hidden = !useOther.checked;
+    if (!useOther.checked) confirm.value = '';
+    password.setAttribute('autocomplete', useOther.checked ? 'new-password' : 'current-password');
   };
   useVault.addEventListener('change', sync);
   useOther.addEventListener('change', sync);
+  sync();
 
   let refusal = msg('ioBackupPasswordRequired');
-  return await openDialog<{ password: string; mode: 'vault' | 'custom' }>({
+  return await openDialog<BackupFile>({
     heading: msg('ioBackupHeading'),
     body: [
       dialogText('ioBackupPasswordIntro'),
@@ -181,36 +235,47 @@ async function askExportPassword(): Promise<{ password: string; mode: 'vault' | 
         h('label', { for: 'vm-export-pw-other' }, msg('ioBackupUseOtherPassword')),
       ),
       dialogField('ioBackupPasswordLabel', password),
-      dialogField('ioBackupConfirmLabel', confirm, msg('ioBackupConfirmHint')),
+      confirmField,
       h('p', { class: 'vm-hint vm-small vm-muted' }, msg('ioBackupNoRecovery')),
     ],
     confirmLabel: msg('ioBackupButton'),
     focus: password,
     invalidMessage: () => refusal,
-    onConfirm: () => {
+    onConfirm: async () => {
       if (password.value === '') {
         refusal = msg('ioBackupPasswordRequired');
         return null;
       }
-      if (!useOther.checked) return { password: password.value, mode: 'vault' as const };
       // A custom password is new, so it gets the same floor and the same confirmation field as a
       // new master password. A typo'd backup password is discovered on the day the backup is needed.
-      if (passwordLength(password.value) < MIN_PASSWORD_LENGTH) {
-        refusal = errorText('PASSWORD_TOO_SHORT');
+      if (useOther.checked) {
+        if (passwordLength(password.value) < MIN_PASSWORD_LENGTH) {
+          refusal = errorText('PASSWORD_TOO_SHORT');
+          return null;
+        }
+        if (password.value !== confirm.value) {
+          refusal = msg('createPasswordsDiffer');
+          return null;
+        }
+      }
+
+      const response = await send({
+        type: 'EXPORT_VAULT',
+        password: password.value,
+        mode: useOther.checked ? 'custom' : 'vault',
+      });
+      if (response.type === 'ERROR') {
+        refusal = errorText(response.code);
         return null;
       }
-      if (password.value !== confirm.value) {
-        refusal = msg('createPasswordsDiffer');
-        return null;
-      }
-      return { password: password.value, mode: 'custom' as const };
+      return { filename: response.filename, mime: response.mime, text: response.text };
     },
   });
 }
 
 /* ------------------------------------------------------------------ 2. restore */
 
-function restoreSection(deps: IoScreenDeps): HTMLElement {
+function restoreSection(deps: Io): HTMLElement {
   const picker = h('input', { type: 'file', accept: '.vmv,application/json', class: 'vm-file' });
   const undoSlot = h('div', { class: 'vm-io-undo' });
 
@@ -237,7 +302,7 @@ function restoreSection(deps: IoScreenDeps): HTMLElement {
  * from outside the extension entirely, and "N bookmarks, M folders, from this date" is the only
  * chance anyone gets to notice they picked last year's backup.
  */
-async function runRestore(deps: IoScreenDeps, file: File, undoSlot: HTMLElement): Promise<void> {
+async function runRestore(deps: Io, file: File, undoSlot: HTMLElement): Promise<void> {
   let text: string;
   try {
     text = await file.text();
@@ -246,14 +311,9 @@ async function runRestore(deps: IoScreenDeps, file: File, undoSlot: HTMLElement)
     return;
   }
 
-  const password = await promptImportPassword(file.name);
-  if (password === null) return;
-
-  const preview = await send({ type: 'PREVIEW_IMPORT', file: text, password });
-  if (preview.type === 'ERROR') {
-    deps.say(errorText(preview.code), 'danger');
-    return;
-  }
+  const opened = await promptImportPassword(file.name, text);
+  if (opened === null) return;
+  const { password, preview } = opened;
 
   const mode = await chooseImportMode(preview);
   if (mode === null) return;
@@ -267,7 +327,9 @@ async function runRestore(deps: IoScreenDeps, file: File, undoSlot: HTMLElement)
     if (!confirmed) return;
   }
 
-  const result = await send({ type: 'IMPORT_VAULT', file: text, password, mode });
+  const result = await deps.busy(async () =>
+    await send({ type: 'IMPORT_VAULT', file: text, password, mode }),
+  );
   if (result.type === 'ERROR') {
     deps.say(errorText(result.code), 'danger');
     return;
@@ -275,16 +337,37 @@ async function runRestore(deps: IoScreenDeps, file: File, undoSlot: HTMLElement)
 
   deps.onVaultChanged();
   await paintUndo(deps, undoSlot);
-  deps.say(
-    result.conflicts > 0
-      ? msg('ioImportDoneConflicts', [String(result.added), String(result.conflicts)])
-      : msg('ioImportDone', [String(result.added), String(result.total)]),
-  );
+
+  // Straight to the screen that settles them, rather than a number on a page that cannot act on it.
+  // The announcement still happens, because the live region is what a screen reader hears and the
+  // navigation is not something it would otherwise be told about.
+  if (result.conflicts > 0) {
+    deps.say(msg('ioImportDoneConflicts', [String(result.added), String(result.conflicts)]));
+    deps.onConflicts();
+    return;
+  }
+  deps.say(msg('ioImportDone', [String(result.added), String(result.total)]));
 }
 
-async function promptImportPassword(filename: string): Promise<string | null> {
+/**
+ * Ask for the file's password and open it, in one dialog.
+ *
+ * The decryption is done **inside** `onConfirm` rather than after it, so a wrong password is a
+ * complaint under the field it was typed into. Closing first and reporting on the page behind would
+ * cost the user the file they picked as well as the password they mistyped: the `<input type=file>`
+ * is cleared on change, so correcting a typo would mean choosing the backup again.
+ *
+ * The password comes back alongside the preview because the apply step needs it: `IMPORT_VAULT`
+ * re-reads and re-decrypts the file rather than trusting anything the worker remembered, since an
+ * MV3 worker may have been torn down between the two messages.
+ */
+async function promptImportPassword(
+  filename: string,
+  text: string,
+): Promise<{ password: string; preview: ImportPreviewResponse } | null> {
   const password = h('input', { type: 'password', autocomplete: 'current-password' });
-  return await openDialog<string>({
+  let refusal = msg('ioBackupPasswordRequired');
+  return await openDialog<{ password: string; preview: ImportPreviewResponse }>({
     heading: msg('ioRestorePasswordHeading'),
     body: [
       dialogText('ioRestorePasswordIntro', [filename]),
@@ -292,8 +375,19 @@ async function promptImportPassword(filename: string): Promise<string | null> {
     ],
     confirmLabel: msg('ioRestoreOpenButton'),
     focus: password,
-    invalidMessage: () => msg('ioBackupPasswordRequired'),
-    onConfirm: () => (password.value === '' ? null : password.value),
+    invalidMessage: () => refusal,
+    onConfirm: async () => {
+      if (password.value === '') {
+        refusal = msg('ioBackupPasswordRequired');
+        return null;
+      }
+      const preview = await send({ type: 'PREVIEW_IMPORT', file: text, password: password.value });
+      if (preview.type === 'ERROR') {
+        refusal = errorText(preview.code);
+        return null;
+      }
+      return { password: password.value, preview };
+    },
   });
 }
 
@@ -317,11 +411,9 @@ async function chooseImportMode(
       h(
         'ul',
         { class: 'vm-io-preview' },
-        h('li', null, msg('ioPreviewCounts', [String(preview.bookmarks), String(preview.folders)])),
+        h('li', null, countsLine(preview.bookmarks, preview.folders)),
         h('li', null, dated),
-        preview.known > 0
-          ? h('li', null, msg('ioPreviewKnown', [String(preview.known)]))
-          : h('li', null, msg('ioPreviewAllNew')),
+        h('li', null, knownLine(preview.known)),
       ),
       dialogText('ioPreviewMergeExplained'),
       dialogText('ioPreviewReplaceExplained'),
@@ -335,6 +427,42 @@ async function chooseImportMode(
       return value === 'merge' || value === 'replace' ? value : null;
     },
   });
+}
+
+/**
+ * "412 bookmarks in 19 folders", agreeing with both of its own numbers.
+ *
+ * Six whole sentences rather than a stem and a pluralized suffix, which is the shape the rest of
+ * this project already uses (`listCountOneBookmark`, `movedOne`, `conflictResolvedOne`). A sentence
+ * assembled at runtime out of fragments is one no translator can reorder, and the languages this
+ * will eventually be read in do not all put the numbers where English does — or agree on how many
+ * plural forms there are. Two counts in one sentence means enumerating the combinations; there are
+ * only six, and each is legible on its own in the file.
+ *
+ * "No folders" is its own pair rather than `$FOLDERS$ folders` with a zero in it: "2 bookmarks in
+ * 0 folders" is grammatical and reads like a machine wrote it, which is not what someone about to
+ * replace their vault wants to be reading.
+ *
+ * Exported for the sake of the test that pins which key each combination picks. A wrong key here
+ * renders as an empty string, which reads as a preview line that simply is not there.
+ */
+export function countsLine(bookmarks: number, folders: number): string {
+  const counts = [String(bookmarks), String(folders)];
+  if (folders === 0) {
+    const key = bookmarks === 1 ? 'ioPreviewCountsOneNoFolders' : 'ioPreviewCountsNoFolders';
+    return msg(key, [String(bookmarks)]);
+  }
+  if (bookmarks === 1 && folders === 1) return msg('ioPreviewCountsOneEach', counts);
+  if (bookmarks === 1) return msg('ioPreviewCountsOneBookmark', counts);
+  if (folders === 1) return msg('ioPreviewCountsOneFolder', counts);
+  return msg('ioPreviewCounts', counts);
+}
+
+/** How much of the file this vault already holds — "none", "one", or a number. */
+export function knownLine(known: number): string {
+  if (known === 0) return msg('ioPreviewAllNew');
+  if (known === 1) return msg('ioPreviewKnownOne');
+  return msg('ioPreviewKnown', [String(known)]);
 }
 
 /** The two modes as radios with **neither** preselected — the choice has no safe default. */
@@ -358,7 +486,7 @@ async function liveBookmarkCount(): Promise<number> {
 }
 
 /** The 24-hour undo, shown only while there is one. */
-async function paintUndo(deps: IoScreenDeps, slot: HTMLElement): Promise<void> {
+async function paintUndo(deps: Io, slot: HTMLElement): Promise<void> {
   const state = await send({ type: 'GET_ROLLBACK' });
   if (state.type === 'ERROR' || !state.available) {
     render(slot);
@@ -385,7 +513,7 @@ async function paintUndo(deps: IoScreenDeps, slot: HTMLElement): Promise<void> {
             danger: true,
           });
           if (!confirmed) return;
-          const response = await send({ type: 'ROLLBACK_IMPORT' });
+          const response = await deps.busy(async () => await send({ type: 'ROLLBACK_IMPORT' }));
           if (response.type === 'ERROR') {
             deps.say(errorText(response.code), 'danger');
             return;
@@ -401,13 +529,13 @@ async function paintUndo(deps: IoScreenDeps, slot: HTMLElement): Promise<void> {
 
 /* ------------------------------------------------------------------ 3. this browser's bookmarks */
 
-function nativeSection(deps: IoScreenDeps): HTMLElement {
+function nativeSection(deps: Io): HTMLElement {
   const slot = h('div', { class: 'vm-io-native' });
   void paintNative(deps, slot);
   return section('ioNativeHeading', 'ioNativeHint', slot);
 }
 
-async function paintNative(deps: IoScreenDeps, slot: HTMLElement): Promise<void> {
+async function paintNative(deps: Io, slot: HTMLElement): Promise<void> {
   const response = await send({ type: 'NATIVE_TREE' });
   if (response.type === 'ERROR') {
     render(slot, h('p', { class: 'vm-small vm-danger' }, errorText(response.code)));
@@ -500,7 +628,7 @@ function nativeRow(node: NativeNodeView, checked: Set<string>, depth: number): H
 }
 
 async function runNativeImport(
-  deps: IoScreenDeps,
+  deps: Io,
   slot: HTMLElement,
   checked: ReadonlySet<string>,
 ): Promise<void> {
@@ -508,7 +636,9 @@ async function runNativeImport(
     deps.say(msg('ioNativeNothingSelected'), 'danger');
     return;
   }
-  const response = await send({ type: 'IMPORT_NATIVE', ids: [...checked] });
+  const response = await deps.busy(async () =>
+    await send({ type: 'IMPORT_NATIVE', ids: [...checked] }),
+  );
   if (response.type === 'ERROR') {
     deps.say(errorText(response.code), 'danger');
     return;
@@ -534,7 +664,7 @@ async function runNativeImport(
  * two separate decisions, and only the second one is irreversible.
  */
 async function runNativeDelete(
-  deps: IoScreenDeps,
+  deps: Io,
   slot: HTMLElement,
   checked: ReadonlySet<string>,
 ): Promise<void> {
@@ -554,7 +684,9 @@ async function runNativeDelete(
   });
   if (!confirmed) return;
 
-  const response = await send({ type: 'DELETE_NATIVE', ids: [...checked] });
+  const response = await deps.busy(async () =>
+    await send({ type: 'DELETE_NATIVE', ids: [...checked] }),
+  );
   if (response.type === 'ERROR') {
     deps.say(errorText(response.code), 'danger');
     return;
@@ -565,32 +697,6 @@ async function runNativeDelete(
       : msg('ioNativeDeletedPartial', [String(response.removed), String(response.failed)]),
   );
   await paintNative(deps, slot);
-}
-
-/* ------------------------------------------------------------------ 4. plain HTML */
-
-function plainSection(deps: IoScreenDeps): HTMLElement {
-  return section(
-    'ioPlainHeading',
-    'ioPlainHint',
-    button('ioPlainButton', () => {
-      void runPlainExport(deps);
-    }, true),
-  );
-}
-
-async function runPlainExport(deps: IoScreenDeps): Promise<void> {
-  const bookmarks = await liveBookmarkCount();
-  // The gate first, and the vault is not read until it has been passed.
-  if (!(await confirmPlainExport({ bookmarks }))) return;
-
-  const response = await send({ type: 'EXPORT_HTML' });
-  if (response.type === 'ERROR') {
-    deps.say(errorText(response.code), 'danger');
-    return;
-  }
-  downloadFile(response.filename, response.mime, response.text);
-  deps.say(msg('ioPlainDone', [response.filename]), 'danger');
 }
 
 /* ------------------------------------------------------------------ delivery */

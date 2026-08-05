@@ -99,7 +99,6 @@ describe('exporting', () => {
   it('refuses every path while the vault is locked', async () => {
     for (const message of [
       { type: 'EXPORT_VAULT', password: PASSWORD, mode: 'vault' },
-      { type: 'EXPORT_HTML' },
       { type: 'PREVIEW_IMPORT', file: '{}', password: PASSWORD },
       { type: 'IMPORT_VAULT', file: '{}', password: PASSWORD, mode: 'merge' },
       { type: 'GET_ROLLBACK' },
@@ -147,30 +146,6 @@ describe('exporting', () => {
     })) as { type: string };
     expect(response.type).toBe('FILE');
   }, 60_000);
-
-  it('produces the plain HTML file with its warning comment', async () => {
-    await unlock();
-    const response = (await mock.sendMessage({ type: 'EXPORT_HTML' })) as {
-      type: string;
-      filename: string;
-      mime: string;
-      text: string;
-    };
-    expect(response.type).toBe('FILE');
-    expect(response.mime).toBe('text/html');
-    expect(response.filename.endsWith('.html')).toBe(true);
-    expect(response.text).toContain('<!DOCTYPE NETSCAPE-Bookmark-file-1>');
-    // The mock's `i18n` answers with the key, which is how we can tell the warning was localized
-    // rather than falling back to the built-in English.
-    expect(response.text).toContain('htmlExportWarning1');
-  }, 30_000);
-
-  it('falls back to the built-in warning when the locale has no string', async () => {
-    await unlock();
-    vi.spyOn(chrome.i18n, 'getMessage').mockReturnValue('');
-    const response = (await mock.sendMessage({ type: 'EXPORT_HTML' })) as { text: string };
-    expect(response.text).toContain('WARNING');
-  }, 30_000);
 
   it('broadcasts progress while it works', async () => {
     await unlock();
