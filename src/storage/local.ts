@@ -39,7 +39,6 @@ export const LOCAL_KEYS = {
   base: 'vm.base',
   baseMeta: 'vm.baseMeta',
   settings: 'vm.settings',
-  /** Written from Phase 11; listed here so `destroy()` cannot forget them. */
   thumbPrefix: 'vm.thumbs.',
   thumbsLru: 'vm.thumbsLru',
   conflicts: 'vm.conflicts',
@@ -264,6 +263,75 @@ export async function clearRollback(): Promise<void> {
   await area().remove([LOCAL_KEYS.rollback, LOCAL_KEYS.rollbackMeta]);
 }
 
+/* ------------------------------------------------------------------ thumbnails (Phase 11) */
+
+export function thumbKey(itemId: string): string {
+  return `${LOCAL_KEYS.thumbPrefix}${itemId}`;
+}
+
+/** One sealed thumbnail. `null` means this device does not hold the bytes — see §14.5. */
+export async function readThumb(itemId: string): Promise<Bytes | null> {
+  const key = thumbKey(itemId);
+  const raw = (await area().get(key))[key];
+  if (raw === undefined) return null;
+  // Deliberately *not* `CorruptVaultError`: a damaged thumbnail is a missing picture, not a damaged
+  // vault, and the one thing this must never do is turn a decoration into a "your vault is broken".
+  if (typeof raw !== 'string') return null;
+  return fromBase64Url(raw);
+}
+
+export async function writeThumb(itemId: string, sealed: Bytes): Promise<void> {
+  await area().set({ [thumbKey(itemId)]: toBase64Url(sealed) });
+}
+
+/** Forget thumbnails by item id, and drop them from the LRU in the same breath. */
+export async function deleteThumbs(itemIds: readonly string[]): Promise<void> {
+  if (itemIds.length === 0) return;
+  await area().remove(itemIds.map(thumbKey));
+  const lru = await readThumbsLru();
+  let touched = false;
+  for (const id of itemIds) {
+    if (Reflect.deleteProperty(lru, id)) touched = true;
+  }
+  if (touched) await writeThumbsLru(lru);
+}
+
+/** Every item id this device holds thumbnail bytes for. */
+export async function listThumbIds(): Promise<string[]> {
+  return Object.keys(await area().get(null))
+    .filter((key) => key.startsWith(LOCAL_KEYS.thumbPrefix))
+    .map((key) => key.slice(LOCAL_KEYS.thumbPrefix.length));
+}
+
+/** What the cached thumbnails are charging `storage.local`, by item id. */
+export async function thumbBytesInUse(itemIds: readonly string[]): Promise<number> {
+  if (itemIds.length === 0) return 0;
+  return area().getBytesInUse(itemIds.map(thumbKey));
+}
+
+/**
+ * `vm.thumbsLru` — item id → epoch ms of the last time the picture was looked at (§14.6).
+ *
+ * Plaintext, and that is defensible for exactly one reason: the keys it holds are already visible
+ * beside it. `vm.thumbs.<itemId>` puts the same ids in `storage.local` by the layout §5.1 specifies,
+ * so this map leaks no id that enumerating the area would not. It holds no title, no URL and no host
+ * — INV-6 is intact — and it is local-only: it is never pushed to a provider, and `destroy()` takes
+ * it with everything else.
+ */
+export async function readThumbsLru(): Promise<Record<string, number>> {
+  const raw = (await area().get(LOCAL_KEYS.thumbsLru))[LOCAL_KEYS.thumbsLru];
+  if (raw === null || typeof raw !== 'object') return {};
+  const out: Record<string, number> = {};
+  for (const [id, at] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof at === 'number' && Number.isFinite(at)) out[id] = at;
+  }
+  return out;
+}
+
+export async function writeThumbsLru(lru: Record<string, number>): Promise<void> {
+  await area().set({ [LOCAL_KEYS.thumbsLru]: lru });
+}
+
 /* ------------------------------------------------------------------ onboarding (Phase 9) */
 
 /**
@@ -339,6 +407,14 @@ export async function readSettings(): Promise<VaultSettings> {
         : DEFAULT_SETTINGS.clearHistoryOnLock,
     quickClose:
       typeof stored.quickClose === 'boolean' ? stored.quickClose : DEFAULT_SETTINGS.quickClose,
+    localThumbnails:
+      typeof stored.localThumbnails === 'boolean'
+        ? stored.localThumbnails
+        : DEFAULT_SETTINGS.localThumbnails,
+    thumbnailsOffered:
+      typeof stored.thumbnailsOffered === 'boolean'
+        ? stored.thumbnailsOffered
+        : DEFAULT_SETTINGS.thumbnailsOffered,
     sortBy: isSortKey(stored.sortBy) ? stored.sortBy : DEFAULT_SETTINGS.sortBy,
     sidebarWidth: paneWidth(stored.sidebarWidth, SIDEBAR_WIDTH),
     detailWidth: paneWidth(stored.detailWidth, DETAIL_WIDTH),

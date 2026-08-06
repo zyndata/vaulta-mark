@@ -226,6 +226,23 @@ export interface VaultSettings {
   /** Ctrl+Shift+X closes the tab and deletes that domain's history (§12.3). Off by default. */
   readonly quickClose: boolean;
   /**
+   * Capture preview images on a backend that cannot store them — "keep thumbnails on this device
+   * only" (§14.4). Off by default, and meaningless while Drive is connected, where the heavy tier
+   * captures regardless.
+   *
+   * Deliberately **not** in `SYNCED_SETTING_KEYS`: it is a statement about this computer's disk, and
+   * a laptop should not inherit a desktop's answer to it — the same reasoning as the column widths.
+   */
+  readonly localThumbnails: boolean;
+  /**
+   * Whether the offer above has been made. Set once, either way it was answered (§14.4).
+   *
+   * A record of a question having been asked, not a preference — but it lives here because the
+   * alternative is a tenth `storage.local` key holding one boolean, and it is per-device for the
+   * same reason {@link localThumbnails} is.
+   */
+  readonly thumbnailsOffered: boolean;
+  /**
    * The order the manager's list is in.
    *
    * One setting for the whole manager rather than one per folder, and that is a privacy decision
@@ -305,6 +322,11 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   // keystroke. Neither is a default anyone should discover by accident (§12.2, §12.3).
   clearHistoryOnLock: false,
   quickClose: false,
+  // Off, and nothing is captured or injected until it is on (§14.4). Capturing pictures that can
+  // never leave one computer would make the same vault look different on every device for a reason
+  // nobody asked for — so it is offered, in context, once, and left alone after that.
+  localThumbnails: false,
+  thumbnailsOffered: false,
   sortBy: DEFAULT_SORT,
   sidebarWidth: SIDEBAR_WIDTH.initial,
   detailWidth: DETAIL_WIDTH.initial,

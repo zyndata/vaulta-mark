@@ -60,7 +60,16 @@ import {
   type VaultItem,
 } from '../vault/types.js';
 import { bucketOf } from './buckets.js';
-import { bucketTag, canonicalJson, openBucket, openJson, sealBucket, sealJson } from './codec.js';
+import {
+  bucketTag,
+  canonicalJson,
+  openBucket,
+  openBytes,
+  openJson,
+  sealBucket,
+  sealBytes,
+  sealJson,
+} from './codec.js';
 import { clearVault, readBuckets, readHeader, writeBuckets, writeHeader } from './local.js';
 import { partsFor } from './quota.js';
 
@@ -94,6 +103,21 @@ export interface VaultCipher {
   open(purpose: Exclude<AadPurpose, 'bucket'>, id: string, sealed: Bytes): Promise<unknown>;
 }
 
+/**
+ * The same lending arrangement as {@link VaultCipher}, for the heavy tier (Phase 11).
+ *
+ * Separate because it is a **different key**: thumbnails are sealed under `k_thumbs`, so that no
+ * weakness in the picture path can be turned into an oracle against the item path (§4.1). And
+ * separate because thumbnails are opaque bytes rather than JSON — `sealJson` would gzip a WebP,
+ * which spends CPU to make it bigger.
+ *
+ * The AAD binds the item id, so a thumbnail cannot be served back as another item's picture.
+ */
+export interface ThumbCipher {
+  seal(itemId: string, bytes: Bytes): Promise<Bytes>;
+  open(itemId: string, sealed: Bytes): Promise<Bytes>;
+}
+
 export class VaultRepository {
   readonly #now: () => number;
   readonly #newId: () => string;
@@ -103,6 +127,7 @@ export class VaultRepository {
   #dek: Secret<Bytes> | null = null;
   #itemsKey: CryptoKey | null = null;
   #hmacKey: CryptoKey | null = null;
+  #thumbsKey: CryptoKey | null = null;
 
   #items: ItemMap = new Map();
   /** The synced half of the settings (Phase 10). Lives in bucket 0's payload, beside its items. */
@@ -356,6 +381,7 @@ export class VaultRepository {
     this.#dek = null;
     this.#itemsKey = null;
     this.#hmacKey = null;
+    this.#thumbsKey = null;
     this.#header = null;
     this.#items = new Map();
     this.#bucketByItem = new Map();
@@ -710,6 +736,16 @@ export class VaultRepository {
     };
   }
 
+  /** The same, under `k_thumbs`, for the heavy tier. See {@link ThumbCipher}. */
+  thumbCipher(): ThumbCipher {
+    const key = this.#thumbsKey;
+    if (key === null) throw new VaultLockedError('sealing a thumbnail');
+    return {
+      seal: (itemId, bytes) => sealBytes(key, 'thumb', itemId, bytes),
+      open: (itemId, sealed) => openBytes(key, 'thumb', itemId, sealed),
+    };
+  }
+
   /* ---------------------------------------------------------------- internals */
 
   async #writePending(): Promise<void> {
@@ -804,6 +840,7 @@ export class VaultRepository {
     this.#dek = new Secret(dek);
     this.#itemsKey = await subkey(dek, 'items');
     this.#hmacKey = await subkey(dek, 'hmac');
+    this.#thumbsKey = await subkey(dek, 'thumbs');
   }
 
   #scheduleFlush(): void {

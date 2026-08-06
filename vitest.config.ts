@@ -43,6 +43,12 @@ export default defineConfig({
         // erasing a site the user never asked about — the same class of consequence as losing a
         // bookmark, so the same gate. `public-suffix.ts` is generated data with no branches in it.
         'src/history/**': { lines: 90, branches: 85 },
+        // Phase 11. `thumbs/**` is where everything a page handed us is treated as hostile, and a
+        // hole in it is an SSRF or a decompression bomb rather than a missing picture — so it sits
+        // with crypto. `content/**` is the code that runs inside somebody else's document, which is
+        // the least trustworthy place anything we ship ever executes.
+        'src/thumbs/**': { lines: 90, branches: 85 },
+        'src/content/**': { lines: 90, branches: 85 },
       },
     },
   },

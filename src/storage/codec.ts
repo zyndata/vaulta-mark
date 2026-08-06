@@ -107,6 +107,33 @@ export async function openJson(
   return parseJson(utf8Decode(json));
 }
 
+/**
+ * Seal opaque bytes — a processed thumbnail (§14), and nothing else so far.
+ *
+ * **Padded but not gzipped**, which is the one place this file departs from §4.4's
+ * gzip → pad → seal. A WebP is already entropy-coded: deflating it spends CPU to grow the payload
+ * by the size of a gzip header. The padding stays, because it is doing different work — it is what
+ * keeps the stored length from being a fingerprint of the exact image (§4.4).
+ */
+export async function sealBytes(
+  key: CryptoKey,
+  purpose: Exclude<AadPurpose, 'bucket'>,
+  id: string,
+  bytes: Bytes,
+): Promise<Bytes> {
+  return seal(key, pad(bytes), { v: SCHEMA_VERSION, purpose, id });
+}
+
+/** Open what {@link sealBytes} wrote. */
+export async function openBytes(
+  key: CryptoKey,
+  purpose: Exclude<AadPurpose, 'bucket'>,
+  id: string,
+  sealed: Bytes,
+): Promise<Bytes> {
+  return unpad(await open(key, sealed, { v: SCHEMA_VERSION, purpose, id }));
+}
+
 export { canonicalJson };
 
 function bucketAad(index: number): Aad {
