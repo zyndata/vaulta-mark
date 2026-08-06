@@ -2,17 +2,22 @@
  * The sync orchestrator's own behaviour: single-flight, debounce, and what it does with a failure.
  *
  * The *outcomes* of syncing — what gets merged, what gets pushed, what converges — are covered by
- * `test/integration/two-device-sync.test.ts` against a real provider and a real second device.
+ * `test/integration/two-device-{chrome,drive}.test.ts` against real providers and a real second
+ * device.
  * What is left here is the scheduling and the error surface, which are exactly the parts a
  * two-device simulation cannot provoke on purpose.
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { writeSettings } from '../../../src/storage/local.js';
 import { VaultRepository } from '../../../src/storage/repo.js';
+import { DEFAULT_SETTINGS } from '../../../src/vault/types.js';
 import {
   LOCAL_CHANGE_DEBOUNCE_MS,
+  PROBE_INTERVAL_MS,
   configureSync,
+  probe,
   resetSync,
   scheduleSync,
   status,
@@ -180,6 +185,65 @@ describe('scheduleSync', () => {
   });
 });
 
+/* ------------------------------------------------------------------ the wake probe */
+
+describe('probe', () => {
+  beforeEach(async () => {
+    await chrome.storage.session.clear();
+  });
+
+  it('checks the remote on the first wake', async () => {
+    const provider = stubProvider();
+    useProvider(provider);
+    await probe();
+    expect(provider.peeks).toBe(1);
+  });
+
+  it('coalesces the wakes that follow into nothing, for a minute', async () => {
+    const provider = stubProvider();
+    useProvider(provider);
+    let at = 1_800_000_000_000;
+    configureSync({
+      repository: () => Promise.resolve(repo),
+      provider: () => provider,
+      now: () => at,
+    });
+
+    await probe();
+    at += PROBE_INTERVAL_MS - 1;
+    await probe();
+    await probe();
+    expect(provider.peeks).toBe(1);
+
+    at += 2;
+    await probe();
+    expect(provider.peeks).toBe(2);
+  });
+
+  it('remembers when it last probed in storage.session, not in a variable', async () => {
+    // The variable is the thing being defended against: MV3 tears the worker down every ~30 s, so a
+    // module-scope timestamp would reset as often as the events being coalesced arrive.
+    useProvider(stubProvider());
+    await probe();
+    expect(mock.storage.session.snapshot()['vm.probedAt']).toBeTypeOf('number');
+  });
+
+  it('goes anyway when the caller says the wake was a browser start', async () => {
+    const provider = stubProvider();
+    useProvider(provider);
+    await probe();
+    await probe(true);
+    expect(provider.peeks).toBe(2);
+  });
+
+  it('says nothing when it fires into a world that is no longer there', async () => {
+    const saved = globalThis.chrome;
+    delete (globalThis as { chrome?: typeof chrome }).chrome;
+    await expect(probe()).resolves.toBeUndefined();
+    (globalThis as { chrome?: typeof chrome }).chrome = saved;
+  });
+});
+
 /* ------------------------------------------------------------------ failure */
 
 describe('failure', () => {
@@ -241,5 +305,15 @@ describe('without an injected provider', () => {
     configureSync({ repository: () => Promise.resolve(repo) });
     await syncNow();
     expect(Object.keys(mock.storage.sync.snapshot())).toContain('vm.s.meta');
+  });
+
+  it('answers a "drive" setting with Drive rather than quietly syncing somewhere else', async () => {
+    await writeSettings({ ...DEFAULT_SETTINGS, providerId: 'drive' });
+    configureSync({ repository: () => Promise.resolve(repo) });
+    // No OAuth client and no `identity` grant in this mock, so the run fails at authorization —
+    // which is the point: it reached Drive. Before Phase 10 this silently used Chrome sync.
+    expect((await syncNow()).error).toBe('AUTH_REQUIRED');
+    expect((await syncNow()).providerId).toBe('drive');
+    await writeSettings(DEFAULT_SETTINGS);
   });
 });

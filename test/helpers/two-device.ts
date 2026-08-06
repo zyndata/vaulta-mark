@@ -1,10 +1,15 @@
 /**
- * Two devices, one `chrome.storage.sync` (ARCHITECTURE §6).
+ * Two devices, one sync backend (ARCHITECTURE §6).
  *
  * Two `VaultRepository` instances, each with its own `storage.local` and `storage.session`, sharing
- * one sync area — which is exactly the shape of a Chrome profile signed in on a laptop and a
- * desktop. Everything below runs through the real engine, the real provider and the real merge: the
- * only thing faked is the browser.
+ * one remote — which is exactly the shape of a Chrome profile signed in on a laptop and a desktop.
+ * Everything below runs through the real engine, the real provider and the real merge: the only
+ * thing faked is the browser, and — on the Drive tier — `fetch`.
+ *
+ * **This is a suite, not a test file.** It is parameterised by a {@link Backend} and run twice, once
+ * per provider (`test/integration/two-device-*.test.ts`). That is the payoff the `SyncProvider`
+ * interface was built for: if the abstraction holds, the same forty assertions pass over
+ * `chrome.storage.sync` and over a Drive file without one of them knowing which it is on.
  *
  * **What "converged" means here.** Ciphertext cannot be compared: every seal draws a fresh IV, so
  * two devices holding identical bookmarks hold completely different bytes. The header's bucket tags
@@ -19,39 +24,57 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Bytes } from '../../src/crypto/codec.js';
 import { writeHeader } from '../../src/storage/local.js';
 import { VaultRepository } from '../../src/storage/repo.js';
-import { ChromeSyncProvider } from '../../src/sync/chrome-provider.js';
 import { configureSync, forgetConflicts, listConflicts, resetSync, syncNow } from '../../src/sync/engine.js';
-import { WriteBudget, type BudgetStore } from '../../src/sync/rate.js';
+import type { SyncProvider } from '../../src/sync/provider.js';
 import { ROOT_ID, type VaultHeader } from '../../src/vault/types.js';
-import { createChromeMock, uninstallChromeMock, type ChromeMock } from '../mocks/chrome.js';
-import { seededRandom } from '../helpers/items.js';
+import {
+  createChromeMock,
+  uninstallChromeMock,
+  type ChromeMock,
+  type Clock,
+} from '../mocks/chrome.js';
+import { seededRandom } from './items.js';
 
 const PASSWORD = 'a reasonably long master password';
 
-/** The shared `chrome.storage.sync`, and the clock the write-rate budget is measured against. */
-let cloud: ChromeMock;
+/**
+ * One backend, as the suite needs to see it.
+ *
+ * Three of the five members exist because two of the scenarios are genuinely about the transport
+ * rather than about the merge: "nothing was written" has to look at the remote, and "a torn push"
+ * has to *produce* one, and the two backends tear in completely different ways — `storage.sync` can
+ * be left holding parts under a stale header, while a Drive file is replaced in one request and can
+ * only be torn by something outside our code truncating it.
+ */
+export interface Backend {
+  readonly name: string;
+  /**
+   * Called before every case: throw away the remote and start again.
+   *
+   * The clock is the one every device shares. A backend that keeps state charged against time —
+   * `storage.sync` simulates Chrome's write-rate ceilings — has to be on it, or the fuzz's own
+   * fast-forward leaves the remote thinking a hundred writes arrived in the same second.
+   */
+  reset(clock: Clock): void;
+  /** Called for each device, so a backend that lives in `chrome.storage` can share an area. */
+  attach(mock: ChromeMock): void;
+  provider(): SyncProvider;
+  /** Something that changes when, and only when, the remote is written. */
+  remoteFingerprint(): string;
+  /** Leave the remote in the state a push interrupted half way would leave it in. */
+  tear(push: () => Promise<void>): Promise<void>;
+}
+
+/** The clock every device and every backend shares. Advanced by the fuzz, never by the wall. */
+let clock: Clock;
+let backend: Backend;
 let template: VaultHeader;
 let dek: Bytes;
 
-interface Device {
+export interface Device {
   readonly name: string;
   readonly mock: ChromeMock;
   readonly repo: VaultRepository;
-}
-
-/**
- * A budget with room for a simulation.
- *
- * The governor itself is proven against Chrome's real ceilings in `test/unit/sync/rate.test.ts`;
- * here it would only mean a test that fails because it ran too many scenarios too fast.
- */
-const roomyBudget: BudgetStore = { read: () => Promise.resolve([]), write: () => Promise.resolve() };
-
-function providerFor(): ChromeSyncProvider {
-  return new ChromeSyncProvider({
-    budget: new WriteBudget({ store: roomyBudget, perMinute: 1e9, perHour: 1e9 }),
-    now: () => cloud.clock.now(),
-  });
 }
 
 function useDevice(device: Device): void {
@@ -59,10 +82,8 @@ function useDevice(device: Device): void {
 }
 
 async function makeDevice(name: string): Promise<Device> {
-  const mock = createChromeMock({ clock: cloud.clock });
-  // One sync area between them: this is the whole of Chrome's built-in replication, and the reason
-  // the provider needs no configuration at all.
-  (mock.chrome.storage as { sync: unknown }).sync = cloud.chrome.storage.sync;
+  const mock = createChromeMock({ clock, grantedPermissions: ['identity'] });
+  backend.attach(mock);
 
   const device: Device = { name, mock, repo: new VaultRepository() };
   useDevice(device);
@@ -75,11 +96,11 @@ async function makeDevice(name: string): Promise<Device> {
 
 async function sync(device: Device, options: { force?: boolean } = {}): Promise<void> {
   useDevice(device);
-  const provider = providerFor();
+  const provider = backend.provider();
   configureSync({
     repository: () => Promise.resolve(device.repo),
     provider: () => provider,
-    now: () => cloud.clock.now(),
+    now: () => clock.now(),
   });
   await syncNow(options);
 }
@@ -144,35 +165,48 @@ async function conflictCount(device: Device): Promise<number> {
 
 /* ---------------------------------------------------------------- setup */
 
-beforeAll(async () => {
-  // One PBKDF2 derivation for the whole file: 600,000 iterations is half a second, and every device
-  // in here is the *same vault* on another machine, which is exactly what `unlockWithDek` models.
-  cloud = createChromeMock();
-  (globalThis as { chrome?: typeof chrome }).chrome = cloud.chrome;
-  const origin = new VaultRepository();
-  await origin.create(PASSWORD);
-  await origin.flush();
-  template = origin.header();
-  dek = origin.exportDek();
-}, 30_000);
-
-afterAll(() => {
-  resetSync();
-  uninstallChromeMock();
-});
-
 let alice: Device;
 let bob: Device;
 
-beforeEach(async () => {
-  resetSync();
-  cloud = createChromeMock({ clock: cloud.clock });
-  alice = await makeDevice('alice');
-  bob = await makeDevice('bob');
-});
+/**
+ * The whole suite, run against one backend.
+ *
+ * Called from a `.test.ts` per provider rather than looping here, so a failure names the transport
+ * in its file path and so the two can be given different timeouts.
+ */
+export function describeTwoDeviceSync(chosen: Backend): void {
+  beforeAll(async () => {
+    // One PBKDF2 derivation for the whole file: 600,000 iterations is half a second, and every
+    // device in here is the *same vault* on another machine, which `unlockWithDek` models exactly.
+    backend = chosen;
+    const origin = createChromeMock();
+    clock = origin.clock;
+    (globalThis as { chrome?: typeof chrome }).chrome = origin.chrome;
+    const repo = new VaultRepository();
+    await repo.create(PASSWORD);
+    await repo.flush();
+    template = repo.header();
+    dek = repo.exportDek();
+  }, 30_000);
+
+  afterAll(() => {
+    resetSync();
+    uninstallChromeMock();
+  });
+
+  beforeEach(async () => {
+    resetSync();
+    backend.reset(clock);
+    alice = await makeDevice('alice');
+    bob = await makeDevice('bob');
+  });
+
+  scenarios();
+}
 
 /* ---------------------------------------------------------------- the scripted runs */
 
+function scenarios(): void {
 describe('two devices, one vault', () => {
   it('carries an add from one device to the other', async () => {
     await add(alice, 'a', 'Alpha');
@@ -336,28 +370,16 @@ describe('two devices, one vault', () => {
     expect(conflict?.mine.deleted).toBe(true);
   }, 30_000);
 
-  it('recovers from a crash between pushing the buckets and pushing the header', async () => {
+  it('recovers from a remote left half-written by an interrupted push', async () => {
     await add(alice, 'a', 'Alpha');
     await settle([alice, bob]);
 
     await add(alice, 'b', 'Beta');
+    // The remote is left holding a header that promises bucket contents which are not there. A
+    // device pulling now must *notice* — that is what the tags are for — rather than merge a
+    // half-vault and push the result back as the truth.
+    await backend.tear(() => sync(alice));
 
-    // Kill the push after the bucket parts have landed and before the header does — the torn state
-    // §5.4.1 orders the writes to survive. The remote is left with new bytes under an old header.
-    useDevice(alice);
-    const area = cloud.chrome.storage.sync as unknown as {
-      set: (items: Record<string, unknown>) => Promise<void>;
-    };
-    const original = area.set;
-    area.set = async (items) => {
-      if ('vm.s.meta' in items) throw new Error('the browser went away');
-      await original(items);
-    };
-    await sync(alice);
-    area.set = original;
-
-    // A device pulling now finds a header promising bucket contents that are no longer there. It
-    // must notice — that is what the tags are for — rather than merge a half-vault.
     await sync(bob);
     await settle([alice, bob]);
 
@@ -370,10 +392,10 @@ describe('two devices, one vault', () => {
     await add(alice, 'a', 'Alpha');
     await settle([alice, bob]);
 
-    const before = JSON.stringify(cloud.storage.sync.snapshot());
+    const before = backend.remoteFingerprint();
     await sync(alice);
     await sync(bob);
-    expect(JSON.stringify(cloud.storage.sync.snapshot())).toBe(before);
+    expect(backend.remoteFingerprint()).toBe(before);
   }, 30_000);
 });
 
@@ -412,7 +434,7 @@ describe('randomized interleavings', () => {
       // Sync sometimes, so the two drift apart for stretches rather than staying in lockstep.
       if (random() < 0.6) await sync(device);
       // Simulated time, so the mock's own write-rate ceilings are not what this test measures.
-      cloud.clock.advance(60_000);
+      clock.advance(60_000);
     }
 
     /*
@@ -457,3 +479,4 @@ describe('randomized interleavings', () => {
     }
   }, 300_000);
 });
+}

@@ -47,7 +47,7 @@ import * as items from './items.js';
 import * as organize from './organize.js';
 import * as session from './session.js';
 import * as syncing from './syncing.js';
-import { configureSync, scheduleSync, syncNow } from '../sync/engine.js';
+import { LOCAL_CHANGE_DEBOUNCE_MS, configureSync, probe, syncNow } from '../sync/engine.js';
 import { CorruptRemote, PreconditionFailed, QuotaExceeded, RateLimited } from '../sync/provider.js';
 
 /**
@@ -291,9 +291,27 @@ chrome.storage.onChanged.addListener((changes, area) => {
   void syncNow();
 });
 
+/**
+ * The wake events (ARCHITECTURE §13.4).
+ *
+ * Chrome sync tells us when its area changed; Drive does not, and there is nothing to subscribe to.
+ * The answer is not polling but *asking whenever the browser was going to wake us anyway* — this
+ * module being evaluated at all means a cold worker just started, `chrome.runtime.onStartup` means
+ * the browser did, and `chrome.idle` reporting `active` means the machine came back. Each is a
+ * metadata-only `peek()`, and {@link probe} allows at most one a minute across all of them, so a
+ * busy morning costs one request rather than forty.
+ *
+ * Deferred rather than awaited: the cold-start budget is measured to the first handled message
+ * (§7.2), and a network round trip must not be in front of it.
+ */
+setTimeout(() => {
+  void probe();
+}, LOCAL_CHANGE_DEBOUNCE_MS);
+
 registerLifecycleListeners({
   enforceDeadline: () => session.enforceDeadline(),
   housekeep: () => session.housekeep(),
+  wake: () => probe(),
   lock: (reason) => session.lock({ reason }),
   settings: () => session.settings(),
 });
@@ -373,8 +391,8 @@ function onStart(): void {
     await installContextMenus();
     await clearBadge();
     // A browser that was closed for a week is the most likely moment for the remote to be ahead.
-    // Scheduled rather than immediate so it does not compete with the cold-start budget (§7.2).
-    scheduleSync();
+    // Forced past the probe interval, because a browser start is not one wake among many.
+    void probe(true);
   })();
 }
 

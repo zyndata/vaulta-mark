@@ -338,20 +338,26 @@ describe('cold start', () => {
      * cache, which is the closer analogue of a service worker waking up.
      */
     let best = Number.POSITIVE_INFINITY;
+    let readsBeforeFirstAnswer = 0;
     for (let sample = 0; sample < 5; sample++) {
       vi.resetModules();
       const started = performance.now();
       await import('../../../src/background/index.js');
       const response = await mock.sendMessage({ type: 'PING' });
       best = Math.min(best, performance.now() - started);
+      if (sample === 0) {
+        readsBeforeFirstAnswer = localGet.mock.calls.length + sessionGet.mock.calls.length;
+      }
       expect(response).toEqual({ type: 'PONG', version: '1.2.3' });
       mock.terminateWorker();
     }
 
     // The real guarantee behind the budget: the entry registers listeners and returns. Every
     // storage read, key derivation and decryption is lazy, so this holds however slow the runner is.
-    expect(localGet).not.toHaveBeenCalled();
-    expect(sessionGet).not.toHaveBeenCalled();
+    //
+    // Counted **up to the first answer** rather than over the whole test, because the entry does
+    // schedule one thing: the wake probe (§13.4), three seconds out and deliberately after this.
+    expect(readsBeforeFirstAnswer).toBe(0);
     expect(best).toBeLessThan(COLD_START_BUDGET_MS);
   }, 30_000);
 });

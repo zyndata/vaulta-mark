@@ -99,6 +99,8 @@ export interface LifecycleDeps {
   /** Re-check `unlockedUntil` and either lock or re-arm. */
   readonly enforceDeadline: () => Promise<void>;
   readonly housekeep: () => Promise<void>;
+  /** The machine came back from idle: a good moment to ask whether the remote moved. */
+  readonly wake: () => Promise<void>;
   readonly lock: (reason: LockReason) => Promise<void>;
   readonly settings: () => Promise<VaultSettings>;
 }
@@ -134,6 +136,11 @@ export function registerLifecycleListeners(deps: LifecycleDeps): void {
   if (idle !== undefined) {
     idle.onStateChanged.addListener((state) => {
       if (locksOnSystemIdle(state)) void deps.lock('idle');
+      // The other direction: the machine came back, which is one of the wake events a Drive sync
+      // has to notice because Drive, unlike `chrome.storage.sync`, cannot tell us it moved
+      // (ARCHITECTURE §13.4). Registered here rather than in `index.ts` so that one place knows the
+      // namespace may be absent.
+      else if (state === 'active') void deps.wake();
     });
   }
 }

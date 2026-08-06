@@ -34,6 +34,7 @@ function deps(override: Partial<LifecycleDeps> = {}): LifecycleDeps {
   return {
     enforceDeadline: vi.fn(() => Promise.resolve()),
     housekeep: vi.fn(() => Promise.resolve()),
+    wake: vi.fn(() => Promise.resolve()),
     lock: vi.fn(() => Promise.resolve()),
     settings: vi.fn(() => Promise.resolve(DEFAULT_SETTINGS)),
     ...override,
@@ -173,6 +174,17 @@ describe('registerLifecycleListeners', () => {
     await vi.waitFor(() => {
       expect(d.lock).toHaveBeenCalledWith('idle');
     });
+  });
+
+  it('asks whether the remote moved when the machine comes back, and does not lock', async () => {
+    const d = deps();
+    registerLifecycleListeners(d);
+
+    mock.triggerIdleState('active');
+    await vi.waitFor(() => {
+      expect(d.wake).toHaveBeenCalled();
+    });
+    expect(d.lock).not.toHaveBeenCalled();
   });
 
   it('does not touch chrome.idle when the optional permission is absent', () => {

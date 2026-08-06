@@ -25,10 +25,11 @@
 
 import { CorruptVaultError } from '../crypto/errors.js';
 import { readBaseMeta, readSettings } from '../storage/local.js';
-import type { VaultRepository } from '../storage/repo.js';
+import type { VaultCipher, VaultRepository } from '../storage/repo.js';
 import type { BaseMeta, EncryptedVault, ItemMap, VaultHeader } from '../vault/types.js';
 import { loadBase, loadConflicts, saveBase, saveConflicts } from './base.js';
 import { ChromeSyncProvider } from './chrome-provider.js';
+import { DriveSyncProvider } from './drive/provider.js';
 import { merge, outboundView, sameItems, type Conflict } from './merge.js';
 import {
   AuthRequired,
@@ -132,6 +133,7 @@ export function resetSync(): void {
   lastError = null;
   retryAfterMs = null;
   chromeProvider = null;
+  driveProvider = null;
 }
 
 /**
@@ -147,6 +149,43 @@ export function scheduleSync(delayMs: number = LOCAL_CHANGE_DEBOUNCE_MS): void {
     debounce = null;
     void syncNow();
   }, delayMs);
+}
+
+/**
+ * At most one freshness probe a minute, across every wake event (§13.4).
+ *
+ * The triggers are all the same question asked by different parts of the browser — the browser
+ * started, the worker woke, the machine came back from idle — and on Drive each one costs a network
+ * request. Sixty seconds is the ceiling §13.4 sets.
+ */
+export const PROBE_INTERVAL_MS = 60_000;
+
+/** `storage.session`: memory-backed, so it survives a worker teardown and not a browser restart. */
+const PROBE_KEY = 'vm.probedAt';
+
+/**
+ * A wake event happened; check whether the remote moved, but not too often.
+ *
+ * The last probe time lives in `storage.session` rather than in a module variable **because the
+ * variable would be the thing being defended against**: MV3 tears the worker down every ~30 seconds,
+ * so a module-scope timestamp resets exactly as often as the events this is coalescing arrive, and
+ * the coalescing would do nothing at all in the field while passing every test.
+ */
+export async function probe(force = false): Promise<void> {
+  try {
+    const at = now();
+    if (!force) {
+      const last = (await chrome.storage.session.get(PROBE_KEY))[PROBE_KEY];
+      if (typeof last === 'number' && at - last < PROBE_INTERVAL_MS) return;
+    }
+    await chrome.storage.session.set({ [PROBE_KEY]: at });
+  } catch {
+    // Same guard, and the same reason, as `attempt()` below: this is reached from a timer and from
+    // browser events, and a timer can fire into a world that is no longer there — a worker torn
+    // down between the wake and the deadline, an extension being reloaded. Nobody to report it to.
+    return;
+  }
+  await syncNow();
 }
 
 /**
@@ -185,7 +224,7 @@ export async function status(): Promise<SyncStatus> {
   const usage =
     repo === null || repo === undefined
       ? { usedBytes: 0, quotaBytes: 0 }
-      : await providerFor(settings.providerId).usage();
+      : await usageOf(providerFor(settings.providerId));
   return {
     phase: repo === null || repo === undefined ? 'locked' : conflicts > 0 ? 'conflict' : phase,
     providerId: settings.providerId,
@@ -195,6 +234,22 @@ export async function status(): Promise<SyncStatus> {
     retryAfterMs,
     ...usage,
   };
+}
+
+/**
+ * How much room the backend reports, or zeroes.
+ *
+ * Deliberately swallows: `usage()` is a network request on the Drive tier, so it fails whenever
+ * Drive is disconnected, unauthorized or unreachable — and a status line that cannot say "sync needs
+ * you to sign in again" because asking how full the disk is threw on the way to saying it would be
+ * the failure reporting its own failure. The quota bar is absent; everything else still answers.
+ */
+async function usageOf(provider: SyncProvider): Promise<{ usedBytes: number; quotaBytes: number }> {
+  try {
+    return await provider.usage();
+  } catch {
+    return { usedBytes: 0, quotaBytes: 0 };
+  }
 }
 
 /* ------------------------------------------------------------------ the run */
@@ -558,21 +613,42 @@ export function toSyncErrorCode(error: unknown): SyncErrorCode {
 }
 
 let chromeProvider: SyncProvider | null = null;
+let driveProvider: SyncProvider | null = null;
 
 /**
- * The live provider.
+ * The live provider for a settings value.
  *
- * Phase 7 ships one. `drive` is a settings value the UI cannot yet produce, and answering it with
- * the Chrome provider is the honest fallback until Phase 10: the vault syncs somewhere real rather
- * than silently nowhere.
+ * Cached per worker because both are cheap to hold and neither keeps state that matters across a
+ * teardown — the Drive one's file ids live in `storage.local` and its token in `storage.session`,
+ * precisely so that a worker Chrome killed mid-sync rebuilds them rather than re-authorizing.
  */
 function providerFor(id: ProviderId): SyncProvider {
   const custom = deps?.provider;
   if (custom !== undefined) return custom(id);
+  if (id === 'drive') {
+    driveProvider ??= new DriveSyncProvider({ cipher: () => vaultCipher() });
+    return driveProvider;
+  }
   chromeProvider ??= new ChromeSyncProvider();
   return chromeProvider;
+}
+
+/**
+ * The unlocked vault's cipher, for the one thing on the Drive path that has to be sealed.
+ *
+ * `null` while the vault is locked, which is the honest answer and the one that makes a refresh
+ * token unusable without the master password (§13.2). Never throws: this is asked for on a path
+ * that already has to work when the vault is locked.
+ */
+async function vaultCipher(): Promise<VaultCipher | null> {
+  try {
+    return (await deps?.repository())?.cipher() ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function now(): number {
   return (deps?.now ?? Date.now)();
 }
+

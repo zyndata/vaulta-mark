@@ -63,6 +63,14 @@ export class DriveMock {
   readonly revoked: string[] = [];
   /** Refresh tokens the token endpoint will refuse — a grant the user withdrew. */
   readonly rejectedRefreshTokens = new Set<string>();
+  /**
+   * One-shot: the next upload lands half transmitted and then the connection drops.
+   *
+   * The metadata part of a `multipart/related` body goes first and the media second, so what
+   * survives is the new `appProperties` over half the bytes — and the client never learns whether
+   * it succeeded. It is the closest thing Drive has to the torn push `storage.sync` can produce.
+   */
+  truncateNextUpload = false;
 
   #failures: QueuedFailure[] = [];
   #nextId = 1;
@@ -240,6 +248,10 @@ export class DriveMock {
       metadata = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>;
     }
 
+    const truncate = this.truncateNextUpload;
+    this.truncateNextUpload = false;
+    if (truncate && content !== null) content = content.slice(0, Math.floor(content.length / 2));
+
     if (id === null) {
       const file: MockDriveFile = {
         id: `file-${String(this.#nextId++)}`,
@@ -253,6 +265,7 @@ export class DriveMock {
         trashed: false,
       };
       this.files.set(file.id, file);
+      if (truncate) throw new TypeError('the connection dropped mid-upload');
       return json(project(file, parsed), 200, { ETag: etagOf(file) });
     }
 
@@ -272,6 +285,7 @@ export class DriveMock {
     if (content !== null) existing.content = content;
     existing.version += 1;
     existing.modifiedTime = new Date(this.#now()).toISOString();
+    if (truncate) throw new TypeError('the connection dropped mid-upload');
     return json(project(existing, parsed), 200, { ETag: etagOf(existing) });
   }
 
