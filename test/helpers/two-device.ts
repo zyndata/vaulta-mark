@@ -22,11 +22,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Bytes } from '../../src/crypto/codec.js';
-import { writeHeader } from '../../src/storage/local.js';
+import { readSettings, writeHeader, writeSettings } from '../../src/storage/local.js';
 import { VaultRepository } from '../../src/storage/repo.js';
 import { configureSync, forgetConflicts, listConflicts, resetSync, syncNow } from '../../src/sync/engine.js';
 import type { SyncProvider } from '../../src/sync/provider.js';
-import { ROOT_ID, type VaultHeader } from '../../src/vault/types.js';
+import { stampSettings } from '../../src/vault/settings-sync.js';
+import { DEFAULT_SETTINGS, ROOT_ID, type VaultHeader, type VaultSettings } from '../../src/vault/types.js';
 import {
   createChromeMock,
   uninstallChromeMock,
@@ -156,6 +157,29 @@ function liveIds(device: Device): string[] {
 function fingerprint(device: Device): string[] {
   useDevice(device);
   return device.repo.header().buckets.map((meta) => `${String(meta.i)}:${meta.tag}`);
+}
+
+/**
+ * Change a preference the way `session.updateSettings` does: write the local file, then stamp the
+ * synced half into the vault.
+ *
+ * Reproduced here rather than reached through the service worker because this suite has no worker
+ * — two devices are two repositories — and what is under test is the *merge*, not the messaging.
+ */
+async function setSetting(device: Device, patch: Partial<VaultSettings>, at: number): Promise<void> {
+  useDevice(device);
+  const previous = await readSettings();
+  const next = { ...previous, ...patch };
+  await writeSettings(next);
+  await device.repo.setSyncedSettings(
+    stampSettings(device.repo.syncedSettings(), previous, next, at),
+  );
+  await device.repo.flush();
+}
+
+async function settingsOf(device: Device): Promise<VaultSettings> {
+  useDevice(device);
+  return await readSettings();
 }
 
 async function conflictCount(device: Device): Promise<number> {
@@ -390,6 +414,81 @@ describe('two devices, one vault', () => {
 
   it('does nothing, and writes nothing, when neither side has moved', async () => {
     await add(alice, 'a', 'Alpha');
+    await settle([alice, bob]);
+
+    const before = backend.remoteFingerprint();
+    await sync(alice);
+    await sync(bob);
+    expect(backend.remoteFingerprint()).toBe(before);
+  }, 30_000);
+});
+
+/* ---------------------------------------------------------------- preferences */
+
+describe('preferences travel with the vault', () => {
+  it('carries a theme from one device to the other', async () => {
+    await add(alice, 'a', 'Alpha');
+    await settle([alice, bob]);
+
+    await setSetting(alice, { theme: 'dark' }, clock.now());
+    await settle([alice, bob]);
+
+    expect((await settingsOf(bob)).theme).toBe('dark');
+    // Inside the ciphertext, like everything else about this vault: the remote must not be able to
+    // say what theme anyone uses.
+    expect(backend.remoteFingerprint()).not.toContain('dark');
+  }, 30_000);
+
+  it('keeps both sides when each changed a different preference', async () => {
+    await add(alice, 'a', 'Alpha');
+    await settle([alice, bob]);
+
+    await setSetting(alice, { theme: 'dark' }, clock.now());
+    await setSetting(bob, { idleTimeoutMinutes: 30 }, clock.now());
+    await settle([alice, bob]);
+
+    for (const device of [alice, bob]) {
+      const settings = await settingsOf(device);
+      expect(settings.theme, device.name).toBe('dark');
+      expect(settings.idleTimeoutMinutes, device.name).toBe(30);
+    }
+  }, 30_000);
+
+  it('takes the newer answer when both changed the same one, and never asks', async () => {
+    await add(alice, 'a', 'Alpha');
+    await settle([alice, bob]);
+
+    await setSetting(alice, { theme: 'dark' }, clock.now());
+    clock.advance(1_000);
+    await setSetting(bob, { theme: 'light' }, clock.now());
+    await settle([alice, bob]);
+
+    expect((await settingsOf(alice)).theme).toBe('light');
+    expect((await settingsOf(bob)).theme).toBe('light');
+    // A theme is not something to interrupt anybody over.
+    expect(await conflictCount(alice)).toBe(0);
+    expect(await conflictCount(bob)).toBe(0);
+  }, 30_000);
+
+  it('leaves the two per-device settings exactly where they were', async () => {
+    await add(alice, 'a', 'Alpha');
+    await settle([alice, bob]);
+
+    useDevice(bob);
+    await writeSettings({ ...DEFAULT_SETTINGS, sidebarWidth: 420, detailWidth: 300 });
+    await setSetting(alice, { theme: 'dark', sidebarWidth: 180 }, clock.now());
+    await settle([alice, bob]);
+
+    const settings = await settingsOf(bob);
+    expect(settings.theme).toBe('dark');
+    // A laptop must not inherit a desktop's columns.
+    expect(settings.sidebarWidth).toBe(420);
+    expect(settings.detailWidth).toBe(300);
+  }, 30_000);
+
+  it('settles rather than trading revisions over a preference', async () => {
+    await add(alice, 'a', 'Alpha');
+    await setSetting(alice, { theme: 'dark' }, clock.now());
     await settle([alice, bob]);
 
     const before = backend.remoteFingerprint();

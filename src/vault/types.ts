@@ -11,6 +11,7 @@
  */
 
 import type { Bytes } from '../crypto/codec.js';
+import type { SyncedSettings } from './settings-sync.js';
 
 /** Bumped whenever the decrypted payload shape changes. A bump needs a migration and a fixture. */
 export const SCHEMA_VERSION = 2;
@@ -73,10 +74,22 @@ export interface BucketMeta {
   readonly tag: string;
 }
 
-/** What one bucket decrypts to. */
+/**
+ * What one bucket decrypts to.
+ *
+ * `settings` rides in **bucket 0 only** and is the synced half of `vm.settings` (Phase 10,
+ * `settings-sync.ts`). It is an additive, optional field rather than a schema bump: an older build
+ * reads the bucket, ignores the key and works exactly as before, and there is no item shape for a
+ * migration to change. What it does affect is bucket 0's plaintext tag, which is the point —
+ * changing a theme dirties one bucket and syncs like any other edit.
+ */
 export interface BucketPayload {
   readonly items: readonly VaultItem[];
+  readonly settings?: SyncedSettings;
 }
+
+/** The bucket the synced settings record lives in. Bucket 0 exists in every vault (§5.4). */
+export const SETTINGS_BUCKET = 0;
 
 /**
  * A whole vault as ciphertext: the plaintext header, and the sealed bytes of every stored bucket.

@@ -282,6 +282,7 @@ onRequest(handleRequest);
 configureSync({
   repository: () => session.currentRepository(),
   onVaultChanged: () => broadcast({ type: 'VAULT_CHANGED' }),
+  onSettingsChanged: () => session.settingsArrived(),
   onStatus: (status) => broadcast({ type: 'SYNC_CHANGED', status: { type: 'SYNC_STATUS', ...status } }),
 });
 

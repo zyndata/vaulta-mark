@@ -30,7 +30,7 @@ import { generateDek, subkey, unwrapDek, wrapDek } from '../crypto/keys.js';
 import { MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
 import { Secret, zero } from '../crypto/wipe.js';
 import { VaultLockedError, VaultStateError, WeakPasswordError } from '../vault/errors.js';
-import { migrate, needsMigration } from '../vault/migrate.js';
+import { migrate, needsMigration, type RawPayload } from '../vault/migrate.js';
 import { applyMutations, purgeTombstones, toItemMap, type Mutation } from '../vault/model.js';
 import {
   buildSearchIndex,
@@ -41,8 +41,14 @@ import {
   type SearchOptions,
 } from '../vault/search.js';
 import {
+  EMPTY_SYNCED_SETTINGS,
+  parseSyncedSettings,
+  type SyncedSettings,
+} from '../vault/settings-sync.js';
+import {
   DEFAULT_BUCKET_COUNT,
   SCHEMA_VERSION,
+  SETTINGS_BUCKET,
   TOMBSTONE_TTL_MS,
   VAULT_MAGIC,
   isDeleted,
@@ -54,7 +60,7 @@ import {
   type VaultItem,
 } from '../vault/types.js';
 import { bucketOf } from './buckets.js';
-import { bucketTag, openBucket, openJson, sealBucket, sealJson } from './codec.js';
+import { bucketTag, canonicalJson, openBucket, openJson, sealBucket, sealJson } from './codec.js';
 import { clearVault, readBuckets, readHeader, writeBuckets, writeHeader } from './local.js';
 import { partsFor } from './quota.js';
 
@@ -99,6 +105,8 @@ export class VaultRepository {
   #hmacKey: CryptoKey | null = null;
 
   #items: ItemMap = new Map();
+  /** The synced half of the settings (Phase 10). Lives in bucket 0's payload, beside its items. */
+  #settings: SyncedSettings = EMPTY_SYNCED_SETTINGS;
   /** Item id → bucket index. Cached because it costs a SHA-256 and never changes for an id. */
   #bucketByItem = new Map<string, number>();
   #dirtyBuckets = new Set<number>();
@@ -172,6 +180,7 @@ export class VaultRepository {
     };
     this.#items = new Map();
     this.#bucketByItem = new Map();
+    this.#settings = EMPTY_SYNCED_SETTINGS;
     this.#index = null;
 
     // No buckets are stored for an empty vault: `parts: 0` in the header says so, and writing
@@ -231,9 +240,13 @@ export class VaultRepository {
 
     // Decrypted before anything is committed, so a vault we cannot read does not become a vault we
     // half-own. `deviceId` is replaced by `replaceAll`, which preserves whatever this header holds.
-    const items = await this.openEncrypted(vault);
+    //
+    // `openVault` rather than `openEncrypted`: the synced settings ride in the same ciphertext, and
+    // a second computer that joined a vault and then started from the default theme, the default
+    // idle timeout and the default sort order is the thing this record exists to prevent.
+    const { items, settings } = await this.openVault(vault);
     this.#header = { ...vault.header, deviceId: crypto.randomUUID() };
-    await this.replaceAll(items, vault.header);
+    await this.replaceAll(items, vault.header, settings);
   }
 
   /**
@@ -286,6 +299,7 @@ export class VaultRepository {
     const stored = header.buckets.filter((meta) => meta.parts > 0).map((meta) => meta.i);
     const sealed = await readBuckets(stored);
     const raw: Record<string, unknown>[] = [];
+    this.#settings = EMPTY_SYNCED_SETTINGS;
     for (const meta of header.buckets) {
       if (meta.parts === 0) continue;
       const bytes = sealed.get(meta.i);
@@ -300,6 +314,7 @@ export class VaultRepository {
         meta.tag,
       );
       raw.push(...payload.items);
+      if (meta.i === SETTINGS_BUCKET) this.#settings = settingsIn(payload);
     }
 
     const migrated = migrate({ items: raw }, header.schemaVersion);
@@ -344,6 +359,7 @@ export class VaultRepository {
     this.#header = null;
     this.#items = new Map();
     this.#bucketByItem = new Map();
+    this.#settings = EMPTY_SYNCED_SETTINGS;
     this.#dirtyBuckets.clear();
     this.#headerDirty = false;
     this.#index = null;
@@ -558,11 +574,15 @@ export class VaultRepository {
    * change — which is precisely why the header carries a keyed HMAC over each bucket's *plaintext*.
    * A provider compares tags, not bytes, so re-sealing here does not turn into a full re-upload.
    */
-  async sealSnapshot(items: ItemMap, vaultRev?: number): Promise<EncryptedVault> {
+  async sealSnapshot(
+    items: ItemMap,
+    vaultRev?: number,
+    settings: SyncedSettings = this.#settings,
+  ): Promise<EncryptedVault> {
     this.#assertUnlocked('sealing a vault snapshot');
     const current = this.header();
     const header: VaultHeader = { ...current, vaultRev: vaultRev ?? current.vaultRev };
-    const { sealed, metas } = await this.#sealBuckets(items, header);
+    const { sealed, metas } = await this.#sealBuckets(items, header, undefined, settings);
 
     const buckets = new Map<number, Bytes>();
     for (const [index, bytes] of sealed) {
@@ -582,8 +602,21 @@ export class VaultRepository {
    * have?", and the merge decides what to do about it.
    */
   async openEncrypted(vault: EncryptedVault): Promise<ItemMap> {
+    return (await this.openVault(vault)).items;
+  }
+
+  /**
+   * The same, plus the synced settings record the remote carried.
+   *
+   * Two entry points rather than one because most callers - an import, an adoption, a verification
+   * - want the items and nothing else, and `migrate()` deliberately returns only items: it is the
+   * boundary where a decrypted payload becomes typed `VaultItem`s, and widening its return type to
+   * carry a preference through would be the wrong shape entirely.
+   */
+  async openVault(vault: EncryptedVault): Promise<{ items: ItemMap; settings: SyncedSettings }> {
     this.#assertUnlocked('reading a remote vault');
     const raw: Record<string, unknown>[] = [];
+    let settings: SyncedSettings = EMPTY_SYNCED_SETTINGS;
     for (const meta of vault.header.buckets) {
       if (meta.parts === 0) continue;
       const bytes = vault.buckets.get(meta.i);
@@ -598,8 +631,46 @@ export class VaultRepository {
         meta.tag,
       );
       raw.push(...payload.items);
+      if (meta.i === SETTINGS_BUCKET) settings = settingsIn(payload);
     }
-    return toItemMap(migrate({ items: raw }, vault.header.schemaVersion).items);
+    return {
+      items: toItemMap(migrate({ items: raw }, vault.header.schemaVersion).items),
+      settings,
+    };
+  }
+
+  /* ---------------------------------------------------------------- synced settings */
+
+  /** The record as it stands. Empty on a vault where nothing has ever been changed from a default. */
+  syncedSettings(): SyncedSettings {
+    this.#assertUnlocked('reading the synced settings');
+    return this.#settings;
+  }
+
+  /**
+   * Replace the record, and commit it.
+   *
+   * A revision of its own, because peers need a reason to pull it - and one bucket write, because
+   * the record lives in bucket 0 and nothing else moved. Returns whether anything actually changed,
+   * so a settings screen repaint does not cost a sync.
+   */
+  async setSyncedSettings(settings: SyncedSettings): Promise<boolean> {
+    this.#throwDeferred();
+    this.#assertUnlocked('writing the synced settings');
+    const header = this.#header;
+    if (header === null) throw new VaultLockedError('writing the synced settings');
+    if (canonicalJson(this.#settings) === canonicalJson(settings)) return false;
+
+    this.#settings = settings;
+    this.#dirtyBuckets.add(SETTINGS_BUCKET);
+    this.#header = { ...header, vaultRev: header.vaultRev + 1, updatedAt: this.#now() };
+    this.#headerDirty = true;
+    // Written immediately rather than coalesced, for the same reason `purge()` is: this arrives
+    // from someone changing a setting, not from a burst of keystrokes, and there is nothing for a
+    // 300 ms window to save. Leaving a timer behind that an MV3 teardown could swallow would cost
+    // the change for nothing.
+    await this.flush();
+    return true;
   }
 
   /**
@@ -611,11 +682,12 @@ export class VaultRepository {
    * in the header, `kdf` and `wrappedDek` included, is vault-global and genuinely shared: that is
    * how a password changed on one device reaches the others.
    */
-  async replaceAll(items: ItemMap, header: VaultHeader): Promise<void> {
+  async replaceAll(items: ItemMap, header: VaultHeader, settings?: SyncedSettings): Promise<void> {
     this.#throwDeferred();
     this.#assertUnlocked('replacing the vault contents');
     const current = this.header();
 
+    if (settings !== undefined) this.#settings = settings;
     this.#items = items;
     this.#bucketByItem = new Map();
     for (const item of items.values()) {
@@ -682,6 +754,7 @@ export class VaultRepository {
     items: ItemMap,
     header: VaultHeader,
     only?: readonly number[],
+    settings: SyncedSettings = this.#settings,
   ): Promise<{ sealed: Map<number, Bytes | null>; metas: Map<number, BucketMeta> }> {
     const itemsKey = this.#requireItemsKey();
     const hmacKey = this.#requireHmacKey();
@@ -699,10 +772,17 @@ export class VaultRepository {
 
     const sealed = new Map<number, Bytes | null>();
     const metas = new Map<number, BucketMeta>();
+    // Bucket 0 carries the synced settings beside its items (§3.2). An empty record is left out
+    // entirely rather than written as `{}`, so a vault where nothing has ever been changed from a
+    // default seals byte for byte what it sealed before this field existed.
+    const carriesSettings = Object.keys(settings).length > 0;
     for (const [index, bucketItems] of grouped) {
       bucketItems.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-      const payload: BucketPayload = { items: bucketItems };
-      if (bucketItems.length === 0) {
+      const holdsSettings = index === SETTINGS_BUCKET && carriesSettings;
+      const payload: BucketPayload = holdsSettings
+        ? { items: bucketItems, settings }
+        : { items: bucketItems };
+      if (bucketItems.length === 0 && !holdsSettings) {
         sealed.set(index, null);
         metas.set(index, {
           i: index,
@@ -777,6 +857,17 @@ function assertPasswordLength(password: string): void {
   if (passwordLength(password) < MIN_PASSWORD_LENGTH) {
     throw new WeakPasswordError(MIN_PASSWORD_LENGTH);
   }
+}
+
+/**
+ * The synced settings a decrypted bucket carried, validated.
+ *
+ * `openBucket` answers with a `RawPayload`, which is deliberately untyped past its items array -
+ * everything after it has been through `migrate()`. The settings record has not, so it is parsed
+ * here rather than cast.
+ */
+function settingsIn(payload: RawPayload): SyncedSettings {
+  return parseSyncedSettings((payload as { settings?: unknown }).settings);
 }
 
 /** A bucket table for a vault with nothing in it: every bucket present, none of them stored. */

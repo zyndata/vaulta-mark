@@ -16,12 +16,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { UnsupportedSchemaError, WrongPasswordError } from '../../src/crypto/errors.js';
-import { LOCAL_KEYS } from '../../src/storage/local.js';
+import { LOCAL_KEYS, readSettings, writeSettings } from '../../src/storage/local.js';
 import { VaultRepository } from '../../src/storage/repo.js';
 import { ChromeSyncProvider } from '../../src/sync/chrome-provider.js';
 import { configureSync, resetSync, syncNow } from '../../src/sync/engine.js';
 import { WriteBudget, type BudgetStore } from '../../src/sync/rate.js';
 import { VaultStateError } from '../../src/vault/errors.js';
+import { stampSettings } from '../../src/vault/settings-sync.js';
+import { DEFAULT_SETTINGS, type VaultSettings } from '../../src/vault/types.js';
 import { createChromeMock, uninstallChromeMock, type ChromeMock } from '../mocks/chrome.js';
 
 const PASSWORD = 'a reasonably long master password';
@@ -110,6 +112,25 @@ async function seedFirstProfile(password = PASSWORD): Promise<VaultRepository> {
   configure(repo);
   await syncNow();
   return repo;
+}
+
+/**
+ * Change a preference on the first profile, the way `session.updateSettings` does.
+ *
+ * The local file *and* the synced record: the first is what this device reads, the second is what
+ * travels. Written here rather than driven through the worker because this suite has no worker.
+ */
+async function preferOnFirst(patch: Partial<VaultSettings>, repo: VaultRepository): Promise<void> {
+  use(first);
+  const previous = await readSettings();
+  const next = { ...previous, ...patch };
+  await writeSettings(next);
+  await repo.setSyncedSettings(
+    stampSettings(repo.syncedSettings(), previous, next, cloud.clock.now()),
+  );
+  await repo.flush();
+  configure(repo);
+  await syncNow();
 }
 
 beforeEach(() => {
@@ -308,5 +329,58 @@ describe('a second vault created beside a synced one', () => {
     configure(origin);
     await syncNow();
     expect(origin.getAll().map((item) => item.id).sort()).toEqual(['a', 'b', 'f']);
+  }, 60_000);
+});
+
+/* ------------------------------------------------------------------ settings (Phase 10) */
+
+describe('the preferences that come with the vault', () => {
+  it('arrives with the first profile’s settings, and keeps its own screen and its own backend', async () => {
+    const repo = await seedFirstProfile();
+    await preferOnFirst({ theme: 'dark', idleTimeoutMinutes: 30, quickClose: true }, repo);
+
+    second = profile();
+    use(second);
+    // This profile has already been used: someone has dragged its columns and it is on Drive.
+    await writeSettings({
+      ...DEFAULT_SETTINGS,
+      sidebarWidth: 420,
+      detailWidth: 300,
+      providerId: 'drive',
+    });
+
+    const session = await sessionFor(second);
+    configure(null);
+    await session.unlock(PASSWORD);
+
+    const settings = await readSettings();
+    // What travelled.
+    expect(settings.theme).toBe('dark');
+    expect(settings.idleTimeoutMinutes).toBe(30);
+    expect(settings.quickClose).toBe(true);
+    // What did not, and must not: a laptop is not a desktop, and this profile's Drive connection is
+    // its own — syncing it would tell a profile with no token to use Drive.
+    expect(settings.sidebarWidth).toBe(420);
+    expect(settings.detailWidth).toBe(300);
+    expect(settings.providerId).toBe('drive');
+  }, 60_000);
+
+  it('leaves an untouched preference alone rather than imposing a default', async () => {
+    const repo = await seedFirstProfile();
+    await preferOnFirst({ theme: 'dark' }, repo);
+
+    second = profile();
+    use(second);
+    // Nobody has ever changed `sortBy` on the first profile, so the record has nothing to say about
+    // it — and this profile's own choice survives.
+    await writeSettings({ ...DEFAULT_SETTINGS, sortBy: 'title' });
+
+    const session = await sessionFor(second);
+    configure(null);
+    await session.unlock(PASSWORD);
+
+    const settings = await readSettings();
+    expect(settings.theme).toBe('dark');
+    expect(settings.sortBy).toBe('title');
   }, 60_000);
 });

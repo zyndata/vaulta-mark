@@ -29,10 +29,11 @@ import {
   writeSettings,
 } from '../storage/local.js';
 import { VaultRepository } from '../storage/repo.js';
-import { fetchRemote, hasRemoteVault, markAdopted } from '../sync/engine.js';
+import { fetchRemote, hasRemoteVault, markAdopted, scheduleSync } from '../sync/engine.js';
 import type { LockReason, OnboardingPatch, SettingsPatch } from '../shared/messages.js';
 import { broadcast } from '../shared/messages.js';
 import { VaultLockedError, VaultStateError } from '../vault/errors.js';
+import { applySyncedSettings, stampSettings } from '../vault/settings-sync.js';
 import type { OnboardingRecord, VaultSettings } from '../vault/types.js';
 import {
   applyIdleDetection,
@@ -180,6 +181,7 @@ async function adoptSyncedVault(repo: VaultRepository, password: string): Promis
 }
 
 async function startSession(repo: VaultRepository): Promise<number> {
+  await adoptVaultSettings(repo);
   const settings = await readSettings();
   const now = Date.now();
   const unlockedUntil = deadlineFrom(settings, now);
@@ -196,6 +198,45 @@ async function startSession(repo: VaultRepository): Promise<number> {
   applyIdleDetection(settings);
   await broadcast({ type: 'SESSION_UNLOCKED', unlockedUntil });
   return unlockedUntil;
+}
+
+/**
+ * Take on the preferences the vault carries (PLAN §9 Phase 10).
+ *
+ * Run on every unlock, which is also what makes a freshly adopted vault arrive with its theme, its
+ * idle timeout and the rest already set — the DoD item this exists for. The two per-device fields
+ * are untouched by construction: `applySyncedSettings` only overwrites what travelled, and column
+ * widths and the provider id never do.
+ *
+ * The record is only ever *written* while unlocked, so the vault is the authority here and the
+ * local file cannot be holding something newer.
+ */
+async function adoptVaultSettings(repo: VaultRepository): Promise<void> {
+  const record = repo.syncedSettings();
+  if (Object.keys(record).length === 0) return;
+  const current = await readSettings();
+  const next = applySyncedSettings(current, record);
+  if (JSON.stringify(next) !== JSON.stringify(current)) await writeSettings(next);
+}
+
+/**
+ * A merge brought settings across from another device.
+ *
+ * The engine has already written `vm.settings`; what is left is the part that is not a file — the
+ * auto-lock alarm has to be re-armed against a possibly shorter idle window, and every open page
+ * has to hear about it.
+ */
+export async function settingsArrived(): Promise<void> {
+  const settings = await readSettings();
+  applyIdleDetection(settings);
+  const record = await readRecord();
+  if (record !== null) {
+    const now = Date.now();
+    const unlockedUntil = deadlineFrom(settings, now);
+    await writeRecord({ ...record, unlockedUntil });
+    await armAutolock(unlockedUntil, now);
+  }
+  await broadcast({ type: 'SETTINGS_CHANGED', settings });
 }
 
 /**
@@ -475,6 +516,16 @@ export async function updateSettings(patch: SettingsPatch): Promise<VaultSetting
   };
   await writeSettings(next);
   applyIdleDetection(next);
+
+  // The synced half goes into the vault, where it is encrypted and where other devices will find
+  // it. Stamped rather than replaced wholesale: a field whose value did not change keeps its old
+  // timestamp, so opening the settings screen cannot outrank another device's real edit. A width
+  // change moves nothing here and therefore costs no sync.
+  const repo = await currentRepository();
+  if (repo !== null) {
+    const stamped = stampSettings(repo.syncedSettings(), current, next, Date.now());
+    if (await repo.setSyncedSettings(stamped)) scheduleSync();
+  }
 
   const record = await readRecord();
   if (record !== null) {

@@ -24,8 +24,14 @@
  */
 
 import { CorruptVaultError } from '../crypto/errors.js';
-import { readBaseMeta, readSettings } from '../storage/local.js';
+import { readBaseMeta, readSettings, writeSettings } from '../storage/local.js';
 import type { VaultCipher, VaultRepository } from '../storage/repo.js';
+import {
+  applySyncedSettings,
+  mergeSyncedSettings,
+  sameSyncedSettings,
+  type SyncedSettings,
+} from '../vault/settings-sync.js';
 import type { BaseMeta, EncryptedVault, ItemMap, VaultHeader } from '../vault/types.js';
 import { loadBase, loadConflicts, saveBase, saveConflicts } from './base.js';
 import { ChromeSyncProvider } from './chrome-provider.js';
@@ -91,6 +97,14 @@ export interface EngineDeps {
   readonly now?: () => number;
   /** Told after a sync changed the local item set, so open UIs reload. */
   readonly onVaultChanged?: () => void | Promise<void>;
+  /**
+   * Told after a merge brought settings across from another device.
+   *
+   * The engine writes `vm.settings` itself — it is the one that knows what the merge decided — but
+   * a changed idle timeout has to re-arm an alarm and every open page has to hear about a changed
+   * theme, and neither of those belongs in `src/sync/**`.
+   */
+  readonly onSettingsChanged?: () => void | Promise<void>;
   readonly onStatus?: (status: SyncStatus) => void | Promise<void>;
 }
 
@@ -420,8 +434,9 @@ async function reconcile(
 
   phase = 'merging';
   let remoteItems: ItemMap;
+  let remoteSettings: SyncedSettings;
   try {
-    remoteItems = await repo.openEncrypted(pulled);
+    ({ items: remoteItems, settings: remoteSettings } = await repo.openVault(pulled));
   } catch (error) {
     // Authenticated bytes that will not open under this vault's key are not corruption — they are
     // somebody else's vault. Saying so is the difference between a status a user can act on and one
@@ -443,6 +458,12 @@ async function reconcile(
   const conflicts = mergeConflictSets(pending, result.conflicts);
   const outbound = outboundView(result.merged, conflicts);
 
+  // Preferences merge last-writer-wins per field and never raise a conflict (PLAN §9 Phase 10):
+  // two devices disagreeing about a theme is not a disagreement worth interrupting anybody over.
+  const localSettings = repo.syncedSettings();
+  const settings = mergeSyncedSettings(localSettings, remoteSettings);
+  const settingsMoved = !sameSyncedSettings(settings, localSettings);
+
   /*
    * The remote already holds what we were about to send it.
    *
@@ -452,8 +473,13 @@ async function reconcile(
    * changing. Adopting the remote's `vaultRev` verbatim here — rather than inventing a higher one —
    * is what lets both sides agree they are done.
    */
-  if (sameItems(outbound, remoteItems)) {
-    await repo.replaceAll(result.merged, { ...pulled.header, vaultRev: pulled.header.vaultRev });
+  if (sameItems(outbound, remoteItems) && sameSyncedSettings(settings, remoteSettings)) {
+    await repo.replaceAll(
+      result.merged,
+      { ...pulled.header, vaultRev: pulled.header.vaultRev },
+      settings,
+    );
+    if (settingsMoved) await adoptSettings(settings);
     await saveConflicts(cipher, conflicts);
     await saveBase(cipher, outbound, {
       lastSyncedRev: pulled.header.vaultRev,
@@ -466,7 +492,8 @@ async function reconcile(
   }
 
   const rev = Math.max(header.vaultRev, pulled.header.vaultRev) + 1;
-  await repo.replaceAll(result.merged, adoptHeader(header, pulled.header, rev));
+  await repo.replaceAll(result.merged, adoptHeader(header, pulled.header, rev), settings);
+  if (settingsMoved) await adoptSettings(settings);
   await saveConflicts(cipher, conflicts);
   await publish(repo, provider, providerId, result.merged, conflicts, rev, await provider.peek());
   return result.changed.length > 0;
@@ -501,6 +528,19 @@ async function publish(
   };
   await saveBase(repo.cipher(), outbound, meta);
   phase = conflicts.length > 0 ? 'conflict' : 'idle';
+}
+
+/**
+ * Put a merged settings record into effect on this device.
+ *
+ * `vm.settings` is written here rather than left for the UI to notice, because the settings it
+ * holds are read before the vault is unlocked — the lock screen honours the theme and the auto-lock
+ * alarm is armed from the idle timeout. The two excluded fields (`sidebarWidth`/`detailWidth` and
+ * `providerId`) survive untouched: `applySyncedSettings` only ever overwrites what travelled.
+ */
+async function adoptSettings(settings: SyncedSettings): Promise<void> {
+  await writeSettings(applySyncedSettings(await readSettings(), settings));
+  await deps?.onSettingsChanged?.();
 }
 
 /**
