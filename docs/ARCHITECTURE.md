@@ -254,7 +254,10 @@ guessed bucket content offline.
 ### 3.2 Bucket plaintext
 
 ```ts
-interface BucketPayload { items: VaultItem[] }
+interface BucketPayload {
+  items: VaultItem[];
+  settings?: SyncedSettings;    // bucket 0 only — see §6.7
+}
 
 type VaultItem = Bookmark | Folder;
 
@@ -297,6 +300,14 @@ interface ThumbMeta {
   driveId?: string;              // Drive file id when synced
 }
 ```
+
+`settings` is the synced half of `vm.settings` (§6.7). It rides in **bucket 0 only**, which every
+vault has, and is an *additive, optional* field rather than a `SCHEMA_VERSION` bump: an older build
+reads the bucket, ignores the key and behaves exactly as before, and there is no item shape for a
+migration to change. An empty record is left out entirely, so a vault where nobody has ever changed
+a preference seals byte for byte what it sealed before the field existed. What it does affect is
+bucket 0's plaintext tag — which is the point: changing a theme dirties one bucket and travels like
+any other edit.
 
 ### 3.3 Schema versioning and migration
 
@@ -605,6 +616,7 @@ the list and decompresses the shipped asset, so the three artefacts cannot drift
 | `vm.rollback` | sealed pre-replace-import snapshot (§11) | yes (`k_items`) |
 | `vm.rollbackMeta` | `{ createdAt, expiresAt }` | no (no content) |
 | `vm.onboarding` | `{ completedAt, step, incognitoSkipped }` (§12.5) | no (no content) |
+| `vm.drive` | Drive linkage: mode, account address, folder/file ids, and the **sealed** refresh token (§13.2) | the token only (`k_items`) |
 
 Every sealed value is stored as **base64url**, not as a `Uint8Array`. `chrome.storage.local`
 JSON-serialises what it is given, so a byte array comes back as `{"0":12,"1":…}` — roughly five bytes
@@ -616,11 +628,13 @@ manager's two column widths (`sidebarWidth`, `detailWidth`). It is deliberately 
 deliberately incapable of holding vault content: the lock screen has to honour the theme, and the
 auto-lock alarm has to be armed, before any key exists.
 
-It is also **per-profile**, and stays that way until Phase 10. A second Chrome profile that adopts
-the synced vault (§6, `repo.adopt`) gets the vault and the defaults — every preference has to be set
-again by hand. Phase 10 splits the record in two: the preferences that describe the *vault* travel
-with it inside the ciphertext, while `sidebarWidth`, `detailWidth` and `providerId` stay here,
-because a column width describes a screen and a provider id describes this profile's connection.
+It is **half** of the settings, and the other half travels with the vault (§6.7). The preferences
+that describe how the *vault* behaves — theme, idle timeout, lock-on-blur, the tracking strip, the
+incognito-window reuse, the two history toggles and the sort order — are recorded inside the
+ciphertext, so a second Chrome profile that adopts the synced vault arrives with them already set.
+`sidebarWidth`, `detailWidth` and `providerId` stay here and only here, because a column width
+describes a screen and a provider id describes this profile's connection: a laptop must not inherit
+a desktop's columns, and a profile with no Drive token must not be told to use Drive.
 
 `sortBy` is one order for the whole manager rather than one per folder, and that is a privacy
 decision rather than a simplification. A per-folder preference has to be keyed by folder id, and
@@ -775,9 +789,21 @@ is the whole point.
   "vm.session": { "dek": "<base64url 32B>", "unlockedUntil": 1750000600000, "providerId": "chrome" },
   // Hosts queued for the Phase-9 history cleanup by the normal-window fallback (§9). Vault-derived,
   // so memory-backed by necessity rather than by convenience — see INV-6.
-  "vm.historyQueue": ["example.com"]
+  "vm.historyQueue": ["example.com"],
+  // The Drive access token (§13.2). A credential, so it gets the DEK's custody rather than a place
+  // on disk. `storage.local` holds the *sealed* refresh token; this holds the short-lived one.
+  "vm.driveToken": { "token": "<opaque>", "expiresAt": 1750003600000 },
+  // When the last freshness probe ran (§13.4). Here rather than in a module variable because the
+  // module variable is what is being defended against: MV3 tears the worker down every ~30 s, so a
+  // module-scope timestamp would reset as often as the events it is coalescing arrive.
+  "vm.probedAt": 1750000550000
 }
 ```
+
+Everything in this area is written **only while the vault is unlocked**, and INV-7 is "empty after
+`lock()`", not "our key is gone": `lock()` calls `clear()`. That is also why the probe writes
+nothing when the vault is locked — a timestamp arriving a few seconds after a lock would put a key
+back into an area whose emptiness is the invariant.
 
 `chrome.storage.session` is memory-backed, cleared when the browser exits, and (with the default
 access level) unreachable from content scripts. We additionally call
@@ -1048,9 +1074,14 @@ and the only ways out are to destroy one of them or to move one to a different b
 
 **chrome → drive**
 1. Authorize (`drive.file`), create `/VaultaMark/`, upload the current light tier, set
-   `appProperties.vmRev`.
+   `appProperties.vmRev`. A folder that **already holds a vault** is adopted rather than overwritten
+   when it opens under this device's key — that is a second computer reconnecting, and uploading
+   over it would destroy what the first one had. One that does not open is reported as
+   `VaultMismatch` and nothing is touched.
 2. Verify: `peek()` returns the expected stamp; `pullLight()` round-trips to an identical item set.
-3. Flip `vm.settings.providerId = 'drive'`, reset `vm.baseMeta`.
+3. Flip `vm.settings.providerId = 'drive'` and rewrite `vm.baseMeta` — the spec said *reset*, and
+   writing the base we have just verified is the same thing one round trip earlier: the next sync
+   would otherwise read every item as a local add and push the whole vault straight back.
 4. Offer to clear the `chrome.storage.sync` copy (default: yes, after a successful verify) so other
    devices do not keep two systems of record. Devices still on the old version will see the sync copy
    vanish; they are told to connect Drive. **This is why the flip is a deliberate, explained action,
@@ -1067,6 +1098,41 @@ and the only ways out are to destroy one of them or to move one to a different b
 
 Rollback: if verification fails at any point, the original provider stays active and nothing is
 flipped.
+
+### 6.7 Settings that travel
+
+`vm.settings` is two halves. The per-device half stays in `storage.local` (§5.1); the rest is a
+record inside bucket 0's payload (§3.2), and therefore inside the ciphertext, and therefore wherever
+the vault is.
+
+```ts
+type SyncedSettings = { [field]?: { v: string | number | boolean; at: number } };
+```
+
+**Why encrypted, when a theme is not vault content.** Because `chrome.storage.sync` is replicated by
+Google whatever it holds, and "which of our users leaves the vault unlocked forever" is not a fact
+worth publishing in the clear when encrypting it is free.
+
+**What travels:** `theme`, `idleTimeoutMinutes`, `lockOnBrowserBlur`, `stripTrackingParams`,
+`reuseIncognitoWindow`, `clearHistoryOnLock`, `quickClose`, `sortBy`.
+**What does not:** `sidebarWidth`, `detailWidth`, `providerId` — a screen and a connection, not a
+vault.
+
+**Merge rules.** Last writer wins **per field**, on the field's own `at`; never a conflict, and no
+UI. Two devices disagreeing about a theme is not a disagreement worth interrupting anybody over, and
+per-field means a device changing the sort order cannot silently revert another's idle timeout. A
+tie — equal `at`, different values — is broken by comparing the *values*, because the merge runs on
+whichever device noticed the divergence first and an order-dependent answer is exactly how two peers
+trade revisions forever (the same trap §6.4 documents for `item.rev`).
+
+**A field nobody has ever changed stays out of the record.** This is the part that is easy to get
+wrong: stamping all eight fields on the first edit makes that device claim seven defaults it never
+chose, at a timestamp that then beats another device's real change. An absent field defers to
+whichever device has an opinion, which is what an untouched preference should do.
+
+The record is written only while the vault is unlocked, so the vault is the authority and
+`repo.adopt` carries it across — which is what makes a second computer arrive with its settings
+rather than with the defaults.
 
 ---
 
@@ -1544,9 +1610,23 @@ in the package; the OAuth client is bound to the extension ID. On a `401`, call
 
 Fallback for Chrome profiles not signed into Google: `chrome.identity.launchWebAuthFlow` with PKCE
 (`code_challenge_method=S256`), a Web-application OAuth client, and the redirect URI
-`https://<extension-id>.chromiumapp.org/`. No client secret is required with PKCE, which is why this
-fallback is acceptable to ship in a public package. Refresh tokens are stored in
-`chrome.storage.local` **encrypted with `k_items`**, so an unlocked vault is required to refresh.
+`https://<extension-id>.chromiumapp.org/` (from `chrome.identity.getRedirectURL()`, never built by
+us). No client secret is required with PKCE, which is why this fallback is acceptable to ship in a
+public package. Refresh tokens are stored in `chrome.storage.local` **encrypted with `k_items`**, so
+an unlocked vault is required to refresh — and a refresh token that arrives while the vault is
+locked is **dropped** rather than written down in the clear.
+
+This fallback is the only reason `https://oauth2.googleapis.com/` is on
+`build/url-allowlist.json` (INV-3): the authorization-code exchange and the refresh both POST to the
+OAuth token endpoint, which is a different host from the Drive API. The consent screen and the
+revocation endpoint are on `accounts.google.com`, which was already there. The access token itself
+lives in `chrome.storage.session` — memory-backed, cleared when the browser exits — never in
+`storage.local`.
+
+A build with no `VM_OAUTH_CLIENT_ID` emits **no `oauth2` block at all** rather than an empty one:
+Chrome treats a malformed `oauth2` as a manifest error and refuses to load the extension, and a
+source build with no Google project behind it should still install, run and sync through Chrome. It
+simply cannot offer Drive, and the settings screen says so.
 
 Manifest addition (Phase 10):
 
@@ -1575,6 +1655,20 @@ My Drive/
 ```
 
 The folder and files are ordinary, user-visible Drive objects. Their *contents* are ciphertext.
+
+The vault file is JSON — `{ v, header, buckets: { "<i>": "<base64url>" } }` — which trades about a
+third in size for a file a person can open and recognise. §13.3 makes a point of the vault being a
+user-visible object rather than something hidden in `appdata`; a user-visible file that is an opaque
+blob is only half of that promise. The encoding is not a security boundary and is not doing any
+work: what is inside those base64url strings is the same sealed bucket that goes into
+`chrome.storage.sync`. Drive's `md5Checksum` is computed over these bytes, which is what makes it a
+usable cross-check against `appProperties.vmRev`.
+
+A push is **one request**, so the "buckets before the header" ordering §5.4.1 exists for has nothing
+to do here: Drive replaces a file's contents atomically and a failed upload leaves the previous
+revision intact. A file that arrives truncated anyway — a connection that dropped mid-upload, a tool
+that mangled it — is rejected by the container reader as `CorruptRemote`, and the engine repairs it
+by pushing this device's copy (§6.3).
 
 ### 13.4 Freshness check (metadata only)
 

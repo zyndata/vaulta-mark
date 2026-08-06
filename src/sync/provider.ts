@@ -3,7 +3,7 @@
  * vault is kept".
  *
  * A provider moves {@link EncryptedVault} bytes and **never sees a key**. That is the whole point of
- * the interface: adding a second backend in Phase 10 is a networking exercise, not a cryptographic
+ * the interface: adding the Drive backend was a networking exercise, not a cryptographic
  * one, and nothing on the other side of this file can weaken the vault however it is implemented.
  *
  * The two contracts a provider has to honour, both of which the merge engine depends on:
@@ -118,7 +118,7 @@ export class PreconditionFailed extends SyncError {
 /** No network. Expected, frequent, and not an error worth showing until it persists. */
 export class Offline extends SyncError {}
 
-/** The backend needs the user to sign in or re-grant. Phase 10 (Drive) is the only source. */
+/** The backend needs the user to sign in or re-grant. Drive is the only source. */
 export class AuthRequired extends SyncError {}
 
 /** A thumbnail operation on a provider that has no heavy tier. Check `capabilities` first. */

@@ -4,7 +4,7 @@
  *
  * It is the default because it needs nothing from the user: no account to connect, no scope to
  * grant, no OAuth screen. It costs a small, hard ceiling — roughly 600 bookmarks comfortably
- * (§5.3) — and it cannot hold thumbnails at all, which is what Drive is for in Phase 10.
+ * (§5.3) — and it cannot hold thumbnails at all, which is what `DriveSyncProvider` is for.
  *
  * Four things here are not obvious from the API:
  *

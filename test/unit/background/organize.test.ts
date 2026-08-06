@@ -118,7 +118,17 @@ beforeEach(async () => {
   await startWorker();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // Drain before tearing the browser down.
+  //
+  // The repository coalesces writes for 300 ms and the sync engine debounces for 3 s, and
+  // `terminateWorker()` clears listeners but not timers — so a test that ends mid-window leaves a
+  // write that lands in the *next* test's storage mock, on top of its seed. That is the mechanism
+  // behind every "a bookmark from another test appeared in this list" failure this file has ever
+  // produced.
+  const session = await import('../../../src/background/session.js');
+  await (await session.currentRepository())?.flush();
+  (await import('../../../src/sync/engine.js')).resetSync();
   uninstallChromeMock();
 });
 

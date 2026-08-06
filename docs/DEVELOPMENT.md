@@ -226,6 +226,49 @@ feature deletes real browsing history. The logic is covered against a mocked `ch
    does.
 9. Take the permission back on `chrome://extensions` and confirm the panel returns to step 3.
 
+### 5.4 Drive sync, by hand
+
+Nothing automated can do this one. Playwright cannot sign into Google, `chrome.identity` needs a
+real account, and a mocked `fetch` — which is what `test/unit/sync/drive/**` and
+`test/integration/two-device-drive.test.ts` run against — proves the client is correct without
+proving Google agrees with it. PLAN Phase 10 says so explicitly: a mocked-only Drive integration is
+not sufficient evidence.
+
+**Prerequisites**, once, from [RELEASE §5](RELEASE.md#5-google-cloud--oauth-setup):
+
+1. A Google Cloud project with the Drive API enabled and the consent screen configured for
+   **`drive.file` only**.
+2. A stable unpacked extension id (§5.4 there) — `VM_MANIFEST_KEY` in `.env.local`.
+3. `VM_OAUTH_CLIENT_ID` in the same file. Without it the manifest carries no `oauth2` block and the
+   settings screen says Drive is unavailable, which is the correct behaviour and is what
+   `manager.spec.ts` asserts.
+
+Then `npm run build`, load `dist/` unpacked, and:
+
+1. **Connect.** Manager → **Settings** → *Sync* → *Connect Google Drive*. The optional permission
+   prompt comes first (from the page), then Google's consent screen. It must name `drive.file` and
+   nothing else — if it asks for anything wider, stop and check `build/manifest.ts`.
+2. The section should now show the account address and a *Open the vault file in Drive* button. Press
+   it: `My Drive/VaultaMark/vaultamark-vault.vmv` exists, is a normal file you can download, and its
+   contents are JSON whose `buckets` are base64 nobody can read.
+3. **Converge.** Repeat §5.1 with a second profile, connecting Drive there too rather than relying on
+   Chrome sync. An edit on one appears on the other after the debounce; `peek()` traffic is visible
+   in DevTools → Network on the service worker, and a check with nothing to do must be **one**
+   request with no payload.
+4. **Migrate back.** *Switch back to Chrome sync*. It must copy, verify, then flip — and the Drive
+   file must still be there afterwards. Tick *Also delete the copy in my Drive* and confirm the
+   folder goes.
+5. **Refuse.** With more bookmarks than Chrome sync can hold (Phase 8's import makes this quick),
+   try to switch back. It must refuse with both numbers and leave you on Drive.
+6. **The other sign-in route.** Sign the profile out of Chrome (not out of Google) and connect again:
+   `getAuthToken` fails and `launchWebAuthFlow` takes over. Lock the vault, restart the browser, and
+   sync — the refresh token is sealed under the vault key, so this must work only after unlocking.
+7. **Take it back.** Revoke VaultaMark from
+   `myaccount.google.com` → *Data & privacy* → *Third-party apps*, then press *Sync now*. The status
+   must say sync needs you to sign in again, not fail silently.
+
+Write the result up in the commit message, as Phase 7's two-profile pass was.
+
 ---
 
 ## 6. The invariant scanners

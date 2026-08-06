@@ -14,6 +14,41 @@ below.
 
 ### Added
 
+- **Google Drive sync.** Settings → Sync now offers to connect your own Google Drive and move the
+  vault there. It holds thousands of bookmarks instead of hundreds, and it is where page previews
+  will live. Chrome sync stays the default and needs nothing from you; Drive is opt-in, and the
+  permission is asked for at the moment you press the button.
+  - **VaultaMark can only see the files it creates in your Drive.** That is the whole of the access
+    it asks for — the `drive.file` scope — and it cannot read anything else there. What it does
+    store is encrypted with your master password before it leaves your computer, so Google cannot
+    read it either. The file is an ordinary, visible file in a folder called `VaultaMark`: you can
+    find it, copy it, back it up.
+  - **Switching either way is a copy, a check, and only then a switch.** If the copy does not read
+    back as exactly what was sent, nothing is changed and you stay where you were. Moving *back* to
+    Chrome sync is refused when the vault has outgrown it, with the numbers — "this holds 2,400
+    bookmarks and about 600 would fit" — rather than a half-migration.
+  - **Disconnecting leaves your Drive file alone**, because it is your file. Deleting it is a
+    separate checkbox. Moving *to* Drive does clear the copy in Chrome sync, because two systems of
+    record is how a merge loses an edit — your other computers will ask you to connect Drive too.
+  - Nothing is polled. VaultaMark checks whether anything changed when the browser starts, when it
+    wakes up, and when you come back to the computer — at most once a minute, and each check is a
+    few hundred bytes rather than a download.
+- **Your preferences now follow your vault.** A second computer that joins your vault arrives with
+  your theme, your auto-lock timeout, your sort order and your privacy toggles already set, instead
+  of the defaults. They are stored inside the encrypted vault like everything else.
+  - The two things that stay per-computer are the manager's column widths and which sync backend
+    that computer uses — a laptop should not inherit a desktop's columns, and a profile with no
+    Drive connection should not be told to use Drive.
+  - If two computers change the same preference, the more recent one wins and nothing asks you about
+    it. A theme is not worth a dialog.
+
+### Changed
+
+- `build/url-allowlist.json` gained `https://oauth2.googleapis.com/` — the OAuth token endpoint,
+  reached only by the sign-in fallback for Chrome profiles that are not signed into Google. No new
+  permission: `identity` and the Google APIs origin have been declared optional since the first
+  release, and both are still requested only when you connect Drive.
+
 - **Installing VaultaMark now opens a five-screen setup guide**, once, on first install and never on
   an update. It covers what the extension is for, creating your master password, allowing the
   extension in incognito, which sync tier you are on, and — last — the two things Chrome still does

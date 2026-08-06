@@ -1147,12 +1147,44 @@ so Phase 11 only adds capture and UI.
 
 **Definition of done**
 - [ ] A real Google account connects, syncs, and converges across two profiles.
-- [ ] `peek()` costs one request and no payload download when nothing changed.
-- [ ] Migration both directions verified.
-- [ ] INV-4 test passes with Drive both on and off.
-- [ ] Only `drive.file` is ever requested (asserted against the manifest and the auth call).
-- [ ] A second profile that adopts the vault inherits the synced settings, and keeps its own column
-      widths and its own provider.
+      **Maintainer's, and the reason this phase is not tagged.** Playwright cannot sign into Google
+      and a mocked `fetch` proves the client is right without proving Google agrees. Procedure:
+      [DEVELOPMENT §5.4](docs/DEVELOPMENT.md#54-drive-sync-by-hand).
+- [x] `peek()` costs one request and no payload download when nothing changed.
+      (`test/unit/sync/drive/provider.test.ts`, asserted against the mock's `fields=` projection —
+      a probe that forgot it would come back with the payload and the test would see it.)
+- [x] Migration both directions verified, against a mocked Drive
+      (`test/integration/provider-migration.test.ts`): round trip preserves every item, a vault too
+      large for `storage.sync` blocks the reverse with a count, and a failed verification flips
+      nothing. Against a **real** account it is part of the manual pass above.
+- [x] INV-4 test passes with Drive both on and off. Off: `popup.spec.ts` / `manager.spec.ts`
+      route-intercept and assert zero requests. On: `test/unit/sync/drive/hosts.test.ts` runs the
+      whole lifecycle and checks every host against `build/url-allowlist.json` itself.
+- [x] Only `drive.file` is ever requested (asserted against the manifest in
+      `test/unit/build/manifest.test.ts` and against the `getAuthToken` call in
+      `test/unit/sync/drive/auth.test.ts`).
+- [x] A second profile that adopts the vault inherits the synced settings, and keeps its own column
+      widths and its own provider (`test/integration/adopt-synced-vault.test.ts`).
+
+**Deviations, recorded rather than left in the code**
+
+- **The Drive container is JSON**, `{ v, header, buckets: { "<i>": "<base64url>" } }`, which the spec
+  did not pin down. It trades about a third in size for a file a person can open — §13.3 makes a
+  point of the vault being user-visible, and a user-visible opaque blob is only half of that. Written
+  up in [ARCHITECTURE §13.3](docs/ARCHITECTURE.md#133-file-layout).
+- **`vm.baseMeta` is rewritten rather than reset** at the flip (§6.6 step 3). Resetting it means the
+  next sync reads every item as a local add and pushes the whole vault back at the backend it just
+  came from; writing the base we have *just verified* is the same end state, one round trip earlier.
+- **`build/url-allowlist.json` gained `https://oauth2.googleapis.com/`** — the OAuth token endpoint,
+  which is a different host from the Drive API and is reached only by the PKCE fallback. INV-3's
+  prose already covers it (`googleapis.com`); the concrete prefix list did not.
+- **A build with no `VM_OAUTH_CLIENT_ID` emits no `oauth2` block at all.** Chrome treats a malformed
+  one as a manifest error and refuses to load the extension, so an empty client id would break every
+  source build. The settings screen says Drive is unavailable instead.
+- **`SCHEMA_VERSION` was not bumped for the synced settings record.** It is an additive optional
+  field in bucket 0's payload that older builds ignore, there is no item shape for a migration to
+  change, and an empty record is left out entirely so an untouched vault seals byte for byte what it
+  sealed before. Reasoning in [ARCHITECTURE §3.2](docs/ARCHITECTURE.md#32-bucket-plaintext).
 
 **Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-10-done` and push.
 

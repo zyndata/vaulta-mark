@@ -320,6 +320,28 @@ test('syncs the vault into chrome.storage.sync, as ciphertext and without a requ
   await page.close();
 });
 
+/**
+ * The Drive section of Settings, in a build with no Google project behind it.
+ *
+ * Which is every build made from this repository as it stands: `VM_OAUTH_CLIENT_ID` is a release
+ * secret, so `manifest.oauth2` is absent and Drive cannot be offered. The property under test is
+ * that the screen *says so* rather than showing a button that fails obscurely — and that reaching
+ * that conclusion costs no network request, which is the INV-4 half a mocked `fetch` cannot prove.
+ */
+test('says plainly that Drive is unavailable in a build with no OAuth client, without asking anyone', async () => {
+  const page = await openPage('manager.html');
+  const before = requests.length;
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const sync = page.locator('.vm-settings-section').filter({ hasText: 'Sync' }).first();
+  await expect(sync).toContainText('Chrome sync');
+  await expect(sync).toContainText('no Google project configured');
+  await expect(page.getByRole('button', { name: 'Connect Google Drive' })).toHaveCount(0);
+
+  expect(requests.slice(before)).toEqual([]);
+  await page.close();
+});
+
 test('drags a bookmark into a folder in the sidebar, and back out to the top level', async () => {
   const page = await openPage('manager.html');
   await vault(page, 'https://drag-e2e.invalid/one', 'Draggable one');
