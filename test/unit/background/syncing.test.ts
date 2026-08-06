@@ -85,10 +85,71 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  const { resetSync } = await import('../../../src/sync/engine.js');
+  const { resetSync, syncNow } = await import('../../../src/sync/engine.js');
+  // Drain first, then reset.
+  //
+  // Writing to `chrome.storage.sync` fires this worker's own `onChanged` listener, which starts a
+  // sync it does not await — so a test that pushes can end with a run still in flight. `syncNow()`
+  // joins one rather than starting a second, and without this the tail of that run lands in the
+  // *next* test's storage mock and leaves it holding a vault it never created.
+  await syncNow();
   resetSync();
   mock.terminateWorker();
   uninstallChromeMock();
+});
+
+/* ------------------------------------------------------------------ Drive */
+
+/**
+ * The Drive surface over the wire.
+ *
+ * What is *not* here is a successful connection: the mocked manifest carries no `oauth2` block, so
+ * `DriveAuth` is unconfigured and every path stops at authorization — which is exactly what a
+ * source build with no Google project does, and is the reason these tests never reach the network.
+ * The migration itself is proved end to end against a mocked Drive in
+ * `test/integration/provider-migration.test.ts`.
+ */
+describe('Drive', () => {
+  it('reports a build with no Google project as unavailable rather than broken', async () => {
+    const state = await send({ type: 'GET_DRIVE_STATE' });
+    expect(state).toEqual({
+      type: 'DRIVE_STATE',
+      configured: false,
+      granted: false,
+      connected: false,
+      email: null,
+      fileLink: null,
+    });
+  });
+
+  it('answers while the vault is locked', async () => {
+    await send({ type: 'LOCK' });
+    expect((await send({ type: 'GET_DRIVE_STATE' }))['type']).toBe('DRIVE_STATE');
+  });
+
+  it('refuses to connect before the optional permission has been granted', async () => {
+    const result = await send({ type: 'CONNECT_DRIVE' });
+    expect(result).toMatchObject({ type: 'MIGRATION', ok: false, reason: 'auth' });
+    // Nothing flipped: `chrome.permissions.request` needs a page and a user gesture, so a worker
+    // that tried anyway would fail somewhere far less legible than here.
+    expect((await send({ type: 'GET_SYNC_STATUS' }))['providerId']).toBe('chrome');
+  });
+
+  it('refuses to connect when the build has no OAuth client, and changes nothing', async () => {
+    mock.grantedPermissions.add('identity');
+    const result = await send({ type: 'CONNECT_DRIVE' });
+    expect(result).toMatchObject({ ok: false, reason: 'auth', providerId: 'chrome' });
+    expect((await send({ type: 'GET_SYNC_STATUS' }))['providerId']).toBe('chrome');
+  });
+
+  it('completes a disconnect even though revoking the grant cannot succeed here', async () => {
+    // The vault is already on Chrome sync, so the migration is a no-op that still has to verify —
+    // and the Drive teardown afterwards is best-effort by design: a revoke that fails must not
+    // report a completed disconnect as a failure.
+    await addBookmark('https://example.com/one', 'One');
+    const result = await send({ type: 'DISCONNECT_DRIVE' });
+    expect(result).toMatchObject({ type: 'MIGRATION', ok: true, providerId: 'chrome' });
+  });
 });
 
 /* ------------------------------------------------------------------ status */

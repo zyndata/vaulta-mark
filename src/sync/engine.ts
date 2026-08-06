@@ -125,7 +125,9 @@ export function configureSync(next: EngineDeps): void {
 /** Test seam: drop the injected dependencies, the cached provider, and any pending debounce. */
 export function resetSync(): void {
   if (debounce !== null) clearTimeout(debounce);
+  if (probeTimer !== null) clearTimeout(probeTimer);
   debounce = null;
+  probeTimer = null;
   deps = null;
   inFlight = null;
   rerun = false;
@@ -163,6 +165,24 @@ export const PROBE_INTERVAL_MS = 60_000;
 /** `storage.session`: memory-backed, so it survives a worker teardown and not a browser restart. */
 const PROBE_KEY = 'vm.probedAt';
 
+let probeTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Probe once the worker has finished waking up.
+ *
+ * The timer lives here rather than at the service worker's module scope for the same reason the
+ * debounce does: {@link resetSync} has to be able to cancel it. A timer nobody can cancel is one
+ * that fires into whatever world exists when it comes due — which in a test suite is the next
+ * test's browser, and in Chrome is an extension that has been reloaded underneath it.
+ */
+export function scheduleProbe(delayMs: number = LOCAL_CHANGE_DEBOUNCE_MS): void {
+  if (probeTimer !== null) clearTimeout(probeTimer);
+  probeTimer = setTimeout(() => {
+    probeTimer = null;
+    void probe();
+  }, delayMs);
+}
+
 /**
  * A wake event happened; check whether the remote moved, but not too often.
  *
@@ -173,6 +193,10 @@ const PROBE_KEY = 'vm.probedAt';
  */
 export async function probe(force = false): Promise<void> {
   try {
+    // A locked vault has nothing to sync and no key to sync it with, and — the part that matters —
+    // INV-7 says `storage.session` is *empty* after a lock. Writing a probe timestamp into it a few
+    // seconds later would put a key back in an area whose emptiness is the invariant.
+    if ((await deps?.repository()) == null) return;
     const at = now();
     if (!force) {
       const last = (await chrome.storage.session.get(PROBE_KEY))[PROBE_KEY];

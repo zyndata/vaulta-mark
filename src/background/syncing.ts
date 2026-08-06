@@ -15,9 +15,23 @@
  * untouched until someone chooses.
  */
 
-import { broadcast, type ConflictSide, type ConflictView, type SyncStatusResponse } from '../shared/messages.js';
+import {
+  broadcast,
+  type ConflictSide,
+  type ConflictView,
+  type DriveStateResponse,
+  type MigrationResponse,
+  type SyncStatusResponse,
+} from '../shared/messages.js';
 import type { ConflictResolution } from '../shared/messages.js';
+import { readSettings } from '../storage/local.js';
+import type { VaultCipher } from '../storage/repo.js';
+import { ChromeSyncProvider } from '../sync/chrome-provider.js';
+import { DriveAuth, hasDrivePermissions } from '../sync/drive/auth.js';
+import { DriveSyncProvider } from '../sync/drive/provider.js';
+import { clearDriveRecord, readDriveRecord } from '../sync/drive/record.js';
 import { canKeepBoth, forgetConflicts, listConflicts, status, syncNow } from '../sync/engine.js';
+import { migrateProvider, type MigrationDeps } from '../sync/migration.js';
 import type { Conflict } from '../sync/merge.js';
 import { ItemNotFoundError } from '../vault/errors.js';
 import type { Mutation } from '../vault/model.js';
@@ -34,6 +48,120 @@ export async function syncStatus(): Promise<SyncStatusResponse> {
 export async function runSyncNow(): Promise<SyncStatusResponse> {
   await session.touch();
   return toWire(await syncNow());
+}
+
+/* ------------------------------------------------------------------ Drive (Phase 10) */
+
+/**
+ * What the settings screen draws the Drive section from.
+ *
+ * Answerable while the vault is locked, like the sync status is and for the same reason: none of it
+ * describes a bookmark. `connected` is deliberately "the provider in force *and* an account we have
+ * seen", not "there is a token" — a token in `storage.session` says the browser has not been
+ * restarted, which is not what anyone means by connected.
+ */
+export async function driveState(): Promise<DriveStateResponse> {
+  const [settings, record, granted] = await Promise.all([
+    readSettings(),
+    readDriveRecord(),
+    hasDrivePermissions(),
+  ]);
+  return {
+    type: 'DRIVE_STATE',
+    configured: new DriveAuth().configured,
+    granted,
+    connected: settings.providerId === 'drive',
+    email: record.email,
+    fileLink: record.webViewLink,
+  };
+}
+
+/**
+ * Connect Drive and move the vault there.
+ *
+ * The consent screen is opened from here — `chrome.identity` works from a worker — but the optional
+ * *permission* cannot be: `chrome.permissions.request` needs a page and a user gesture, so the UI
+ * has already asked before this message is sent, and this refuses rather than silently failing if
+ * it did not.
+ */
+export async function connectDrive(): Promise<MigrationResponse> {
+  await session.touch();
+  if (!(await hasDrivePermissions())) {
+    return { type: 'MIGRATION', ok: false, providerId: (await readSettings()).providerId, reason: 'auth' };
+  }
+  const provider = new DriveSyncProvider({ cipher: () => cipher() });
+  try {
+    // Interactive, once, here: this is the click. Everything afterwards is non-interactive, which is
+    // what keeps a background sync from putting a consent window in front of someone.
+    await provider.auth.token({ interactive: true });
+  } catch {
+    return { type: 'MIGRATION', ok: false, providerId: (await readSettings()).providerId, reason: 'auth' };
+  }
+  return await migrate('drive', { provider: (id) => (id === 'drive' ? provider : chromeProvider()) });
+}
+
+/**
+ * Move back to Chrome sync, and hand the Drive grant back.
+ *
+ * The revoke happens **after** the migration succeeded, and only then: a failed migration must leave
+ * the device syncing through Drive exactly as it was, and a device with no token would not be.
+ */
+export async function disconnectDrive(deleteRemote: boolean): Promise<MigrationResponse> {
+  await session.touch();
+  const provider = new DriveSyncProvider({ cipher: () => cipher() });
+  const result = await migrate('chrome', {
+    provider: (id) => (id === 'drive' ? provider : chromeProvider()),
+    // The Drive copy stays unless asked for: it is a file in the user's own Drive, and §6.6 says so.
+    clearSource: false,
+  });
+  if (!result.ok) return result;
+
+  // Best-effort, and after the fact. The vault is already back in Chrome sync and verified there;
+  // a revoke that fails because the network dropped must not turn a completed disconnect into a
+  // failure, which would leave the user believing they are still on Drive.
+  try {
+    if (deleteRemote) await provider.deleteRemote();
+    await provider.disconnect();
+  } catch {
+    /* the grant stays until Google expires it, or the user withdraws it from their account page */
+  }
+  await clearDriveRecord();
+  await broadcast({ type: 'SYNC_CHANGED', status: await syncStatus() });
+  return result;
+}
+
+async function migrate(
+  target: 'chrome' | 'drive',
+  deps: Pick<MigrationDeps, 'provider' | 'clearSource'>,
+): Promise<MigrationResponse> {
+  const result = await migrateProvider(target, {
+    ...deps,
+    repository: () => session.currentRepository(),
+  });
+  // The provider changed under every open page: the status line, the quota bar and the whole Drive
+  // section are drawn from it.
+  await broadcast({ type: 'SYNC_CHANGED', status: await syncStatus() });
+  return {
+    type: 'MIGRATION',
+    ok: result.ok,
+    providerId: result.providerId,
+    ...(result.reason === undefined ? {} : { reason: result.reason }),
+    ...(result.fits === undefined ? {} : { fits: result.fits }),
+    ...(result.items === undefined ? {} : { items: result.items }),
+  };
+}
+
+function chromeProvider(): ChromeSyncProvider {
+  return new ChromeSyncProvider();
+}
+
+/** The unlocked vault's cipher, or `null`. Never throws — the Drive path runs while locked too. */
+async function cipher(): Promise<VaultCipher | null> {
+  try {
+    return (await session.currentRepository())?.cipher() ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function toWire(current: Awaited<ReturnType<typeof status>>): SyncStatusResponse {

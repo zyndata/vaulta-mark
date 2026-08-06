@@ -56,7 +56,11 @@ beforeEach(async () => {
   await startWorker();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // The worker schedules a wake probe on every evaluation (§13.4). Cancelling it here is the same
+  // hygiene `terminateWorker()` provides for listeners: a timer from a torn-down registry firing
+  // into the next test's browser is the documented way this suite goes mysteriously wrong.
+  (await import('../../../src/sync/engine.js')).resetSync();
   vi.restoreAllMocks();
   uninstallChromeMock();
 });

@@ -47,7 +47,7 @@ import * as items from './items.js';
 import * as organize from './organize.js';
 import * as session from './session.js';
 import * as syncing from './syncing.js';
-import { LOCAL_CHANGE_DEBOUNCE_MS, configureSync, probe, syncNow } from '../sync/engine.js';
+import { configureSync, probe, scheduleProbe, syncNow } from '../sync/engine.js';
 import { CorruptRemote, PreconditionFailed, QuotaExceeded, RateLimited } from '../sync/provider.js';
 
 /**
@@ -225,6 +225,14 @@ export async function handleRequest(request: Request): Promise<Response> {
           count: await syncing.resolve(request.ids, request.resolution),
         };
 
+      /* ---- Drive sync (Phase 10) ---- */
+      case 'GET_DRIVE_STATE':
+        return await syncing.driveState();
+      case 'CONNECT_DRIVE':
+        return await syncing.connectDrive();
+      case 'DISCONNECT_DRIVE':
+        return await syncing.disconnectDrive(request.deleteRemote ?? false);
+
       /* ---- import and export (Phase 8) ---- */
       case 'EXPORT_VAULT':
         return await io.exportEncrypted(request.password, request.mode);
@@ -304,9 +312,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
  * Deferred rather than awaited: the cold-start budget is measured to the first handled message
  * (§7.2), and a network round trip must not be in front of it.
  */
-setTimeout(() => {
-  void probe();
-}, LOCAL_CHANGE_DEBOUNCE_MS);
+scheduleProbe();
 
 registerLifecycleListeners({
   enforceDeadline: () => session.enforceDeadline(),

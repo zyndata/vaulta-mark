@@ -1280,7 +1280,7 @@
     }
   },
   "syncQuotaWarn": {
-    "message": "This vault is filling up Chrome sync. Google Drive holds far more, and arrives in a later version.",
+    "message": "This vault is filling up Chrome sync. Google Drive holds far more — connect it in Settings → Sync.",
     "description": "Shown when sync storage passes 70% full."
   },
   "syncQuotaFull": {
@@ -2058,7 +2058,7 @@
     "description": "Drive tier, destination row."
   },
   "onboardingSyncActive": {
-    "message": "Chrome sync is on and needs nothing from you. Drive arrives in a later release; nothing you save now will be lost when you switch.",
+    "message": "Chrome sync is on and needs nothing from you. You can connect Google Drive at any time from Settings → Sync, and nothing you save now is lost when you switch.",
     "description": "Summary under the sync comparison table."
   },
   "onboardingSyncChangeLater": {
@@ -2302,5 +2302,118 @@
   "managerIncognitoNudgeFix": {
     "message": "Show me how",
     "description": "Opens the guided incognito prompt."
+  },
+  "syncDriveHeading": {
+    "message": "Google Drive",
+    "description": "Sub-heading of the Drive part of the sync settings."
+  },
+  "syncDriveExplain": {
+    "message": "Drive holds far more than Chrome sync — thousands of bookmarks instead of hundreds — and it is what page previews will be stored in. It needs a Google account and one permission screen.",
+    "description": "What connecting Drive gives you."
+  },
+  "syncDriveScope": {
+    "message": "VaultaMark can only see the files it creates in your Drive. It cannot read anything else there, and what it does store is encrypted with your master password before it leaves this computer — Google cannot read it either.",
+    "description": "The drive.file scope, in plain words."
+  },
+  "syncDriveConnect": {
+    "message": "Connect Google Drive",
+    "description": "Button that authorizes Drive and moves the vault there."
+  },
+  "syncDriveDisconnect": {
+    "message": "Switch back to Chrome sync",
+    "description": "Button that moves the vault back into chrome.storage.sync."
+  },
+  "syncDriveAccount": {
+    "message": "Connected as $EMAIL$",
+    "description": "Which Google account Drive sync is using.",
+    "placeholders": {
+      "email": {
+        "content": "$1"
+      }
+    }
+  },
+  "syncDriveOpenFile": {
+    "message": "Open the vault file in Drive",
+    "description": "Opens the file Drive holds, in a new tab."
+  },
+  "syncDriveDeleteRemote": {
+    "message": "Also delete the copy in my Drive",
+    "description": "Checkbox beside the disconnect button."
+  },
+  "syncDriveDeleteRemoteHint": {
+    "message": "Off by default: it is a file in your own Drive, and leaving it there costs nothing and keeps a copy you can import from later.",
+    "description": "Hint under the delete-the-Drive-copy checkbox."
+  },
+  "syncDriveUnavailable": {
+    "message": "This build of VaultaMark has no Google project configured, so Drive sync is not available in it. Chrome sync is unaffected.",
+    "description": "Shown when the package was built without an OAuth client id."
+  },
+  "syncDriveConnected": {
+    "message": "Drive is connected, and your vault has moved there.",
+    "description": "Announced after a successful migration to Drive."
+  },
+  "syncDriveDisconnected": {
+    "message": "Your vault is back in Chrome sync.",
+    "description": "Announced after a successful migration back to Chrome sync."
+  },
+  "syncDriveChromeCopyGone": {
+    "message": "The copy in Chrome sync has been removed, so your other computers will ask you to connect Drive as well.",
+    "description": "Explains the consequence of clearing the chrome.storage.sync copy."
+  },
+  "syncMigrateAuthorizing": {
+    "message": "Asking Google for permission…",
+    "description": "Migration progress."
+  },
+  "syncMigrateUploading": {
+    "message": "Copying your vault across…",
+    "description": "Migration progress."
+  },
+  "syncMigrateVerifying": {
+    "message": "Checking the copy reads back correctly…",
+    "description": "Migration progress."
+  },
+  "syncMigrateSwitching": {
+    "message": "Switching over…",
+    "description": "Migration progress."
+  },
+  "syncMigrateCleaning": {
+    "message": "Tidying up the old copy…",
+    "description": "Migration progress."
+  },
+  "syncMigrateFailedAuth": {
+    "message": "Google did not grant access, so nothing was changed.",
+    "description": "Migration failed: authorization."
+  },
+  "syncMigrateFailedOffline": {
+    "message": "There is no connection, so nothing was changed.",
+    "description": "Migration failed: offline."
+  },
+  "syncMigrateFailedLocked": {
+    "message": "Unlock the vault first.",
+    "description": "Migration failed: the vault is locked."
+  },
+  "syncMigrateFailedVerify": {
+    "message": "The copy did not read back as what was sent, so nothing was changed. Your vault is exactly where it was.",
+    "description": "Migration failed: verification."
+  },
+  "syncMigrateFailedMismatch": {
+    "message": "There is already a different vault in that Drive folder — one with another master password. The two cannot be merged, so nothing was changed.",
+    "description": "Migration failed: the target holds another vault."
+  },
+  "syncMigrateFailedTooLarge": {
+    "message": "This vault no longer fits in Chrome sync: it holds $ITEMS$ bookmarks and about $FITS$ would fit. Export a backup and remove some, or stay on Drive.",
+    "description": "Migration failed: the vault is too large for chrome.storage.sync.",
+    "placeholders": {
+      "items": {
+        "content": "$1"
+      },
+      "fits": {
+        "content": "$2"
+      }
+    }
+  },
+  "syncMigrateFailedUnknown": {
+    "message": "That did not work, so nothing was changed.",
+    "description": "Migration failed: anything else."
   }
 }

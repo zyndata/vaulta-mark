@@ -280,6 +280,37 @@ export interface ResolveConflictsRequest {
 
 export type ConflictResolution = 'mine' | 'theirs' | 'both';
 
+/* --- Drive sync (Phase 10) ------------------------------------------------- */
+
+/** Is Drive connected, and as whom? Answered while locked — the settings screen shows it either way. */
+export interface GetDriveStateRequest {
+  readonly type: 'GET_DRIVE_STATE';
+}
+
+/**
+ * Connect Google Drive and move the vault there (§6.6).
+ *
+ * One message rather than "authorize" plus "migrate", because they are one decision: nobody
+ * authorizes Drive in order to leave the vault in Chrome sync. The optional `identity` permission
+ * has to be granted *before* this is sent — `chrome.permissions.request` only works from a page
+ * during a user gesture, and a service worker cannot ask.
+ */
+export interface ConnectDriveRequest {
+  readonly type: 'CONNECT_DRIVE';
+}
+
+/**
+ * Stop using Drive and move the vault back into Chrome sync.
+ *
+ * Refused, with a count, when the vault no longer fits — which is the whole reason Drive exists,
+ * and a refusal is the only honest answer to "move 2,400 bookmarks into 100 KB".
+ */
+export interface DisconnectDriveRequest {
+  readonly type: 'DISCONNECT_DRIVE';
+  /** Also delete the folder in Drive. Default false: those files are the user's, not ours. */
+  readonly deleteRemote?: boolean;
+}
+
 /* --- import and export (Phase 8) ------------------------------------------- */
 
 /**
@@ -416,6 +447,9 @@ export type Request =
   | NativeTreeRequest
   | ImportNativeRequest
   | DeleteNativeRequest
+  | GetDriveStateRequest
+  | ConnectDriveRequest
+  | DisconnectDriveRequest
   | GetOnboardingRequest
   | SetOnboardingRequest
   | PreviewHistoryCleanupRequest
@@ -776,6 +810,38 @@ export interface NativeDeleteResponse {
   readonly failed: number;
 }
 
+/* --- Drive sync (Phase 10) ------------------------------------------------- */
+
+/**
+ * What the settings screen needs to draw the Drive section.
+ *
+ * `configured` is about the *build*, not the user: a source build with no `VM_OAUTH_CLIENT_ID` has
+ * no Google project behind it and cannot offer Drive at all. Saying so is better than a button that
+ * fails with something cryptic.
+ */
+export interface DriveStateResponse {
+  readonly type: 'DRIVE_STATE';
+  readonly configured: boolean;
+  /** Whether the optional `identity` permission and the googleapis origin have been granted. */
+  readonly granted: boolean;
+  /** Whether this profile is actually syncing through Drive right now. */
+  readonly connected: boolean;
+  readonly email: string | null;
+  /** Drive's own "open this file" address, learned from the API. Never built by us. */
+  readonly fileLink: string | null;
+}
+
+/** The outcome of a provider migration (§6.6). `ok: false` means nothing was flipped. */
+export interface MigrationResponse {
+  readonly type: 'MIGRATION';
+  readonly ok: boolean;
+  readonly providerId: 'chrome' | 'drive';
+  readonly reason?: 'locked' | 'auth' | 'offline' | 'too-large' | 'mismatch' | 'verify' | 'unknown';
+  /** Roughly how many bookmarks Chrome sync would hold, when the answer is `too-large`. */
+  readonly fits?: number;
+  readonly items?: number;
+}
+
 /* --- onboarding and history hygiene (Phase 9) ------------------------------ */
 
 export interface OnboardingResponse {
@@ -899,6 +965,9 @@ export interface ResponseMap {
   readonly NATIVE_TREE: NativeTreeResponse;
   readonly IMPORT_NATIVE: NativeImportResponse;
   readonly DELETE_NATIVE: NativeDeleteResponse;
+  readonly GET_DRIVE_STATE: DriveStateResponse;
+  readonly CONNECT_DRIVE: MigrationResponse;
+  readonly DISCONNECT_DRIVE: MigrationResponse;
   readonly GET_ONBOARDING: OnboardingResponse;
   readonly SET_ONBOARDING: OnboardingResponse;
   readonly PREVIEW_HISTORY_CLEANUP: HistoryPreviewResponse;
@@ -1066,10 +1135,17 @@ export function parseRequest(raw: unknown): Request | null {
     case 'GET_ROLLBACK':
     case 'ROLLBACK_IMPORT':
     case 'NATIVE_TREE':
+    case 'GET_DRIVE_STATE':
+    case 'CONNECT_DRIVE':
     case 'GET_ONBOARDING':
     case 'PREVIEW_HISTORY_CLEANUP':
     case 'CLEAR_VAULTED_HISTORY':
       return { type };
+    case 'DISCONNECT_DRIVE': {
+      const deleteRemote = raw['deleteRemote'];
+      if (deleteRemote === undefined) return { type };
+      return typeof deleteRemote === 'boolean' ? { type, deleteRemote } : null;
+    }
     case 'SET_ONBOARDING': {
       const patch = parseOnboardingPatch(raw['patch']);
       return patch === null ? null : { type, patch };
@@ -1377,6 +1453,8 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'NATIVE_DELETE',
   'ONBOARDING',
   'HISTORY_PREVIEW',
+  'DRIVE_STATE',
+  'MIGRATION',
   'ERROR',
 ]);
 

@@ -768,6 +768,9 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       onBack: () => {
         showScreen('list');
       },
+      reopen: () => {
+        void openSettings();
+      },
       onDestroyed: () => {
         render(root, h('p', { class: 'vm-placeholder' }, msg('managerNoVault')));
       },

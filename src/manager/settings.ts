@@ -21,11 +21,17 @@
 
 import { estimateStrength, MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
 import { hasHistoryPermission, requestHistoryPermission } from '../history/cleanup.js';
-import { send, type SyncStatusResponse } from '../shared/messages.js';
+import { requestDrivePermissions } from '../sync/drive/auth.js';
+import {
+  send,
+  type DriveStateResponse,
+  type MigrationResponse,
+  type SyncStatusResponse,
+} from '../shared/messages.js';
 import { dialogField } from '../ui/dialog.js';
 import { h, matchesPhrase, msg, render } from '../ui/dom.js';
 import { historyCleanupPanel } from '../ui/history-cleanup.js';
-import { errorText } from '../ui/strings.js';
+import { errorText, syncErrorText } from '../ui/strings.js';
 import { offerTrackingCleanup } from '../ui/tracking.js';
 import { historyDeps } from './history.js';
 import {
@@ -41,6 +47,13 @@ export interface SettingsDeps {
   /** The page's live region. Used for outcomes that outlive this screen, like a bulk clean-up. */
   readonly say: (text: string) => void;
   readonly onBack: () => void;
+  /**
+   * Build this screen again from scratch.
+   *
+   * Used after a provider migration, which changes what half of it says — the provider name, the
+   * quota bar, the whole Drive section — and is much better rebuilt than patched in six places.
+   */
+  readonly reopen: () => void;
   /** Called after the vault has been erased, so the shell can repaint as "no vault". */
   readonly onDestroyed: () => void;
 }
@@ -54,6 +67,7 @@ export interface SettingsDeps {
  */
 export async function settingsScreen(deps: SettingsDeps): Promise<HTMLElement> {
   const status = await send({ type: 'GET_SYNC_STATUS' });
+  const drive = await send({ type: 'GET_DRIVE_STATE' });
   const historyGranted = await hasHistoryPermission();
 
   return h(
@@ -86,7 +100,9 @@ export async function settingsScreen(deps: SettingsDeps): Promise<HTMLElement> {
       h(
         'div',
         { class: 'vm-settings-col' },
-        ...(status.type === 'ERROR' ? [] : [section('syncSectionHeading', sync(status))]),
+        ...(status.type === 'ERROR'
+          ? []
+          : [section('syncSectionHeading', sync(status, drive.type === 'ERROR' ? null : drive, deps))]),
         section('settingsSectionPassword', [changePassword()]),
         section('settingsSectionAbout', about()),
         section('settingsSectionDanger', [destroyVault(deps)], 'vm-settings-section--danger'),
@@ -185,27 +201,207 @@ function about(): HTMLElement[] {
 }
 
 /**
- * What sync is doing, and how much room is left.
+ * What sync is doing, how much room is left, and which backend it is on.
  *
- * Read-only in Phase 7 on purpose: there is exactly one provider, so a picker would be a control
- * with one option. Phase 10 adds Drive and the choice that goes with it.
+ * The provider is not a picker with two radio buttons, because switching is not setting a
+ * preference — it is copying a vault across, verifying it and turning the old copy off (§6.6). It
+ * is one button that does the whole thing and says where it got to.
  */
-function sync(status: SyncStatusResponse): HTMLElement[] {
+function sync(
+  status: SyncStatusResponse,
+  drive: DriveStateResponse | null,
+  deps: SettingsDeps,
+): HTMLElement[] {
+  const line = h(
+    'p',
+    { class: 'vm-small vm-muted' },
+    status.lastSyncedAt === null
+      ? msg('syncNever')
+      : msg('syncLastSynced', [relativeTime(status.lastSyncedAt)]),
+  );
+  const now = h(
+    'button',
+    {
+      type: 'button',
+      class: 'vm-button vm-button--quiet',
+      onclick: () => {
+        void (async () => {
+          const next = await send({ type: 'SYNC_NOW' });
+          if (next.type === 'ERROR') deps.say(errorText(next.code));
+          else if (next.error !== null) deps.say(syncErrorText(next.error));
+          else if (next.lastSyncedAt !== null) {
+            line.textContent = msg('syncLastSynced', [relativeTime(next.lastSyncedAt)]);
+          }
+        })();
+      },
+    },
+    msg('syncNowButton'),
+  );
+
   return [
     h(
       'p',
       { class: 'vm-small vm-muted' },
       msg(status.providerId === 'drive' ? 'syncProviderDrive' : 'syncProviderChrome'),
     ),
-    h(
-      'p',
-      { class: 'vm-small vm-muted' },
-      status.lastSyncedAt === null
-        ? msg('syncNever')
-        : msg('syncLastSynced', [relativeTime(status.lastSyncedAt)]),
-    ),
-    syncQuotaBar(status),
+    line,
+    // The last error, in its own line rather than only on the toolbar button: this is the screen
+    // someone opens *because* something is not syncing.
+    ...(status.error === null
+      ? []
+      : [h('p', { class: 'vm-notice' }, syncErrorText(status.error))]),
+    // Drive reports no ceiling for a Workspace account with pooled storage, and a bar with no
+    // maximum is a bar that means nothing.
+    ...(status.quotaBytes === 0 ? [] : [syncQuotaBar(status)]),
+    now,
+    ...(drive === null ? [] : driveSection(drive, deps)),
   ];
+}
+
+/**
+ * Connecting and disconnecting Drive.
+ *
+ * The scope sentence is not decoration. `drive.file` is the entire reason this feature could be
+ * built without an annual security audit (§13.1), and "it can only see what it made" is the thing a
+ * person weighing up whether to grant it needs to know — so it is on screen next to the button, not
+ * in a privacy policy.
+ */
+function driveSection(drive: DriveStateResponse, deps: SettingsDeps): HTMLElement[] {
+  const status = h('p', { class: 'vm-small', role: 'status' });
+  const deleteRemote = h('input', { type: 'checkbox', id: 'vm-drive-delete' });
+
+  const say = (text: string, danger = false): void => {
+    status.classList.toggle('vm-danger', danger);
+    status.textContent = text;
+  };
+
+  const run = async (button: HTMLButtonElement, request: 'connect' | 'disconnect'): Promise<void> => {
+    button.disabled = true;
+    say(msg('syncMigrateAuthorizing'));
+    const response =
+      request === 'connect'
+        ? await send({ type: 'CONNECT_DRIVE' })
+        : await send({ type: 'DISCONNECT_DRIVE', deleteRemote: deleteRemote.checked });
+    button.disabled = false;
+
+    if (response.type === 'ERROR') {
+      say(errorText(response.code), true);
+      return;
+    }
+    if (!response.ok) {
+      say(migrationFailureText(response), true);
+      return;
+    }
+    deps.say(msg(request === 'connect' ? 'syncDriveConnected' : 'syncDriveDisconnected'));
+    deps.reopen();
+  };
+
+  if (!drive.configured) {
+    return [
+      h('h4', null, msg('syncDriveHeading')),
+      h('p', { class: 'vm-notice' }, msg('syncDriveUnavailable')),
+    ];
+  }
+
+  if (drive.connected) {
+    const disconnect = h(
+      'button',
+      { type: 'button', class: 'vm-button vm-button--quiet' },
+      msg('syncDriveDisconnect'),
+    );
+    disconnect.addEventListener('click', () => {
+      void run(disconnect, 'disconnect');
+    });
+
+    return [
+      h('h4', null, msg('syncDriveHeading')),
+      ...(drive.email === null
+        ? []
+        : [h('p', { class: 'vm-small vm-muted' }, msg('syncDriveAccount', [drive.email]))]),
+      h('p', { class: 'vm-small vm-muted' }, msg('syncDriveScope')),
+      ...(drive.fileLink === null ? [] : [openInDrive(drive.fileLink)]),
+      h(
+        'div',
+        null,
+        h(
+          'div',
+          { class: 'vm-checkbox' },
+          deleteRemote,
+          h('label', { for: 'vm-drive-delete' }, msg('syncDriveDeleteRemote')),
+        ),
+        h('p', { class: 'vm-hint vm-small vm-muted' }, msg('syncDriveDeleteRemoteHint')),
+      ),
+      disconnect,
+      status,
+    ];
+  }
+
+  const connect = h('button', { type: 'button', class: 'vm-button' }, msg('syncDriveConnect'));
+  connect.addEventListener('click', () => {
+    void (async () => {
+      // The permission has to be asked for **here**: `chrome.permissions.request` works only from a
+      // page during a user gesture, and a service worker cannot ask at all. The worker refuses the
+      // migration rather than failing obscurely if this was skipped.
+      if (!(await requestDrivePermissions())) {
+        say(msg('syncMigrateFailedAuth'), true);
+        return;
+      }
+      await run(connect, 'connect');
+    })();
+  });
+
+  return [
+    h('h4', null, msg('syncDriveHeading')),
+    h('p', { class: 'vm-small vm-muted' }, msg('syncDriveExplain')),
+    h('p', { class: 'vm-small vm-muted' }, msg('syncDriveScope')),
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('syncDriveChromeCopyGone')),
+    connect,
+    status,
+  ];
+}
+
+/**
+ * The Drive file, opened in a tab.
+ *
+ * The address comes from Drive's own `webViewLink` rather than being built here: INV-3 forbids
+ * absolute URLs in the package, and the honest reason is the same one — we do not know where Drive
+ * keeps a file, and guessing at a URL shape is how a link rots.
+ */
+function openInDrive(link: string): HTMLElement {
+  return h(
+    'button',
+    {
+      type: 'button',
+      class: 'vm-button vm-button--quiet',
+      onclick: () => {
+        void chrome.tabs.create({ url: link });
+      },
+    },
+    msg('syncDriveOpenFile'),
+  );
+}
+
+/** Spelled out rather than derived, so a new failure reason breaks the build instead of the UI. */
+const MIGRATION_FAILURE_KEYS: Record<
+  NonNullable<MigrationResponse['reason']>,
+  string
+> = {
+  locked: 'syncMigrateFailedLocked',
+  auth: 'syncMigrateFailedAuth',
+  offline: 'syncMigrateFailedOffline',
+  'too-large': 'syncMigrateFailedTooLarge',
+  mismatch: 'syncMigrateFailedMismatch',
+  verify: 'syncMigrateFailedVerify',
+  unknown: 'syncMigrateFailedUnknown',
+};
+
+function migrationFailureText(response: MigrationResponse): string {
+  const reason = response.reason ?? 'unknown';
+  if (reason !== 'too-large') return msg(MIGRATION_FAILURE_KEYS[reason]);
+  return msg(MIGRATION_FAILURE_KEYS[reason], [
+    String(response.items ?? 0),
+    String(response.fits ?? 0),
+  ]);
 }
 
 function section(headingKey: string, children: HTMLElement[], extraClass?: string): HTMLElement {
