@@ -271,11 +271,19 @@ test('has no critical or serious accessibility violations', async () => {
   await expect(page.getByRole('textbox', { name: 'Title' })).toBeVisible();
   await expectNoA11yViolations(page, 'the manager, with a bookmark selected');
 
-  // A modal is the third document, and the one where focus management goes wrong.
+  // Settings replaces the whole layout, so it is a document of its own — a form of nothing but
+  // controls, which is where labelling goes wrong.
   await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByRole('button', { name: 'Back to bookmarks' })).toBeVisible();
+  await expectNoA11yViolations(page, 'the settings screen');
+  await page.getByRole('button', { name: 'Back to bookmarks' }).click();
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+
+  // A modal is the fourth document, and the one where focus management goes wrong.
+  await page.getByRole('button', { name: 'New folder' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await expectNoA11yViolations(page, 'the settings dialog');
-  await page.getByRole('button', { name: 'Close' }).click();
+  await expectNoA11yViolations(page, 'a modal dialog');
+  await page.getByRole('button', { name: 'Cancel' }).click();
 
   await page.close();
 });

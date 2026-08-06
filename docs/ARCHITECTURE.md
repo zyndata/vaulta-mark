@@ -1460,9 +1460,15 @@ is about the browser, not about the vault.
 ### 12.4 The URL-prediction reminder
 
 Chrome's "Autocomplete searches and URLs" setting sends what you type to your default search engine
-and can suggest URLs from signals we do not control. Onboarding step 5 and the Settings → Privacy
-section explain this and provide a copy-able `chrome://settings/?search=autocomplete` link with
-instructions. We cannot change the setting for the user, and we say so.
+and can suggest URLs from signals we do not control. Onboarding step 5 explains this and provides a
+copy-able `chrome://settings/?search=autocomplete` link with instructions. We cannot change the
+setting for the user, and we say so.
+
+It is **not** repeated in Settings → Privacy. It is a one-time instruction to change something in
+Chrome, not a control this extension owns: once it has been read and acted on, a permanent copy of it
+in the settings screen is a section that can never be finished, sitting among toggles that can. The
+screen it belongs on is the one that is read once, and *Settings → About → Show the setup guide
+again* is the way back to it.
 
 The address is text in a `<code>` with a Copy button (`src/ui/address.ts`), never an `<a href>`:
 Chrome refuses to follow a `chrome://` link from an extension page, and a dead link is a worse

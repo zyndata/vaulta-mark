@@ -132,7 +132,7 @@ body.vm-manager {
 }
 
 /*
- * The two full-window screens scroll themselves.
+ * The three full-window screens scroll themselves.
  *
  * The body is `height: 100vh; overflow: hidden`, so a screen taller than the window is not scrolled
  * by the page — it is *clipped* by it, silently. That is what hid the second half of a long conflict
@@ -141,7 +141,8 @@ body.vm-manager {
  * same arrangement the list column uses.
  */
 .vm-conflict-slot,
-.vm-io-slot {
+.vm-io-slot,
+.vm-settings-slot {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -151,7 +152,8 @@ body.vm-manager {
 
 /* `display: flex` above beats the UA's `[hidden]`, exactly as `.vm-layout` does. */
 .vm-conflict-slot[hidden],
-.vm-io-slot[hidden] {
+.vm-io-slot[hidden],
+.vm-settings-slot[hidden] {
   display: none;
 }
 
@@ -1014,6 +1016,108 @@ body.vm-manager {
   .vm-file::file-selector-button {
     transition: none;
   }
+}
+
+/* ------------------------------------------------------------------ settings */
+
+/*
+ * The settings screen, laid out like the import/export one — with one difference that is the whole
+ * reason it stopped being a dialog: it is wide enough for two columns.
+ *
+ * As a `<dialog>` this had 28rem of width and 60vh of height for eight sections, so most of it was
+ * read through a scrolling box inside a page that was not itself scrolling. `auto-fit` rather than a
+ * fixed two-up: below ~56rem of window the columns collapse to one and nothing is squeezed.
+ */
+.vm-settings-page {
+  width: 100%;
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  box-sizing: border-box;
+}
+
+.vm-settings-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.vm-settings-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+/*
+ * The sections are placed by hand into two column wrappers rather than flowed by the grid. Auto
+ * placement would make every row as tall as its tallest section — and the sections here differ by a
+ * factor of five — and it would let the destroy box float up beside whatever happened to be short.
+ */
+.vm-settings-col {
+  display: grid;
+  gap: 1.25rem;
+  align-content: start;
+  min-width: 0;
+}
+
+/*
+ * A card, not a rule-separated band. `.vm-settings-section` in `ui/styles.css` is a top border, which
+ * is right for one narrow column in the popup and wrong for two side by side: two stacks of
+ * horizontal rules read as one table with nothing in the cells.
+ */
+.vm-settings-page .vm-settings-section {
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+  padding: 1rem 1.25rem 1.25rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-surface);
+}
+
+.vm-settings-page .vm-settings-section h3 {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+/*
+ * The gap replaces the margins, which were grouping the wrong things.
+ *
+ * A toggle is a label and the sentence under it, and `.vm-checkbox`'s bottom margin put more space
+ * between those two than between one toggle and the next — so the hint for "Reuse the incognito
+ * window" read as the introduction to "Remove tracking parameters". The section's gap now separates
+ * the controls, and each control holds its own explanation close.
+ */
+.vm-settings-page .vm-settings-section > p {
+  margin: 0;
+}
+
+.vm-settings-page .vm-settings-section > .vm-field,
+.vm-settings-page .vm-checkbox {
+  margin-bottom: 0;
+}
+
+.vm-settings-page .vm-settings-note {
+  margin-top: 0;
+}
+
+/*
+ * The card is the red box now — nesting a second bordered one inside it is a box in a box.
+ *
+ * Scoped through `.vm-settings-page` because the rule it is correcting is: a `border` *shorthand* in
+ * a two-class selector beats a `border-color` in a one-class selector, and the card would have stayed
+ * grey however clearly this said red.
+ */
+.vm-settings-page .vm-settings-section--danger {
+  border-color: var(--vm-danger);
+}
+
+.vm-settings-page .vm-danger-zone {
+  padding: 0;
+  border: 0;
 }
 
 /* ------------------------------------------------------------------ onboarding (Phase 9) */

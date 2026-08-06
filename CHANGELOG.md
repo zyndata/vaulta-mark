@@ -47,12 +47,9 @@ below.
   - Two optional extras, both off by default and both plainly labelled as deleting real browsing
     history: **clear vaulted sites on every lock**, and **quick-close** (Ctrl+Shift+X) — close the
     current tab and delete that site's history in one keystroke.
-- **Settings gained a Privacy section and an About section.** Privacy holds the history tools and an
-  explanation of Chrome's own *"Autocomplete searches and URLs"* setting, which can suggest addresses
-  from signals no extension can see — with the address of the Chrome page that turns it off, and a
-  plain statement that we are not allowed to change it for you. About holds the version, the licence,
-  what the extension does and does not do with your data, and the button that replays the setup
-  guide.
+- **Settings gained a Privacy section and an About section.** Privacy holds the history tools. About
+  holds the version, the licence, what the extension does and does not do with your data, and the
+  button that replays the setup guide.
 - **You can get your bookmarks out, and back in again.** *Import & export* in the manager saves an
   encrypted `.vmv` file holding every bookmark, folder, tag and note — locked with your vault
   password or with one of its own, whichever you choose. It is a file you can keep anywhere: on a
@@ -298,6 +295,14 @@ below.
 
 ### Changed
 
+- **The manager's settings are a full screen instead of a small dialog.** They had grown to eight
+  sections read through a box a third of the window wide, which meant scrolling twice — once inside
+  the dialog and once past it. They now take the whole window, like *Import & export*, and lay out in
+  two columns when the window is wide enough, so most of the settings are visible at once.
+- **The reminder about Chrome's own address suggestions is in the setup guide only.** It was in
+  Settings → Privacy as well, and it is a one-time instruction to change something in Chrome rather
+  than anything VaultaMark controls — a permanent copy of it sat among the toggles as a section that
+  could never be finished. *Settings → About → Replay the setup guide* is the way back to it.
 - **The vault-creation screen is one screen now, not two.** The popup and the setup guide were about
   to have their own versions of the same question, and a no-recovery warning that is a typed sentence
   in one window and something weaker in the other is two products. Both use the same form.

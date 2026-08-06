@@ -1,8 +1,15 @@
 /**
- * The settings dialog: the local-only preferences, the master password, and destroying the vault.
+ * The settings screen: the local-only preferences, the master password, and destroying the vault.
  *
- * Everything the popup's fold-away settings offer is here too, plus the two operations that need
- * more room than a 384-pixel popup has.
+ * A screen rather than a dialog, for the same reason the conflict and import/export views are ones:
+ * this is eight sections, several of them a paragraph before their control makes sense, and a
+ * `<dialog>` gave them 28rem of width and 60vh of height to live in — so reading the second half of
+ * it meant scrolling a box inside a page. Full window, one back button, and the sections laid out in
+ * two columns when there is room for two.
+ *
+ * The popup has its own settings screen (`src/popup/settings.ts`) covering the subset that makes
+ * sense where someone already is. Everything it offers is here too, plus the operations that need
+ * more room than a popup has.
  *
  * **Destroying the vault is gated twice**, deliberately differently: a typed phrase, and then a
  * second press of the button. The typed phrase is there to make someone read (the same reasoning as
@@ -15,8 +22,7 @@
 import { estimateStrength, MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
 import { hasHistoryPermission, requestHistoryPermission } from '../history/cleanup.js';
 import { send, type SyncStatusResponse } from '../shared/messages.js';
-import { AUTOCOMPLETE_SETTINGS_URL, copyableAddress } from '../ui/address.js';
-import { dialogField, openDialog } from '../ui/dialog.js';
+import { dialogField } from '../ui/dialog.js';
 import { h, matchesPhrase, msg, render } from '../ui/dom.js';
 import { historyCleanupPanel } from '../ui/history-cleanup.js';
 import { errorText } from '../ui/strings.js';
@@ -32,45 +38,72 @@ import { relativeTime, syncQuotaBar } from './sync.js';
 export interface SettingsDeps {
   readonly settings: VaultSettings;
   readonly patch: (patch: Partial<VaultSettings>) => Promise<void>;
-  /** The page's live region. Used for outcomes that outlive this dialog, like a bulk clean-up. */
+  /** The page's live region. Used for outcomes that outlive this screen, like a bulk clean-up. */
   readonly say: (text: string) => void;
+  readonly onBack: () => void;
   /** Called after the vault has been erased, so the shell can repaint as "no vault". */
   readonly onDestroyed: () => void;
 }
 
-export async function openSettings(deps: SettingsDeps): Promise<void> {
-  // Fetched before the dialog is built rather than filled in afterwards: a quota bar that appears a
-  // moment after the dialog does is a quota bar that moves the destroy button under the cursor. The
-  // permission check is here for the same reason — the privacy section renders a different panel
-  // depending on the answer, and it must not swap under the pointer.
+/**
+ * Build the screen.
+ *
+ * Async because two answers have to be in hand before the first paint: a quota bar that appears a
+ * moment after the page does is a quota bar that moves the destroy button under the cursor, and the
+ * privacy section renders a different panel depending on whether `history` has been granted.
+ */
+export async function settingsScreen(deps: SettingsDeps): Promise<HTMLElement> {
   const status = await send({ type: 'GET_SYNC_STATUS' });
   const historyGranted = await hasHistoryPermission();
 
-  await openDialog<never>({
-    heading: msg('settingsHeading'),
-    body: [
-      appearance(deps),
-      section('settingsSectionLock', locking(deps)),
-      section('settingsSectionBrowsing', browsing(deps)),
-      section('settingsSectionPrivacy', privacy(deps, historyGranted)),
-      ...(status.type === 'ERROR' ? [] : [section('syncSectionHeading', sync(status))]),
-      section('settingsSectionPassword', [changePassword()]),
-      section('settingsSectionAbout', about()),
-      section('settingsSectionDanger', [destroyVault(deps)]),
-    ],
-  });
+  return h(
+    'section',
+    { class: 'vm-settings-page', 'aria-label': msg('settingsHeading') },
+    h(
+      'div',
+      { class: 'vm-settings-head' },
+      h('h2', null, msg('settingsHeading')),
+      h(
+        'button',
+        { type: 'button', class: 'vm-button vm-button--inline', onclick: deps.onBack },
+        msg('settingsBackToBookmarks'),
+      ),
+    ),
+    // Two explicit columns rather than auto-placement: the sections are wildly different heights, so
+    // a grid that flows them would leave a row as tall as its tallest member, and the one section
+    // that must not drift up beside something innocuous is the last one in the second column.
+    h(
+      'div',
+      { class: 'vm-settings-columns' },
+      h(
+        'div',
+        { class: 'vm-settings-col' },
+        section('settingsSectionAppearance', [appearance(deps)]),
+        section('settingsSectionLock', locking(deps)),
+        section('settingsSectionBrowsing', browsing(deps)),
+        section('settingsSectionPrivacy', privacy(deps, historyGranted)),
+      ),
+      h(
+        'div',
+        { class: 'vm-settings-col' },
+        ...(status.type === 'ERROR' ? [] : [section('syncSectionHeading', sync(status))]),
+        section('settingsSectionPassword', [changePassword()]),
+        section('settingsSectionAbout', about()),
+        section('settingsSectionDanger', [destroyVault(deps)], 'vm-settings-section--danger'),
+      ),
+    ),
+  );
 }
 
 /* ------------------------------------------------------------------ privacy */
 
 /**
- * The history tools, and the one setting we cannot change for the user.
+ * The history tools.
  *
- * Everything here is off until someone reads it. Two of the three controls delete real browsing
- * history — not merely "VaultaMark-related entries" — and the third is a reminder that Chrome's own
- * URL prediction can suggest addresses from signals no extension can reach (ARCHITECTURE §12.4).
- * Saying that plainly is the whole feature: a privacy tool that let someone believe it had closed a
- * hole it cannot reach would be worse than not having the section at all.
+ * Everything here is off until someone reads it: both controls delete real browsing history, not
+ * merely "VaultaMark-related entries". Chrome's own URL prediction is explained during onboarding
+ * (ARCHITECTURE §12.4) rather than repeated here — it is a one-time instruction to change a Chrome
+ * setting, not something this screen can do or undo.
  */
 function privacy(deps: SettingsDeps, historyGranted: boolean): HTMLElement[] {
   return [
@@ -104,25 +137,6 @@ function privacy(deps: SettingsDeps, historyGranted: boolean): HTMLElement[] {
         }
         await deps.patch({ quickClose: checked });
       },
-    ),
-    h(
-      'div',
-      { class: 'vm-settings-note' },
-      h('h4', null, msg('settingsPredictionHeading')),
-      h('p', { class: 'vm-small vm-muted' }, msg('settingsPredictionBody')),
-      h(
-        'ol',
-        { class: 'vm-steps vm-small' },
-        h(
-          'li',
-          null,
-          msg('onboardingPredictionStep1'),
-          ' ',
-          copyableAddress({ address: AUTOCOMPLETE_SETTINGS_URL }),
-        ),
-        h('li', null, msg('onboardingPredictionStep2')),
-      ),
-      h('p', { class: 'vm-small vm-muted' }, msg('onboardingPredictionCaveat')),
     ),
   ];
 }
@@ -194,10 +208,10 @@ function sync(status: SyncStatusResponse): HTMLElement[] {
   ];
 }
 
-function section(headingKey: string, children: HTMLElement[]): HTMLElement {
+function section(headingKey: string, children: HTMLElement[], extraClass?: string): HTMLElement {
   return h(
     'section',
-    { class: 'vm-settings-section' },
+    { class: `vm-settings-section${extraClass === undefined ? '' : ` ${extraClass}`}` },
     h('h3', null, msg(headingKey)),
     ...children,
   );
@@ -296,9 +310,9 @@ function browsing(deps: SettingsDeps): HTMLElement[] {
 /**
  * Wire `ui/tracking.ts` to its two messages.
  *
- * The result is announced through the page's live region rather than inside this dialog, because
- * the clean-up outlives the dialog: it rewrites addresses across the whole vault, the list behind
- * is what shows it, and a confirmation that disappears with the dialog is one nobody reads.
+ * The result is announced through the page's live region rather than inside this screen, because
+ * the clean-up outlives it: it rewrites addresses across the whole vault, the list behind is what
+ * shows it, and a confirmation that disappears with the screen is one nobody reads.
  */
 async function offerCleanup(deps: SettingsDeps): Promise<void> {
   await offerTrackingCleanup({

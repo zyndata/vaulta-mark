@@ -11,7 +11,7 @@
  * list keeps its full height, the settings get the full width, and — the part that decided it —
  * there is now somewhere for the version number to live that is not stealing a line from the list.
  *
- * Everything here also exists in the manager's settings dialog. That is deliberate: the popup is
+ * Everything here also exists in the manager's settings screen. That is deliberate: the popup is
  * where someone already is when they want to change how it behaves, and "open the manager to turn
  * off a toggle" is a trip nobody should have to make.
  */

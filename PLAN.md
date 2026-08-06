@@ -305,7 +305,7 @@ These are enforced by CI (`npm run verify:invariants`), not just by convention. 
 | Import from Chrome native bookmarks + offer to delete natives | **Core** | 8 |
 | Onboarding: incognito, no-recovery, sync-tier tradeoff | **Core** | 9 |
 | Clear browsing history for vaulted domains (one click) | **Core** | 9 |
-| Settings: URL-prediction reminder + deep link to `chrome://settings` | **Core** | 9 |
+| Onboarding: URL-prediction reminder + deep link to `chrome://settings` | **Core** | 9 |
 | `DriveSyncProvider` (opt-in), provider migration both ways | **Core** | 10 |
 | OG-image thumbnails: capture, encrypt, eye-icon + hover, manual refresh, graceful absence | **Core** | 11 |
 | Quick-close (close tab + wipe that domain's history) | Optional | 9 (behind a setting, off by default) |
@@ -1041,6 +1041,11 @@ closed.
     to keep exfiltration paths out of the build in order to make an About box clickable is the wrong
     trade. The substance travels instead of the link — the policy in four sentences, the security
     posture in three, and the repository named rather than addressed.
+  - **Amended again after Phase 9** (maintainer-reported): the URL-prediction reminder is on
+    onboarding step 5 only, and no longer duplicated in the privacy section. It is a one-time
+    instruction to change something in Chrome, not a control this extension owns — a permanent copy
+    of it among the toggles is a section that can never be finished. *Settings → About → Show the
+    setup guide again* is the way back to it. See ARCHITECTURE §12.4.
 - `docs/PRIVACY.md` finalized (what we store, where, what we never send, the Drive exception, no
   telemetry) — this is the URL that goes in the Store listing.
 

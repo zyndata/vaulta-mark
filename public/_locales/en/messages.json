@@ -1051,14 +1051,18 @@
   },
   "settingsHeading": {
     "message": "Settings",
-    "description": "Heading of the settings dialog, and the accessible name of the popup's settings cog."
+    "description": "Heading of the settings screen, and the accessible name of the popup's settings cog."
   },
   "settingsBack": {
     "message": "‹ Back",
     "description": "Returns the popup from the settings screen to the bookmark list."
   },
+  "settingsBackToBookmarks": {
+    "message": "Back to bookmarks",
+    "description": "Button that leaves the manager's settings screen."
+  },
   "settingsTheme": {
-    "message": "Appearance",
+    "message": "Theme",
     "description": "Label for the theme selector."
   },
   "themeSystem": {
@@ -1072,6 +1076,10 @@
   "themeDark": {
     "message": "Dark",
     "description": "Theme choice: always dark."
+  },
+  "settingsSectionAppearance": {
+    "message": "Appearance",
+    "description": "Heading of the appearance section in settings."
   },
   "settingsSectionLock": {
     "message": "Locking",
@@ -2244,14 +2252,6 @@
   "settingsQuickCloseHint": {
     "message": "Closes the current tab and deletes that site's history in one keystroke. This deletes the site's real browsing history, not only entries related to VaultaMark, and it does so whether or not the site is in your vault.",
     "description": "Settings toggle hint."
-  },
-  "settingsPredictionHeading": {
-    "message": "Chrome's address suggestions",
-    "description": "Heading of the URL-prediction reminder in Settings."
-  },
-  "settingsPredictionBody": {
-    "message": "Chrome can suggest addresses from its own signals, independently of your bookmarks and history. Turning that off is a Chrome setting only you can reach.",
-    "description": "Body of the URL-prediction reminder in Settings."
   },
   "settingsRestartLock": {
     "message": "The vault always locks when Chrome restarts.",

@@ -43,7 +43,7 @@ import {
 import { detailPane } from './detail.js';
 import { ioScreen, paintProgress } from './io.js';
 import { BookmarkList } from './list.js';
-import { openSettings } from './settings.js';
+import { settingsScreen } from './settings.js';
 import { sidebar } from './sidebar.js';
 import { conflictBanner, conflictScreen, syncStatusButton } from './sync.js';
 import {
@@ -117,6 +117,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   const bannerSlot = h('div', { class: 'vm-banner-slot' });
   const conflictSlot = h('div', { class: 'vm-conflict-slot', hidden: true });
   const ioSlot = h('div', { class: 'vm-io-slot', hidden: true });
+  const settingsSlot = h('div', { class: 'vm-settings-slot', hidden: true });
   const status = qs(document, '#vm-status');
 
   /** The last status the worker reported. `null` until the first answer arrives. */
@@ -164,17 +165,17 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   }
 
   /**
-   * Which of the three full-window screens is up.
+   * Which of the four full-window screens is up.
    *
-   * One variable rather than three `hidden` attributes read back off the DOM, because the three are
+   * One variable rather than four `hidden` attributes read back off the DOM, because the four are
    * mutually exclusive and nothing was enforcing it: each screen only ever put the *layout* away and
    * brought itself out, so opening import/export from the conflict screen left both on the page, one
    * scrolled under the other. Worse, resolving the last conflict calls `paintSync`, which used to
    * bring the layout back unconditionally — so settling a disagreement while looking at
    * import/export put the bookmark list on screen above it. `showScreen` is now the only thing that
-   * touches those attributes, and it always says what all three of them are.
+   * touches those attributes, and it always says what all four of them are.
    */
-  type Screen = 'list' | 'conflicts' | 'io';
+  type Screen = 'list' | 'conflicts' | 'io' | 'settings';
   let screen: Screen = 'list';
 
   function showScreen(next: Screen): void {
@@ -182,11 +183,13 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     layout.hidden = next !== 'list';
     conflictSlot.hidden = next !== 'conflicts';
     ioSlot.hidden = next !== 'io';
+    settingsSlot.hidden = next !== 'settings';
     // A screen that is not on the page holds nothing: its contents are a snapshot of the vault
     // taken when it opened, and one left parked in the DOM is stale data a screen reader in browse
-    // mode can still walk into.
+    // mode can still walk into. For settings that snapshot includes three password fields.
     if (next !== 'conflicts') render(conflictSlot);
     if (next !== 'io') render(ioSlot);
+    if (next !== 'settings') render(settingsSlot);
   }
 
   const list = new BookmarkList({
@@ -378,20 +381,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
           type: 'button',
           class: 'vm-button vm-button--quiet vm-button--inline',
           onclick: () => {
-            void openSettings({
-              settings,
-              say,
-              patch: async (patch) => {
-                const response = await send({ type: 'SET_SETTINGS', settings: patch });
-                if (response.type !== 'ERROR') {
-                  settings = response.settings;
-                  applyTheme(settings.theme, document.documentElement);
-                }
-              },
-              onDestroyed: () => {
-                render(root, h('p', { class: 'vm-placeholder' }, msg('managerNoVault')));
-              },
-            });
+            void openSettings();
           },
         },
         msg('managerSettingsButton'),
@@ -412,6 +402,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     layout,
     conflictSlot,
     ioSlot,
+    settingsSlot,
     toastSlot,
   );
 
@@ -749,6 +740,41 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       }),
     );
     ioSlot.scrollTop = 0;
+  }
+
+  /* ---------------------------------------------------------------- settings */
+
+  /**
+   * The settings screen, in place of the three-column layout.
+   *
+   * A screen rather than the dialog it used to be: eight sections do not fit in 28rem by 60vh, and
+   * reading the second half of them meant scrolling a box inside a page that was not scrolling.
+   *
+   * Built before it is shown, the way the conflict screen is: it asks the worker for the sync status
+   * first, and a quota bar that arrives a moment after the page does is one that moves the destroy
+   * button under the cursor.
+   */
+  async function openSettings(): Promise<void> {
+    const view = await settingsScreen({
+      settings,
+      say,
+      patch: async (patch) => {
+        const response = await send({ type: 'SET_SETTINGS', settings: patch });
+        if (response.type !== 'ERROR') {
+          settings = response.settings;
+          applyTheme(settings.theme, document.documentElement);
+        }
+      },
+      onBack: () => {
+        showScreen('list');
+      },
+      onDestroyed: () => {
+        render(root, h('p', { class: 'vm-placeholder' }, msg('managerNoVault')));
+      },
+    });
+    showScreen('settings');
+    render(settingsSlot, view);
+    settingsSlot.scrollTop = 0;
   }
 
   /* ---------------------------------------------------------------- loading */
