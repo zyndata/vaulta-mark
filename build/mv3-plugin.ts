@@ -35,6 +35,7 @@ export interface Mv3PluginOptions {
 export function mv3(options: Mv3PluginOptions): Plugin {
   let outDir = 'dist';
   let minify: boolean | 'esbuild' | 'terser' = 'esbuild';
+  let development = false;
 
   return {
     name: 'vaultamark:mv3',
@@ -46,13 +47,24 @@ export function mv3(options: Mv3PluginOptions): Plugin {
     configResolved(config) {
       outDir = resolve(config.root, config.build.outDir);
       minify = config.build.minify;
+      development = config.mode !== 'production';
     },
 
     generateBundle(_options, bundle) {
       this.emitFile({
         type: 'asset',
         fileName: 'manifest.json',
-        source: `${JSON.stringify(buildManifest(options.version), null, 2)}\n`,
+        source: `${JSON.stringify(
+          buildManifest(options.version, {
+            // Both from the environment (RELEASE §5), because neither belongs in the repository:
+            // the client id is public but is per-Google-project, and the key pins a *development*
+            // extension id and must never reach a Store build — hence the mode check.
+            clientId: process.env['VM_OAUTH_CLIENT_ID'],
+            ...(development ? { key: process.env['VM_MANIFEST_KEY'] } : {}),
+          }),
+          null,
+          2,
+        )}\n`,
       });
 
       // Vite names HTML outputs by their path relative to `root`; the manifest wants them at the

@@ -4,7 +4,13 @@ import { join } from 'node:path';
 
 import { loadAllowlist, scanDirectory, scanText } from '../../../scripts/verify-no-remote-code.mjs';
 
-const ALLOWED = ['https://www.googleapis.com/', 'https://accounts.google.com/'];
+// Spelled out rather than loaded from the file, so widening the allowlist is a two-file diff. The
+// third entry is the OAuth token endpoint the PKCE fallback posts to (ARCHITECTURE §13.2).
+const ALLOWED = [
+  'https://www.googleapis.com/',
+  'https://accounts.google.com/',
+  'https://oauth2.googleapis.com/',
+];
 
 const rulesFor = (source: string, file = 'bundle.js'): string[] =>
   scanText(file, source, ALLOWED).map((violation: { rule: string }) => violation.rule);

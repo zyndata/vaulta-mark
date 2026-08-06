@@ -38,8 +38,12 @@ const BOOKMARKS_BAN = {
     'It is read-only to us, and only in src/import/native-bookmarks.ts.',
 };
 
+// Kept in step with build/url-allowlist.json by hand, and deliberately so: the scanner checks the
+// built output and this checks the source, and an assertion that imports the value it is asserting
+// proves nothing. oauth2.googleapis.com is the OAuth token endpoint (ARCHITECTURE §13.2).
 const ABSOLUTE_URL_BAN = {
-  selector: 'Literal[value=/^https?:\\/\\/(?!www\\.googleapis\\.com|accounts\\.google\\.com)/]',
+  selector:
+    'Literal[value=/^https?:\\/\\/(?!www\\.googleapis\\.com|accounts\\.google\\.com|oauth2\\.googleapis\\.com)/]',
   message:
     'INV-3: absolute URLs in shipped code must be on the allowlist in build/url-allowlist.json.',
 };

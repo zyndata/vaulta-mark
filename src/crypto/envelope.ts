@@ -37,13 +37,28 @@ export const ENVELOPE_OVERHEAD_BYTES = 1 + IV_BYTES + TAG_BYTES;
  * introduced without a deliberate edit here — and therefore without a thought about whether it
  * needs its own HKDF subkey.
  */
-export type AadPurpose = 'bucket' | 'thumb' | 'base' | 'export' | 'conflicts' | 'rollback';
+export type AadPurpose =
+  | 'bucket'
+  | 'thumb'
+  | 'base'
+  | 'export'
+  | 'conflicts'
+  | 'rollback'
+  /**
+   * A Drive OAuth refresh token (Phase 10, ARCHITECTURE §13.2).
+   *
+   * It is not vault content, and it is sealed anyway: a refresh token in the clear in
+   * `storage.local` is a standing grant on the user's Drive that outlives the browser session,
+   * and sealing it under `k_items` makes an unlocked vault the precondition for using it.
+   */
+  | 'oauth';
 
 /**
  * The associated data bound to a sealed blob.
  *
  * `id` distinguishes slots within a purpose: the bucket index for `bucket`, the item id for
- * `thumb`, the empty string for the singletons (`base`, `export`, `conflicts`, `rollback`).
+ * `thumb`, the empty string for the singletons (`base`, `export`, `conflicts`, `rollback`,
+ * `oauth`).
  */
 export interface Aad {
   readonly v: number;

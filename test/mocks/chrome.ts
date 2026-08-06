@@ -302,6 +302,8 @@ export interface ChromeMock {
    * that skipped it would let that bug through.
    */
   readonly bookmarkRoots: MockBookmarkNode[];
+  /** What `chrome.identity` does. Present whether or not the permission has been granted. */
+  readonly identity: MockIdentity;
   /**
    * The profile's browsing history, as `chrome.history.search` answers it.
    *
@@ -340,6 +342,22 @@ export interface MockHistoryEntry {
   title?: string;
   visitCount?: number;
   lastVisitTime?: number;
+}
+
+/** The knobs on `chrome.identity`. See the getter that installs it for what each one models. */
+export interface MockIdentity {
+  /** What `getAuthToken` answers. `null` makes it reject — a profile not signed into Chrome. */
+  token: string | null;
+  /** Make the non-interactive call fail, as Chrome does before the first consent. */
+  needsInteraction: boolean;
+  /** Tokens passed to `removeCachedAuthToken`, in order. */
+  readonly removedTokens: string[];
+  /** Authorization URLs `launchWebAuthFlow` was given, in order. */
+  readonly authFlowUrls: string[];
+  /** Every `getAuthToken` call, so a test can assert the scope list it asked for. */
+  readonly calls: { interactive: boolean; scopes: string[] }[];
+  /** The redirect the flow lands on, or `null` for a window the user closed. */
+  webAuthFlow: (url: string) => string | null;
 }
 
 /** One node of the mocked bookmark tree. Mirrors `chrome.bookmarks.BookmarkTreeNode`. */
@@ -437,6 +455,16 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   const deletedHistory: string[] = [];
   const undeletableHistory = new Set<string>();
   const alarms = new Map<string, { periodInMinutes?: number; scheduledTime: number }>();
+  const identityCalls: { interactive: boolean; scopes: string[] }[] = [];
+  const identity: MockIdentity = {
+    token: 'chrome-identity-token',
+    needsInteraction: false,
+    removedTokens: [],
+    authFlowUrls: [],
+    // The default is a profile that approves: the redirect Chrome would land on, carrying a code.
+    webAuthFlow: () => `https://${EXTENSION_ID}.chromiumapp.org/?code=web-auth-code`,
+    calls: identityCalls,
+  };
   let idleDetectionInterval: number | undefined;
   let incognitoAccess = options.incognitoAccess ?? false;
   let badgeText = '';
@@ -601,11 +629,6 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
       },
       getAll: () => Promise.resolve({ permissions: [...grantedPermissions], origins: [] }),
     },
-    identity: {
-      getAuthToken: () => Promise.resolve({ token: 'test-token', grantedScopes: [] }),
-      removeCachedAuthToken: () => Promise.resolve(),
-      launchWebAuthFlow: () => Promise.resolve(''),
-    },
     i18n: {
       // Returning the key keeps assertions readable and makes a missing string obvious.
       getMessage: (key: string) => key,
@@ -657,6 +680,49 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   });
 
   /**
+   * `chrome.identity` exists only while the optional permission is granted — a getter, like
+   * `history` and `bookmarks`, because the Drive connect flow asks for the grant and then reaches
+   * for the namespace in the same click.
+   *
+   * `identity.token` being `null` is how a profile that is **not signed into Chrome** is modelled:
+   * `getAuthToken` rejects exactly as Chrome does, which is the condition the PKCE fallback exists
+   * for and is otherwise impossible to reproduce in a test.
+   */
+  Object.defineProperty(api, 'identity', {
+    enumerable: true,
+    get: () =>
+      grantedPermissions.has('identity')
+        ? {
+            getAuthToken: (details: { interactive?: boolean; scopes?: string[] }) => {
+              identityCalls.push({
+                interactive: details.interactive === true,
+                scopes: [...(details.scopes ?? [])],
+              });
+              if (identity.token === null) {
+                return Promise.reject(new Error('The user is not signed in.'));
+              }
+              if (details.interactive !== true && identity.needsInteraction) {
+                return Promise.reject(new Error('User interaction required.'));
+              }
+              return Promise.resolve({ token: identity.token, grantedScopes: details.scopes ?? [] });
+            },
+            removeCachedAuthToken: (details: { token: string }) => {
+              identity.removedTokens.push(details.token);
+              return Promise.resolve();
+            },
+            getRedirectURL: () => `https://${EXTENSION_ID}.chromiumapp.org/`,
+            launchWebAuthFlow: (details: { url: string; interactive?: boolean }) => {
+              identity.authFlowUrls.push(details.url);
+              const redirect = identity.webAuthFlow(details.url);
+              return redirect === null
+                ? Promise.reject(new Error('The user did not approve access.'))
+                : Promise.resolve(redirect);
+            },
+          }
+        : undefined,
+  });
+
+  /**
    * `chrome.bookmarks` exists only while the optional permission is granted.
    *
    * A **getter**, not a conditional property, because a permission granted at runtime makes the
@@ -700,6 +766,7 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     bookmarkRoots,
     removedBookmarks,
     undeletableBookmarks,
+    identity,
     get incognitoAccess() {
       return incognitoAccess;
     },

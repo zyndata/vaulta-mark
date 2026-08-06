@@ -33,7 +33,43 @@ export const OPTIONAL_HOST_PERMISSIONS = ['https://www.googleapis.com/*'] as con
 /** D4x. Chrome 116 is the floor — see PLAN.md §11, resolved decision 4. */
 export const MINIMUM_CHROME_VERSION = '116';
 
-export function buildManifest(packageVersion: string): chrome.runtime.ManifestV3 {
+/**
+ * D22 / ARCHITECTURE §13.1. The only OAuth scope this extension ever asks for.
+ *
+ * `drive.file` sees nothing but the files the extension itself created. Full `drive` is a
+ * *Restricted* scope, which means an annual CASA Tier-2 assessment by a paid third-party assessor
+ * standing between every release and the Store. This is asserted in the manifest test as well as
+ * against the auth call, because it is the one line where a widening would be invisible.
+ */
+export const OAUTH_SCOPES = ['https://www.googleapis.com/auth/drive.file'] as const;
+
+export interface ManifestOptions {
+  /**
+   * The OAuth client id (RELEASE §5.3), from `VM_OAUTH_CLIENT_ID`.
+   *
+   * Absent in a plain source build, and then the `oauth2` block is **omitted entirely** rather than
+   * emitted with an empty client. Chrome treats a malformed `oauth2` as a manifest error and
+   * refuses to load the extension; a build with no Google project configured should still install,
+   * run, and sync through Chrome — it simply cannot offer Drive, and the settings screen says so.
+   */
+  readonly clientId?: string | undefined;
+  /**
+   * The base64 public key that pins the unpacked extension id (RELEASE §5.4), from
+   * `VM_MANIFEST_KEY`.
+   *
+   * **Development only.** The Store assigns the real id, and a `key` that disagrees with it breaks
+   * the upload — so `mv3-plugin.ts` passes this for a development build and never for a production
+   * one.
+   */
+  readonly key?: string | undefined;
+}
+
+export function buildManifest(
+  packageVersion: string,
+  options: ManifestOptions = {},
+): chrome.runtime.ManifestV3 {
+  const clientId = options.clientId ?? '';
+  const key = options.key ?? '';
   return {
     manifest_version: 3,
     name: '__MSG_extName__',
@@ -66,6 +102,11 @@ export function buildManifest(packageVersion: string): chrome.runtime.ManifestV3
     },
 
     options_page: 'manager.html',
+
+    // Phase 10. No client *secret* ships — the OAuth client is bound to the extension id, and the
+    // `launchWebAuthFlow` fallback uses PKCE for exactly the same reason (§13.2).
+    ...(clientId === '' ? {} : { oauth2: { client_id: clientId, scopes: [...OAUTH_SCOPES] } }),
+    ...(key === '' ? {} : { key }),
 
     permissions: [...REQUIRED_PERMISSIONS],
     optional_permissions: [...OPTIONAL_PERMISSIONS],
