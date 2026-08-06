@@ -87,9 +87,9 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
     notice.classList.toggle('vm-notice--danger', kind === 'danger');
   }
 
-  /** A notice with an action next to it — "already vaulted, open it?". */
-  function showNoticeWith(text: string, action: HTMLElement): void {
-    render(notice, h('span', null, text), action);
+  /** A notice with actions next to it — "already vaulted, open it?". */
+  function showNoticeWith(text: string, ...actions: HTMLElement[]): void {
+    render(notice, h('span', null, text), ...actions);
     notice.hidden = false;
     notice.classList.remove('vm-notice--danger');
   }
@@ -200,6 +200,10 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
     }
     if (response.status === 'duplicate') {
       const item = response.item;
+      // **This is where re-capturing a preview lives** (§14.5). The page is in the tab in front of
+      // us and this click is a gesture on it, so `activeTab` covers the injection — which is the one
+      // arrangement in the whole extension where a refresh is possible without a host permission.
+      // The manager's button can only open the page and point here.
       showNoticeWith(
         msg('vaultAlreadySaved'),
         h(
@@ -213,12 +217,52 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
           },
           msg('vaultOpenItButton'),
         ),
+        h(
+          'button',
+          {
+            class: 'vm-button vm-button--quiet vm-button--inline',
+            type: 'button',
+            onclick: () => {
+              void refreshPreview(item);
+            },
+          },
+          msg('thumbRefresh'),
+        ),
       );
       return;
     }
     showNotice(msg('vaultAdded', [response.item.title]));
     filter.value = '';
     await reload();
+    if (response.offerThumbnails === true) await offerThumbnails();
+  }
+
+  /** Re-capture the preview for the page in front of us. */
+  async function refreshPreview(item: ItemSummary): Promise<void> {
+    showNotice(msg('thumbRefreshing'));
+    const response = await send({ type: 'REFRESH_THUMB', id: item.id });
+    if (response.type === 'ERROR') {
+      showNotice(deps.errorText(response.code), 'danger');
+      return;
+    }
+    showNotice(msg(response.state === 'ready' ? 'thumbRefreshed' : 'thumbRefreshFailed'));
+  }
+
+  /**
+   * The one-time offer behind "keep thumbnails on this device only" (§14.4).
+   *
+   * Made after the first successful add on a backend that cannot store pictures, and marked as made
+   * **whichever way it is answered** — including by dismissing the dialog. A question that comes back
+   * because it was ignored is a question that trains people to ignore it, and the setting is in
+   * Settings → Privacy from then on either way.
+   */
+  async function offerThumbnails(): Promise<void> {
+    const accepted = await confirmDialog({
+      heading: msg('thumbOfferHeading'),
+      body: [dialogText('thumbOfferBody'), dialogText('thumbOfferCost')],
+      confirmLabel: msg('thumbOfferConfirm'),
+    });
+    await deps.patchSettings({ thumbnailsOffered: true, localThumbnails: accepted });
   }
 
   async function deleteItem(item: ItemSummary): Promise<void> {

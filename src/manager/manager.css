@@ -118,6 +118,9 @@ body.vm-manager {
     auto var(--vm-detail-width, 24rem);
   flex: 1 1 auto;
   min-height: 0;
+  /* The containing block for the floating preview card, which has to be free to sit outside the
+   * list's own scrolling box — see `.vm-thumb-card`. */
+  position: relative;
 }
 
 /*
@@ -518,6 +521,28 @@ body.vm-manager {
   flex: none;
   width: 1.1em;
   text-align: center;
+}
+
+/*
+ * The eye that opens a row's preview (ARCHITECTURE §14.5).
+ *
+ * Always in the row, always the same width, and empty on a bookmark with no picture: a marker that
+ * only exists sometimes makes every column after it move as the list scrolls. `is-present` is the
+ * one that is visible and clickable.
+ */
+.vm-row-eye {
+  flex: none;
+  width: 1.1em;
+  text-align: center;
+}
+
+.vm-row-eye.is-present {
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.vm-row-eye.is-present:hover {
+  opacity: 1;
 }
 
 /* ------------------------------------------------------------------ chips */
@@ -1308,4 +1333,57 @@ body.vm-manager {
 
 .vm-banner--warning {
   border-left: 3px solid var(--vm-warning);
+}
+
+/* ------------------------------------------------------------------ preview card */
+
+/*
+ * The floating preview (ARCHITECTURE §14.5), opened by a click on a row's eye or by a hover that
+ * outlived its 200 ms delay.
+ *
+ * A card positioned against `.vm-layout` rather than a row that grows, and that is the virtual
+ * list's doing: `.vm-row` is a fixed 44 px and the windowing arithmetic multiplies by it, so a row
+ * that expanded to hold a picture would put every row below it at the wrong offset. `ui/thumb.ts`
+ * sets `left`/`top`; everything else about it is here.
+ *
+ * `pointer-events: none` matters — the card appears near the pointer, and one that could take a
+ * `mouseleave` from the row underneath would flicker itself open and closed.
+ */
+.vm-thumb-card {
+  position: absolute;
+  z-index: 5;
+  box-sizing: border-box;
+  max-width: min(22rem, 80%);
+  padding: 0.375rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 25%);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ detail pane preview */
+
+.vm-detail-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-top: var(--vm-gap);
+  padding-top: var(--vm-gap);
+  border-top: 1px solid var(--vm-border);
+}
+
+.vm-detail-preview h3 {
+  margin: 0;
+  font-weight: 600;
+}
+
+/*
+ * The slot the picture is painted into once it arrives.
+ *
+ * It has a minimum height so the pane does not jump when a Drive round trip lands — "no layout
+ * shift" is the half of §14.5's graceful absence that is easiest to lose and hardest to notice.
+ */
+.vm-thumb-slot {
+  min-height: 2.5rem;
 }

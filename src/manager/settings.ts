@@ -500,6 +500,16 @@ function browsing(deps: SettingsDeps): HTMLElement[] {
         if (checked) await offerCleanup(deps);
       },
     ),
+    // Where the one-time offer in the popup ends up living, and the only way back once it has been
+    // answered (§14.4). It has no effect while Drive is connected — the heavy tier captures either
+    // way — which is what the hint says rather than what a disabled control would imply.
+    toggle(
+      'vm-set-thumbs',
+      'settingsLocalThumbnails',
+      'settingsLocalThumbnailsHint',
+      deps.settings.localThumbnails,
+      (checked) => deps.patch({ localThumbnails: checked, thumbnailsOffered: true }),
+    ),
   ];
 }
 

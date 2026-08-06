@@ -53,6 +53,11 @@ export interface ListDeps {
   /** Whether the drag in flight may land in this folder. */
   readonly acceptsDrop: (folderId: string) => boolean;
   readonly onDropInFolder: (folderId: string) => void;
+  /** The eye was clicked: pin this row's preview, or put it away (§14.5). */
+  readonly onPreview: (row: ListRow, anchor: HTMLElement) => void;
+  /** The pointer came to rest on a row that has a picture. Arms the 200 ms hover delay. */
+  readonly onHover: (row: ListRow, anchor: HTMLElement) => void;
+  readonly onHoverEnd: () => void;
 }
 
 export class BookmarkList {
@@ -129,6 +134,11 @@ export class BookmarkList {
     this.element.focus();
   }
 
+  /** The element currently showing row `index`, or `undefined` if it is outside the window. */
+  rowElement(index: number): HTMLElement | undefined {
+    return this.#list.rowAt(index);
+  }
+
   destroy(): void {
     this.#list.destroy();
   }
@@ -200,6 +210,15 @@ export class BookmarkList {
       });
     }
 
+    if (row.hasThumb) {
+      element.addEventListener('mouseenter', () => {
+        this.#deps.onHover(row, element);
+      });
+      element.addEventListener('mouseleave', () => {
+        this.#deps.onHoverEnd();
+      });
+    }
+
     const icon =
       row.type === 'folder'
         ? h('span', { class: 'vm-row-folder', role: 'presentation' }, '📁')
@@ -220,11 +239,44 @@ export class BookmarkList {
         ),
       ),
       tagChips(row.tags),
+      row.hasThumb ? this.#eye(row, element) : h('span', { class: 'vm-row-eye' }),
       row.hasNote
         ? h('span', { class: 'vm-row-note', title: msg('listHasNote') }, '📝')
         : h('span', { class: 'vm-row-note' }),
     );
     return element;
+  }
+
+  /**
+   * The eye that opens a row's preview.
+   *
+   * A `span`, not a `button`, and that is ARIA rather than laziness: a row is an `option` in a
+   * multi-selectable `listbox`, and a listbox may not contain interactive descendants (the same
+   * constraint that put every other per-row action in the toolbar). It carries a `title` for a
+   * pointer and is hidden from assistive technology, which reaches the same picture through the
+   * detail pane and through the `p` shortcut on the list.
+   *
+   * Its own `mousedown` stops there rather than reaching the row: opening a preview is not selecting
+   * a bookmark, and letting it through would also start the double-click timer.
+   */
+  #eye(row: ListRow, anchor: HTMLElement): HTMLElement {
+    const eye = h(
+      'span',
+      { class: 'vm-row-eye is-present', title: msg('listHasThumb'), 'aria-hidden': 'true' },
+      '👁',
+    );
+    eye.addEventListener('mousedown', (event: MouseEvent) => {
+      event.stopPropagation();
+      event.preventDefault();
+    });
+    eye.addEventListener('mouseup', (event: MouseEvent) => {
+      event.stopPropagation();
+    });
+    eye.addEventListener('click', (event: MouseEvent) => {
+      event.stopPropagation();
+      this.#deps.onPreview(row, anchor);
+    });
+    return eye;
   }
 }
 

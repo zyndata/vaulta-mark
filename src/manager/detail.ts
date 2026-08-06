@@ -14,6 +14,7 @@
  */
 
 import { h, msg, render } from '../ui/dom.js';
+import { inlinePreview, type ThumbData } from '../ui/thumb.js';
 import type { ItemDetail } from '../shared/messages.js';
 import { MAX_NOTE_LENGTH } from '../vault/types.js';
 
@@ -21,6 +22,16 @@ export interface DetailDeps {
   /** The single selected item, or `null` when zero or many are selected. */
   readonly item: ItemDetail | null;
   readonly selectionCount: number;
+  /** The preview, fetched when the pane is built. Not part of `ItemDetail`: it is 40 KB. */
+  readonly loadThumb: (id: string) => Promise<ThumbData>;
+  /**
+   * "Refresh preview" was clicked.
+   *
+   * Named for what it is rather than for what it does, because what it does is open the page —
+   * re-capturing needs the page loaded and needs the `activeTab` grant that only a gesture on that
+   * tab creates. The pane says so in words before the button is pressed (§14.5).
+   */
+  readonly refreshPreview: (item: ItemDetail) => void;
   readonly save: (patch: {
     title: string;
     url?: string;
@@ -151,6 +162,7 @@ export function detailPane(deps: DetailDeps): HTMLElement {
             msg('detailOpen'),
           ),
         ),
+    isFolder ? null : previewSection(item, deps),
     isFolder
       ? null
       : h(
@@ -164,6 +176,53 @@ export function detailPane(deps: DetailDeps): HTMLElement {
   );
 
   return aside;
+}
+
+/**
+ * The preview, and the plain sentence about what refreshing it costs.
+ *
+ * Painted asynchronously into a slot rather than awaited before the pane is built: the picture may
+ * be a Drive round trip away (§14.6), and a detail pane that waited for it would be a detail pane
+ * that stutters every time the selection moves. The slot keeps its shape while it is empty.
+ *
+ * Nothing here fetches unless the item claims a picture — `hasThumb` is the whole of what a render
+ * is allowed to know without asking (INV-4).
+ */
+function previewSection(item: ItemDetail, deps: DetailDeps): HTMLElement {
+  const slot = h('div', { class: 'vm-thumb-slot' });
+
+  if (item.hasThumb) {
+    void (async () => {
+      const data = await deps.loadThumb(item.id);
+      // The pane is rebuilt on every selection change, so by the time this resolves the element may
+      // no longer be on the page. Painting into a detached node is harmless; releasing the object
+      // URL when it is, is not optional.
+      const card = inlinePreview(data);
+      if (slot.isConnected) render(slot, card.element);
+      else card.release();
+    })();
+  } else {
+    slot.append(h('p', { class: 'vm-thumb-absent vm-small vm-muted' }, msg('thumbNone')));
+  }
+
+  return h(
+    'section',
+    { class: 'vm-detail-preview' },
+    h('h3', { class: 'vm-small' }, msg('thumbHeading')),
+    slot,
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('thumbRefreshExplain')),
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'vm-button vm-button--quiet vm-button--inline',
+        onclick: () => {
+          deps.refreshPreview(item);
+        },
+      },
+      msg('thumbRefresh'),
+    ),
+  );
 }
 
 function field(labelKey: string, control: HTMLElement, extra?: HTMLElement): HTMLElement {

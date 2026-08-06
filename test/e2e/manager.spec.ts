@@ -333,7 +333,11 @@ test('says plainly that Drive is unavailable in a build with no OAuth client, wi
   const before = requests.length;
 
   await page.getByRole('button', { name: 'Settings' }).click();
-  const sync = page.locator('.vm-settings-section').filter({ hasText: 'Sync' }).first();
+  // By its heading, not by its text: every section that *mentions* sync would otherwise match, and
+  // "Chrome sync has nowhere to keep pictures" in the browsing section is one of them.
+  const sync = page
+    .locator('.vm-settings-section')
+    .filter({ has: page.getByRole('heading', { name: 'Sync', exact: true }) });
   await expect(sync).toContainText('Chrome sync');
   await expect(sync).toContainText('no Google project configured');
   await expect(page.getByRole('button', { name: 'Connect Google Drive' })).toHaveCount(0);

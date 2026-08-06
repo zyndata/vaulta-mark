@@ -595,3 +595,35 @@ body {
 .vm-settings-note p {
   margin: 0 0 0.25rem;
 }
+
+/* ------------------------------------------------------------------ preview pictures */
+
+/*
+ * The picture itself (ARCHITECTURE §14.5).
+ *
+ * `width`/`height` attributes come from the stored `ThumbMeta`, so the box has the right aspect
+ * ratio before the blob decodes and keeps it when the blob never arrives. `max-width: 100%` with
+ * `height: auto` is what lets the same element be 320 px wide in a floating card and column-width in
+ * a detail pane without two sets of numbers.
+ */
+.vm-thumb-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--vm-radius);
+  background: var(--vm-surface);
+}
+
+/*
+ * "Preview stored in Drive" and "no preview available".
+ *
+ * A sentence in the muted colour, not a warning and not an empty box with a broken-image glyph in
+ * it: an item whose picture is on another machine is a perfectly healthy item.
+ */
+.vm-thumb-absent {
+  margin: 0;
+}
+
+.vm-thumb-inline {
+  display: block;
+}

@@ -363,6 +363,66 @@
     "message": "Drops utm_*, fbclid, gclid and similar — campaign tags that no site needs to find the page. On by default, so the same article saved from two newsletters is one bookmark.",
     "description": "Explanation under the strip-tracking-parameters toggle."
   },
+  "settingsLocalThumbnails": {
+    "message": "Keep preview pictures on this device only",
+    "description": "Label for the local-thumbnails toggle (ARCHITECTURE §14.4). Off by default."
+  },
+  "settingsLocalThumbnailsHint": {
+    "message": "Chrome sync has nowhere to keep pictures, so previews captured here stay here and other computers will not see them. With Google Drive connected, previews are captured and synced whatever this says.",
+    "description": "Explanation under the local-thumbnails toggle."
+  },
+  "thumbHeading": {
+    "message": "Preview",
+    "description": "Heading of the preview section in the manager's detail pane."
+  },
+  "thumbNone": {
+    "message": "No preview available.",
+    "description": "Shown where a preview would be when the page never offered one."
+  },
+  "thumbInDrive": {
+    "message": "Preview stored in Drive.",
+    "description": "Shown when an item has a preview whose bytes this device cannot reach."
+  },
+  "thumbRefresh": {
+    "message": "Refresh preview",
+    "description": "Button that re-captures a bookmark's preview picture."
+  },
+  "thumbRefreshExplain": {
+    "message": "Re-capturing means loading the page again. This button opens it in an incognito window; use the VaultaMark toolbar button there to capture what it shows.",
+    "description": "Explanation above the manager's Refresh preview button (ARCHITECTURE §14.5)."
+  },
+  "thumbRefreshOpened": {
+    "message": "Opened the page. Click the VaultaMark toolbar button on it, then Refresh preview.",
+    "description": "Status line after the manager's Refresh preview button opened the page."
+  },
+  "thumbRefreshing": {
+    "message": "Reading the page…",
+    "description": "Popup notice while a preview is being re-captured."
+  },
+  "thumbRefreshed": {
+    "message": "Preview updated.",
+    "description": "Popup notice after a successful re-capture."
+  },
+  "thumbRefreshFailed": {
+    "message": "This page offered no preview picture.",
+    "description": "Popup notice after a re-capture that produced nothing. Not an error."
+  },
+  "thumbOfferHeading": {
+    "message": "Keep preview pictures?",
+    "description": "Heading of the one-time local-thumbnails offer (ARCHITECTURE §14.4)."
+  },
+  "thumbOfferBody": {
+    "message": "VaultaMark can save the preview picture a page publishes and show it beside the bookmark. Chrome sync has nowhere to keep pictures, so they would stay on this computer and your other devices would not see them.",
+    "description": "First paragraph of the one-time local-thumbnails offer."
+  },
+  "thumbOfferCost": {
+    "message": "Pictures are read from the page while you save it, re-encoded, and encrypted like everything else. Connect Google Drive instead and they sync to every device. You can change this later in Settings.",
+    "description": "Second paragraph of the one-time local-thumbnails offer."
+  },
+  "thumbOfferConfirm": {
+    "message": "Keep them here",
+    "description": "Confirming button of the one-time local-thumbnails offer."
+  },
   "trackingCleanupHeading": {
     "message": "Clean the bookmarks you already have?",
     "description": "Heading of the dialog offered when the strip-tracking setting is switched on."
@@ -689,8 +749,12 @@
     "message": "Has a note",
     "description": "Accessible label for the marker on a row whose bookmark carries a note."
   },
+  "listHasThumb": {
+    "message": "Show preview",
+    "description": "Tooltip on the eye marker of a row whose bookmark has a preview picture."
+  },
   "listKeyboardHint": {
-    "message": "j and k move, Enter opens, e edits, Delete removes, Esc clears.",
+    "message": "j and k move, Enter opens, e edits, p previews, Delete removes, Esc clears.",
     "description": "Keyboard hint under the manager's list."
   },
   "selectionCount": {

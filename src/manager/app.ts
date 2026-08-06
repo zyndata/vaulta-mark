@@ -40,6 +40,7 @@ import {
   openDialog,
   promptText,
 } from '../ui/dialog.js';
+import { ThumbPopover, type ThumbData } from '../ui/thumb.js';
 import { detailPane } from './detail.js';
 import { ioScreen, paintProgress } from './io.js';
 import { BookmarkList } from './list.js';
@@ -207,6 +208,15 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     onDropInFolder: (folderId) => {
       void dropInFolder(folderId);
     },
+    onPreview: (row, anchor) => {
+      preview.toggle(anchor, row.id);
+    },
+    onHover: (row, anchor) => {
+      preview.hover(anchor, row.id);
+    },
+    onHoverEnd: () => {
+      preview.cancelHover();
+    },
   });
 
   const listSlot = h('div', { class: 'vm-list-slot' }, list.element, emptySlot);
@@ -357,6 +367,29 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     detailSlot,
   );
 
+  /**
+   * The floating preview card (§14.5).
+   *
+   * Hosted on the layout rather than on the list, because the card has to be able to sit outside the
+   * list's own scrolling box — a preview anchored to the bottom row would otherwise be clipped by
+   * the very element it is anchored to.
+   */
+  const preview = new ThumbPopover({
+    host: layout,
+    fetch: async (id) => toThumbData(await send({ type: 'GET_THUMB', id })),
+  });
+
+  /** A `THUMB` answer, or the shape "there is nothing here" when the worker refused. */
+  function toThumbData(response: Awaited<ReturnType<typeof send>>): ThumbData {
+    if (response.type !== 'THUMB') return { state: 'none', image: null, width: 0, height: 0 };
+    return {
+      state: response.state,
+      image: response.image,
+      width: response.width,
+      height: response.height,
+    };
+  }
+
   render(
     root,
     h(
@@ -457,6 +490,10 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
         item: state.detail,
         selectionCount: state.selection.size,
         save: saveDetail,
+        loadThumb: async (id) => toThumbData(await send({ type: 'GET_THUMB', id })),
+        refreshPreview: (item) => {
+          void refreshPreview(item);
+        },
         open: (id) => {
           void openItem(id);
         },
@@ -471,6 +508,9 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   }
 
   function paintList(): void {
+    // Every row element is about to be rebuilt, so a card anchored to one of them is a card pinned
+    // to an element that is no longer in the document — and its object URL is ours to release.
+    preview.close();
     const rows = rowsOf(state);
     list.setRows(rows, state.view?.terms ?? []);
     list.setSelection(state.selection, state.cursor);
@@ -908,6 +948,21 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     else await openItem(row.id);
   }
 
+  /**
+   * "Refresh preview", from the detail pane.
+   *
+   * It opens the page and says what to do next, and that is the whole of it — re-capturing needs a
+   * script in the page, `chrome.scripting` needs either a host permission or an `activeTab` grant,
+   * and `activeTab` is only ever granted by a gesture *on that tab*. VaultaMark asks for no host
+   * permission at install and adding one for a decoration would be the wrong trade (INV-9, D25), so
+   * the manager cannot finish the job from here. The toolbar button on the page it just opened can,
+   * and the popup offers exactly that when the page in front of it is already vaulted.
+   */
+  async function refreshPreview(item: ItemDetail): Promise<void> {
+    await openItem(item.id);
+    say(msg('thumbRefreshOpened'));
+  }
+
   async function openItem(id: string): Promise<void> {
     const response = await send({ type: 'OPEN_ITEM', id });
     if (response.type === 'ERROR') {
@@ -1169,6 +1224,15 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
         // place an item is edited, and this is the shortcut to it.
         const title = detailSlot.querySelector<HTMLElement>('input[type="text"]');
         title?.focus();
+        break;
+      }
+      case 'p': {
+        // The keyboard's route to a picture. The eye on a row is a `span` and cannot be tabbed to —
+        // a listbox may not hold interactive descendants — so the shortcut is not a convenience
+        // here, it is the equivalent.
+        const row = cursorRow(state);
+        const anchor = list.rowElement(state.cursor);
+        if (row?.hasThumb === true && anchor !== undefined) preview.toggle(anchor, row.id);
         break;
       }
       case 'Delete':
