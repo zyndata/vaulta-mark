@@ -19,6 +19,7 @@ import {
   type IncognitoAccessResponse,
   type ItemSummary,
   type OpenStatus,
+  type ThumbResponse,
 } from '../shared/messages.js';
 import { scheduleSync } from '../sync/engine.js';
 import { ItemNotFoundError, VaultLockedError } from '../vault/errors.js';
@@ -34,6 +35,7 @@ import {
   queueHistoryCleanup,
 } from './incognito.js';
 import * as session from './session.js';
+import * as thumbs from './thumbs.js';
 
 /**
  * There is deliberately **no** default row cap.
@@ -64,11 +66,34 @@ export interface OpenOptions {
 
 /* ------------------------------------------------------------------ adding */
 
+/**
+ * Vault the active tab, and try to bring its preview picture with it.
+ *
+ * The capture runs **after** the add rather than before it, and its failure changes nothing: the
+ * bookmark is already in the vault and flushed by the time anything is injected. That ordering is
+ * what makes "no thumbnail" the ordinary outcome it should be rather than a way to lose an add.
+ *
+ * It also runs only for a genuine add. Re-vaulting a page that is already there is a `duplicate`,
+ * and quietly re-capturing on it would make the toolbar button a hidden refresh button —
+ * `REFRESH_THUMB` is the explicit one (§14.5).
+ */
 export async function addActiveTab(): Promise<AddResult> {
   const repo = await requireVault();
   const result = await addActiveTabTo(repo, await addOptions());
+  if (result.status === 'added') await thumbs.capture(repo, result.item.id);
   await announce(result);
   return result;
+}
+
+/**
+ * Whether this add is the moment to offer "keep thumbnails on this device only" (§14.4).
+ *
+ * Asked by the router for the two entry points that have a window to ask in. The keyboard shortcut
+ * and the context menu never ask: their only channel is the toolbar badge, and a badge cannot carry
+ * a question.
+ */
+export async function thumbnailOffer(): Promise<boolean> {
+  return thumbs.offersThumbnails(await session.settings(), await thumbs.activeProvider());
 }
 
 export async function addUrl(url: string, title?: string): Promise<AddResult> {
@@ -166,6 +191,32 @@ export async function open(id: string, options: OpenOptions = {}): Promise<OpenS
   // change worth replicating — debounced like any other, so a run of clicks is one push.
   scheduleSync();
   return status;
+}
+
+/* ------------------------------------------------------------------ previews */
+
+/** The decrypted preview for one item, or the reason there is none (§14.5). */
+export async function thumb(id: string): Promise<ThumbResponse> {
+  const repo = await requireVault();
+  await session.touch();
+  return await thumbs.get(repo, id);
+}
+
+/**
+ * Re-capture the preview from the page in the active tab.
+ *
+ * Broadcasts on the way out, because a capture that succeeded changed the item — and the row that
+ * gains an eye icon is usually in a manager window, not in the popup that asked.
+ */
+export async function refreshThumb(id: string): Promise<ThumbResponse> {
+  const repo = await requireVault();
+  const result = await thumbs.refresh(repo, id);
+  await session.touch();
+  if (result.state === 'ready') {
+    await broadcast({ type: 'VAULT_CHANGED' });
+    scheduleSync();
+  }
+  return result;
 }
 
 export async function incognitoAccess(recheck = false): Promise<IncognitoAccessResponse> {

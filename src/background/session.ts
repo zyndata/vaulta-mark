@@ -449,11 +449,26 @@ export async function destroyVault(): Promise<void> {
   await broadcast({ type: 'SESSION_LOCKED', reason: 'manual' });
 }
 
-/** Periodic upkeep that needs the key: purge tombstones past the 90-day TTL (D20). */
+/**
+ * Periodic upkeep that needs the key: purge tombstones past the 90-day TTL (D20), then drop the
+ * thumbnails of items that are no longer there (§14.6).
+ *
+ * The sweep is injected for the same reason `beforeLock` is — `background/thumbs.ts` reaches the
+ * repository through this file, so importing it back would be a cycle.
+ */
 export async function housekeep(): Promise<void> {
   const repo = await currentRepository();
   if (repo === null) return;
   await repo.purge();
+  if (afterPurge !== null) await afterPurge(repo);
+}
+
+type AfterPurge = (repo: VaultRepository) => Promise<unknown>;
+
+let afterPurge: AfterPurge | null = null;
+
+export function configureHousekeeping(hooks: { readonly afterPurge: AfterPurge }): void {
+  afterPurge = hooks.afterPurge;
 }
 
 /* ------------------------------------------------------------------ settings */
@@ -510,6 +525,8 @@ export async function updateSettings(patch: SettingsPatch): Promise<VaultSetting
     reuseIncognitoWindow: patch.reuseIncognitoWindow ?? current.reuseIncognitoWindow,
     clearHistoryOnLock: patch.clearHistoryOnLock ?? current.clearHistoryOnLock,
     quickClose: patch.quickClose ?? current.quickClose,
+    localThumbnails: patch.localThumbnails ?? current.localThumbnails,
+    thumbnailsOffered: patch.thumbnailsOffered ?? current.thumbnailsOffered,
     sortBy: patch.sortBy ?? current.sortBy,
     sidebarWidth: patch.sidebarWidth ?? current.sidebarWidth,
     detailWidth: patch.detailWidth ?? current.detailWidth,

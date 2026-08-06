@@ -37,6 +37,14 @@ export const SESSION_LIMITS = {
 const EXTENSION_ID = 'vaultamarktestextensionidaaaaaaaa';
 
 export type StoredValue = unknown;
+
+/** One `chrome.scripting.executeScript` call, as the thumbnail tests read them back. */
+export interface MockInjection {
+  readonly tabId?: number;
+  readonly files?: readonly string[];
+  /** Whether this was the `func:` reader injection rather than the `files:` one. */
+  readonly hasFunc: boolean;
+}
 export type StorageSnapshot = Record<string, StoredValue>;
 
 export interface StorageChange {
@@ -288,6 +296,21 @@ export interface ChromeMock {
   readonly openTabs: { id: number; url?: string; title?: string; active?: boolean }[];
   /** Tab ids passed to `chrome.tabs.remove`, in order. */
   readonly removedTabs: number[];
+  /**
+   * Script injections performed through `chrome.scripting.executeScript`, in order.
+   *
+   * Phase 11's tier gate is "nothing is injected", not "the result is thrown away", so a test that
+   * only checked the stored item would pass against a build that injected on every add. This is
+   * what makes the difference observable.
+   */
+  readonly injections: MockInjection[];
+  /**
+   * What a `func:` injection answers with — the page's `CaptureResult`, as Chrome would serialise
+   * it. `null` models a page with no capture hook: navigated away, or never injected into.
+   */
+  captureResult: unknown;
+  /** Make every injection fail, as a restricted page or a missing `activeTab` grant does. */
+  injectionFails: boolean;
   /** The windows `chrome.windows.getAll` answers with, plus everything `create` appended. */
   readonly openWindows: { id: number; incognito: boolean; type: string }[];
   /** What `chrome.extension.isAllowedIncognitoAccess()` answers. Off, as a fresh install is. */
@@ -445,6 +468,9 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   const createdTabs: { url?: string; windowId?: number }[] = [];
   const removedTabs: number[] = [];
   const openTabs: { id: number; url?: string; title?: string; active?: boolean }[] = [];
+  const injections: MockInjection[] = [];
+  let captureResult: unknown = null;
+  let injectionFails = false;
   const openWindows: { id: number; incognito: boolean; type: string }[] = [];
   const menus = new Map<string, { title?: string; contexts?: readonly string[] }>();
   const bookmarkRoots: MockBookmarkNode[] = [{ id: '0', title: '', children: [] }];
@@ -567,6 +593,31 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
         const at = openTabs.findIndex((tab) => tab.id === tabId);
         if (at >= 0) openTabs.splice(at, 1);
         return Promise.resolve();
+      },
+    },
+    scripting: {
+      /**
+       * Two shapes, because the product performs two injections (ARCHITECTURE §14.1): a `files:`
+       * one that publishes the capture hook and reports nothing — a bundled IIFE's completion value
+       * is always `undefined` — and a `func:` one that calls it and is what Chrome serialises an
+       * answer from.
+       */
+      executeScript: (options: {
+        target?: { tabId?: number };
+        files?: readonly string[];
+        func?: unknown;
+      }) => {
+        injections.push({
+          ...(options.target?.tabId === undefined ? {} : { tabId: options.target.tabId }),
+          ...(options.files === undefined ? {} : { files: [...options.files] }),
+          hasFunc: options.func !== undefined,
+        });
+        if (injectionFails) {
+          return Promise.reject(new Error('Cannot access contents of the page.'));
+        }
+        return Promise.resolve([
+          { frameId: 0, result: options.func === undefined ? undefined : captureResult },
+        ]);
       },
     },
     extension: {
@@ -757,6 +808,19 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     removedTabs,
     openTabs,
     openWindows,
+    injections,
+    get captureResult() {
+      return captureResult;
+    },
+    set captureResult(value: unknown) {
+      captureResult = value;
+    },
+    get injectionFails() {
+      return injectionFails;
+    },
+    set injectionFails(fails: boolean) {
+      injectionFails = fails;
+    },
     menus,
     alarms,
     historyEntries,

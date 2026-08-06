@@ -248,6 +248,34 @@ export interface IncognitoAccessRequest {
   readonly recheck?: boolean;
 }
 
+/* --- thumbnails (Phase 11) ------------------------------------------------- */
+
+/**
+ * The preview picture for one item, decrypted.
+ *
+ * Sent **only when somebody asked to look** — an eye icon clicked, a hover that outlived its delay.
+ * A list render never sends it: a row knows from `ListRow.hasThumb` whether there is a picture, and
+ * that boolean is the whole of what rendering needs. This is also the only request in the protocol
+ * that can cause a network request, and only on a Drive-backed cache miss (§14.6).
+ */
+export interface GetThumbRequest {
+  readonly type: 'GET_THUMB';
+  readonly id: string;
+}
+
+/**
+ * Re-capture the preview for an item, from the page in the active tab.
+ *
+ * Only ever an explicit click, never automatic and never on a timer (§14.5). The tab is not named:
+ * the worker reads the active one itself, under the `activeTab` grant the click that produced this
+ * message just created — the same reasoning as {@link AddActiveTabRequest}, and the reason this can
+ * exist at all without a host permission.
+ */
+export interface RefreshThumbRequest {
+  readonly type: 'REFRESH_THUMB';
+  readonly id: string;
+}
+
 /* --- sync (Phase 7) -------------------------------------------------------- */
 
 /** Where sync got to. Cheap, and answered while locked — the lock screen shows it too. */
@@ -422,6 +450,8 @@ export type Request =
   | DeleteItemsRequest
   | RestoreItemsRequest
   | IncognitoAccessRequest
+  | GetThumbRequest
+  | RefreshThumbRequest
   | GetTreeRequest
   | ListViewRequest
   | GetItemRequest
@@ -530,6 +560,34 @@ export interface AddedResponse {
   /** `duplicate` means this URL was already vaulted; `item` is the one that was already there. */
   readonly status: 'added' | 'duplicate';
   readonly item: ItemSummary;
+  /**
+   * This is the moment to offer "keep thumbnails on this device only" (§14.4).
+   *
+   * True at most once per profile, and only from an entry point that has a window to ask in — the
+   * keyboard shortcut and the context menu report on a badge and have nowhere to put a question, so
+   * they never set it. The UI marks the offer as made whichever way it is answered.
+   */
+  readonly offerThumbnails?: boolean;
+}
+
+/**
+ * One preview picture, or the reason there is none.
+ *
+ * The bytes travel as base64url text for the same reason the export file does: `chrome.runtime`
+ * structured-clones, and a page turns this straight into a blob URL it revokes when the preview
+ * closes. Nothing is written down on the page's side.
+ */
+export interface ThumbResponse {
+  readonly type: 'THUMB';
+  readonly id: string;
+  /**
+   * `ready` — bytes are here. `remote` — the item has a picture and this device cannot reach it,
+   * so the row degrades quietly to favicon and title. `none` — there is no picture at all.
+   */
+  readonly state: 'ready' | 'remote' | 'none';
+  readonly image: string | null;
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface ItemsResponse {
@@ -562,6 +620,15 @@ export interface ListRow {
   readonly url?: string;
   readonly tags: readonly string[];
   readonly hasNote: boolean;
+  /**
+   * This item has thumbnail metadata (§14.5).
+   *
+   * A boolean for the same reason `hasNote` is one: it decides whether a row draws an eye icon, and
+   * shipping forty kilobytes of picture per row to answer that would be absurd. Whether the *bytes*
+   * are reachable from this device is a separate question, asked with {@link GetThumbRequest} when
+   * somebody actually looks.
+   */
+  readonly hasThumb: boolean;
   readonly createdAt: number;
   readonly updatedAt: number;
   readonly openedAt?: number;
@@ -940,6 +1007,8 @@ export interface ResponseMap {
   readonly DELETE_ITEMS: OkResponse;
   readonly RESTORE_ITEMS: OkResponse;
   readonly INCOGNITO_ACCESS: IncognitoAccessResponse;
+  readonly GET_THUMB: ThumbResponse;
+  readonly REFRESH_THUMB: ThumbResponse;
   readonly GET_TREE: TreeResponse;
   readonly LIST_VIEW: ViewResponse;
   readonly GET_ITEM: ItemResponse;
@@ -1203,7 +1272,9 @@ export function parseRequest(raw: unknown): Request | null {
         ...(untagged === undefined ? {} : { untagged }),
       };
     }
-    case 'GET_ITEM': {
+    case 'GET_ITEM':
+    case 'GET_THUMB':
+    case 'REFRESH_THUMB': {
       const id = raw['id'];
       return isNonEmptyString(id) ? { type, id } : null;
     }
@@ -1404,6 +1475,18 @@ export function parseSettingsPatch(raw: unknown): SettingsPatch | null {
     patch.quickClose = quickClose;
   }
 
+  const localThumbnails = raw['localThumbnails'];
+  if (localThumbnails !== undefined) {
+    if (typeof localThumbnails !== 'boolean') return null;
+    patch.localThumbnails = localThumbnails;
+  }
+
+  const thumbnailsOffered = raw['thumbnailsOffered'];
+  if (thumbnailsOffered !== undefined) {
+    if (typeof thumbnailsOffered !== 'boolean') return null;
+    patch.thumbnailsOffered = thumbnailsOffered;
+  }
+
   const sortBy = raw['sortBy'];
   if (sortBy !== undefined) {
     if (!isSortKey(sortBy)) return null;
@@ -1437,6 +1520,7 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'ITEMS',
   'OPENED',
   'INCOGNITO_ACCESS_STATE',
+  'THUMB',
   'TREE',
   'VIEW',
   'ITEM',

@@ -597,6 +597,20 @@ export async function hasRemoteVault(): Promise<boolean> {
   }
 }
 
+/**
+ * The provider this profile is currently syncing through, initialised.
+ *
+ * Exported for the heavy tier (Phase 11): thumbnails go to the same backend the vault does, and
+ * `background/thumbs.ts` should not have to re-read the settings and construct one — that is how a
+ * second cache of Drive file ids comes into existence. `init()` may fail (offline, unauthorized);
+ * the caller decides what that means, and for a picture it means "not right now".
+ */
+export async function currentProvider(): Promise<SyncProvider> {
+  const provider = providerFor((await readSettings()).providerId);
+  await provider.init();
+  return provider;
+}
+
 /** The synced vault as ciphertext, with the stamp it was read at. `null` if there is none. */
 export async function fetchRemote(): Promise<{ vault: EncryptedVault; stamp: RemoteStamp } | null> {
   const settings = await readSettings();

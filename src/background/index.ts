@@ -47,6 +47,7 @@ import * as items from './items.js';
 import * as organize from './organize.js';
 import * as session from './session.js';
 import * as syncing from './syncing.js';
+import * as thumbs from './thumbs.js';
 import { configureSync, probe, scheduleProbe, syncNow } from '../sync/engine.js';
 import { CorruptRemote, PreconditionFailed, QuotaExceeded, RateLimited } from '../sync/provider.js';
 
@@ -136,13 +137,25 @@ export async function handleRequest(request: Request): Promise<Response> {
       case 'SET_SETTINGS':
         return { type: 'SETTINGS', settings: await session.updateSettings(request.settings) };
       case 'ADD_ACTIVE_TAB': {
+        // The offer is read *before* the add, because a successful capture would be the thing that
+        // makes it stop applying — and the popup asks about the next page, not this one.
+        const offer = await items.thumbnailOffer();
         const result = await items.addActiveTab();
-        return { type: 'ADDED', status: result.status, item: result.item };
+        return {
+          type: 'ADDED',
+          status: result.status,
+          item: result.item,
+          ...(offer && result.status === 'added' ? { offerThumbnails: true } : {}),
+        };
       }
       case 'ADD_URL': {
         const result = await items.addUrl(request.url, request.title);
         return { type: 'ADDED', status: result.status, item: result.item };
       }
+      case 'GET_THUMB':
+        return await items.thumb(request.id);
+      case 'REFRESH_THUMB':
+        return await items.refreshThumb(request.id);
       case 'LIST_ITEMS': {
         const result = await items.list({
           ...(request.query === undefined ? {} : { query: request.query }),
@@ -376,6 +389,16 @@ async function quickCloseFromGesture(): Promise<void> {
  */
 session.configureLockHooks({
   beforeLock: (repo, settings) => history.cleanOnLock(repo, settings),
+});
+
+/**
+ * The vault has just been purged. Anything keyed by an item id that no longer exists goes now.
+ *
+ * Injected for the same reason: `thumbs.ts` reads the repository this file hands it, and importing
+ * it from `session.ts` would close the loop.
+ */
+session.configureHousekeeping({
+  afterPurge: (repo) => thumbs.sweepOrphans(repo),
 });
 
 registerContextMenuListener({
