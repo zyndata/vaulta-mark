@@ -546,6 +546,10 @@ Read reverses it. Padding is applied *after* compression because padding before 
 compressed away. `unpad` checks every structural expectation — a positive multiple of 256, a declared
 length that fits — and treats a violation as corruption.
 
+**Thumbnails are padded but not gzipped** (§14). A WebP is already entropy-coded, so deflating it
+spends CPU to grow the payload by the size of a gzip header. The padding stays, because it is doing
+different work: it is what keeps the stored length from being a fingerprint of the exact image.
+
 ### 4.5 Wiping
 
 `src/crypto/wipe.ts` provides `zero(u8)` and a `Secret<T>` wrapper with `dispose()`. JavaScript gives
@@ -623,7 +627,8 @@ JSON-serialises what it is given, so a byte array comes back as `{"0":12,"1":…
 of quota per byte of ciphertext, and a silent shape change on the way out.
 
 `vm.settings` holds `theme`, `idleTimeoutMinutes`, `providerId`, `lockOnBrowserBlur`,
-`stripTrackingParams`, `reuseIncognitoWindow`, `clearHistoryOnLock`, `quickClose`, `sortBy` and the
+`stripTrackingParams`, `reuseIncognitoWindow`, `clearHistoryOnLock`, `quickClose`,
+`localThumbnails`, `thumbnailsOffered`, `sortBy` and the
 manager's two column widths (`sidebarWidth`, `detailWidth`). It is deliberately plaintext and
 deliberately incapable of holding vault content: the lock screen has to honour the theme, and the
 auto-lock alarm has to be armed, before any key exists.
@@ -632,9 +637,11 @@ It is **half** of the settings, and the other half travels with the vault (§6.7
 that describe how the *vault* behaves — theme, idle timeout, lock-on-blur, the tracking strip, the
 incognito-window reuse, the two history toggles and the sort order — are recorded inside the
 ciphertext, so a second Chrome profile that adopts the synced vault arrives with them already set.
-`sidebarWidth`, `detailWidth` and `providerId` stay here and only here, because a column width
-describes a screen and a provider id describes this profile's connection: a laptop must not inherit
-a desktop's columns, and a profile with no Drive token must not be told to use Drive.
+`sidebarWidth`, `detailWidth`, `providerId`, `localThumbnails` and `thumbnailsOffered` stay here and
+only here, because a column width describes a screen, a provider id describes this profile's
+connection, and "keep preview pictures on this device only" describes this computer's disk: a laptop
+must not inherit a desktop's columns, a profile with no Drive token must not be told to use Drive,
+and a machine that opted into local-only pictures has not opted the others in.
 
 `sortBy` is one order for the whole manager rather than one per folder, and that is a privacy
 decision rather than a simplification. A per-folder preference has to be keyed by folder id, and
@@ -1709,19 +1716,35 @@ via a picker. Offline → queue locally; the UI says "offline — your changes a
 add-time, user gesture, activeTab granted
   │
   ├─ scripting.executeScript(files: ['og-capture.js'])   ← the ONLY injection, on demand
+  │    publishes globalThis.__vmOgCapture, and reports nothing (see below)
+  │
+  ├─ scripting.executeScript(func: readCapture)          ← calls it, and returns the answer
   │    reads og:image:secure_url | og:image:url | og:image | twitter:image | twitter:image:src
   │    reads og:title (≤300 chars), og:description (≤600 chars)
   │    resolves relative URLs against document.baseURI
   │    fetch(imageUrl, { credentials: 'omit', mode: 'cors', signal: AbortSignal.timeout(8000) })
   │      ↳ IN PAGE CONTEXT: the page's origin already served this image to this page
   │      ↳ abort above 5 MB
-  │    returns { image?: ArrayBuffer, contentType?, ogTitle?, ogDescription? }
+  │    returns { image?: base64url, contentType?, declaredBytes?, ogTitle?, ogDescription? }
   │
   ├─ SW: validate.ts   (§14.2)
   ├─ SW: process.ts    createImageBitmap → OffscreenCanvas → ≤320 px → WebP q0.75 → ≤40 KB
   ├─ SW: seal(k_thumbs, bytes, aad{v:2, purpose:'thumb', id:itemId})
   └─ SW: store.ts      storage.local (LRU-capped) + provider.putThumb() when heavyTier
 ```
+
+**Why two injections.** A `files:` injection reports the completion value of the *program*, and a
+bundled program is one IIFE expression statement — `(function () { … })();` — whose value is
+`undefined` whatever the module did. So the file publishes a function and a second, three-line
+`func:` injection calls it; Chrome awaits a returned promise, which is what lets the fetch happen
+inside the page. The bytes travel as **base64url text**, not as an `ArrayBuffer`: `executeScript`
+serialises its result, and a transferable would arrive as `{}` with no error anywhere.
+
+**Capture happens on one entry point.** Of the four add gestures (D25), only the toolbar popup and
+the keyboard shortcut act on a page that is *loaded in the active tab*; "Add link to VaultaMark" on
+a context menu points at a URL nobody has opened. So capture runs from `items.addActiveTab` and
+nowhere else, and only for a genuine add — re-vaulting a page already in the vault is a `duplicate`,
+and silently re-capturing on it would make the toolbar button a hidden refresh button.
 
 **Why the content script fetches, not the service worker.** A fetch from the service worker
 originates from the extension and would be a genuine third-party request made by VaultaMark —
@@ -1743,8 +1766,8 @@ of the page. If there is no OG/Twitter image, there is no thumbnail.
 | Check | Rule |
 | --- | --- |
 | Scheme | `https:` only. `http:`, `data:`, `blob:`, `javascript:`, `file:` rejected. |
-| Host | Reject `localhost`, any IP literal, `*.local`, and these ranges: `10/8`, `127/8`, `169.254/16`, `172.16/12`, `192.168/16`, `::1`, `fc00::/7`, `fe80::/10`. (SSRF hygiene: the fetch happens in the page, but the URL is also logged and could be reused.) |
-| Content type | Must start with `image/`. **`image/svg+xml` is rejected outright** — SVG is a script vector. |
+| Host | Must be a **public DNS name**. Written as an allowlist of shape rather than a denylist of ranges, because a denylist has to be complete to be worth anything — `0x7f.1`, `2130706433` and `[::ffff:127.0.0.1]` are all `127.0.0.1` before IPv6 zone identifiers are considered. So: every address literal is refused, public ones included; so are single-label hosts, `*.local`, `*.localhost`, `*.internal` and `*.home`. That covers `localhost` and every range the threat model names — `10/8`, `127/8`, `169.254/16`, `172.16/12`, `192.168/16`, `::1`, `fc00::/7`, `fe80::/10` — and the test table drives each of them individually. (SSRF hygiene: the fetch happens in the page, but the URL is also recorded and could be reused.) |
+| Content type | An **allowlist**: `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `image/avif`, `image/bmp`. Same reasoning as `add.ts`'s scheme allowlist. **`image/svg+xml` is rejected with its own reason** — SVG is a script vector, and "SVG" is a better answer than "content type". |
 | Declared size | `Content-Length` > 5 MB → reject before reading the body. |
 | Actual size | Abort the stream past 5 MB. |
 | Decodability | `createImageBitmap` must succeed. |
@@ -1774,27 +1797,82 @@ anywhere.
 | `DriveSyncProvider` | Yes (default) | `storage.local` cache + Drive | full |
 
 Not capturing by default on the Chrome tier is deliberate: capturing data that can never sync
-produces a vault that looks different on every device for no reason the user asked for. The opt-in is
-offered once, in context, the first time a user adds a bookmark that has an OG image.
+produces a vault that looks different on every device for no reason the user asked for.
+
+The opt-in is offered once, in context, **the first time a user saves a page from the popup** — not
+"the first time they save one that has an OG image", which is what this section used to say. Knowing
+whether a page has an image means injecting a script into it, and the gate is that *nothing is
+injected*: a build that injected on every add to decide whether to ask is a materially different
+product from one that does not, and it is what the phase's test asserts. The offer is marked as made
+whichever way it is answered, including by dismissal — a question that returns because it was ignored
+teaches people to ignore it — and the setting is in Settings → Browsing from then on. The two
+gestures with no window to ask in (the keyboard shortcut, the context menu) never offer: their only
+channel is the toolbar badge, and a badge cannot carry a question.
+
+**The extension-origin fetch (§14.1) is not built.** It is named there as a setting for users who
+want coverage, and it would require a host permission broad enough to fetch from any origin — which
+is not in the permission table (D26) and is not something to widen for a decoration (INV-9). Building
+it is a decision for a later phase, and it starts with a PLAN change, not with a manifest edit.
 
 ### 14.5 UI
 
-- **Eye icon** on rows whose item has `thumb` metadata → toggles an inline expanded preview.
-- **Hover preview** after 200 ms, positioned to stay in-viewport, suppressed under
-  `prefers-reduced-motion` and on touch/coarse pointers.
-- **Refresh preview** in the detail pane: states plainly that re-capturing requires opening the page,
-  then (on click only) opens it in an incognito window, injects the capture script, stores the
-  result, and closes the window. Never automatic, never in the background, never on a timer.
+- **Eye icon** on rows whose item has `thumb` metadata → toggles a preview anchored to the row.
+  It is a `span`, not a `button`: a row is an `option` in a multi-selectable `listbox`, and a listbox
+  may not contain interactive descendants (§ the same constraint that put every other per-row action
+  in the toolbar). The keyboard equivalent is **`p`** on the list, which is not a convenience here —
+  it is the only route a keyboard has. An empty, same-width `span` sits on rows with no picture, so
+  the columns after it do not move as the list scrolls.
+- **The preview is a floating card, not an expanded row.** This section used to say "inline
+  expansion", and the manager's list is windowed (`ui/virtual-list.ts`) with one fixed row height
+  that the scroll arithmetic multiplies by: a row that grew to hold a picture would put every row
+  below it at the wrong offset. Click-to-pin and hover therefore open the same card, positioned to
+  stay inside the layout and never over the row it belongs to. The **detail pane**, which is not
+  windowed, does show its preview inline — that is where the word applies.
+- **Hover preview** after 200 ms, suppressed under `prefers-reduced-motion` and on touch/coarse
+  pointers. The card is `pointer-events: none`: one that could take a `mouseleave` from the row
+  underneath would flicker itself open and closed.
+- **Refresh preview** is **two affordances, in two places, and only one of them can finish the job.**
+  Re-capturing needs a script in the page; `chrome.scripting` needs either a host permission or an
+  `activeTab` grant; and `activeTab` is only ever granted by a gesture *on that tab*. VaultaMark asks
+  for no host permission at install (D25/INV-9), so:
+  - **The popup** offers it when the page in front of it is already vaulted. That click *is* the
+    gesture, so the capture runs there and then. This is the one arrangement in the whole extension
+    where a refresh is possible.
+  - **The manager's detail pane** states plainly that re-capturing means opening the page, and on
+    click opens it — in an incognito window, through the ordinary open path — and says to use the
+    toolbar button there. It cannot do more, and pretending otherwise would mean a button that
+    silently does nothing.
+
+  Never automatic, never in the background, never on a timer. (The version this section described —
+  the manager opening a window and injecting into it — is not implementable without a host permission
+  for the page's origin. Recorded here rather than quietly dropped, so the idea does not come back
+  without the permission question coming back with it.)
 - **Graceful absence**: an item with `thumb` metadata whose bytes are unavailable (authored on a
-  Drive machine, viewed on a Chrome-tier machine) renders favicon + title with a quiet
-  "preview stored in Drive" affordance. No spinner, no layout shift, no error toast.
+  Drive machine, viewed on a Chrome-tier machine, or evicted from the cache) renders favicon + title
+  with a quiet "preview stored in Drive" affordance. No spinner, no layout shift, no error toast. The
+  stored `w`/`h` travel with the `remote` answer precisely so the box keeps its shape.
 
 ### 14.6 Cache management
 
 `storage.local` thumbnails are capped (default **8 MB** without `unlimitedStorage`; see §5.1) and
 evicted least-recently-viewed first. Evicted thumbnails are re-fetched from Drive on demand when
-`capabilities.heavyTier` is true. `vm.thumbsLru` tracks last-viewed times. Deleting an item deletes
-its thumbnail locally and calls `provider.deleteThumb()`.
+`capabilities.heavyTier` is true; on the Chrome tier eviction is genuinely lossy, which is part of
+what the opt-in in §14.4 is asking about. A thumbnail with no LRU entry sorts as never-viewed and
+goes first — the only way to have bytes and no entry is a write interrupted between the two.
+
+`vm.thumbsLru` tracks last-viewed times and is **plaintext**, which is defensible for exactly one
+reason: the item ids it holds are already visible beside it, because §5.1 stores each picture under
+`vm.thumbs.<itemId>`. It leaks no id that enumerating the area would not, and it holds no title, URL
+or host. It is local-only and never pushed to a provider.
+
+**Thumbnails are dropped when the item is really gone, not when it is deleted.** A delete in this
+codebase is a *tombstone* with an undo behind it (D20), and taking the picture at that moment would
+make the undo lossy on a device that cannot re-fetch it. So the housekeeping alarm sweeps after
+`purge()`, comparing the stored ids against the live item set and calling `provider.deleteThumb()`
+for the difference. Sweeping by comparison rather than by list is also what catches the orphans a
+merge, an import or a rollback leaves behind — none of which passes through the delete path at all.
+A remote deletion that fails is swallowed: the alternative is refusing to delete a bookmark because
+Drive is unreachable.
 
 ---
 

@@ -14,6 +14,29 @@ below.
 
 ### Added
 
+- **Page previews.** When you save a page, VaultaMark now keeps the preview picture the page
+  publishes for social media — the one you see when a link is pasted into a chat — and shows it
+  beside the bookmark. An eye on a row opens it; hovering a row opens it after a moment; the item's
+  detail pane shows it inline. Press **p** on the list for the same thing from the keyboard.
+  - **The picture is read once, when you save the page, and never again.** Browsing your vault makes
+    no network requests of any kind, exactly as before. There is no re-fetching, no background
+    refresh and no timer; refreshing a preview is a button you press, on a page you have open.
+  - **It is fetched by the page, not by VaultaMark.** The picture is pulled using the page's own
+    connection, for an image that page had already loaded, so no new party learns anything about
+    what you save. The cost is honest: some sites forbid it, and those bookmarks simply have no
+    preview. The favicon is always there.
+  - **Everything about it is encrypted**, with a key of its own derived from your master password —
+    the picture is as unreadable to Google Drive, or to anyone with your disk, as the bookmark is.
+  - Pictures are re-encoded to at most 320 pixels and 40 KB before they are stored. That is also
+    what removes any camera metadata — location included — that the original carried: what is kept
+    is a new image, not the site's file.
+  - **Screenshots are never taken.** If a page publishes no preview picture, there is no preview.
+  - With Google Drive connected, previews sync to your other computers and are kept there; this
+    computer holds up to 8 MB of them as a cache and re-fetches what it drops. On Chrome sync, which
+    has nowhere to keep pictures, previews are **off** — VaultaMark offers once, in context, to keep
+    them on this computer only, and the setting is in Settings → Browsing afterwards.
+  - A bookmark whose preview lives on another computer shows its favicon and title with a quiet
+    note, not a spinner and not an error.
 - **Google Drive sync.** Settings → Sync now offers to connect your own Google Drive and move the
   vault there. It holds thousands of bookmarks instead of hundreds, and it is where page previews
   will live. Chrome sync stays the default and needs nothing from you; Drive is opt-in, and the

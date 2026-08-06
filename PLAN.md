@@ -1225,39 +1225,71 @@ browsing, and gracefully absent everywhere they are unavailable.
   wasted work, no local-only data that will never sync) — unless the user opts into
   "keep thumbnails on this device only", which is offered once, in context, with an explanation.
   With Drive active, capture is on by default.
-- UI: an **eye** icon on rows that have a thumbnail → expands an inline preview; a hover preview
-  (200 ms delay, respects `prefers-reduced-motion`, disabled on touch); a "Refresh preview" action in
-  the item detail pane that states plainly that it must open the page to re-capture, and does so only
-  on that explicit click (opens the page in an incognito window, captures, closes). **Never**
-  automatic, never in the background.
+  - **Deviation, recorded in ARCHITECTURE §14.4:** the offer is made on the first *save from the
+    popup*, not on "the first bookmark that has an OG image". Knowing whether a page has one means
+    injecting a script into it, and the gate is that nothing is injected — which is what the test
+    below asserts. The two gestures with no window (keyboard shortcut, context menu) never offer.
+- UI: an **eye** icon on rows that have a thumbnail → opens a preview anchored to the row; a hover
+  preview (200 ms delay, respects `prefers-reduced-motion`, disabled on touch); a "Refresh preview"
+  action that states plainly that it must open the page to re-capture, and does so only on that
+  explicit click. **Never** automatic, never in the background.
+  - **Deviation, recorded in ARCHITECTURE §14.5: the row preview is a floating card, not an inline
+    expansion.** The manager's list is windowed with one fixed row height that the scroll arithmetic
+    multiplies by; a row that grew to hold a picture would put every row below it at the wrong
+    offset. The detail pane's preview *is* inline — it is not windowed.
+  - **Deviation, recorded in ARCHITECTURE §14.5: only the popup can finish a refresh.** Re-capturing
+    needs `chrome.scripting` in the page, which needs a host permission or an `activeTab` grant, and
+    `activeTab` comes only from a gesture on that tab. So the popup offers "Refresh preview" when the
+    page in front of it is already vaulted (that click is the gesture), and the manager's detail pane
+    opens the page and says to use the toolbar button there. The originally specified version —
+    manager opens an incognito window, injects, closes — is not implementable without adding a broad
+    optional host permission, which D26 does not contain and INV-9 would not let in quietly.
 - **Graceful absence:** a device with no Drive connection shows favicon + title for items whose
   `thumb` metadata exists but whose bytes are unavailable, with a quiet "preview stored in Drive"
   affordance. No layout shift, no spinner that never resolves, no error toast.
 - Schema: `thumb` metadata already exists in v2 (Phase 3), so no schema bump — verify and record that.
 
 **Out of scope:** screenshots of any kind, browse-time fetching of any kind, background re-capture.
+Also **not built: the opt-in extension-origin fetch** named in ARCHITECTURE §14.1 and risk R5. It is
+absent from this phase's in-scope list, and it needs a host permission broad enough to fetch from any
+origin — which D26's permission table does not contain. Building it starts with a PLAN change.
 
 **Tests**
 - `validate.ts` table test: ≥ 25 hostile inputs (private IPs, SVG, `data:`, oversized declared
   length, wrong content type, redirect to http, 10 MB payload) each rejected with the right reason;
-  valid https JPEG/PNG/WebP accepted.
+  valid https JPEG/PNG/WebP accepted. — `test/unit/thumbs/validate.test.ts`, 54 cases.
 - `process.ts`: a 4000×3000 fixture downscales to ≤ 320 px longest edge, ≤ 40 KB, correct aspect
-  ratio; a 100×80 fixture is **not** upscaled; the quality step-down loop terminates.
-- Metadata stripping: a fixture with EXIF GPS produces output containing no EXIF marker.
+  ratio; a 100×80 fixture is **not** upscaled; the quality step-down loop terminates. —
+  `test/unit/thumbs/process.test.ts` against the injected `ImageOps` seam (`createImageBitmap` and
+  `OffscreenCanvas` do not exist in Node), and `test/e2e/thumbs.spec.ts` against a real 4000×3000
+  JPEG in Chromium.
+- Metadata stripping: a fixture with EXIF GPS produces output containing no EXIF marker. —
+  `test/e2e/thumbs.spec.ts`; the source carries a planted sentinel inside a real APP1 segment, and
+  the test asserts the sentinel is in the input and gone from the output.
 - `store.ts`: thumbnails are encrypted at rest (**INV-6** extended — no image magic bytes appear in
-  any stored value); LRU eviction respects the cap; item deletion removes both copies.
+  any stored value); LRU eviction respects the cap; item deletion removes both copies. —
+  `test/unit/thumbs/store.test.ts`, against a real `VaultRepository` cipher.
 - Tier gating: with `ChromeSyncProvider` and the opt-in off, capture is never invoked (assert the
-  content script is not injected).
-- **INV-4 re-verified**: browsing a vault full of thumbnails issues zero network requests.
-- E2E: add a page with an `og:image` (served from a local Playwright fixture server) → the eye icon
-  appears → expanding shows the image → disconnect Drive → the row degrades to favicon without errors.
+  content script is not injected). — `test/unit/background/thumbs.test.ts`, asserting on
+  `chrome.scripting.executeScript` itself, and again in `test/e2e/thumbs.spec.ts`.
+- **INV-4 re-verified**: browsing a vault full of thumbnails issues zero network requests. —
+  `test/e2e/thumbs.spec.ts` aborts and records every http(s) request in the context.
+- E2E: add a page with an `og:image` → the eye icon appears → expanding shows the image → the bytes
+  become unavailable → the row degrades to favicon without errors. — `test/e2e/thumbs.spec.ts`.
+  The fixture server was not needed: the image never crosses the network in the product either (the
+  page fetches it and hands the bytes over), so the harness hands them over at the same boundary,
+  which also lets the whole test run under the INV-4 trap.
 
 **Definition of done**
-- [ ] Thumbnails appear for real sites with OG images when Drive is connected.
-- [ ] Zero network requests while browsing (measured, INV-4).
-- [ ] No plaintext image bytes anywhere in storage or on Drive (INV-6).
-- [ ] All hostile-input cases rejected.
-- [ ] Degradation on a Drive-less device is visually clean.
+- [x] Thumbnails appear for real sites with OG images when Drive is connected. — the pipeline is
+      proven end to end in Chromium (`test/e2e/thumbs.spec.ts`); **a real Google account with Drive
+      connected is the maintainer's manual pass**, for the same reason Phase 10's is: Playwright
+      cannot sign into Google. Procedure in DEVELOPMENT §5.5.
+- [x] Zero network requests while browsing (measured, INV-4). — `test/e2e/thumbs.spec.ts`.
+- [x] No plaintext image bytes anywhere in storage or on Drive (INV-6). —
+      `test/unit/thumbs/store.test.ts`.
+- [x] All hostile-input cases rejected. — `test/unit/thumbs/validate.test.ts`.
+- [x] Degradation on a Drive-less device is visually clean. — `test/e2e/thumbs.spec.ts`.
 
 **Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-11-done` and push.
 

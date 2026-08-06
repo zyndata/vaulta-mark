@@ -269,6 +269,39 @@ Then `npm run build`, load `dist/` unpacked, and:
 
 Write the result up in the commit message, as Phase 7's two-profile pass was.
 
+### 5.5 Thumbnails on the real web, by hand
+
+`test/e2e/thumbs.spec.ts` proves the pipeline end to end in a real Chromium — decode, downscale,
+encode, seal, store, render, degrade — against an image the test built itself. Two things it cannot
+prove, both for reasons the harness cannot get past:
+
+- **`activeTab` cannot be granted.** It comes from a click on the toolbar button, and Playwright
+  drives pages, not browser chrome. So the E2E replaces `chrome.tabs.query` and
+  `chrome.scripting.executeScript` with stand-ins, exactly as `popup.spec.ts` replaces
+  `chrome.windows.create`. Whether the real injection reaches a real page is a question for a real
+  click.
+- **The page-context fetch is the whole risk (R5).** Whether a given site's CSP allows it, and
+  whether its CDN sends permissive CORS, is a property of that site — and no mock has an opinion.
+
+So, with `dist/` loaded unpacked and Drive connected (§5.4):
+
+1. Save twenty or so pages you would actually save, from a spread of sites: a newspaper, a GitHub
+   repository, a Wikipedia article, a YouTube video, a shop, a blog on someone's own domain, a
+   documentation site, a social post. Use the toolbar button, so `activeTab` is real.
+2. In the manager, count how many rows have an eye. **That number over twenty is the real-world
+   coverage figure risk R5 asks for** — write it into ARCHITECTURE §14 and into this file, with the
+   date and the sample, because it will drift as the web's CSPs tighten.
+3. For a page with no preview, check DevTools → Network *on the page* (not on the worker): a CSP
+   refusal and a CORS refusal look different, and the split is worth recording.
+4. **Refresh.** Open one of the saved pages, click the toolbar button on it, and press
+   *Refresh preview* on the "already saved" notice. The picture must update.
+5. **Check the second device.** With Drive connected on both, the pictures must appear on the other
+   profile — evicted-and-refetched is the path §14.6 describes, so clearing `vm.thumbs.*` in
+   `chrome.storage.local` on one profile and reopening the manager should refill it from Drive with
+   one request per picture looked at, and none for pictures nobody looks at.
+6. **Check nothing leaks.** `chrome://extensions` → service worker → Application → Storage: every
+   `vm.thumbs.*` value is base64 that does not begin `iVBOR`, `/9j/` or `UklGR`.
+
 ---
 
 ## 6. The invariant scanners
