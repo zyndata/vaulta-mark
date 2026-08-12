@@ -631,9 +631,17 @@ describe('changing the master password', () => {
 });
 
 describe('destroying the vault', () => {
+  /** Every key the Chrome sync provider owns. `vm.s.` is its whole namespace. */
+  function syncedKeys(): string[] {
+    return Object.keys(mock.storage.sync.snapshot()).filter((key) => key.startsWith('vm.s.'));
+  }
+
   it('leaves no vm. key behind, and no key in the session', async () => {
     await addBookmark('https://example.com/a', 'A secret bookmark');
-    expect(await send({ type: 'DESTROY_VAULT' })).toEqual({ type: 'OK' });
+    expect(await send({ type: 'DESTROY_VAULT' })).toEqual({
+      type: 'DESTROYED',
+      remoteRemoved: true,
+    });
 
     expect(Object.keys(mock.storage.local.snapshot()).filter((key) => key.startsWith('vm.'))).toEqual(
       [],
@@ -642,6 +650,40 @@ describe('destroying the vault', () => {
     // Not "locked" — gone. The difference is what decides between the unlock and create screens.
     expect(await send({ type: 'GET_STATE' })).toMatchObject({ exists: false, locked: true });
   });
+
+  /*
+   * The bug this pair of tests exists for (maintainer-reported after Phase 11).
+   *
+   * Destroy used to clear `storage.local` and nothing else, so the encrypted copy stayed in
+   * `storage.sync`. The profile then came back offering to *adopt* the vault it had just been told
+   * to destroy — and a replacement vault created with the same password could never open those
+   * bytes, because a new vault is a new random DEK. The two deadlocked on `VAULT_MISMATCH` with
+   * nothing on screen able to break the tie.
+   */
+  it('takes the synced copy with it, so the profile is not offered the vault it just destroyed', async () => {
+    await addBookmark('https://example.com/a', 'A secret bookmark');
+    await send({ type: 'SYNC_NOW' });
+    expect(syncedKeys().length).toBeGreaterThan(0);
+
+    await send({ type: 'DESTROY_VAULT' });
+
+    expect(syncedKeys()).toEqual([]);
+    // `adoptable` is what puts the "there is already a vault on your other computer" screen up.
+    expect(await send({ type: 'GET_STATE' })).toMatchObject({ exists: false, adoptable: false });
+  }, 30_000);
+
+  it('leaves the synced copy alone when explicitly told to', async () => {
+    await addBookmark('https://example.com/a', 'A secret bookmark');
+    await send({ type: 'SYNC_NOW' });
+    const before = syncedKeys();
+
+    expect(await send({ type: 'DESTROY_VAULT', deleteRemote: false })).toEqual({
+      type: 'DESTROYED',
+      remoteRemoved: null,
+    });
+
+    expect(syncedKeys()).toEqual(before);
+  }, 30_000);
 
   it('tells the open UIs, so a second window does not keep showing the vault', async () => {
     const observed = mock.observeMessages();
@@ -654,6 +696,18 @@ describe('destroying the vault', () => {
     expect(await send({ type: 'CREATE_VAULT', password: PASSWORD })).toEqual({ type: 'OK' });
     expect(await titles()).toEqual([]);
   }, 30_000);
+
+  /** The whole point: destroy, recreate with the same password, and sync works. */
+  it('lets a new vault with the same password sync, rather than deadlocking on a mismatch', async () => {
+    await addBookmark('https://example.com/a', 'A secret bookmark');
+    await send({ type: 'SYNC_NOW' });
+
+    await send({ type: 'DESTROY_VAULT' });
+    await send({ type: 'CREATE_VAULT', password: PASSWORD });
+    await addBookmark('https://example.com/b', 'A fresh start');
+
+    expect(await send({ type: 'SYNC_NOW' })).toMatchObject({ error: null });
+  }, 60_000);
 });
 
 /* ------------------------------------------------------------------ tracking parameters */

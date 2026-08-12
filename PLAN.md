@@ -119,7 +119,7 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | D18 | **3-way merge with a persisted merge base** (`vm.base`, encrypted, in `storage.local`) | True 3-way merge is impossible without a base. Per-item `updatedAt` + per-item `rev` + vault-level monotonic `rev` + `lastSyncedRev` makes resolution deterministic and provider-agnostic. |
 | D19 | **Auto-merge rules**: disjoint field edits merge silently; `tags` merge as a set union with tombstoned removals; **same field diverged on both sides ⇒ conflict UI**, never a silent overwrite | Matches the requirement. Set-union tag merge is a deliberate, documented bias toward not losing data. |
 | D20 | **Deletes are tombstones** (`deleted: true, deletedAt`), purged after 90 days | Without tombstones, a delete on device A is undone by a stale device B. |
-| D21 | **Drive scope: `drive.file` only** | Full `drive`/`drive.readonly` are Restricted scopes requiring an annual CASA Tier-2 security assessment (real money, real calendar time) plus a much heavier OAuth verification. `drive.file` is a Sensitive-but-not-Restricted scope: verification is a form + a demo video, and the app can only touch files it created — which is also a genuinely better privacy story. Cost: we cannot adopt a vault file the user moved/recreated by hand outside our flow; recovery path is Import (Phase 8). |
+| D21 | **Drive scope: `drive.file` only** | Full `drive`/`drive.readonly` are Restricted scopes requiring an annual CASA Tier-2 security assessment (real money, real calendar time) plus a much heavier OAuth verification. `drive.file` is the one Drive scope in the **non-sensitive** tier, which is exempt from OAuth app verification altogether, and the app can only touch files it created — which is also a genuinely better privacy story. Cost: we cannot adopt a vault file the user moved/recreated by hand outside our flow; recovery path is Import (Phase 8). |
 | D22 | **Drive auth via `chrome.identity.getAuthToken`**, with `launchWebAuthFlow` as a documented fallback | `getAuthToken` is one call and needs no client secret in the package. It requires a Chrome profile signed into Google; profiles that are not get the `launchWebAuthFlow` path (PKCE, no secret). |
 | D23 | **Drive freshness check is metadata-only**: `GET /files/{id}?fields=modifiedTime,version,md5Checksum,appProperties` with `appProperties.vmRev` as the authoritative revision | Costs ~1 KB and no decryption; full download only when `vmRev`/`md5Checksum` differs from local. |
 | D24 | **Thumbnails are one Drive file per item** (`t_<itemId>.vmt`), not one archive | Lets a device fetch only the previews it is about to render, and makes deletes cheap. |
@@ -1012,11 +1012,15 @@ closed.
      thumbnails**) vs Google Drive (opt-in later; large vaults; **thumbnails**). Explicit tradeoff
      table. Drive is offered but deferred to Phase 10 in the code — until then the card is present
      and marked "coming in the next release" (**or**, if Phase 10 has landed, fully wired).
-  5. **Two things Chrome still does** — (a) typed URLs live in history and can autocomplete even when
-     nothing is bookmarked → offer the history-cleanup tool; (b) Chrome's URL-prediction/preload
-     service can suggest URLs from its own signals → explain, and provide a copy-able
-     `chrome://settings/?search=autocomplete` link with instructions to turn off
-     "Autocomplete searches and URLs".
+  5. **One thing Chrome still remembers** — typed URLs live in history and can autocomplete even
+     when nothing is bookmarked → offer the history-cleanup tool.
+     - **Amended after Phase 11** (maintainer-reported): this step originally had a second card
+       about Chrome's URL-prediction service, with a copy-able `chrome://settings/?search=autocomplete`
+       address and instructions to turn off "Autocomplete searches and URLs". It is **removed**. It
+       was the only card in the flow with no control on it, and it could not have one — the setting
+       is Chrome's, and we can neither set it nor check afterwards whether the instruction was
+       followed. The threat is real and is stated in `docs/PRIVACY.md`, which is where a statement
+       that cannot be a control belongs. See ARCHITECTURE §12.4.
   Re-runnable any time from Settings → "Replay onboarding".
 - `src/background/history.ts` —
   - **Clear history for vaulted domains**: requests the optional `history` permission in context,
@@ -1044,8 +1048,30 @@ closed.
   - **Amended again after Phase 9** (maintainer-reported): the URL-prediction reminder is on
     onboarding step 5 only, and no longer duplicated in the privacy section. It is a one-time
     instruction to change something in Chrome, not a control this extension owns — a permanent copy
-    of it among the toggles is a section that can never be finished. *Settings → About → Show the
-    setup guide again* is the way back to it. See ARCHITECTURE §12.4.
+    of it among the toggles is a section that can never be finished. **Amended once more after
+    Phase 11**: by the same argument taken to its end, it is not in onboarding either. It is gone
+    from the product. See ARCHITECTURE §12.4.
+  - **Amended after Phase 11** (maintainer-reported), two things in the same report. **Destroy vault
+    clears the sync backend too**, by default, with a checkbox to leave the copy for another
+    computer: the old behaviour left the encrypted copy in `storage.sync`, so the profile was
+    immediately offered the vault it had just destroyed, and a replacement made with the same
+    password deadlocked against it on `VaultMismatch` forever. And **the sync section carries the way
+    out of that mismatch** — "Overwrite the synced copy with this vault" — because the error was
+    reported on the toolbar's sync status, which is itself the Sync-now button, so the only thing
+    anyone could click retried the merge that cannot work. See ARCHITECTURE §5.1 and §6.5.1.
+  - **Amended once more after Phase 11** (maintainer-reported, 2026-08-12): one way out is not
+    enough, and on the Drive path there was none at all. A mismatch is a question with **two** right
+    answers, and the one that was missing is the one the common case needs — keep the vault that is
+    in sync, not the one that is here. It is the answer for a profile whose `storage.local` went away
+    (a reinstall, an extension id that changed with a build variant) and made a new vault with the
+    same password, which is a *new* vault and can never open the synced bytes. So the sync section
+    now offers "Use the synced vault on this computer" (`ADOPT_REMOTE_VAULT`) beside the overwrite,
+    a refused Drive connection offers both where it reports the refusal, and the message that
+    reported it stopped claiming the other vault has "another master password" — it usually does not.
+    That also closes a gap nothing had ever scoped: a second computer could not join a vault living
+    in Drive, because adoption from an empty profile reads the backend out of `vm.settings`, which is
+    `chrome` until a migration succeeds — and the migration is what the mismatch refuses. See
+    ARCHITECTURE §6.5.1 and §6.6.
 - `docs/PRIVACY.md` finalized (what we store, where, what we never send, the Drive exception, no
   telemetry) — this is the URL that goes in the Store listing.
 
@@ -1109,6 +1135,18 @@ clean two-way migration. Unlocks the heavy tier for Phase 11.
   a rollback if verification fails.
 - Settings → Sync: connect/disconnect Drive, show the Drive account email, "Sync now", last error,
   a link to the file in Drive, and a clear statement that VaultaMark can only see files it created.
+  - **Amended after Phase 11** (maintainer-reported, 2026-08-10): a build with no OAuth client id
+    said only that Drive was unavailable, which is true and useless to the one person who can change
+    it — the maintainer, who is the only one who ever sees that state. It now renders the setup
+    steps, this installation's extension id and the permitted scope, each with a Copy button, and
+    `npm run dev-key` (`scripts/dev-key.mjs`) replaces the pack-extension-plus-OpenSSL recipe that
+    RELEASE §5.4 used to prescribe for pinning the id. The two values are on screen because they are
+    properties of the *running build*, and reading the id off `chrome://extensions` is the step
+    people get wrong. **No link to the console**, by INV-3 — the same call as the About section
+    (§12.4), and the panel says so rather than looking like it forgot.
+  - The Google Cloud half cannot be automated at all, and that is worth stating once so it is not
+    re-proposed: creating a project needs an authenticated console session, and the API that could
+    do it needs credentials that do not exist until the project does.
 - Offline behaviour: queue and retry; the UI shows "offline, changes are saved locally".
 - **Settings travel with the vault.** `vm.settings` is per-profile today, so a second Chrome profile
   on the same Google account joins the synced vault (Phase 7, `repo.adopt`) and then starts from the
@@ -1452,7 +1490,7 @@ Five differentiators, one line each:
 | --- | --- | --- | --- | --- |
 | R1 | `chrome.storage.sync` quota is tighter in practice than the math suggests | Medium | High | Phase 7 measures a real fixture and updates the documented ceiling; the 70 %/95 % guards degrade rather than break; Drive is the escape hatch. |
 | R2 | `storage.sync` has no true compare-and-swap, so a fast two-device race could interleave a push | Medium | Medium | Read-verify-write plus post-write verification, bucket HMAC tags to detect torn writes, and an idempotent merge engine that converges on the next sync. Fuzz-tested in Phase 7. |
-| R3 | OAuth verification for `drive.file` takes weeks | High | Medium | `drive.file` is Sensitive, not Restricted — a form and a demo video, no CASA audit. Start verification during Phase 10, not Phase 13. Until verified, the unverified-app screen limits us to 100 users, which is fine for a beta. |
+| R3 | ~~OAuth verification for `drive.file` takes weeks~~ **Retired 2026-08-10 — the risk does not exist.** | — | — | `drive.file` is **non-sensitive**, and an app whose scopes are all non-sensitive is exempt from OAuth app verification entirely: no form, no demo video, no unverified-app interstitial, no 100-user cap. This row previously said *Sensitive* and budgeted weeks of review into the release schedule. What publication *does* require is moving the consent screen out of *Testing* status, whose 7-day refresh-token expiry would silently break the PKCE fallback path (RELEASE §5.2). |
 | R4 | Store review flags the `history` or `bookmarks` permission | Medium | Medium | Both are **optional** and requested in context; the justification strings are drafted in Phase 0 and refined in Phase 13. |
 | R5 | Content-script image fetch is blocked by page CSP/CORS on many sites, so thumbnail coverage is poor | High | Low | Accepted by design: no thumbnail is a fine outcome, favicons always work. The opt-in extension-origin fetch exists for users who want coverage. Measure real-world coverage during Phase 11 and put the number in the docs. |
 | R6 | `storage.session` key custody is a weaker posture than pure in-memory | Certain | Low–Medium | Documented in the threat model and in Settings; memory-only, never on disk, cleared on browser exit; timeout default 10 min; "require password after restart" on by default. |

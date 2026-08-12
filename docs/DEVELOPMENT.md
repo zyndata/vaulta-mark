@@ -243,7 +243,15 @@ not sufficient evidence.
    settings screen says Drive is unavailable, which is the correct behaviour and is what
    `manager.spec.ts` asserts.
 
-Then `npm run build`, load `dist/` unpacked, and:
+Start from the template — `cp .env.example .env.local` — and see [RELEASE §5.5](RELEASE.md#55-envlocal--where-both-values-live)
+for how the file reaches the build. Two things to know before you debug a Drive section that still
+says "no Google project configured": the values arrive through `loadEnv` in `vite.config.ts`, so a
+build from an older checkout will ignore the file entirely; and **`VM_MANIFEST_KEY` is applied only
+in development mode**, so use `npm run dev` (or `npx vite build --mode development`) if you need the
+stable id the OAuth client is registered against. Check `dist/manifest.json` for `oauth2` and `key`
+before blaming Google.
+
+Then build, load `dist/` unpacked, and:
 
 1. **Connect.** Manager → **Settings** → *Sync* → *Connect Google Drive*. The optional permission
    prompt comes first (from the page), then Google's consent screen. It must name `drive.file` and

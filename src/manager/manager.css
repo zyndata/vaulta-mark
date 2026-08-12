@@ -317,6 +317,18 @@ body.vm-manager {
 }
 
 /*
+ * The folder row is draggable, so its text must not be.
+ *
+ * Same fix and same reason as `.vm-row` in the list: a press-and-move over selectable text starts a
+ * text selection, and the browser then drags the selection rather than the element — so the drop
+ * targets see a `text/plain` drag they are right to refuse (`dnd.ts`), and the folder appears not to
+ * be draggable at all about half the time.
+ */
+.vm-tree-row {
+  user-select: none;
+}
+
+/*
  * The name is the part that gives, in the tree exactly as in the tag list below.
  *
  * Without the `flex` it does not claim the free space, and `justify-content: space-between` on the
@@ -1143,6 +1155,19 @@ body.vm-manager {
 .vm-settings-page .vm-danger-zone {
   padding: 0;
   border: 0;
+}
+
+/*
+ * The slot the "two vaults, one sync area" answers are painted into.
+ *
+ * `display: contents` rather than a box: the section is a grid with a gap, so a wrapper would put
+ * its four children in one row of it with nothing between them — and an *empty* wrapper, which is
+ * what this is almost always, would still take a row and a gap and leave a hole under the Connect
+ * button. With `contents` the children join the section's own grid and an empty slot occupies
+ * nothing at all.
+ */
+.vm-settings-page .vm-mismatch {
+  display: contents;
 }
 
 /* ------------------------------------------------------------------ onboarding (Phase 9) */

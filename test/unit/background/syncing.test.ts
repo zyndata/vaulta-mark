@@ -190,6 +190,144 @@ describe('sync status', () => {
   });
 });
 
+/* ------------------------------------------------------------------ the mismatch escape */
+
+/**
+ * `VAULT_MISMATCH` is the one sync error with nothing behind it to retry, and until this landed it
+ * was also the one with nothing to click: the toolbar's status *is* the Sync-now button, so the only
+ * control on screen re-ran the merge that cannot work and appeared to do nothing at all.
+ *
+ * Reached most easily by the route the maintainer found it on — destroy a vault while deliberately
+ * leaving its synced copy, then make a new one. Two different keys, one sync area.
+ */
+describe('replacing a mismatched synced vault', () => {
+  const OTHER_PASSWORD = 'a completely different master password';
+
+  async function strandAForeignVault(): Promise<void> {
+    await addBookmark('https://example.com/one', 'One');
+    await send({ type: 'SYNC_NOW' });
+    await send({ type: 'DESTROY_VAULT', deleteRemote: false });
+    await send({ type: 'CREATE_VAULT', password: OTHER_PASSWORD });
+    await addBookmark('https://example.com/two', 'Two');
+  }
+
+  it('is what a mismatch actually looks like, before it is fixed', async () => {
+    await strandAForeignVault();
+    expect((await send({ type: 'SYNC_NOW' }))['error']).toBe('VAULT_MISMATCH');
+  }, 60_000);
+
+  it('deletes the other vault and pushes this one, so syncing works again', async () => {
+    await strandAForeignVault();
+    expect((await send({ type: 'SYNC_NOW' }))['error']).toBe('VAULT_MISMATCH');
+
+    const replaced = await send({ type: 'REPLACE_REMOTE_VAULT' });
+    expect(replaced).toMatchObject({ type: 'SYNC_STATUS', error: null });
+    expect(replaced['lastSyncedAt']).toEqual(expect.any(Number));
+
+    // And it stays fixed: a second run finds a remote it wrote and agrees there is nothing to do.
+    expect((await send({ type: 'SYNC_NOW' }))['error']).toBeNull();
+  }, 60_000);
+
+  it('refuses while the vault is locked, rather than emptying the sync area', async () => {
+    await strandAForeignVault();
+    const before = mock.storage.sync.snapshot();
+    await send({ type: 'LOCK' });
+
+    expect(await send({ type: 'REPLACE_REMOTE_VAULT' })).toEqual({
+      type: 'ERROR',
+      code: 'VAULT_LOCKED',
+    });
+    expect(mock.storage.sync.snapshot()).toEqual(before);
+  }, 60_000);
+});
+
+/* ------------------------------------------------------------------ the other answer */
+
+/**
+ * The same dead end, settled the other way round: keep the vault that is in the sync area.
+ *
+ * This is the answer for the situation `strandAForeignVault` actually models — a profile whose vault
+ * went away with its `storage.local` and was made again with the same password, which is a *new*
+ * vault and can never open the bytes on the other side. Until this landed the only offer was to
+ * overwrite them, which is the wrong way round when the copy over there is the one with the
+ * bookmarks in it.
+ */
+describe('adopting a mismatched synced vault', () => {
+  const OTHER_PASSWORD = 'a completely different master password';
+
+  /** A synced vault holding "One", and a local vault holding "Two" that cannot open it. */
+  async function strandAForeignVault(): Promise<void> {
+    await addBookmark('https://example.com/one', 'One');
+    await send({ type: 'SYNC_NOW' });
+    await send({ type: 'DESTROY_VAULT', deleteRemote: false });
+    await send({ type: 'CREATE_VAULT', password: OTHER_PASSWORD });
+    await addBookmark('https://example.com/two', 'Two');
+  }
+
+  it('replaces this profile’s vault with the synced one', async () => {
+    await strandAForeignVault();
+    expect((await send({ type: 'SYNC_NOW' }))['error']).toBe('VAULT_MISMATCH');
+
+    const status = await send({
+      type: 'ADOPT_REMOTE_VAULT',
+      password: PASSWORD,
+      from: 'chrome',
+    });
+    expect(status).toMatchObject({ type: 'SYNC_STATUS', error: null });
+
+    // The vault that was here is gone, and the one that was in sync is open under the password that
+    // belongs to it — which is the whole point: the two never shared a key.
+    expect((await itemsOf()).map((item) => item.title)).toEqual(['One']);
+  }, 60_000);
+
+  it('records the base, so joining does not push the vault straight back', async () => {
+    await strandAForeignVault();
+    await send({ type: 'ADOPT_REMOTE_VAULT', password: PASSWORD, from: 'chrome' });
+
+    const before = JSON.stringify(mock.storage.sync.snapshot());
+    expect((await send({ type: 'SYNC_NOW' }))['error']).toBeNull();
+    expect(JSON.stringify(mock.storage.sync.snapshot())).toBe(before);
+  }, 60_000);
+
+  it('changes nothing at all when the password is wrong', async () => {
+    await strandAForeignVault();
+    const before = mock.storage.sync.snapshot();
+
+    expect(await send({ type: 'ADOPT_REMOTE_VAULT', password: 'not that one', from: 'chrome' })).toEqual(
+      { type: 'ERROR', code: 'WRONG_PASSWORD' },
+    );
+
+    // Not a half-adopted profile: the vault that was here is still here, still unlocked, and the
+    // synced copy is untouched. The old key never left `storage.session`, which is what makes a typo
+    // free rather than fatal.
+    expect((await itemsOf()).map((item) => item.title)).toEqual(['Two']);
+    expect(mock.storage.sync.snapshot()).toEqual(before);
+  }, 60_000);
+
+  it('refuses while the vault is locked, rather than erasing it for a stranger', async () => {
+    await strandAForeignVault();
+    await send({ type: 'LOCK' });
+
+    // Whoever is at the keyboard does not hold this vault's password, and knowing some *other*
+    // vault's must not be a way to delete this one.
+    expect(await send({ type: 'ADOPT_REMOTE_VAULT', password: PASSWORD, from: 'chrome' })).toEqual({
+      type: 'ERROR',
+      code: 'VAULT_LOCKED',
+    });
+
+    await send({ type: 'UNLOCK', password: OTHER_PASSWORD });
+    expect((await itemsOf()).map((item) => item.title)).toEqual(['Two']);
+  }, 60_000);
+
+  it('says so when there is nothing in the sync area to join', async () => {
+    await addBookmark('https://example.com/two', 'Two');
+    expect(await send({ type: 'ADOPT_REMOTE_VAULT', password: PASSWORD, from: 'chrome' })).toEqual({
+      type: 'ERROR',
+      code: 'VAULT_STATE',
+    });
+  }, 60_000);
+});
+
 /* ------------------------------------------------------------------ conflicts */
 
 describe('listing conflicts', () => {

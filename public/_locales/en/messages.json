@@ -483,17 +483,17 @@
     "message": "Turn it on, come back here, and press Re-check.",
     "description": "Third step of the guided incognito prompt."
   },
-  "incognitoCopyButton": {
+  "copyButton": {
     "message": "Copy",
-    "description": "Button that copies the chrome://extensions address to the clipboard."
+    "description": "Button that copies the value shown beside it to the clipboard. Used by the guided incognito prompt and by the Drive setup steps in Settings."
   },
-  "incognitoCopied": {
+  "copied": {
     "message": "Copied.",
-    "description": "Confirmation after the address was copied to the clipboard."
+    "description": "Confirmation after a value was copied to the clipboard."
   },
-  "incognitoCopyFailed": {
-    "message": "Could not copy — select the address above instead.",
-    "description": "Shown when the clipboard write was refused."
+  "copyFailed": {
+    "message": "Could not copy — select the value above instead.",
+    "description": "Shown when the clipboard write was refused, for example by an enterprise policy or an unfocused document."
   },
   "incognitoRecheck": {
     "message": "Re-check",
@@ -1203,6 +1203,14 @@
       }
     }
   },
+  "settingsDestroyRemote": {
+    "message": "Also delete the synced copy",
+    "description": "Checkbox in the danger zone. On by default."
+  },
+  "settingsDestroyRemoteHint": {
+    "message": "On, so that destroying really means destroying. Leave it on unless another computer is still using this vault and you want its synced copy to survive — a new vault made here afterwards cannot open that copy, even with the same password, and the two will refuse to sync until one of them goes.",
+    "description": "Explains the consequence of leaving the synced copy behind."
+  },
   "settingsDestroyButton": {
     "message": "Destroy this vault",
     "description": "Button that erases the vault. Enabled only after the typed confirmation."
@@ -1212,8 +1220,16 @@
     "description": "The second of the two confirmations before the vault is destroyed."
   },
   "settingsDestroyed": {
-    "message": "The vault has been erased.",
-    "description": "Shown after the vault was destroyed."
+    "message": "The vault has been erased, here and from sync.",
+    "description": "Shown after the vault and its synced copy were both destroyed."
+  },
+  "settingsDestroyedRemoteKept": {
+    "message": "The vault has been erased from this device. The synced copy is still there, as you asked.",
+    "description": "Shown after a destroy that deliberately left the synced copy alone."
+  },
+  "settingsDestroyedRemoteFailed": {
+    "message": "The vault has been erased from this device, but the synced copy could not be reached and is still there. Connect and try again, or destroy it from the computer that can reach it.",
+    "description": "Shown after a destroy whose remote deletion failed."
   },
   "errorSyncFailed": {
     "message": "That could not be synced. See the sync status for what went wrong.",
@@ -1244,8 +1260,85 @@
     "description": "Sync error: the compare-and-swap on push failed."
   },
   "syncErrorVaultMismatch": {
-    "message": "The synced vault belongs to a different master password. Two separate vaults cannot share Chrome sync — one of them has to go.",
+    "message": "The synced copy belongs to a different vault. Two vaults cannot share one sync area — open Settings → Sync to choose which one keeps it.",
     "description": "Sync error: the vault in the sync area cannot be opened with this device's key."
+  },
+  "syncMismatchExplain": {
+    "message": "Nothing here can merge the two — they are locked with different keys, and that is true even when both were given the same master password: a vault made a second time is a new vault. So one of them keeps syncing and the other does not. Both answers are below; neither happens without a second confirmation.",
+    "description": "Explains the two ways out of a vault mismatch."
+  },
+  "syncMismatchKeepRemote": {
+    "message": "Use the synced vault on this computer",
+    "description": "Button that erases the local vault and joins the synced one."
+  },
+  "syncMismatchKeepRemoteHint": {
+    "message": "This is the answer when the synced vault is the one with your bookmarks in it — after a reinstall, say, or on a computer that has only just been set up. You need the master password that opens it.",
+    "description": "Hint under the button that joins the synced vault."
+  },
+  "syncMismatchAdoptHeading": {
+    "message": "Use the synced vault",
+    "description": "Heading of the dialog that joins the synced vault."
+  },
+  "syncMismatchAdoptExplain": {
+    "message": "The synced vault stays exactly as it is. This computer joins it the way a second computer does: its bookmarks, folders, tags and notes appear here, and the two keep each other up to date from now on.",
+    "description": "What joining the synced vault does."
+  },
+  "syncMismatchAdoptLoses": {
+    "message": "The $COUNT$ bookmarks in this computer's own vault are erased. There is no undo.",
+    "description": "What the local vault loses when the synced one is adopted.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "syncMismatchAdoptLosesNone": {
+    "message": "This computer's own vault has no bookmarks in it, so nothing here is lost.",
+    "description": "Shown instead of the warning when the local vault is empty."
+  },
+  "syncMismatchAdoptLosesOne": {
+    "message": "The one bookmark in this computer's own vault is erased. There is no undo.",
+    "description": "Singular form of the warning about the local vault."
+  },
+  "syncMismatchAdoptBackupFirst": {
+    "message": "To keep them, close this and back the vault up first under Import & export.",
+    "description": "Points at the backup that has to be taken before adopting."
+  },
+  "syncMismatchAdoptPassword": {
+    "message": "The synced vault's master password",
+    "description": "Password field in the adopt-the-synced-vault dialog."
+  },
+  "syncMismatchAdoptConfirm": {
+    "message": "Erase this vault and join the synced one",
+    "description": "Confirming button in the adopt-the-synced-vault dialog."
+  },
+  "syncMismatchAdoptNeedsPassword": {
+    "message": "Type the master password of the synced vault.",
+    "description": "Shown when the adopt dialog is confirmed with an empty password field."
+  },
+  "syncMismatchAdopted": {
+    "message": "This computer is on the synced vault now.",
+    "description": "Shown after the synced vault was adopted."
+  },
+  "syncMismatchReplace": {
+    "message": "Overwrite the synced copy with this vault",
+    "description": "Button that deletes the mismatched remote vault and pushes this one."
+  },
+  "syncMismatchReplaceHint": {
+    "message": "This is the answer when the vault on this computer is the one to keep. The other vault's synced copy is deleted, and computers that were using it will be asked for this vault's password instead.",
+    "description": "Hint under the button that overwrites the synced vault."
+  },
+  "syncMismatchReplaceConfirm": {
+    "message": "This deletes the other vault's only synced copy. Press again to do it.",
+    "description": "Second confirmation before overwriting the synced vault."
+  },
+  "syncMismatchReplaceWorking": {
+    "message": "Replacing the synced copy…",
+    "description": "Shown while the remote vault is being replaced."
+  },
+  "syncMismatchReplaced": {
+    "message": "The synced copy is this vault now.",
+    "description": "Shown after the remote vault was successfully replaced."
   },
   "syncErrorVaultLocked": {
     "message": "Unlock the vault to sync it.",
@@ -1534,7 +1627,7 @@
     "description": "Heading of the import section."
   },
   "ioRestoreHint": {
-    "message": "Open a .vmv file. You will see what is in it and choose what to do with it before anything changes.",
+    "message": "Open a .vmv file — either a backup made here, or the vault file downloaded from your Google Drive. You will see what is in it and choose what to do with it before anything changes.",
     "description": "Explanation under the import heading."
   },
   "ioRestoreFileLabel": {
@@ -1664,6 +1757,24 @@
   "ioPreviewCreatedUnknown": {
     "message": "This backup does not say when it was made.",
     "description": "Line of the import preview when the file carries no date."
+  },
+  "ioPreviewSyncHeading": {
+    "message": "What is in this vault file",
+    "description": "Heading of the import preview when the file is the synced vault rather than a backup."
+  },
+  "ioPreviewSynced": {
+    "message": "This is a synced vault file, last changed $WHEN$.",
+    "description": "Line of the import preview for a synced vault file.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "3 August 2026, 14:02"
+      }
+    }
+  },
+  "ioPreviewSyncedUnknown": {
+    "message": "This is a synced vault file. It does not say when it was last changed.",
+    "description": "Line of the import preview for a synced vault file with no date."
   },
   "ioPreviewKnown": {
     "message": "$COUNT$ of them are already in this vault.",
@@ -2070,7 +2181,7 @@
     "description": "Badge on the tier currently in use."
   },
   "onboardingSyncLater": {
-    "message": "Coming in the next release",
+    "message": "Optional",
     "description": "Badge on the Drive tier, which is not built yet."
   },
   "onboardingSyncRowSetup": {
@@ -2130,11 +2241,11 @@
     "description": "Footer of onboarding step 4."
   },
   "onboardingChromeHeading": {
-    "message": "Two things Chrome still does",
+    "message": "One thing Chrome still remembers",
     "description": "Heading of onboarding step 5."
   },
   "onboardingChromeBody": {
-    "message": "A vault keeps addresses out of Chrome's bookmarks. It cannot reach two other places Chrome remembers things, and pretending otherwise would be worse than saying so.",
+    "message": "A vault keeps addresses out of Chrome's bookmarks. It cannot reach the record Chrome keeps of the pages you visited, and pretending otherwise would be worse than saying so.",
     "description": "Body of onboarding step 5."
   },
   "onboardingHistoryHeading": {
@@ -2144,26 +2255,6 @@
   "onboardingHistoryBody": {
     "message": "Typed addresses live in Chrome's history and autocomplete from there, even when nothing is bookmarked. VaultaMark can remove the history entries for the sites in your vault — and only those.",
     "description": "Body of the history offer on onboarding step 5."
-  },
-  "onboardingPredictionHeading": {
-    "message": "Chrome's own address suggestions",
-    "description": "Heading of the URL-prediction reminder."
-  },
-  "onboardingPredictionBody": {
-    "message": "Chrome's \"Autocomplete searches and URLs\" setting sends what you type to your default search engine and can suggest addresses from signals no extension can see. Only you can turn it off.",
-    "description": "Body of the URL-prediction reminder."
-  },
-  "onboardingPredictionStep1": {
-    "message": "Open this address — copy it, then paste it into the address bar:",
-    "description": "First instruction for reaching Chrome's autocomplete setting."
-  },
-  "onboardingPredictionStep2": {
-    "message": "Turn off \"Autocomplete searches and URLs\".",
-    "description": "Second instruction for reaching Chrome's autocomplete setting."
-  },
-  "onboardingPredictionCaveat": {
-    "message": "VaultaMark cannot change this for you: extensions are not allowed to open or alter Chrome's own settings pages.",
-    "description": "Explains why the extension cannot do this itself."
   },
   "historyPermissionExplained": {
     "message": "To find and remove those entries, VaultaMark needs Chrome's permission to read and delete browsing history. It is asked for here rather than at install, and you can take it back afterwards.",
@@ -2372,7 +2463,7 @@
     "description": "Sub-heading of the Drive part of the sync settings."
   },
   "syncDriveExplain": {
-    "message": "Drive holds far more than Chrome sync — thousands of bookmarks instead of hundreds — and it is what page previews will be stored in. It needs a Google account and one permission screen.",
+    "message": "Drive holds far more than Chrome sync — thousands of bookmarks instead of hundreds — and it is where page previews are stored. It needs a Google account and one permission screen. You can connect or disconnect it here at any time; nothing you have saved is lost either way.",
     "description": "What connecting Drive gives you."
   },
   "syncDriveScope": {
@@ -2400,17 +2491,57 @@
     "message": "Open the vault file in Drive",
     "description": "Opens the file Drive holds, in a new tab."
   },
+  "syncDriveDisconnectExplain": {
+    "message": "Your vault moves back into Chrome sync. Nothing you have saved is lost, and connecting Drive again later picks up where this leaves off. Page previews stay on this computer, because Chrome sync has nowhere to keep them.",
+    "description": "Body of the dialog that asks before disconnecting Drive."
+  },
+  "syncDriveDisconnectConfirm": {
+    "message": "Switch back",
+    "description": "Confirming button in the disconnect-Drive dialog."
+  },
   "syncDriveDeleteRemote": {
     "message": "Also delete the copy in my Drive",
-    "description": "Checkbox beside the disconnect button."
+    "description": "Checkbox in the disconnect-Drive dialog."
   },
   "syncDriveDeleteRemoteHint": {
-    "message": "Off by default: it is a file in your own Drive, and leaving it there costs nothing and keeps a copy you can import from later.",
+    "message": "Off by default: it is a file in your own Drive, and leaving it there costs nothing and keeps a copy you can restore from later under Import & export.",
     "description": "Hint under the delete-the-Drive-copy checkbox."
   },
   "syncDriveUnavailable": {
     "message": "This build of VaultaMark has no Google project configured, so Drive sync is not available in it. Chrome sync is unaffected.",
     "description": "Shown when the package was built without an OAuth client id."
+  },
+  "syncDriveSetupIntro": {
+    "message": "If you built this yourself, these are the steps that turn Drive on. They only have to be done once, and only by whoever builds the package — people who install VaultaMark from the Chrome Web Store never see any of this.",
+    "description": "Introduces the Drive setup steps shown to a maintainer running a build with no OAuth client id."
+  },
+  "syncDriveSetupProject": {
+    "message": "In the Google Cloud console, create a project and enable the Google Drive API.",
+    "description": "Drive setup step 1."
+  },
+  "syncDriveSetupScope": {
+    "message": "On the OAuth consent screen, add this one scope and nothing wider:",
+    "description": "Drive setup step 2. Followed by the drive.file scope with a Copy button."
+  },
+  "syncDriveSetupPublish": {
+    "message": "Publish the consent screen — move it from Testing to In production. There is no review to pass, because this scope is not a sensitive one, but an app left in Testing hands out sign-ins that stop working after seven days.",
+    "description": "Drive setup step 3. The seven-day figure is the refresh-token lifetime for an app in Testing status, which breaks the PKCE sign-in path."
+  },
+  "syncDriveSetupClient": {
+    "message": "Create an OAuth client of type “Chrome Extension”, and give it this extension's ID:",
+    "description": "Drive setup step 4. Followed by the extension id with a Copy button."
+  },
+  "syncDriveSetupEnv": {
+    "message": "Put the client ID it gives you into the .env.local file as VM_OAUTH_CLIENT_ID, and build again.",
+    "description": "Drive setup step 5."
+  },
+  "syncDriveSetupIdNote": {
+    "message": "The ID above is this installation's. An extension loaded from a folder gets its ID from that folder's path, so it changes if the folder moves — and the OAuth client would stop matching it. Running “npm run dev-key” once fixes the ID to a key instead, before you register it.",
+    "description": "Warns that an unpacked extension id is path-derived unless pinned, and names the script that pins it."
+  },
+  "syncDriveSetupNoLink": {
+    "message": "There is deliberately no link to the console here. VaultaMark ships no web addresses it does not need, so that anyone reading the code can see at a glance where it is able to connect — and one convenience link would be one more.",
+    "description": "Explains the absence of a hyperlink to the Google Cloud console, which is INV-3 (no absolute URLs outside the allowlist)."
   },
   "syncDriveConnected": {
     "message": "Drive is connected, and your vault has moved there.",
@@ -2461,7 +2592,7 @@
     "description": "Migration failed: verification."
   },
   "syncMigrateFailedMismatch": {
-    "message": "There is already a different vault in that Drive folder — one with another master password. The two cannot be merged, so nothing was changed.",
+    "message": "There is already a different vault in that Drive folder. Not a different password, necessarily — a vault created a second time is a new vault whatever it was given to open it, so a computer that lost its copy and started again lands here too. The two cannot be merged and nothing was changed. Choose below which of them to keep.",
     "description": "Migration failed: the target holds another vault."
   },
   "syncMigrateFailedTooLarge": {

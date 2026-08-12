@@ -41,7 +41,10 @@ function providers(): (id: ProviderId) => SyncProvider {
         });
 }
 
-function migrate(to: ProviderId, over: { clearSource?: boolean } = {}) {
+function migrate(
+  to: ProviderId,
+  over: { clearSource?: boolean; replaceExisting?: boolean } = {},
+) {
   return migrateProvider(to, {
     repository: () => Promise.resolve(repo),
     provider: providers(),
@@ -146,12 +149,13 @@ describe('chrome → drive', () => {
     expect(drive.vaultFile()?.version).toBe(before);
   }, 30_000);
 
-  it('refuses, and changes nothing, when Drive already holds a different vault', async () => {
-    await add('a', 'Alpha');
-
-    // Someone else's vault, under a different key, already sitting in the folder we are about to
-    // use. It is built against a second browser profile because a repository refuses to create a
-    // vault on a profile that already holds one — which is exactly the situation being modelled.
+  /**
+   * Someone else's vault, under a different key, already sitting in the folder we are about to use.
+   *
+   * Built against a second browser profile because a repository refuses to create a vault on a
+   * profile that already holds one — which is exactly the situation being modelled.
+   */
+  async function strandAForeignVault(): Promise<void> {
     const stranger = new VaultRepository();
     installChromeMock({ grantedPermissions: ['identity'] });
     await stranger.create('an entirely different master password');
@@ -163,11 +167,33 @@ describe('chrome → drive', () => {
     (globalThis as { chrome?: typeof chrome }).chrome = mock.chrome;
 
     await drives.pushLight(theirs, null);
+  }
+
+  it('refuses, and changes nothing, when Drive already holds a different vault', async () => {
+    await add('a', 'Alpha');
+    await strandAForeignVault();
 
     const result = await migrate('drive');
     expect(result.ok).toBe(false);
     expect(result.reason).toBe('mismatch');
     expect((await readSettings()).providerId).toBe('chrome');
+  }, 60_000);
+
+  it('takes the folder over when that refusal has been answered', async () => {
+    await add('a', 'Alpha');
+    await strandAForeignVault();
+
+    // The one thing that turns the refusal into an action, and it can only arrive from a person who
+    // was shown it: this discards the other vault's only synced copy.
+    const result = await migrate('drive', { replaceExisting: true });
+    expect(result).toEqual({ ok: true, providerId: 'drive' });
+    expect((await readSettings()).providerId).toBe('drive');
+
+    // What is in Drive now is this vault, readable by this key — and the stranger's bookmark is not
+    // in it. The push had to start from an empty backend for this to work at all: a compare-and-swap
+    // against the stamp of a file that had just been deleted would have failed its own precondition.
+    const pulled = await drives.pullLight();
+    expect([...(await repo.openEncrypted(pulled!)).keys()]).toEqual(['a']);
   }, 60_000);
 
   it('changes nothing when the copy does not read back as what was sent', async () => {

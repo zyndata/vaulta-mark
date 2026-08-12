@@ -60,6 +60,17 @@ export interface SyncProvider {
   usage(): Promise<ProviderUsage>;
   /** Stop using this backend. Does not delete what is already there unless the provider says so. */
   disconnect(): Promise<void>;
+
+  /**
+   * Remove the vault from this backend while staying connected to it.
+   *
+   * Optional, and only meaningful where disconnecting deliberately *keeps* the copy: a Drive file is
+   * the user's own, so `disconnect()` leaves it and deleting it is a second explicit act.
+   * `storage.sync` has no such distinction — the keys **are** the copy, which is why the Chrome
+   * provider's `disconnect()` is documented as destructive — so it does not implement this and a
+   * caller that needs "clear the target" falls back to disconnecting there.
+   */
+  deleteRemote?(): Promise<void>;
 }
 
 /* ------------------------------------------------------------------ the error taxonomy */

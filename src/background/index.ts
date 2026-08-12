@@ -221,9 +221,16 @@ export async function handleRequest(request: Request): Promise<Response> {
       case 'CHANGE_PASSWORD':
         await session.changePassword(request.currentPassword, request.newPassword);
         return { type: 'OK' };
-      case 'DESTROY_VAULT':
+      case 'DESTROY_VAULT': {
+        // The synced copy goes first, and has to: on Drive the file ids and the sealed refresh token
+        // live under `vm.drive` in `storage.local`, which the local erase removes along with
+        // everything else. Doing it the other way round would leave a folder in the user's Drive
+        // that nothing here could still find.
+        const remoteRemoved =
+          request.deleteRemote === false ? null : await syncing.destroyRemoteVault();
         await session.destroyVault();
-        return { type: 'OK' };
+        return { type: 'DESTROYED', remoteRemoved };
+      }
 
       /* ---- sync (Phase 7) ---- */
       case 'GET_SYNC_STATUS':
@@ -237,12 +244,16 @@ export async function handleRequest(request: Request): Promise<Response> {
           type: 'COUNT',
           count: await syncing.resolve(request.ids, request.resolution),
         };
+      case 'REPLACE_REMOTE_VAULT':
+        return await syncing.replaceRemoteVault();
+      case 'ADOPT_REMOTE_VAULT':
+        return await syncing.adoptRemoteVault(request.password, request.from);
 
       /* ---- Drive sync (Phase 10) ---- */
       case 'GET_DRIVE_STATE':
         return await syncing.driveState();
       case 'CONNECT_DRIVE':
-        return await syncing.connectDrive();
+        return await syncing.connectDrive(request.replaceExisting ?? false);
       case 'DISCONNECT_DRIVE':
         return await syncing.disconnectDrive(request.deleteRemote ?? false);
 

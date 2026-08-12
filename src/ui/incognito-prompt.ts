@@ -14,7 +14,7 @@
  * a bookmark manager that keeps its promise and one that quietly stops keeping it.
  */
 
-import { copyableAddress } from './address.js';
+import { copyableValue } from './address.js';
 import { h, msg, render } from './dom.js';
 
 export interface IncognitoPromptOptions {
@@ -88,8 +88,8 @@ function renderPrompt(
 
 /** The address to paste, with a Copy button. Shared with onboarding and Settings → Privacy. */
 function addressBlock(options: IncognitoPromptOptions): HTMLElement {
-  return copyableAddress({
-    address: options.settingsUrl,
+  return copyableValue({
+    value: options.settingsUrl,
     ...(options.copy === undefined ? {} : { copy: options.copy }),
   });
 }

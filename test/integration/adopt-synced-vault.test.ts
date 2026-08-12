@@ -332,6 +332,95 @@ describe('a second vault created beside a synced one', () => {
   }, 60_000);
 });
 
+/* ------------------------------------------------------------------ the way out of it */
+
+/**
+ * Settling the collision by keeping the *synced* vault.
+ *
+ * The other answer — overwrite the synced copy — has existed since the first mismatch fix. This one
+ * is for the case that answer is wrong for, and it is the common one: a profile that lost its
+ * `storage.local` and made a new vault with the same password. Same password, new random DEK, so the
+ * bytes in the sync area stay unreadable however many times the merge is retried; and they are the
+ * ones with the bookmarks in them.
+ */
+describe('joining the synced vault instead of the one that is here', () => {
+  /** A second profile with its own vault, an open session on it, and a mismatch against sync. */
+  async function collide(): Promise<typeof import('../../src/background/session.js')> {
+    second = profile();
+    const session = await sessionFor(second);
+    await session.createVault(OTHER_PASSWORD);
+    const separate = (await session.currentRepository())!;
+    await separate.apply([
+      { kind: 'add', input: { type: 'bookmark', id: 'z', url: 'https://example.com/z', title: 'Zeta' } },
+    ]);
+    await separate.flush();
+
+    configure(separate);
+    expect((await syncNow()).error).toBe('VAULT_MISMATCH');
+    return session;
+  }
+
+  it('erases the vault that was here and opens the synced one in its place', async () => {
+    await seedFirstProfile();
+    const session = await collide();
+
+    use(second);
+    const pulled = await providerFor().pullLight();
+    await session.adoptRemoteVault(pulled!, PASSWORD, 'chrome');
+
+    const repo = (await session.currentRepository())!;
+    expect(repo.getAll().map((item) => item.id).sort()).toEqual(['a', 'b', 'f']);
+    // Not merged beside it: the vault that was here is gone, tombstones and all.
+    expect(repo.getItem('z')).toBeUndefined();
+  }, 60_000);
+
+  it('takes a device identity of its own, exactly as joining from empty does', async () => {
+    const origin = await seedFirstProfile();
+    const session = await collide();
+
+    use(second);
+    const pulled = await providerFor().pullLight();
+    await session.adoptRemoteVault(pulled!, PASSWORD, 'chrome');
+
+    expect((await session.currentRepository())!.header().deviceId).not.toBe(
+      origin.header().deviceId,
+    );
+  }, 60_000);
+
+  it('leaves the vault that is here open and intact when the password is wrong', async () => {
+    await seedFirstProfile();
+    const session = await collide();
+
+    use(second);
+    const pulled = await providerFor().pullLight();
+    await expect(
+      session.adoptRemoteVault(pulled!, 'not this vault’s password', 'chrome'),
+    ).rejects.toBeInstanceOf(WrongPasswordError);
+
+    // Nothing was erased, and the session survives: the old DEK never left `storage.session`, so the
+    // next read rebuilds the vault that is still on disk. A typo costs a second and a half.
+    const repo = await session.currentRepository();
+    expect(repo).not.toBeNull();
+    expect(repo!.getAll().map((item) => item.id)).toEqual(['z']);
+  }, 60_000);
+
+  it('refuses to adopt a vault written by a newer VaultaMark, and erases nothing', async () => {
+    await seedFirstProfile();
+    const session = await collide();
+
+    use(second);
+    const pulled = await providerFor().pullLight();
+    const fromTheFuture = {
+      ...pulled!,
+      header: { ...pulled!.header, schemaVersion: pulled!.header.schemaVersion + 1 },
+    };
+    await expect(
+      session.adoptRemoteVault(fromTheFuture, PASSWORD, 'chrome'),
+    ).rejects.toBeInstanceOf(UnsupportedSchemaError);
+    expect((await session.currentRepository())!.getAll().map((item) => item.id)).toEqual(['z']);
+  }, 60_000);
+});
+
 /* ------------------------------------------------------------------ settings (Phase 10) */
 
 describe('the preferences that come with the vault', () => {

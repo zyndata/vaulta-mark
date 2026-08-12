@@ -89,6 +89,15 @@ export interface MigrationDeps {
    * Drive, and deleting it is not ours to do by default.
    */
   readonly clearSource?: boolean;
+  /**
+   * Delete a *different* vault found in the target and put this one there, instead of refusing.
+   *
+   * Default false, and the default is the important half: a vault already in the target is normally
+   * this same vault, put there by another computer, and adopting it is what makes a second device
+   * work at all. This is only ever true because someone was shown `'mismatch'` and chose to take the
+   * folder over, which discards the other vault's only synced copy.
+   */
+  readonly replaceExisting?: boolean;
 }
 
 /**
@@ -129,7 +138,7 @@ export async function migrateProvider(
     await to.init();
 
     deps.onPhase?.('uploading');
-    const stamp = await placeVault(repo, to, items);
+    const stamp = await placeVault(repo, to, items, deps.replaceExisting ?? false);
     if (stamp === 'mismatch') return { ok: false, providerId: from, reason: 'mismatch' };
 
     deps.onPhase?.('verifying');
@@ -171,24 +180,36 @@ export async function migrateProvider(
  * Put the vault in the target backend, or adopt what is already there.
  *
  * `'mismatch'` rather than an exception because it is not an error in the mechanism: it means the
- * target holds a vault written under a different master password, which is a situation with two
- * legitimate answers (destroy one, or pick a different backend) and neither of them is ours to
- * choose.
+ * target holds a vault this key cannot open, which is a situation with legitimate answers on both
+ * sides — keep this vault and take the folder over, or keep that one and join it — and none of them
+ * is ours to choose. Note it is *not* evidence of a different password: a vault created a second
+ * time with the same one has a new random DEK and is just as unreadable, which is precisely the case
+ * a profile that lost its `storage.local` lands in.
+ *
+ * `replaceExisting` is that first answer, and it can only arrive from someone who was told. The
+ * deletion is what makes the push that follows work: `pushLight` compares against what was found,
+ * and a stamp for a vault that is no longer there would fail its own precondition.
  */
 async function placeVault(
   repo: VaultRepository,
   to: SyncProvider,
   items: ItemMap,
+  replaceExisting: boolean,
 ): Promise<{ contentHash: string } | 'mismatch'> {
-  const existing = await to.peek();
-  if (existing !== null) {
+  let expect = await to.peek();
+  if (expect !== null) {
     const pulled = await to.pullLight();
     if (pulled !== null) {
       try {
         await repo.openEncrypted(pulled);
       } catch (error) {
-        if (error instanceof CorruptVaultError) return 'mismatch';
-        throw error;
+        if (!(error instanceof CorruptVaultError)) throw error;
+        if (!replaceExisting) return 'mismatch';
+        // "Clear the target", spelled the way each backend spells it: Drive keeps its files through
+        // a disconnect and deletes them on request, `storage.sync` has only the destructive one.
+        if (to.deleteRemote === undefined) await to.disconnect();
+        else await to.deleteRemote();
+        expect = null;
       }
     }
   }
@@ -196,7 +217,7 @@ async function placeVault(
   // and the base has to describe a remote this device actually wrote. `expect` is what was found, so
   // a device writing in the gap is refused rather than overwritten.
   const vault = await repo.sealSnapshot(items, repo.header().vaultRev);
-  return await to.pushLight(vault, existing);
+  return await to.pushLight(vault, expect);
 }
 
 /**

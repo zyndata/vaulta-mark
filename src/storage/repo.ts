@@ -252,6 +252,43 @@ export class VaultRepository {
     if (await this.exists()) {
       throw new VaultStateError('This profile already holds a vault; it cannot adopt another.');
     }
+    await this.#adoptFrom(vault, password, { over: false });
+  }
+
+  /**
+   * The same, **over** a vault this profile already holds. The other one is erased.
+   *
+   * The situation this exists for is "two vaults, one sync area", from the side the guard on
+   * {@link adopt} cannot help with: a profile that holds its own vault and finds a *different* one
+   * where it syncs. That is a question with two right answers — keep this one and take the sync area
+   * over (`replaceRemoteVault`), or keep the synced one and join it — and until this landed only the
+   * first had an implementation. The second is also the only thing a profile whose vault was lost
+   * with its `storage.local` can do: same password typed again produces a new random DEK, so the
+   * bytes on the other side stay unreadable no matter how many times the merge is retried.
+   *
+   * **Ordering is the whole of the safety here**, and it is the same rule as {@link adopt}'s, one
+   * step further: the KEK is derived, the DEK unwrapped and *every bucket decrypted* before a single
+   * byte of the existing vault is removed. A wrong password, a truncated pull or a tag that does not
+   * verify all throw with the profile untouched, which is what makes this recoverable — the caller's
+   * session record still holds the old DEK and the old vault reopens from it.
+   *
+   * The erase itself is `clearVault()`, not a bucket-by-bucket overwrite: the two vaults have
+   * different bucket tables, and writing the new one over the old would leave the old vault's
+   * surplus buckets on disk as unreadable sealed content nothing would ever collect. It also takes
+   * `vm.base`, `vm.conflicts` and the rollback with it, all of which describe the vault that is
+   * going. Everything the *connection* needs — the Drive file ids — is the caller's to put back,
+   * because this layer does not know a provider exists.
+   */
+  async adoptOver(vault: EncryptedVault, password: string): Promise<void> {
+    this.#throwDeferred();
+    await this.#adoptFrom(vault, password, { over: true });
+  }
+
+  async #adoptFrom(
+    vault: EncryptedVault,
+    password: string,
+    options: { readonly over: boolean },
+  ): Promise<void> {
     if (vault.header.schemaVersion > SCHEMA_VERSION) {
       throw new UnsupportedSchemaError(vault.header.schemaVersion, SCHEMA_VERSION);
     }
@@ -270,6 +307,17 @@ export class VaultRepository {
     // a second computer that joined a vault and then started from the default theme, the default
     // idle timeout and the default sort order is the thing this record exists to prevent.
     const { items, settings } = await this.openVault(vault);
+
+    if (options.over) {
+      // Past this line the old vault is gone, so it must not still have a write in flight: the
+      // coalescer holds edits for 300 ms, and one landing after the erase would put a bucket of the
+      // erased vault back beside the adopted header, under a key that cannot open it.
+      this.#cancelTimer();
+      this.#dirtyBuckets.clear();
+      this.#headerDirty = false;
+      await clearVault();
+    }
+
     this.#header = { ...vault.header, deviceId: crypto.randomUUID() };
     await this.replaceAll(items, vault.header, settings);
   }

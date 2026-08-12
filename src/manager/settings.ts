@@ -21,14 +21,15 @@
 
 import { estimateStrength, MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
 import { hasHistoryPermission, requestHistoryPermission } from '../history/cleanup.js';
-import { requestDrivePermissions } from '../sync/drive/auth.js';
+import { DRIVE_SCOPE, requestDrivePermissions } from '../sync/drive/auth.js';
+import { copyableValue } from '../ui/address.js';
 import {
   send,
   type DriveStateResponse,
   type MigrationResponse,
   type SyncStatusResponse,
 } from '../shared/messages.js';
-import { dialogField } from '../ui/dialog.js';
+import { dialogField, dialogText, openDialog } from '../ui/dialog.js';
 import { h, matchesPhrase, msg, render } from '../ui/dom.js';
 import { historyCleanupPanel } from '../ui/history-cleanup.js';
 import { errorText, syncErrorText } from '../ui/strings.js';
@@ -250,12 +251,199 @@ function sync(
     ...(status.error === null
       ? []
       : [h('p', { class: 'vm-notice' }, syncErrorText(status.error))]),
+    ...(status.error === 'VAULT_MISMATCH'
+      ? mismatchChoices({ from: status.providerId, keepLocal: replaceRemote }, deps)
+      : []),
     // Drive reports no ceiling for a Workspace account with pooled storage, and a bar with no
     // maximum is a bar that means nothing.
     ...(status.quotaBytes === 0 ? [] : [syncQuotaBar(status)]),
     now,
     ...(drive === null ? [] : driveSection(drive, deps)),
   ];
+}
+
+/**
+ * The way out of "two vaults, one sync area" — both of the ways out.
+ *
+ * `VAULT_MISMATCH` is the one sync error with nothing behind it to retry: the bytes in the sync area
+ * were written under a different key, no merge can reconcile that, and §6.5 has nothing to say about
+ * it. It is not a failure with a cause to fix, it is a **question with two right answers**, and
+ * which one is right is not something this code can know:
+ *
+ * - *Keep this vault.* Overwrite the synced copy and let the other computers ask for this vault's
+ *   password from now on.
+ * - *Keep the synced one.* Erase what is in this profile and join it — the answer for a profile that
+ *   lost its vault (a reinstall, a new extension id) and typed the same password into a *new* one,
+ *   which is a new random DEK and is why the merge can never work.
+ *
+ * Both are destructive to something, so neither is preselected and neither happens on one press:
+ * the first is gated on a second press, the second on a dialog that says what this profile loses and
+ * asks for the other vault's password. Deliberately **not** something the engine decides on its own,
+ * at any confidence.
+ */
+/** "Keep this vault" for a profile that already syncs where the other vault is. */
+async function replaceRemote(): Promise<string | null> {
+  const next = await send({ type: 'REPLACE_REMOTE_VAULT' });
+  if (next.type === 'ERROR') return errorText(next.code);
+  return next.error === null ? null : syncErrorText(next.error);
+}
+
+/**
+ * The same answer, for a Drive connection that was refused before it flipped anything.
+ *
+ * `REPLACE_REMOTE_VAULT` would be wrong here and quietly so: this profile is still on Chrome sync,
+ * so it would clear *that* backend and never touch the Drive folder the refusal was about.
+ * Connecting again with `replaceExisting` is the same operation the button already ran, with the
+ * verification and the provider flip still attached to it.
+ */
+async function takeOverDrive(): Promise<string | null> {
+  const response = await send({ type: 'CONNECT_DRIVE', replaceExisting: true });
+  if (response.type === 'ERROR') return errorText(response.code);
+  return response.ok ? null : migrationFailureText(response);
+}
+
+interface MismatchDeps {
+  /** Which backend holds the *other* vault — the one an adoption pulls from. */
+  readonly from: 'chrome' | 'drive';
+  /**
+   * "Keep this vault", which is a different operation on each of the two screens that offer it.
+   *
+   * From the sync section it is `REPLACE_REMOTE_VAULT`: this profile already syncs there, so the
+   * copy goes and the next push puts this vault in its place. From a *refused Drive connection* it
+   * is the connection again with `replaceExisting`, because `providerId` is still `chrome` at that
+   * point — replacing "the synced copy" would clear Chrome sync and never touch Drive at all.
+   *
+   * Resolves with a message to show, or `null` when it worked.
+   */
+  readonly keepLocal: () => Promise<string | null>;
+}
+
+function mismatchChoices(mismatch: MismatchDeps, deps: SettingsDeps): HTMLElement[] {
+  const status = h('p', { class: 'vm-small', role: 'status' });
+
+  const adopt = h(
+    'button',
+    { type: 'button', class: 'vm-button' },
+    msg('syncMismatchKeepRemote'),
+  );
+  adopt.addEventListener('click', () => {
+    void (async () => {
+      if (!(await askAdoptRemote(mismatch.from))) return;
+      // Everything on screen belongs to a vault that is no longer here. The worker has already
+      // broadcast `VAULT_CHANGED`, which reloads the list behind this screen; `reopen` is what
+      // rebuilds the screen itself, including whether this block should still be on it.
+      deps.say(msg('syncMismatchAdopted'));
+      deps.reopen();
+    })();
+  });
+
+  const replace = h(
+    'button',
+    { type: 'button', class: 'vm-button vm-button--danger' },
+    msg('syncMismatchReplace'),
+  );
+
+  let armed = false;
+  replace.addEventListener('click', () => {
+    if (!armed) {
+      armed = true;
+      status.classList.add('vm-danger');
+      status.textContent = msg('syncMismatchReplaceConfirm');
+      return;
+    }
+    void (async () => {
+      replace.disabled = true;
+      status.classList.remove('vm-danger');
+      status.textContent = msg('syncMismatchReplaceWorking');
+      const failure = await mismatch.keepLocal();
+      replace.disabled = false;
+      armed = false;
+
+      if (failure !== null) {
+        status.classList.add('vm-danger');
+        status.textContent = failure;
+        return;
+      }
+      // The mismatch is gone, which changes the section that is drawing this button — including
+      // whether it should still be here at all.
+      deps.say(msg('syncMismatchReplaced'));
+      deps.reopen();
+    })();
+  });
+
+  return [
+    h('p', { class: 'vm-small vm-muted' }, msg('syncMismatchExplain')),
+    adopt,
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('syncMismatchKeepRemoteHint')),
+    replace,
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('syncMismatchReplaceHint')),
+    status,
+  ];
+}
+
+/**
+ * The synced vault's password, and what this profile gives up for it.
+ *
+ * The count is read rather than described: "this replaces your vault" means nothing to someone who
+ * cannot remember whether this profile's vault has three bookmarks in it or three hundred, and the
+ * two cases deserve different amounts of hesitation. It is the same number the replace-mode import
+ * shows, from the same place.
+ *
+ * The request is sent from **inside** `onConfirm`, which is the post-Phase-8 rule for anything that
+ * can answer "wrong password": the derivation takes a second and a half, and a dialog that closed
+ * first would make someone reopen it and retype everything to fix a typo. While it is outstanding
+ * the dialog disables its own buttons, so a 600,000-iteration derivation cannot be started twice.
+ */
+async function askAdoptRemote(from: 'chrome' | 'drive'): Promise<boolean> {
+  const password = h('input', { type: 'password', autocomplete: 'current-password' });
+  const tree = await send({ type: 'GET_TREE' });
+  const local = tree.type === 'ERROR' ? 0 : tree.total;
+
+  let refusal = msg('syncMismatchAdoptNeedsPassword');
+  const answer = await openDialog<true>({
+    heading: msg('syncMismatchAdoptHeading'),
+    body: [
+      dialogText('syncMismatchAdoptExplain'),
+      // An empty vault is the common case here — a profile that lost its copy and made a new one to
+      // find out why sync was refusing it — and it is not a warning at all, so it does not get a
+      // warning's styling. "The 0 bookmarks … are erased" is what a stem and a count would have said.
+      h(
+        'p',
+        { class: local === 0 ? 'vm-notice' : 'vm-notice vm-notice--danger' },
+        local === 0
+          ? msg('syncMismatchAdoptLosesNone')
+          : local === 1
+            ? msg('syncMismatchAdoptLosesOne')
+            : msg('syncMismatchAdoptLoses', [String(local)]),
+      ),
+      ...(local === 0 ? [] : [dialogText('syncMismatchAdoptBackupFirst')]),
+      dialogField('syncMismatchAdoptPassword', password),
+    ],
+    confirmLabel: msg('syncMismatchAdoptConfirm'),
+    danger: true,
+    focus: password,
+    invalidMessage: () => refusal,
+    onConfirm: async () => {
+      if (password.value === '') {
+        refusal = msg('syncMismatchAdoptNeedsPassword');
+        return null;
+      }
+      const response = await send({
+        type: 'ADOPT_REMOTE_VAULT',
+        password: password.value,
+        from,
+      });
+      if (response.type === 'ERROR') {
+        refusal = errorText(response.code);
+        return null;
+      }
+      // The vault is adopted by this point whatever the status says — an error here is the *next*
+      // sync's, not the adoption's, and it belongs on the settings screen rather than in a dialog
+      // that would look like it refused.
+      return true;
+    },
+  });
+  return answer === true;
 }
 
 /**
@@ -268,20 +456,32 @@ function sync(
  */
 function driveSection(drive: DriveStateResponse, deps: SettingsDeps): HTMLElement[] {
   const status = h('p', { class: 'vm-small', role: 'status' });
-  const deleteRemote = h('input', { type: 'checkbox', id: 'vm-drive-delete' });
+  /**
+   * Where the two answers go when a connection is refused because Drive holds another vault.
+   *
+   * A slot rather than a sentence, because that refusal is the one migration failure that is not a
+   * problem to fix: nothing is broken, nothing was changed, and there are two legitimate things to
+   * do next. It used to say only that it had not worked — on a screen whose only other control was
+   * the button that had just been refused.
+   */
+  const escape = h('div', { class: 'vm-mismatch' });
 
   const say = (text: string, danger = false): void => {
     status.classList.toggle('vm-danger', danger);
     status.textContent = text;
   };
 
-  const run = async (button: HTMLButtonElement, request: 'connect' | 'disconnect'): Promise<void> => {
+  const run = async (
+    button: HTMLButtonElement,
+    request: 'connect' | { readonly disconnect: true; readonly deleteRemote: boolean },
+  ): Promise<void> => {
     button.disabled = true;
+    render(escape);
     say(msg('syncMigrateAuthorizing'));
     const response =
       request === 'connect'
         ? await send({ type: 'CONNECT_DRIVE' })
-        : await send({ type: 'DISCONNECT_DRIVE', deleteRemote: deleteRemote.checked });
+        : await send({ type: 'DISCONNECT_DRIVE', deleteRemote: request.deleteRemote });
     button.disabled = false;
 
     if (response.type === 'ERROR') {
@@ -290,18 +490,16 @@ function driveSection(drive: DriveStateResponse, deps: SettingsDeps): HTMLElemen
     }
     if (!response.ok) {
       say(migrationFailureText(response), true);
+      if (response.reason === 'mismatch') {
+        render(escape, ...mismatchChoices({ from: 'drive', keepLocal: takeOverDrive }, deps));
+      }
       return;
     }
     deps.say(msg(request === 'connect' ? 'syncDriveConnected' : 'syncDriveDisconnected'));
     deps.reopen();
   };
 
-  if (!drive.configured) {
-    return [
-      h('h4', null, msg('syncDriveHeading')),
-      h('p', { class: 'vm-notice' }, msg('syncDriveUnavailable')),
-    ];
-  }
+  if (!drive.configured) return driveSetup();
 
   if (drive.connected) {
     const disconnect = h(
@@ -310,7 +508,11 @@ function driveSection(drive: DriveStateResponse, deps: SettingsDeps): HTMLElemen
       msg('syncDriveDisconnect'),
     );
     disconnect.addEventListener('click', () => {
-      void run(disconnect, 'disconnect');
+      void (async () => {
+        const answer = await askDisconnect();
+        if (answer === null) return;
+        await run(disconnect, { disconnect: true, deleteRemote: answer.deleteRemote });
+      })();
     });
 
     return [
@@ -320,19 +522,9 @@ function driveSection(drive: DriveStateResponse, deps: SettingsDeps): HTMLElemen
         : [h('p', { class: 'vm-small vm-muted' }, msg('syncDriveAccount', [drive.email]))]),
       h('p', { class: 'vm-small vm-muted' }, msg('syncDriveScope')),
       ...(drive.fileLink === null ? [] : [openInDrive(drive.fileLink)]),
-      h(
-        'div',
-        null,
-        h(
-          'div',
-          { class: 'vm-checkbox' },
-          deleteRemote,
-          h('label', { for: 'vm-drive-delete' }, msg('syncDriveDeleteRemote')),
-        ),
-        h('p', { class: 'vm-hint vm-small vm-muted' }, msg('syncDriveDeleteRemoteHint')),
-      ),
       disconnect,
       status,
+      escape,
     ];
   }
 
@@ -357,6 +549,85 @@ function driveSection(drive: DriveStateResponse, deps: SettingsDeps): HTMLElemen
     h('p', { class: 'vm-hint vm-small vm-muted' }, msg('syncDriveChromeCopyGone')),
     connect,
     status,
+    escape,
+  ];
+}
+
+/**
+ * "Switch back to Chrome sync" — and the one question that goes with it.
+ *
+ * The checkbox used to sit on the settings page above the button, permanently, which made it read as
+ * a preference: a tick box about a Drive file with no visible connection to anything, offering to
+ * delete something at some unstated later time. It is not a preference. It is a parameter of exactly
+ * one action, it has no meaning until that action is taken, and the moment to ask is the moment the
+ * action is asked for.
+ *
+ * The default is off, and stays off. Disconnecting is a reversible thing — reconnecting later finds
+ * the vault where it was left — and deleting the remote copy is the one part of it that is not, so it
+ * is not what happens to somebody who pressed a button and then Enter.
+ */
+async function askDisconnect(): Promise<{ readonly deleteRemote: boolean } | null> {
+  const deleteRemote = h('input', { type: 'checkbox', id: 'vm-drive-delete' });
+  const answer = await openDialog<{ deleteRemote: boolean }>({
+    heading: msg('syncDriveDisconnect'),
+    body: [
+      dialogText('syncDriveDisconnectExplain'),
+      h(
+        'div',
+        null,
+        h(
+          'div',
+          { class: 'vm-checkbox' },
+          deleteRemote,
+          h('label', { for: 'vm-drive-delete' }, msg('syncDriveDeleteRemote')),
+        ),
+        h('p', { class: 'vm-hint vm-small vm-muted' }, msg('syncDriveDeleteRemoteHint')),
+      ),
+    ],
+    confirmLabel: msg('syncDriveDisconnectConfirm'),
+    onConfirm: () => ({ deleteRemote: deleteRemote.checked }),
+  });
+  return answer;
+}
+
+/**
+ * What to do about a build with no Google project behind it (RELEASE §5).
+ *
+ * This is the state every build from a fresh clone starts in, and until now it said only that Drive
+ * was unavailable — true, and useless to the one person who can change it. The steps live here
+ * rather than only in the docs because the two values that have to be carried to the Google Cloud
+ * console are *properties of the running build*: the extension id is this profile's, and reading it
+ * off `chrome://extensions` or out of a build script is the step people get wrong.
+ *
+ * **There is no link to the console, and there cannot be.** INV-3 allows no absolute URL in `dist/`
+ * outside `build/url-allowlist.json`, and widening that list so a settings screen can offer a
+ * convenience link is the wrong trade — the same call as the About section in onboarding (§12.4).
+ * So the console is named and not addressed, and the panel says why rather than leaving it looking
+ * like an omission.
+ *
+ * Nothing here is actionable by a normal user, which is the point: a build from the Store has a
+ * client id compiled in, `configured` is true, and this panel never renders. It is a maintainer's
+ * screen that happens to live where the maintainer will be standing when they need it.
+ */
+function driveSetup(): HTMLElement[] {
+  const step = (key: string, value?: HTMLElement): HTMLElement =>
+    value === undefined ? h('li', null, msg(key)) : h('li', null, msg(key), ' ', value);
+
+  return [
+    h('h4', null, msg('syncDriveHeading')),
+    h('p', { class: 'vm-notice' }, msg('syncDriveUnavailable')),
+    h('p', { class: 'vm-small vm-muted' }, msg('syncDriveSetupIntro')),
+    h(
+      'ol',
+      { class: 'vm-steps' },
+      step('syncDriveSetupProject'),
+      step('syncDriveSetupScope', copyableValue({ value: DRIVE_SCOPE })),
+      step('syncDriveSetupPublish'),
+      step('syncDriveSetupClient', copyableValue({ value: chrome.runtime.id })),
+      step('syncDriveSetupEnv'),
+    ),
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('syncDriveSetupIdNote')),
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('syncDriveSetupNoLink')),
   ];
 }
 
@@ -644,6 +915,12 @@ function destroyVault(deps: SettingsDeps): HTMLElement {
   const phrase = msg('settingsDestroyPhrase');
   const typed = h('input', { type: 'text', autocomplete: 'off', spellcheck: 'false' });
   const status = h('p', { class: 'vm-small', role: 'status' });
+  // Ticked. "Destroy my vault" that erased the local copy and left the encrypted one in the sync
+  // area was not a smaller version of the promise — the profile came back offering to adopt the
+  // vault it had just destroyed, and a replacement made with the same password could never open
+  // those bytes (a new vault is a new DEK), so the two deadlocked with no way out. Anyone who does
+  // want the copy left for another computer unticks it and reads what that means.
+  const alsoRemote = h('input', { type: 'checkbox', id: 'vm-destroy-remote', checked: true });
   const button = h(
     'button',
     { class: 'vm-button vm-button--danger', type: 'button', disabled: true },
@@ -670,14 +947,22 @@ function destroyVault(deps: SettingsDeps): HTMLElement {
     }
     void (async () => {
       button.disabled = true;
-      const response = await send({ type: 'DESTROY_VAULT' });
+      const response = await send({ type: 'DESTROY_VAULT', deleteRemote: alsoRemote.checked });
       if (response.type === 'ERROR') {
         status.textContent = errorText(response.code);
         button.disabled = false;
         return;
       }
       status.classList.remove('vm-danger');
-      status.textContent = msg('settingsDestroyed');
+      // Three different sentences, because they describe three different states of the world and a
+      // single "your vault has been destroyed" would be a half-truth in two of them.
+      status.textContent = msg(
+        response.remoteRemoved === null
+          ? 'settingsDestroyedRemoteKept'
+          : response.remoteRemoved
+            ? 'settingsDestroyed'
+            : 'settingsDestroyedRemoteFailed',
+      );
       deps.onDestroyed();
     })();
   });
@@ -687,6 +972,17 @@ function destroyVault(deps: SettingsDeps): HTMLElement {
     box,
     h('p', { class: 'vm-notice vm-notice--danger' }, msg('settingsDestroyWarning')),
     dialogField('settingsDestroyLabel', typed, msg('settingsDestroyHint', [phrase])),
+    h(
+      'div',
+      null,
+      h(
+        'div',
+        { class: 'vm-checkbox' },
+        alsoRemote,
+        h('label', { for: 'vm-destroy-remote' }, msg('settingsDestroyRemote')),
+      ),
+      h('p', { class: 'vm-hint vm-small vm-muted' }, msg('settingsDestroyRemoteHint')),
+    ),
     button,
     status,
   );

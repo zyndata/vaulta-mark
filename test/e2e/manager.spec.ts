@@ -323,13 +323,22 @@ test('syncs the vault into chrome.storage.sync, as ciphertext and without a requ
 /**
  * The Drive section of Settings, in a build with no Google project behind it.
  *
- * Which is every build made from this repository as it stands: `VM_OAUTH_CLIENT_ID` is a release
- * secret, so `manifest.oauth2` is absent and Drive cannot be offered. The property under test is
- * that the screen *says so* rather than showing a button that fails obscurely — and that reaching
- * that conclusion costs no network request, which is the INV-4 half a mocked `fetch` cannot prove.
+ * Which is every build made from a fresh clone: `VM_OAUTH_CLIENT_ID` is a release secret, so
+ * `manifest.oauth2` is absent and Drive cannot be offered. The property under test is that the
+ * screen *says so* rather than showing a button that fails obscurely — and that reaching that
+ * conclusion costs no network request, which is the INV-4 half a mocked `fetch` cannot prove.
+ *
+ * **Skipped when the build under test does have a client id.** That state exists on exactly one kind
+ * of machine — a maintainer's, with an `.env.local` — and it did not exist at all until the build
+ * started reading that file, which is why this test only started failing there. Asserting the
+ * unconfigured screen against a configured build would be asserting the wrong thing about a correct
+ * package, and weakening the assertion to accept either would leave the case untested everywhere. CI
+ * has no `.env.local`, so this still runs on every push, which is where it matters.
  */
 test('says plainly that Drive is unavailable in a build with no OAuth client, without asking anyone', async () => {
   const page = await openPage('manager.html');
+  const configured = await page.evaluate(() => 'oauth2' in chrome.runtime.getManifest());
+  test.skip(configured, 'this build has VM_OAUTH_CLIENT_ID set; there is no "unavailable" to show');
   const before = requests.length;
 
   await page.getByRole('button', { name: 'Settings' }).click();
@@ -341,6 +350,17 @@ test('says plainly that Drive is unavailable in a build with no OAuth client, wi
   await expect(sync).toContainText('Chrome sync');
   await expect(sync).toContainText('no Google project configured');
   await expect(page.getByRole('button', { name: 'Connect Google Drive' })).toHaveCount(0);
+
+  // ...and that it says what to do about it with the two values that have to be carried to the
+  // Google Cloud console, which are properties of this running build rather than of the docs.
+  await expect(sync).toContainText('https://www.googleapis.com/auth/drive.file');
+  const id = await page.evaluate(() => chrome.runtime.id);
+  expect(id).toMatch(/^[a-p]{32}$/);
+  await expect(sync.locator('code', { hasText: id })).toHaveCount(1);
+
+  // INV-3 on screen: the console is named, never linked. A link here would need an entry in
+  // build/url-allowlist.json, and this asserts nobody added one for a convenience.
+  await expect(sync.locator('a')).toHaveCount(0);
 
   expect(requests.slice(before)).toEqual([]);
   await page.close();
@@ -515,6 +535,60 @@ test('a double click on a folder row opens it', async () => {
   await expect(page.locator('.vm-crumb')).toHaveText('Doubleclick');
   await expect(page.getByText('This folder is empty.')).toBeVisible();
 
+  await page.close();
+});
+
+test('drags a folder onto another folder in the sidebar, and deletes one with the keyboard', async () => {
+  // The sidebar used to be a drop *target* only: a bookmark could be dragged into a folder, but a
+  // folder could not be dragged anywhere, and the tree's keyboard did five arrow keys and nothing
+  // else. Both are asserted here, because both are what "the same as the middle panel" means.
+  const page = await openPage('manager.html');
+
+  for (const name of ['Outer nest', 'Inner nest', 'Doomed folder']) {
+    await page.getByRole('button', { name: 'New folder' }).click();
+    await page.getByLabel('Folder name').fill(name);
+    await page.getByRole('button', { name: 'Create folder' }).click();
+    await expect(page.getByRole('treeitem', { name: new RegExp(name) })).toBeVisible();
+    // Creating a folder puts the scope inside nothing, but the next one is created in the current
+    // scope — so back to the top level, or these would nest themselves.
+    await page.getByRole('button', { name: 'All bookmarks' }).click();
+  }
+
+  // A treeitem's accessible name is all of its descendant text, so once one folder is inside
+  // another `getByRole('treeitem', { name: /Inner/ })` matches the ancestor too. This picks the
+  // folder whose *own* row carries the title.
+  const treeItem = (title: string): Locator =>
+    page.locator(`.vm-tree-item:has(> .vm-tree-row > .vm-tree-title:text-is("${title}"))`);
+
+  const outer = treeItem('Outer nest');
+  const inner = treeItem('Inner nest');
+
+  // The row is the draggable element, not the `li`: an expanded folder's `li` contains its
+  // children's rows, so the handle has to be the row or a grab on a child would drag the parent.
+  await dragOnto(page, inner.locator('.vm-tree-row'), outer.locator('.vm-tree-row'));
+  await expect(page.getByText('Moved 1 item.')).toBeVisible();
+
+  // Inside now, which means out of sight until its new parent is opened — a collapsed subtree is
+  // not in the DOM at all, which is exactly what makes the tree's arrow keys work.
+  await expect(inner).toHaveCount(0);
+  await expect(outer).toHaveAttribute('aria-expanded', 'false');
+  await outer.locator('> .vm-tree-row > .vm-twisty').click();
+  await expect(inner).toHaveAttribute('aria-level', '2');
+
+  // ---------------------------------------------------------------- Delete, from the tree
+  const doomed = treeItem('Doomed folder');
+  await doomed.click();
+  await doomed.focus();
+  await page.keyboard.press('Delete');
+
+  // The same question the detail pane asks, because it is the same code path: a folder deleted with
+  // a confirmation in one pane and without one in the other would be two products.
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Delete “Doomed folder”?');
+  await dialog.getByRole('button', { name: 'Keep them, one level up' }).click();
+
+  await expect(doomed).toHaveCount(0);
+  await expect(page.locator('#vm-status .vm-notice--danger')).toHaveCount(0);
   await page.close();
 });
 

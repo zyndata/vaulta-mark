@@ -56,6 +56,12 @@ below.
   - Nothing is polled. VaultaMark checks whether anything changed when the browser starts, when it
     wakes up, and when you come back to the computer — at most once a minute, and each check is a
     few hundred bytes rather than a download.
+  - A build made from source with no Google project behind it now **says what to do about it**.
+    Settings → Sync shows the setup steps together with the two values that have to be carried to
+    the Google Cloud console — this installation's extension ID and the one permitted scope — each
+    with a Copy button. It replaces a single line stating that Drive was unavailable. Nobody
+    installing VaultaMark from the Chrome Web Store ever sees this panel: those builds arrive
+    configured. There is deliberately no link to the console, and the panel says why.
 - **Your preferences now follow your vault.** A second computer that joins your vault arrives with
   your theme, your auto-lock timeout, your sort order and your privacy toggles already set, instead
   of the defaults. They are stored inside the encrypted vault like everything else.
@@ -65,8 +71,105 @@ below.
   - If two computers change the same preference, the more recent one wins and nothing asks you about
     it. A theme is not worth a dialog.
 
+### Fixed
+
+- **"There is already a different vault there" is now a question with two answers, not a dead end.**
+  Connecting Google Drive to a folder that already holds another vault used to report the refusal and
+  stop there — on a screen whose only other control was the button that had just been refused. The
+  same message also told you the other vault had "another master password", which is often simply not
+  true and sent people hunting for a password problem that did not exist: **a vault created a second
+  time is a new vault whatever password you give it**, so a computer that lost its copy — a reinstall,
+  a cleared profile — and made a new one with the same password lands here too, which is the most
+  common way to see this at all.
+
+  Both answers are now offered wherever the mismatch is reported, in Settings → Sync and under the
+  Drive connection, and neither happens on a single press:
+
+  - **Use the synced vault on this computer.** This is the one you want when the copy in sync is the
+    one with your bookmarks in it. You type the master password that opens *it*, this computer's own
+    vault is erased, and this computer joins the synced one exactly as a second computer does — its
+    bookmarks, folders, tags and notes appear here and the two keep each other up to date. The dialog
+    says how many bookmarks this computer would lose before you confirm, and points you at a backup
+    first if there are any. Nothing is erased until the password has been proven and the whole vault
+    decrypted, so a typo costs a second and a half and nothing else. It is refused while the vault is
+    locked: knowing some other vault's password must never be a way to delete yours.
+  - **Overwrite the synced copy with this vault.** What existed before, now reachable from the Drive
+    connection too, where "the synced copy" had meant the wrong thing entirely.
+
+  This is also the door a second computer needed and did not have: joining a vault that lives in
+  Google Drive was impossible unless the vault had reached that Drive from this computer.
+
+- **The vault file from your Google Drive can now be restored from.** Downloading
+  `vaultamark-vault.vmv` out of your own Drive and opening it under Import & export → *Restore from a
+  backup* used to be refused as "not a VaultaMark export" — it is a VaultaMark vault, just the synced
+  one rather than a backup, and the two shared a file extension and nothing else. Both are accepted
+  now, with the same master password, and the confirmation says which of the two you opened and when
+  it was last changed. This matters most in the case nobody plans for: a Drive account you have lost
+  access to, and a file you had saved.
+
+- **Sizes in Settings → Sync are readable.** A connected Drive reported `6010430 kB of 15728640 kB
+  used`. It now says `5.7 GB of 15 GB used`, and a Chrome sync vault still says `42 kB of 100 kB`.
+
+- **Folders in the sidebar can be dragged and deleted like anything else.** A folder can be dragged
+  onto another folder — or onto *All bookmarks* to bring it back to the top level — and pressing
+  **Delete** with a folder selected in the tree asks the same question the detail pane asks, rather
+  than doing nothing at all. Dropping bookmarks *into* the sidebar already worked; dragging the
+  folders themselves did not.
+
+- **"Also delete the copy in my Drive" is asked at the moment it applies.** It was a checkbox sitting
+  permanently on the settings page, above the disconnect button, which read like a preference about
+  some future deletion. It is a question about one action, so it is now asked when you press *Switch
+  back to Chrome sync* — still off by default, still explaining what leaving the file costs.
+
+- **"Destroy my vault" now really destroys it, sync included.** It used to erase only this computer's
+  copy and leave the encrypted one in sync — so the extension came straight back offering to restore
+  the vault you had just destroyed, and if you made a new one instead, even with the same master
+  password, the two could never sync with each other: a new vault gets a new key, and nothing can
+  open the old copy with it. The result was a permanent *"The synced copy belongs to a different
+  vault"* that nothing on screen could clear. Destroying now removes the synced copy as well, and
+  says which of the two things it managed. There is a checkbox to leave the synced copy behind, for
+  the one case that is really for — another computer is still using the vault — and it explains what
+  unticking it costs.
+- **A vault mismatch has a way out.** When two vaults end up sharing one sync area, Settings → Sync
+  now offers *"Overwrite the synced copy with this vault"*, and explains the alternative: move this
+  vault to Google Drive and leave the other where it is. Before, the message named the problem and
+  the only thing you could click was the sync status itself — which retried the merge that cannot
+  work and looked like it did nothing.
+
+- **Building with Google Drive configured now actually works.** `VM_OAUTH_CLIENT_ID` and
+  `VM_MANIFEST_KEY` were documented as living in a gitignored `.env.local`, but nothing read that
+  file: Vite does not load env files into `process.env`, so the build saw neither value and produced
+  a package with no Drive support, which then correctly reported itself as having no Google project.
+  `vite.config.ts` now loads them properly, an environment variable still works for CI, and
+  `.env.example` is there to copy. Affects people building from source only — the published package
+  is unchanged.
+
+- **Pinning a development build's extension ID is one command**, `npm run dev-key`. It replaces a
+  two-tool recipe that needed Chrome and OpenSSL on the path, produced a `.crx` only to discard it,
+  and left the ID to be read off `chrome://extensions` afterwards. The new script prints the ID it
+  produces and refuses to overwrite an existing key without `--force`, because a new key is a new ID
+  and would silently unbind an OAuth client already registered against the old one. Build tooling
+  only; nothing in the extension changed.
+
+- **`drive.file` needs no OAuth verification, and the docs said it did.** RELEASE, ARCHITECTURE and
+  PLAN all described the scope as *Sensitive* and budgeted a consent-screen review with a demo video
+  into the release schedule; it is **non-sensitive**, the only Drive scope that is, and apps using
+  only non-sensitive scopes are exempt from verification altogether. What publication does require
+  is moving the consent screen out of Testing status — whose seven-day refresh-token lifetime would
+  otherwise break Drive weekly, and only for users not signed into Chrome. Documentation only.
+
+### Removed
+
+- **The setup guide no longer has a screen section about Chrome's own address suggestions.** It asked
+  you to open a Chrome settings page and switch something off there. VaultaMark cannot open that
+  page, cannot change the setting, and cannot check afterwards whether it was changed — so it was the
+  one part of setup nobody could actually finish in the guide. The point it made is real and is in
+  `docs/PRIVACY.md`, which is where something we cannot do anything about belongs.
+
 ### Changed
 
+- **The setup guide no longer says Google Drive is "coming in the next release".** It is here; the
+  comparison table marks it *Optional*, and Settings → Sync connects it whenever you want.
 - `build/url-allowlist.json` gained `https://oauth2.googleapis.com/` — the OAuth token endpoint,
   reached only by the sign-in fallback for Chrome profiles that are not signed into Google. No new
   permission: `identity` and the Google APIs origin have been declared optional since the first

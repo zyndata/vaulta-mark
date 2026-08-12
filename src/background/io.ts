@@ -35,13 +35,8 @@ import {
   type NativeNode,
 } from '../import/native-bookmarks.js';
 import { exportFilename, exportVault, serializeVmv } from '../io/export-encrypted.js';
-import {
-  applyImport,
-  openVmv,
-  parseVmv,
-  previewOf,
-  type ImportMode,
-} from '../io/import-encrypted.js';
+import { applyImport, type ImportMode } from '../io/import-encrypted.js';
+import { openVaultFile, parseVaultFile, previewOfFile } from '../io/vault-file.js';
 import { restoreRollback, rollbackOffer } from '../io/rollback.js';
 import { requireVault } from './items.js';
 import * as session from './session.js';
@@ -88,15 +83,22 @@ export async function exportEncrypted(
 
 /* ------------------------------------------------------------------ importing */
 
+/**
+ * Read a file and say what is in it, without writing anything.
+ *
+ * Both shapes of `.vmv` are accepted — a backup and the sync container downloaded from Drive — and
+ * which one it turned out to be travels back in `origin`, because a dialog that called the live sync
+ * file "this backup" would be describing something the user never made.
+ */
 export async function previewImport(
   file: string,
   password: string,
 ): Promise<ImportPreviewResponse> {
   const repo = await requireVault();
   await session.touch();
-  const parsed = parseVmv(file);
-  const items = await openVmv(parsed, password);
-  return { type: 'IMPORT_PREVIEW', ...previewOf(parsed, items, repo.items()) };
+  const parsed = parseVaultFile(file);
+  const items = await openVaultFile(parsed, password);
+  return { type: 'IMPORT_PREVIEW', ...previewOfFile(parsed, items, repo.items()) };
 }
 
 /**
@@ -113,8 +115,8 @@ export async function runImport(
   mode: ImportMode,
 ): Promise<ImportResultResponse> {
   const repo = await requireVault();
-  const parsed = parseVmv(file);
-  const items = await openVmv(parsed, password);
+  const parsed = parseVaultFile(file);
+  const items = await openVaultFile(parsed, password);
 
   const result = await applyImport(repo, items, mode, {
     onProgress: (done, total) => {

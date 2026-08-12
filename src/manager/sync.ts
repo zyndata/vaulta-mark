@@ -112,8 +112,8 @@ export function syncQuotaBar(status: SyncStatusResponse): HTMLElement {
         'aria-valuemax': status.quotaBytes,
         'aria-valuenow': status.usedBytes,
         'aria-valuetext': msg('syncQuotaUsed', [
-          kilobytes(status.usedBytes),
-          kilobytes(status.quotaBytes),
+          storageSize(status.usedBytes),
+          storageSize(status.quotaBytes),
         ]),
       },
       h('div', {
@@ -124,7 +124,7 @@ export function syncQuotaBar(status: SyncStatusResponse): HTMLElement {
     h(
       'p',
       { class: 'vm-small vm-muted' },
-      msg('syncQuotaUsed', [kilobytes(status.usedBytes), kilobytes(status.quotaBytes)]),
+      msg('syncQuotaUsed', [storageSize(status.usedBytes), storageSize(status.quotaBytes)]),
     ),
     level === 'ok'
       ? null
@@ -136,8 +136,42 @@ export function syncQuotaBar(status: SyncStatusResponse): HTMLElement {
   );
 }
 
-function kilobytes(bytes: number): string {
-  return `${String(Math.round(bytes / 1024))} kB`;
+/** The three units a storage figure is ever shown in, largest first. */
+const SIZE_UNITS: readonly { readonly unit: 'gigabyte' | 'megabyte' | 'kilobyte'; readonly scale: number }[] = [
+  { unit: 'gigabyte', scale: 1024 ** 3 },
+  { unit: 'megabyte', scale: 1024 ** 2 },
+  { unit: 'kilobyte', scale: 1024 },
+];
+
+/**
+ * A byte count, in the largest unit that leaves it readable.
+ *
+ * It used to be kilobytes and only kilobytes, which was fine while the only backend was
+ * `chrome.storage.sync` and the ceiling was 100 KB. Drive's is fifteen *gigabytes*, and the same
+ * function rendered that as `6010430 kB of 15728640 kB used` — seven- and eight-digit numbers with
+ * no separators, which is not a quantity anybody reads, it is a quantity people scan past.
+ *
+ * `Intl.NumberFormat`'s `unit` style rather than a suffix per unit in `_locales`: it is the
+ * platform's own phrasing and grouping, in the browser's language, and the same reasoning as
+ * {@link relativeTime} above — a unit abbreviation is not a sentence we should be translating.
+ *
+ * The divisor is 1024 throughout, which is what makes the total agree with what Google itself shows:
+ * a "15 GB" Drive is 16,106,127,360 bytes.
+ */
+export function storageSize(bytes: number): string {
+  const chosen = SIZE_UNITS.find((candidate) => bytes >= candidate.scale) ?? {
+    unit: 'kilobyte' as const,
+    scale: 1024,
+  };
+  const value = bytes / chosen.scale;
+  return new Intl.NumberFormat(undefined, {
+    style: 'unit',
+    unit: chosen.unit,
+    unitDisplay: 'short',
+    // One decimal only where it carries information. "5.7 GB" is worth a digit; "5,870 MB" is not,
+    // and "0.1 kB" for an empty vault would be precision about nothing.
+    maximumFractionDigits: value < 10 && bytes >= 1024 ? 1 : 0,
+  }).format(value);
 }
 
 /* ------------------------------------------------------------------ the banner */

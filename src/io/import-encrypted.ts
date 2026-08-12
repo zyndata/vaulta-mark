@@ -200,8 +200,23 @@ async function openPayload(itemsKey: CryptoKey, file: VmvFile): Promise<unknown>
   }
 }
 
+/**
+ * The metadata a preview repeats back, which is all `previewOf` reads off the file.
+ *
+ * Named and narrow rather than `VmvFile`, because the Drive sync container goes through the same
+ * preview (`io/vault-file.ts`) and is not a `.vmv` export — it has a header, not a magic string and a
+ * wrapped export key. Widening the parameter is honest about what is actually used; passing a
+ * half-built `VmvFile` through a cast would not be.
+ */
+export interface PreviewMeta {
+  readonly createdAt: number;
+  readonly createdBy: string;
+  readonly schemaVersion: number;
+  readonly includesThumbs: boolean;
+}
+
 /** What the file holds, for the confirmation step. Reads nothing from the vault except its ids. */
-export function previewOf(file: VmvFile, items: ItemMap, vault: ItemMap): ImportPreview {
+export function previewOf(file: PreviewMeta, items: ItemMap, vault: ItemMap): ImportPreview {
   let bookmarks = 0;
   let folders = 0;
   let deleted = 0;

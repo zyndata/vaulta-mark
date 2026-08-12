@@ -256,11 +256,21 @@ Needed for Drive sync (Phase 10). Do this once, under the `zyndata` Google accou
    those are Restricted scopes and trigger the annual CASA Tier-2 security assessment
    (see [ARCHITECTURE §13.1](ARCHITECTURE.md#131-scope-choice)).
 5. Add yourself under **Test users** while in Testing mode.
-6. When ready, **Publish app** and submit for verification. `drive.file` is *Sensitive*, not
-   *Restricted*: verification needs the consent-screen details, a privacy-policy URL, and a demo
-   video showing the OAuth flow and what the app does with the scope. Expect days-to-weeks.
-   **Start this during Phase 10, not at release time.** Until verified, the unverified-app screen
-   caps you at 100 users — fine for a beta.
+6. **Publish app** — move the consent screen from *Testing* to *In production*.
+
+**There is no verification to submit, and that is not an oversight.** `drive.file` is
+**non-sensitive** — the only Drive scope that is — and an app whose scopes are all non-sensitive is
+exempt from OAuth app verification. No demo video, no review, no "Google hasn't verified this app"
+interstitial. Do not add `drive` or `drive.readonly` to make something work; they are Restricted, and
+that is the annual paid CASA Tier-2 assessment ([ARCHITECTURE §13.1](ARCHITECTURE.md#131-scope-choice)).
+
+**Publishing is still required, for a different reason.** An app left in *Testing* is capped at 100
+test users, and — the part that actually bites us — **refresh tokens issued to a Testing app expire
+after 7 days**. That hits exactly one code path, and hits it invisibly: the PKCE fallback in
+`src/sync/drive/auth.ts`, used by profiles not signed into Chrome, is the only route that holds a
+refresh token (sealed under `k_items`). `chrome.identity.getAuthToken` profiles would be unaffected,
+so the symptom is *some* users reporting that Drive disconnects every week. Publish before anyone but
+you installs the build.
 
 ### 5.3 Create the extension OAuth client
 
@@ -269,30 +279,94 @@ Needed for Drive sync (Phase 10). Do this once, under the `zyndata` Google accou
 3. **Item ID** = your extension ID. Get it from:
    - the Chrome Web Store item URL after the first manual upload, **or**
    - a stable unpacked ID during development (§5.4).
-4. Copy the client ID into `build/manifest.ts` under `oauth2.client_id`. There is **no client secret**
-   for this client type — nothing sensitive ships in the package.
+4. Put the client ID in **`.env.local`** as `VM_OAUTH_CLIENT_ID` (see §5.5) — not in
+   `build/manifest.ts`, which reads it from there. There is **no client secret** for this client
+   type; the client id is public and nothing sensitive ships in the package. It is kept out of the
+   repository because it names one particular Google Cloud project, not because it is secret.
 
 ### 5.4 Stable extension ID for local development
 
-Unpacked extensions get a new ID on each load, which breaks the OAuth client binding.
+An unpacked extension's ID is derived from the folder it was loaded from, so it changes when the
+folder moves and differs on every machine — which breaks the OAuth client binding, because a client
+is registered against one specific ID.
 
 ```bash
-# One time: pack the extension to generate a key pair
-chrome.exe --pack-extension="D:\Work\vaulta-mark\vaulta-mark\dist"
-# produces dist.crx and dist.pem  → keep dist.pem OUT of git (.gitignore covers *.pem)
-
-# Extract the public key as base64 (one line, no headers)
-openssl rsa -in dist.pem -pubout -outform DER | openssl base64 -A
+npm run dev-key
 ```
 
-Put that string in the manifest's `"key"` field for development builds only. `build/manifest.ts`
-reads it from a gitignored `.env.local` (`VM_MANIFEST_KEY=...`) and **omits it from production
-builds** — the Store assigns the real ID, and shipping a `key` that disagrees with the Store's ID
-breaks the upload.
+That is the whole step. It generates an RSA key pair, writes `VM_MANIFEST_KEY` into `.env.local`
+leaving every other line alone, drops the private half in `dev-unpacked.pem`, and prints the
+extension ID the key produces — so there is no need to load the extension and read the ID off
+`chrome://extensions` before registering the OAuth client.
 
-The `.pem` is a signing key. It never goes in the repository. If you lose it, you get a new
+**Regenerating is destructive in a non-obvious way**, so an existing key is never replaced without
+`--force`. A new key is a new ID, and the OAuth client registered against the old one silently stops
+matching: Drive fails to authorise, and nothing anywhere says that an *ID* is the reason. If you do
+use `--force`, update the client's Item ID (§5.3) to the ID it prints.
+
+<details>
+<summary>What this replaced, and why the old way also worked</summary>
+
+Until 2026-08-10 this section prescribed `chrome.exe --pack-extension` to produce a key pair,
+followed by `openssl rsa -pubout -outform DER | openssl base64 -A` to extract the public half. Both
+steps exist only to obtain an RSA key and its SPKI DER encoding, which Node does natively — Chrome's
+`key` field has always been exactly base64 SPKI DER, so the bytes are identical. The old route needed
+Chrome and OpenSSL on `PATH`, produced a `.crx` that was immediately thrown away, and left a `.pem`
+in the repository root under a name that reads like build output.
+
+</details>
+
+The key reaches the manifest's `"key"` field
+for **development builds only** — `build/mv3-plugin.ts` passes it through when the Vite mode is
+`development` and never for `npm run build`, because the Store assigns the real ID and shipping a
+`key` that disagrees with it breaks the upload. That also means `npm run build` does **not** give you
+a stable unpacked ID; use `npm run dev`, or `npx vite build --mode development` for a one-shot.
+
+`dev-unpacked.pem` is a signing key. It never goes in the repository (`.gitignore` covers `*.pem`),
+and loading unpacked does not need it at all — Chrome derives the ID from the public key in the
+manifest. Keep it only if you might pack a `.crx` with the same ID. If you lose it, you get a new
 development ID and update the OAuth client's Item ID — no user impact, since production IDs come from
 the Store.
+
+**The running extension shows all of this on screen.** A build with no `VM_OAUTH_CLIENT_ID` renders
+the steps below, its own extension ID, and the scope string in **Settings → Sync → Google Drive**,
+each with a Copy button. That panel and this section say the same thing on purpose; the panel knows
+the ID of the build actually in front of you, which is the value people misread here.
+
+### 5.5 `.env.local` — where both values live
+
+Copy the template and fill in what you have:
+
+```bash
+cp .env.example .env.local
+```
+
+```dotenv
+VM_OAUTH_CLIENT_ID=000000000000-xxxxxxxxxxxx.apps.googleusercontent.com
+VM_MANIFEST_KEY=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
+```
+
+Then rebuild. `dist/manifest.json` should carry an `oauth2` block with your client id, and — after a
+`npm run dev` — a `key`.
+
+**Both are optional.** With the file absent, `npm run build` produces a package that installs, runs
+and syncs through Chrome sync exactly as it should; the `oauth2` block is omitted **entirely** rather
+than emitted empty (Chrome treats a malformed one as a manifest error and refuses to load the
+extension at all), `DriveAuth.configured` is `false`, and Settings → Sync says the build has no
+Google project configured. That is the correct behaviour for a source build, and
+`test/e2e/manager.spec.ts` asserts it.
+
+**How it reaches the build, and the trap that is worth knowing.** `vite.config.ts` calls Vite's
+`loadEnv(mode, process.cwd(), 'VM_')` and passes the result to the plugin as an option. That call is
+load-bearing and was missing until after Phase 11: **Vite does not put `.env` files into
+`process.env`** — it loads them into `import.meta.env`, and only the `VITE_`-prefixed keys at that.
+The plugin read `process.env['VM_OAUTH_CLIENT_ID']` directly, so a correctly written `.env.local` was
+read by nothing, the manifest came out with no `oauth2` block, and the settings screen truthfully
+reported a build with no Google project. Nothing was broken; the wiring between the documented file
+and the build had simply never existed. `loadEnv` reads the files **and** folds in matching variables
+already exported in the shell, so CI can set them as environment variables instead, with a local file
+winning on a laptop. The `VM_` prefix is the allowlist — it is what stops an unrelated environment
+variable finding its way into a shipped artifact.
 
 ---
 

@@ -240,6 +240,43 @@ export interface ChangePasswordRequest {
  */
 export interface DestroyVaultRequest {
   readonly type: 'DESTROY_VAULT';
+  /**
+   * Also remove the encrypted copy from the sync backend. Defaults to **true**.
+   *
+   * The default is the one that matches what the button says. Leaving the synced copy behind meant a
+   * profile that had just erased its vault was offered the chance to adopt it back, and a
+   * replacement vault created with the same password could never open those bytes — a new vault is a
+   * new DEK — so the two sat in one sync area refusing each other forever. Anyone who genuinely
+   * wants the copy left for another computer unticks the box and is told what that means.
+   */
+  readonly deleteRemote?: boolean;
+}
+
+/**
+ * Put this vault in the sync area, over whatever is there.
+ *
+ * The escape from `VAULT_MISMATCH`. Answers with the sync status the run ended at, so the screen
+ * that asked can say whether it worked without a second round trip.
+ */
+export interface ReplaceRemoteVaultRequest {
+  readonly type: 'REPLACE_REMOTE_VAULT';
+}
+
+/**
+ * Take the synced vault, and let this profile's own go.
+ *
+ * The other half of the same escape, and the destructive direction: everything in `storage.local`
+ * is erased and replaced with what the sync area holds. `password` is the **synced** vault's, which
+ * is the whole reason this can work at all — the KDF salt and the wrapped DEK travel in the header.
+ *
+ * `from` names the backend rather than letting the worker read it, because the case this exists for
+ * is a Drive migration that was *refused*: `providerId` is still `chrome` at that point, and the
+ * vault being asked for is the one in Drive.
+ */
+export interface AdoptRemoteVaultRequest {
+  readonly type: 'ADOPT_REMOTE_VAULT';
+  readonly password: string;
+  readonly from: 'chrome' | 'drive';
 }
 
 /** Is "Allow in Incognito" on? `recheck` bypasses the per-worker cache for the Re-check button. */
@@ -325,6 +362,15 @@ export interface GetDriveStateRequest {
  */
 export interface ConnectDriveRequest {
   readonly type: 'CONNECT_DRIVE';
+  /**
+   * Take the Drive folder over if it already holds a *different* vault.
+   *
+   * Off by default, and it has to be: finding a vault already there is the normal case for a second
+   * computer, and one that opens under this key is adopted rather than overwritten (§6.6). This is
+   * the answer to the refusal that follows when it does *not* open — asked for explicitly, from the
+   * screen that reported it, and never something the migration decides on its own.
+   */
+  readonly replaceExisting?: boolean;
 }
 
 /**
@@ -469,6 +515,8 @@ export type Request =
   | SyncNowRequest
   | ListConflictsRequest
   | ResolveConflictsRequest
+  | ReplaceRemoteVaultRequest
+  | AdoptRemoteVaultRequest
   | ExportVaultRequest
   | PreviewImportRequest
   | ImportVaultRequest
@@ -527,6 +575,19 @@ export interface StateResponse {
 
 export interface OkResponse {
   readonly type: 'OK';
+}
+
+/**
+ * The vault is gone from this profile. `remoteRemoved` says what happened to the synced copy.
+ *
+ * Three states, and the screen says a different sentence for each: `true` (it was removed), `false`
+ * (it was asked for and could not be — Drive offline, the grant withdrawn), and `null` (the user
+ * unticked the box, so it is still there on purpose). The local erase succeeded in all three; a
+ * failure to reach a backend is not allowed to stop someone destroying their own vault.
+ */
+export interface DestroyedResponse {
+  readonly type: 'DESTROYED';
+  readonly remoteRemoved: boolean | null;
 }
 
 export interface SettingsResponse {
@@ -826,6 +887,14 @@ export interface ImportPreviewResponse {
   readonly includesThumbs: boolean;
   /** Ids the vault already has — the ceiling on how many items a merge could disagree about. */
   readonly known: number;
+  /**
+   * Which of the two `.vmv` shapes this was: a backup, or the live sync container from Drive.
+   *
+   * Both are importable and both hold the same kind of thing, but they are not the same object and
+   * the confirmation must not pretend otherwise — a container has no creation date and no writing
+   * version, only a "last changed".
+   */
+  readonly origin: 'backup' | 'sync';
 }
 
 export interface ImportResultResponse {
@@ -1021,11 +1090,13 @@ export interface ResponseMap {
   readonly COUNT_TRACKING_PARAMS: CountResponse;
   readonly STRIP_TRACKING_PARAMS: CountResponse;
   readonly CHANGE_PASSWORD: OkResponse;
-  readonly DESTROY_VAULT: OkResponse;
+  readonly DESTROY_VAULT: DestroyedResponse;
   readonly GET_SYNC_STATUS: SyncStatusResponse;
   readonly SYNC_NOW: SyncStatusResponse;
   readonly LIST_CONFLICTS: ConflictsResponse;
   readonly RESOLVE_CONFLICTS: CountResponse;
+  readonly REPLACE_REMOTE_VAULT: SyncStatusResponse;
+  readonly ADOPT_REMOTE_VAULT: SyncStatusResponse;
   readonly EXPORT_VAULT: FileResponse;
   readonly PREVIEW_IMPORT: ImportPreviewResponse;
   readonly IMPORT_VAULT: ImportResultResponse;
@@ -1197,7 +1268,6 @@ export function parseRequest(raw: unknown): Request | null {
     case 'GET_TREE':
     case 'COUNT_TRACKING_PARAMS':
     case 'STRIP_TRACKING_PARAMS':
-    case 'DESTROY_VAULT':
     case 'GET_SYNC_STATUS':
     case 'SYNC_NOW':
     case 'LIST_CONFLICTS':
@@ -1205,15 +1275,28 @@ export function parseRequest(raw: unknown): Request | null {
     case 'ROLLBACK_IMPORT':
     case 'NATIVE_TREE':
     case 'GET_DRIVE_STATE':
-    case 'CONNECT_DRIVE':
     case 'GET_ONBOARDING':
     case 'PREVIEW_HISTORY_CLEANUP':
     case 'CLEAR_VAULTED_HISTORY':
+    case 'REPLACE_REMOTE_VAULT':
       return { type };
+    case 'DESTROY_VAULT':
     case 'DISCONNECT_DRIVE': {
       const deleteRemote = raw['deleteRemote'];
       if (deleteRemote === undefined) return { type };
       return typeof deleteRemote === 'boolean' ? { type, deleteRemote } : null;
+    }
+    case 'CONNECT_DRIVE': {
+      const replaceExisting = raw['replaceExisting'];
+      if (replaceExisting === undefined) return { type };
+      return typeof replaceExisting === 'boolean' ? { type, replaceExisting } : null;
+    }
+    case 'ADOPT_REMOTE_VAULT': {
+      const password = raw['password'];
+      const from = raw['from'];
+      if (typeof password !== 'string') return null;
+      if (from !== 'chrome' && from !== 'drive') return null;
+      return { type, password, from };
     }
     case 'SET_ONBOARDING': {
       const patch = parseOnboardingPatch(raw['patch']);

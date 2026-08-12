@@ -34,7 +34,7 @@ import type { LockReason, OnboardingPatch, SettingsPatch } from '../shared/messa
 import { broadcast } from '../shared/messages.js';
 import { VaultLockedError, VaultStateError } from '../vault/errors.js';
 import { applySyncedSettings, stampSettings } from '../vault/settings-sync.js';
-import type { OnboardingRecord, VaultSettings } from '../vault/types.js';
+import type { EncryptedVault, OnboardingRecord, VaultSettings } from '../vault/types.js';
 import {
   applyIdleDetection,
   armAutolock,
@@ -178,6 +178,39 @@ async function adoptSyncedVault(repo: VaultRepository, password: string): Promis
   }
   await repo.adopt(remote.vault, password);
   await markAdopted(repo, repo.items(), remote.stamp, remote.vault.header.vaultRev);
+}
+
+/**
+ * Join a synced vault **instead of** the one this profile holds, and open a session on it.
+ *
+ * The end of the "two vaults, one sync area" dead end, from the side that keeps the *other* one.
+ * `repo.adoptOver` documents why the ordering makes it safe; what this adds is the part that is
+ * about a session rather than about storage.
+ *
+ * The old repository is stood down first, and **flushed** rather than dropped: its pending edits are
+ * about to be erased if this succeeds, but if the password is wrong nothing is erased at all and
+ * losing the last thing someone typed to a failed attempt would be a bug. After the erase, the
+ * profile's own `vm.settings` is gone with it, so the backend is written back before the session
+ * starts — it describes this device, and no vault can carry it.
+ *
+ * On failure `repository` is left null with the *old* DEK still in `storage.session`, which is what
+ * makes a wrong password free: the next `currentRepository()` rebuilds the vault that is still here.
+ */
+export async function adoptRemoteVault(
+  vault: EncryptedVault,
+  password: string,
+  providerId: VaultSettings['providerId'],
+): Promise<number> {
+  const previous = repository;
+  repository = null;
+  if (previous !== null) await previous.lock();
+
+  const next = new VaultRepository();
+  await next.adoptOver(vault, password);
+  repository = next;
+
+  await writeSettings({ ...(await readSettings()), providerId });
+  return await startSession(next);
 }
 
 async function startSession(repo: VaultRepository): Promise<number> {

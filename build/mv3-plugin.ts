@@ -30,6 +30,20 @@ const TARGET = 'chrome116';
 export interface Mv3PluginOptions {
   /** `package.json` version, mapped to a Chrome version by `build/version.ts`. */
   version: string;
+  /**
+   * The Google OAuth client id and the development-only manifest `key` (RELEASE §5).
+   *
+   * Passed in rather than read from `process.env` here, and that is the fix for a real trap: the
+   * docs have always said these live in a gitignored `.env.local`, but **Vite does not put env
+   * files into `process.env`** — it loads them into `import.meta.env`, and only the `VITE_`-prefixed
+   * ones at that. So the documented setup silently produced a manifest with no `oauth2` block, and
+   * the only thing that ever worked was exporting a real shell variable. `vite.config.ts` now calls
+   * `loadEnv`, which reads the files *and* folds in matching `process.env` entries, so both work.
+   */
+  env?: {
+    readonly clientId?: string | undefined;
+    readonly key?: string | undefined;
+  };
 }
 
 export function mv3(options: Mv3PluginOptions): Plugin {
@@ -59,8 +73,8 @@ export function mv3(options: Mv3PluginOptions): Plugin {
             // Both from the environment (RELEASE §5), because neither belongs in the repository:
             // the client id is public but is per-Google-project, and the key pins a *development*
             // extension id and must never reach a Store build — hence the mode check.
-            clientId: process.env['VM_OAUTH_CLIENT_ID'],
-            ...(development ? { key: process.env['VM_MANIFEST_KEY'] } : {}),
+            clientId: options.env?.clientId,
+            ...(development ? { key: options.env?.key } : {}),
           }),
           null,
           2,

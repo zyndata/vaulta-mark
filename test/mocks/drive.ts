@@ -224,9 +224,22 @@ export class DriveMock {
     return json(project(file, parsed), 200, { ETag: etagOf(file) });
   }
 
+  /**
+   * `files.delete`, **including everything inside a folder**.
+   *
+   * Drive deletes a folder's contents with it, and a mock that left them behind is not merely
+   * imprecise — it produces a state Drive cannot be in, where a file's parent does not exist. That
+   * matters here because the provider falls back to searching for `vaultamark-vault.vmv` by name
+   * with no parent when it has no cached folder: an orphan left by a "deleted" folder is found by
+   * that search, and a caller that had just cleared the folder gets a `PreconditionFailed` for a
+   * file the real Drive would have taken away.
+   */
   #delete(id: string): Response {
     if (!this.files.delete(id)) {
       return json({ error: { message: 'File not found', errors: [{ reason: 'notFound' }] } }, 404);
+    }
+    for (const child of [...this.files.values()]) {
+      if (child.parents.includes(id)) this.#delete(child.id);
     }
     return new Response(null, { status: 204 });
   }

@@ -51,9 +51,9 @@ describe('incognitoPrompt', () => {
       copy,
     });
 
-    button(root, 'incognitoCopyButton').click();
+    button(root, 'copyButton').click();
     await vi.waitFor(() => {
-      expect(root.textContent).toContain('incognitoCopied');
+      expect(root.textContent).toContain('copied');
     });
     expect(copy).toHaveBeenCalledWith(SETTINGS_URL);
   });
@@ -65,9 +65,9 @@ describe('incognitoPrompt', () => {
       copy: () => Promise.reject(new Error('not focused')),
     });
 
-    button(root, 'incognitoCopyButton').click();
+    button(root, 'copyButton').click();
     await vi.waitFor(() => {
-      expect(root.textContent).toContain('incognitoCopyFailed');
+      expect(root.textContent).toContain('copyFailed');
     });
   });
 

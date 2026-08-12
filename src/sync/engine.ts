@@ -611,10 +611,17 @@ export async function currentProvider(): Promise<SyncProvider> {
   return provider;
 }
 
-/** The synced vault as ciphertext, with the stamp it was read at. `null` if there is none. */
-export async function fetchRemote(): Promise<{ vault: EncryptedVault; stamp: RemoteStamp } | null> {
-  const settings = await readSettings();
-  const provider = providerFor(settings.providerId);
+/**
+ * The synced vault as ciphertext, with the stamp it was read at. `null` if there is none.
+ *
+ * `from` names the backend explicitly, and the case that needs it is a Drive connection that was
+ * *refused*: `placeVault` found another vault there and left `providerId` on `chrome`, so a profile
+ * asking "let me join the one in Drive instead" would otherwise be answered by Chrome sync.
+ */
+export async function fetchRemote(
+  from?: ProviderId,
+): Promise<{ vault: EncryptedVault; stamp: RemoteStamp } | null> {
+  const provider = providerFor(from ?? (await readSettings()).providerId);
   await provider.init();
   const stamp = await provider.peek();
   if (stamp === null) return null;

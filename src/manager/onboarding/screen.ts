@@ -16,7 +16,7 @@
 
 import { hasHistoryPermission } from '../../history/cleanup.js';
 import { send } from '../../shared/messages.js';
-import { AUTOCOMPLETE_SETTINGS_URL, copyableAddress } from '../../ui/address.js';
+import { copyableValue } from '../../ui/address.js';
 import { createVaultForm } from '../../ui/create-form.js';
 import { h, msg, render } from '../../ui/dom.js';
 import { historyCleanupPanel } from '../../ui/history-cleanup.js';
@@ -315,7 +315,7 @@ export function mountOnboarding(root: HTMLElement, options: OnboardingOptions): 
       h(
         'ol',
         { class: 'vm-steps' },
-        h('li', null, msg('incognitoStep1'), ' ', copyableAddress({ address: settingsUrl })),
+        h('li', null, msg('incognitoStep1'), ' ', copyableValue({ value: settingsUrl })),
         h('li', null, msg('incognitoStep2')),
         h('li', null, msg('incognitoStep3')),
       ),
@@ -332,9 +332,11 @@ export function mountOnboarding(root: HTMLElement, options: OnboardingOptions): 
    * The two tiers, side by side.
    *
    * A table rather than two paragraphs because the decision is a comparison: capacity against
-   * thumbnails against setup effort. Drive is present and marked as not yet available rather than
-   * hidden, so nobody picks Chrome sync believing it is the only option and then finds their vault
-   * capped at a thousand bookmarks (PLAN §9 Phase 9 asks for exactly this).
+   * thumbnails against setup effort. Drive is present rather than hidden, so nobody picks Chrome
+   * sync believing it is the only option and then finds their vault capped at a thousand bookmarks
+   * (PLAN §9 Phase 9 asks for exactly this). Since Phase 10 it is something they can switch on the
+   * same day — the badge says "Optional", not "coming later" — and the way to it is Settings → Sync,
+   * which is what the two lines under the table say.
    */
   function syncStep(): HTMLElement {
     const cell = (key: string): HTMLElement => h('td', null, msg(key));
@@ -410,15 +412,17 @@ export function mountOnboarding(root: HTMLElement, options: OnboardingOptions): 
   /* ---------------------------------------------------------------- 5. what Chrome still does */
 
   /**
-   * The two leaks a vault cannot close on its own.
+   * The leak a vault cannot close on its own: history.
    *
-   * (a) History. A page visited before it was vaulted is still in `chrome.history` autocompleting
-   * itself, and clearing it needs an optional permission we ask for here, in context, with the
-   * count in front of the user before anything is deleted.
+   * A page visited before it was vaulted is still in `chrome.history` autocompleting itself, and
+   * clearing it needs an optional permission we ask for here, in context, with the count in front of
+   * the user before anything is deleted.
    *
-   * (b) URL prediction. "Autocomplete searches and URLs" suggests from signals we do not control and
-   * cannot switch off for the user — so the honest answer is the address, the instruction, and
-   * saying out loud that this one is theirs to do.
+   * This step used to carry a second card about Chrome's "Autocomplete searches and URLs" setting —
+   * an address to paste and an instruction to turn it off. It is gone (maintainer-reported, and
+   * ARCHITECTURE §12.4 records the removal): a setup flow that ends by handing someone homework in a
+   * settings page we cannot open, verify or undo is a step nobody can complete here, and it was the
+   * one card in the flow that had no control on it at all.
    */
   function chromeStep(): HTMLElement {
     return h(
@@ -432,25 +436,6 @@ export function mountOnboarding(root: HTMLElement, options: OnboardingOptions): 
         h('h3', null, msg('onboardingHistoryHeading')),
         h('p', null, msg('onboardingHistoryBody')),
         historyOffer(),
-      ),
-      h(
-        'section',
-        { class: 'vm-onboarding-card' },
-        h('h3', null, msg('onboardingPredictionHeading')),
-        h('p', null, msg('onboardingPredictionBody')),
-        h(
-          'ol',
-          { class: 'vm-steps' },
-          h(
-            'li',
-            null,
-            msg('onboardingPredictionStep1'),
-            ' ',
-            copyableAddress({ address: AUTOCOMPLETE_SETTINGS_URL }),
-          ),
-          h('li', null, msg('onboardingPredictionStep2')),
-        ),
-        h('p', { class: 'vm-small vm-muted' }, msg('onboardingPredictionCaveat')),
       ),
     );
   }

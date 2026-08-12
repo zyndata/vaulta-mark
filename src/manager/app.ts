@@ -479,6 +479,10 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
         onDropInFolder: (folderId) => {
           void dropInFolder(folderId);
         },
+        onDragFolder: (folderId) => beginFolderDrag(folderId),
+        deleteFolder: (folder) => {
+          void deleteFolder(folder);
+        },
       }),
     );
   }
@@ -872,6 +876,19 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   }
 
   /**
+   * A folder dragged out of the sidebar.
+   *
+   * It carries that one folder and deliberately **not** the list's selection, unlike `beginDrag`.
+   * The two panes hold two different things: the list's selection is what the user picked in the
+   * list, and a grab on a sidebar row is about the row being grabbed. Folding the selection in would
+   * move bookmarks nobody was pointing at.
+   */
+  function beginFolderDrag(folderId: string): readonly string[] {
+    dragging = [folderId];
+    return dragging;
+  }
+
+  /**
    * Whether the drag may land in this folder.
    *
    * Refused up front rather than left to the worker, because `repo.apply` is all-or-nothing: one
@@ -1038,8 +1055,17 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
    * The two choices are two buttons rather than a radio group and a confirm: there is no default,
    * and a dialog with a preselected destructive answer is a dialog people dismiss by pressing
    * Enter.
+   *
+   * Takes the three fields it reads rather than an `ItemDetail`, because the sidebar's Delete key
+   * asks the same question about a `FolderNode` and one confirmation is the point: a folder deleted
+   * with a question in one pane and without one in the other is two products (the same reasoning as
+   * `confirmDialog` in `ui/dialog.ts`).
    */
-  async function deleteFolder(item: ItemDetail): Promise<void> {
+  async function deleteFolder(item: {
+    readonly id: string;
+    readonly title: string;
+    readonly descendants?: number | undefined;
+  }): Promise<void> {
     const mode = await chooseDialog<'reparent' | 'recursive'>({
       heading: msg('folderDeleteHeading', [item.title]),
       body: [h('p', null, msg('folderDeleteQuestion', [String(item.descendants ?? 0)]))],

@@ -15,6 +15,7 @@
 
 import { fromBase64Url, toBase64Url, type Bytes } from '../crypto/codec.js';
 import { CorruptVaultError } from '../crypto/errors.js';
+import { KDF_ALGORITHM } from '../crypto/kdf.js';
 import {
   DEFAULT_ONBOARDING,
   DEFAULT_SETTINGS,
@@ -98,11 +99,17 @@ export function parseHeader(raw: unknown): VaultHeader {
   if (
     kdf === null ||
     typeof kdf !== 'object' ||
-    typeof (kdf as Record<string, unknown>)['alg'] !== 'string' ||
     typeof (kdf as Record<string, unknown>)['iterations'] !== 'number' ||
     typeof (kdf as Record<string, unknown>)['salt'] !== 'string'
   ) {
     throw new CorruptVaultError('Vault header has no usable KDF parameters.');
+  }
+  // Checked against the value rather than merely against `string`, because `VaultHeader.kdf.alg` is
+  // that one literal type and the cast at the bottom of this function is what makes it true. A
+  // header saying anything else would type as the algorithm we support while being something else —
+  // which callers, quite reasonably, then decline to re-check.
+  if ((kdf as Record<string, unknown>)['alg'] !== KDF_ALGORITHM) {
+    throw new CorruptVaultError('Vault header names an unsupported key-derivation algorithm.');
   }
 
   const wrapped = header['wrappedDek'];

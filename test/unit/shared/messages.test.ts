@@ -56,6 +56,29 @@ describe('parseRequest', () => {
     }
   });
 
+  it('requires both a password and a named backend to adopt a synced vault', () => {
+    expect(parseRequest({ type: 'ADOPT_REMOTE_VAULT', password: 'theirs', from: 'drive' })).toEqual({
+      type: 'ADOPT_REMOTE_VAULT',
+      password: 'theirs',
+      from: 'drive',
+    });
+    // The backend is not defaulted. This request erases the vault on this profile and replaces it
+    // with whatever is in the named one; guessing which one that is is not a thing to do quietly.
+    for (const from of [undefined, null, '', 'sync', 42]) {
+      expect(parseRequest({ type: 'ADOPT_REMOTE_VAULT', password: 'theirs', from })).toBeNull();
+    }
+    expect(parseRequest({ type: 'ADOPT_REMOTE_VAULT', from: 'chrome' })).toBeNull();
+  });
+
+  it('treats CONNECT_DRIVE.replaceExisting as optional but typed', () => {
+    expect(parseRequest({ type: 'CONNECT_DRIVE' })).toEqual({ type: 'CONNECT_DRIVE' });
+    expect(parseRequest({ type: 'CONNECT_DRIVE', replaceExisting: true })).toEqual({
+      type: 'CONNECT_DRIVE',
+      replaceExisting: true,
+    });
+    expect(parseRequest({ type: 'CONNECT_DRIVE', replaceExisting: 'yes' })).toBeNull();
+  });
+
   it('treats LOCK.panic as optional but typed', () => {
     expect(parseRequest({ type: 'LOCK' })).toEqual({ type: 'LOCK' });
     expect(parseRequest({ type: 'LOCK', panic: true })).toEqual({ type: 'LOCK', panic: true });
@@ -137,16 +160,22 @@ describe('parseRequest', () => {
   /* --- the manager (Phase 6) --- */
 
   it('takes the payload-free manager requests bare', () => {
-    for (const type of [
-      'GET_TREE',
-      'DESTROY_VAULT',
-      'COUNT_TRACKING_PARAMS',
-      'STRIP_TRACKING_PARAMS',
-    ] as const) {
+    for (const type of ['GET_TREE', 'COUNT_TRACKING_PARAMS', 'STRIP_TRACKING_PARAMS'] as const) {
       expect(parseRequest({ type })).toEqual({ type });
       // Extra fields are dropped rather than rejected: the parser's output is what the router sees.
       expect(parseRequest({ type, extra: 'ignored' })).toEqual({ type });
     }
+  });
+
+  it('takes DESTROY_VAULT bare, and its deleteRemote flag only as a boolean', () => {
+    // Bare stays bare rather than defaulting here: the router is the one place that decides what an
+    // absent flag means, and a parser that filled it in would put that decision in two files.
+    expect(parseRequest({ type: 'DESTROY_VAULT' })).toEqual({ type: 'DESTROY_VAULT' });
+    expect(parseRequest({ type: 'DESTROY_VAULT', deleteRemote: false })).toEqual({
+      type: 'DESTROY_VAULT',
+      deleteRemote: false,
+    });
+    expect(parseRequest({ type: 'DESTROY_VAULT', deleteRemote: 'no' })).toBeNull();
   });
 
   it('takes every LIST_VIEW field as optional, and each of them typed', () => {

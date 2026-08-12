@@ -115,14 +115,17 @@ test('walks a fresh profile through setup, and then never appears again', async 
   await expect(page.getByRole('columnheader', { name: /Chrome sync/ })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /Google Drive/ })).toBeVisible();
   // Drive is present and marked, rather than hidden: nobody should pick Chrome sync believing it is
-  // the only option and then find their vault capped at a thousand bookmarks.
-  await expect(page.getByText('Coming in the next release')).toBeVisible();
+  // the only option and then find their vault capped at a thousand bookmarks. Since Phase 10 it is a
+  // thing you can switch on today, so the badge says "Optional" rather than promising a release.
+  await expect(page.getByText('Optional')).toBeVisible();
   await next(page).click();
 
   // ---------------------------------------------------------------- 5. what Chrome still does
   await expect(page.getByText('Step 5 of 5')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Two things Chrome still does' })).toBeVisible();
-  await expect(page.getByText('chrome://settings/?search=autocomplete')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'One thing Chrome still remembers' })).toBeVisible();
+  // The "Autocomplete searches and URLs" card was removed (ARCHITECTURE §12.4): it was the one card
+  // in the flow with no control on it, and it sent people to a settings page we cannot verify.
+  await expect(page.getByText('chrome://settings/?search=autocomplete')).toHaveCount(0);
   // The history tool asks for a permission first and explains why, rather than reaching for it.
   await expect(page.getByRole('button', { name: 'Allow history access' })).toBeVisible();
 

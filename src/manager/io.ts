@@ -400,13 +400,20 @@ async function promptImportPassword(
 async function chooseImportMode(
   preview: ImportPreviewResponse,
 ): Promise<'merge' | 'replace' | null> {
+  // A sync file is the live vault as Drive holds it, not a snapshot somebody chose to take: it has a
+  // "last changed" and no author, so it gets its own sentence rather than being squeezed into the
+  // backup's. Calling it a backup would be describing an object the user never made.
   const dated =
-    preview.createdAt > 0
-      ? msg('ioPreviewCreated', [new Date(preview.createdAt).toLocaleString(), preview.createdBy])
-      : msg('ioPreviewCreatedUnknown');
+    preview.origin === 'sync'
+      ? preview.createdAt > 0
+        ? msg('ioPreviewSynced', [new Date(preview.createdAt).toLocaleString()])
+        : msg('ioPreviewSyncedUnknown')
+      : preview.createdAt > 0
+        ? msg('ioPreviewCreated', [new Date(preview.createdAt).toLocaleString(), preview.createdBy])
+        : msg('ioPreviewCreatedUnknown');
 
   return await openDialog<'merge' | 'replace'>({
-    heading: msg('ioPreviewHeading'),
+    heading: msg(preview.origin === 'sync' ? 'ioPreviewSyncHeading' : 'ioPreviewHeading'),
     body: [
       h(
         'ul',

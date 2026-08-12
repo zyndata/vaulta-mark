@@ -17,6 +17,13 @@ CLAUDE.local.md
 .env.*
 !.env.example
 
+# The JSON the Google Cloud console hands you when you create an OAuth client. For the Chrome
+# Extension client type it carries no secret — only the client id, which also lives in the shipped
+# manifest and is public by design (RELEASE §5.3). It is ignored anyway: the id belongs in
+# `.env.local`, the file is named after the project it came from, and the day someone downloads the
+# *web application* flavour of it by mistake, that one does carry a secret.
+client_secret_*.json
+
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------

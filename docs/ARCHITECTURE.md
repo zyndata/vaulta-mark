@@ -672,6 +672,23 @@ when the browser exits, so the vault still locks on restart (§5.5, D14).
 phase and forgotten there would leave sealed vault content on disk after the user asked for it to be
 gone, which is the one outcome `destroy()` exists to prevent.
 
+**Destroying also removes the synced copy, by default** (maintainer-reported after Phase 11). For a
+long time it did not, and the consequence was worse than an incomplete erase. The profile came back
+offering to *adopt* the vault it had just been told to destroy (`adoptable` is a `peek()`, and the
+sync area still held one), and a replacement created with the same master password could never open
+those bytes — a new vault is a new random DEK, which is exactly what `create` means — so the two
+deadlocked on `VaultMismatch` forever, on the one code path whose entire promise is that afterwards
+there is nothing left.
+
+`DESTROY_VAULT` therefore carries `deleteRemote`, defaulting to **true**, and the router clears the
+backend **before** the local erase: on Drive the file ids and the sealed refresh token live under
+`vm.drive` in `storage.local`, so the other order would leave an orphaned folder in the user's Drive
+that nothing here could still find. The remote step is best-effort and never blocks the local one —
+a destroy that could not be completed offline would be the wrong kind of safe — and the response
+reports which of the three things happened (removed / left on purpose / could not be reached) so the
+screen says a true sentence rather than a reassuring one. Unticking the box is offered for the case
+it is actually for: another computer is still using the vault and its copy should survive.
+
 `chrome.storage.local` has a ~10 MB quota unless `unlimitedStorage` is requested. We deliberately do
 **not** request it: VaultaMark's permission set produces no install-time warning today, and we intend
 to keep it that way.
@@ -1074,8 +1091,39 @@ the whole vault straight back at the device it came from.
 create screen says plainly that it will not sync with the one already there. If they do, the next
 sync pulls a vault whose ciphertext will not open under this device's key, and that is reported as
 `VaultMismatch` rather than as corruption. Nothing is damaged and nothing is overwritten — the
-mismatch is detected in `openEncrypted`, before anything is pushed — but the two cannot be merged,
-and the only ways out are to destroy one of them or to move one to a different backend.
+mismatch is detected in `openEncrypted`, before anything is pushed — but the two cannot be merged.
+
+**It is not evidence of a different password**, and the UI must not say that it is (it did, until
+the second post-Phase-11 pass). A vault created a second time is a *new vault* whatever it was given
+to open it: `create()` draws a fresh random DEK, so the wrapped key in the sync area was never
+derivable from this profile's typing. The likeliest way to land here is therefore not two people and
+two passwords, it is **one person whose `storage.local` went away** — a reinstall, a cleared profile,
+an extension id that changed with a build variant — who typed the same password into a new vault and
+cannot understand why sync refuses it.
+
+**Saying so is not enough, and for a while that was all we did** (maintainer-reported after
+Phase 11). The status line named the problem correctly and offered nothing to do about it — and
+because the toolbar's sync status *is* the Sync-now button, the one thing on screen anybody could
+click re-ran the merge that cannot work and appeared to do nothing at all. It is not a failure with
+a cause to fix; it is a **question with two right answers**, and which one is right is not something
+the extension can know. Settings → Sync carries both, neither preselected and neither on one press:
+
+- **"Overwrite the synced copy with this vault"** (`REPLACE_REMOTE_VAULT`): delete the remote, drop
+  `vm.baseMeta` — after a deletion the base is a lie, and a merge that believes it would read the
+  next thing to appear there as a mass deletion — and push this vault with `force`. Gated on a
+  second press, like destroying a vault is, because it discards another vault's only synced copy.
+- **"Use the synced vault on this computer"** (`ADOPT_REMOTE_VAULT`, added in the same pass): pull
+  it, and `VaultRepository.adoptOver` derives the KEK from the **pulled** header, unwraps the DEK and
+  decrypts every bucket *before* `clearVault()` removes anything. A wrong password, a truncated pull
+  or a tag that does not verify therefore costs nothing at all: the old DEK is still in
+  `storage.session`, so the next read rebuilds the vault that is still on disk. It is refused while
+  locked, and that is a gate rather than plumbing — knowing some *other* vault's password must not
+  be a way to erase this one. The merge base is recorded exactly as an adoption from an empty
+  profile records it, and the erase takes `vm.settings` with everything else, so the backend is
+  written back before the session starts and the Drive record is put back minus its refresh token
+  (that token is sealed under the departed vault's `k_items` and is noise now — §13.2).
+
+Neither is ever something the engine decides on its own, at any confidence.
 
 ### 6.6 Provider migration
 
@@ -1085,6 +1133,18 @@ and the only ways out are to destroy one of them or to move one to a different b
    when it opens under this device's key — that is a second computer reconnecting, and uploading
    over it would destroy what the first one had. One that does not open is reported as
    `VaultMismatch` and nothing is touched.
+
+   That refusal has the same two answers §6.5 gives, reachable from the screen that reported it —
+   and it needs its own wiring for both, because the migration refuses *before* flipping anything.
+   `providerId` is still `chrome` at that point, so "overwrite the synced copy" would clear Chrome
+   sync and never touch the Drive folder in question: taking the folder over is `CONNECT_DRIVE`
+   again with `replaceExisting`, which deletes what is there and pushes against an empty backend
+   (a compare-and-swap against the stamp of a file that has just been deleted would fail its own
+   precondition), with the verification and the flip still attached. Joining the Drive vault
+   instead is `ADOPT_REMOTE_VAULT` with `from: 'drive'` — named explicitly for the same reason.
+   Without these, a Drive folder holding another vault was the one state a second computer could
+   not get out of at all: adoption from an empty profile reads the backend out of `vm.settings`,
+   which is `chrome` until a migration succeeds.
 2. Verify: `peek()` returns the expected stamp; `pullLight()` round-trips to an identical item set.
 3. Flip `vm.settings.providerId = 'drive'` and rewrite `vm.baseMeta` — the spec said *reset*, and
    writing the base we have just verified is the same thing one round trip earlier: the next sync
@@ -1229,7 +1289,7 @@ on a profile the user touches often.
 | A weak master password + an attacker with your ciphertext | 600k PBKDF2 iterations raise the cost per guess but cannot rescue "password1". We show a strength meter and enforce a 10-char floor. |
 | Traffic analysis of Drive API calls | Reveals *that* you use VaultaMark and roughly how much and how often you change it. Not the contents. |
 | The existence of the vault | The plaintext header is detectable on the device. Plausible deniability is a non-goal (backlog B4 explores a hidden second vault). |
-| Chrome's own URL-prediction service suggesting a URL you typed manually | Outside our reach; onboarding step 5 explains it and links to the setting. |
+| Chrome's own URL-prediction service suggesting a URL you typed manually | Outside our reach, and not something we can switch off or verify. Stated in `docs/PRIVACY.md`; no longer claimed as a setup step (§12.4). |
 | Memory forensics on a running browser with the vault unlocked | The DEK is in `storage.session` and in JS heap. JS cannot guarantee erasure. |
 
 ### 8.3 Accepted, documented leaks
@@ -1393,6 +1453,37 @@ thumbnails before then and there is no heavy tier to include. A reader that meet
 light tier and ignores `thumbs`: a thumbnail is a cache of something re-derivable from the page, and
 refusing an otherwise perfectly readable backup over one would be the wrong trade.
 
+### 11.1 What the importer accepts
+
+**Two file shapes, both `.vmv`.** The backup above is one; the other is the Drive sync container
+(§13.3), which is `vaultamark-vault.vmv` in the user's own Drive — a vault header plus base64url
+buckets, exactly as the engine pushes it. `src/io/vault-file.ts` recognises either and hands the same
+`ItemMap` to the same two import modes.
+
+This is not a convenience. §13.3 deliberately makes the Drive vault an ordinary, visible,
+downloadable object rather than something hidden in `appdata`, and the disconnect flow tells the user
+in so many words that leaving the file behind keeps a copy they can restore from. A file the product
+hands you, names after itself, and promises you can restore from has to be restorable — and
+downloading it is the only recovery path that survives the Google account it came from.
+
+The container is opened from its **own header**: `deriveKek(password, header.kdf)` → `unwrapDek` →
+HKDF subkeys → `openBucket` per bucket, verifying each bucket's HMAC tag. That is `repo.adopt()`'s
+derivation without the adoption, and deriving from the file rather than from the running vault's keys
+is what makes it work for a vault from another profile as well as for this one's own copy.
+
+Recognition is **positive on the backup and structural on the container** — `magic` present means
+backup, otherwise a `v`/`header`/`buckets` shape means container, and anything else is neither.
+Deliberately not "whatever is left is a container": an unrelated JSON file has to fail as *not a
+VaultaMark file*, not as a vault that needs recovering. The container path re-applies the two guards
+`parseVmv` applies and `parseHeader` did not — a floor under the KDF iteration count here, and the
+KDF algorithm now checked in `parseHeader` itself, since `VaultHeader.kdf.alg` is a literal type that
+a cast was asserting without anything having checked it.
+
+A container carries no `createdBy` and no creation date — it is the live vault, not a snapshot taken
+at a moment — so the preview reports `header.updatedAt` as "last changed" and says which of the two
+kinds of file it is holding. `includesThumbs` is false for a container as a fact rather than a
+default: thumbnails are their own Drive files (§14.3), and none of them is in this one.
+
 Import modes:
 
 - **Merge** — runs the Phase-7 merge engine with an *empty base*, which by the table in §6.4 yields
@@ -1530,23 +1621,25 @@ before the tab does: Chrome writes the visit as the tab tears down, so closing f
 entry the keystroke was aimed at. It needs no unlocked vault, and does not touch the idle window: it
 is about the browser, not about the vault.
 
-### 12.4 The URL-prediction reminder
+### 12.4 The URL-prediction reminder — removed
 
-Chrome's "Autocomplete searches and URLs" setting sends what you type to your default search engine
-and can suggest URLs from signals we do not control. Onboarding step 5 explains this and provides a
-copy-able `chrome://settings/?search=autocomplete` link with instructions. We cannot change the
-setting for the user, and we say so.
+There used to be a card on onboarding step 5 about Chrome's "Autocomplete searches and URLs"
+setting: an explanation, a copy-able `chrome://settings/?search=autocomplete` address, and an
+instruction to switch it off. It is **gone** (maintainer-reported after Phase 11), along with
+`onboardingPrediction*` and `AUTOCOMPLETE_SETTINGS_URL`.
 
-It is **not** repeated in Settings → Privacy. It is a one-time instruction to change something in
-Chrome, not a control this extension owns: once it has been read and acted on, a permanent copy of it
-in the settings screen is a section that can never be finished, sitting among toggles that can. The
-screen it belongs on is the one that is read once, and *Settings → About → Show the setup guide
-again* is the way back to it.
+The reasoning is written down rather than dropped, because a spec that simply forgets a decision
+invites it back. The card had no control on it and could not have one: the setting is Chrome's, we
+cannot read it, set it, or check afterwards whether the instruction was followed. So it was the one
+step in a setup flow that nobody could complete *in the flow* — homework handed out at the end,
+phrased as if it were part of the product's own configuration. The threat it describes is real and
+belongs in `docs/PRIVACY.md`, which is where a statement that cannot be a control belongs.
 
-The address is text in a `<code>` with a Copy button (`src/ui/address.ts`), never an `<a href>`:
-Chrome refuses to follow a `chrome://` link from an extension page, and a dead link is a worse
-instruction than a string the user can see and copy. The same widget carries
-`chrome://extensions/?id=…` in the incognito prompt (§9), for the same reason.
+What stays is the widget it shared with §9. `src/ui/address.ts` renders a `chrome://` address as
+text in a `<code>` with a Copy button, never as an `<a href>`: Chrome refuses to follow a `chrome://`
+link from an extension page, and a dead link is a worse instruction than a string the user can see
+and copy. Its remaining caller is the incognito prompt's `chrome://extensions/?id=…` (§9), which
+*does* have something to check afterwards — a Re-check button reading the real permission state.
 
 ---
 
@@ -1596,8 +1689,8 @@ Google Drive files you use with this app."
 
 | | `drive.file` | `drive` (full) |
 | --- | --- | --- |
-| Sensitivity tier | Sensitive | **Restricted** |
-| Verification | OAuth consent form + demo video | The same **plus an annual CASA Tier-2 security assessment** by an approved third-party assessor (paid, weeks of calendar time, annual renewal) |
+| Sensitivity tier | **Non-sensitive** | **Restricted** |
+| Verification | **Not required.** An app whose scopes are all non-sensitive is exempt from OAuth app verification | OAuth consent form + demo video, **plus an annual CASA Tier-2 security assessment** by an approved third-party assessor (paid, weeks of calendar time, annual renewal) |
 | Access | only files this app created | the user's entire Drive |
 | Fits our need? | **yes** | overkill |
 
@@ -1605,6 +1698,17 @@ We only ever create and manage our own vault file, so `drive.file` is both suffi
 privacy story to put in a Store listing. The cost: if the user manually recreates or moves the file
 outside our flow, we lose visibility of it and recovery goes through Import. That tradeoff is
 documented in the UI.
+
+**`drive.file` is the only Drive scope in the non-sensitive tier, and that is most of why it is the
+right one.** It is not merely cheaper than `drive` — it takes the entire verification process off the
+critical path to a release: no demo video, no privacy-policy review, no "unverified app" interstitial
+in front of the consent screen. Every other Drive scope, `drive.readonly` included, is Restricted.
+This table said *Sensitive* until 2026-08-10 and priced a review into the release plan that Google
+does not ask for; if a future edit widens the scope, the cost being restored is this whole paragraph,
+not a tier label.
+
+The one thing publication still requires is leaving **Testing** status — see RELEASE §5.2, and note
+that the reason has nothing to do with verification.
 
 `drive.appdata` (the hidden app folder) was considered and rejected: the requirement is that the vault
 file be a **normal, user-visible file** the user can see, back up, and copy.

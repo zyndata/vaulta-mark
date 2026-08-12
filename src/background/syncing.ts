@@ -24,16 +24,25 @@ import {
   type SyncStatusResponse,
 } from '../shared/messages.js';
 import type { ConflictResolution } from '../shared/messages.js';
-import { readSettings } from '../storage/local.js';
+import { clearBase, readSettings } from '../storage/local.js';
 import type { VaultCipher } from '../storage/repo.js';
 import { ChromeSyncProvider } from '../sync/chrome-provider.js';
 import { DriveAuth, hasDrivePermissions } from '../sync/drive/auth.js';
 import { DriveSyncProvider } from '../sync/drive/provider.js';
-import { clearDriveRecord, readDriveRecord } from '../sync/drive/record.js';
-import { canKeepBoth, forgetConflicts, listConflicts, status, syncNow } from '../sync/engine.js';
+import { clearDriveRecord, readDriveRecord, writeDriveRecord } from '../sync/drive/record.js';
+import {
+  canKeepBoth,
+  fetchRemote,
+  forgetConflicts,
+  listConflicts,
+  markAdopted,
+  status,
+  syncNow,
+} from '../sync/engine.js';
 import { migrateProvider, type MigrationDeps } from '../sync/migration.js';
 import type { Conflict } from '../sync/merge.js';
-import { ItemNotFoundError } from '../vault/errors.js';
+import type { ProviderId } from '../sync/provider.js';
+import { ItemNotFoundError, VaultStateError } from '../vault/errors.js';
 import type { Mutation } from '../vault/model.js';
 import { ROOT_ID, isBookmark, isDeleted, noteOf, tagsOf, type ItemMap, type VaultItem } from '../vault/types.js';
 import { requireVault } from './items.js';
@@ -84,7 +93,7 @@ export async function driveState(): Promise<DriveStateResponse> {
  * has already asked before this message is sent, and this refuses rather than silently failing if
  * it did not.
  */
-export async function connectDrive(): Promise<MigrationResponse> {
+export async function connectDrive(replaceExisting = false): Promise<MigrationResponse> {
   await session.touch();
   if (!(await hasDrivePermissions())) {
     return { type: 'MIGRATION', ok: false, providerId: (await readSettings()).providerId, reason: 'auth' };
@@ -97,7 +106,10 @@ export async function connectDrive(): Promise<MigrationResponse> {
   } catch {
     return { type: 'MIGRATION', ok: false, providerId: (await readSettings()).providerId, reason: 'auth' };
   }
-  return await migrate('drive', { provider: (id) => (id === 'drive' ? provider : chromeProvider()) });
+  return await migrate('drive', {
+    provider: (id) => (id === 'drive' ? provider : chromeProvider()),
+    replaceExisting,
+  });
 }
 
 /**
@@ -130,9 +142,162 @@ export async function disconnectDrive(deleteRemote: boolean): Promise<MigrationR
   return result;
 }
 
+/* ------------------------------------------------------------------ taking a vault out of sync */
+
+/**
+ * Remove this vault's copy from whichever backend it syncs through.
+ *
+ * Two callers, and the difference between them is the whole reason for the flag.
+ *
+ * - **Destroying the vault** (`disconnect: true`). "Destroy my vault" that erased the local copy and
+ *   left the encrypted one in `storage.sync` is the bug this exists to fix, and it was not a cosmetic
+ *   one: the profile came back offering to *adopt* the vault it had just been told to destroy, and a
+ *   freshly created replacement — same password typed again, but a new random DEK, because that is
+ *   what "new vault" means — could never open those bytes. The result was a permanent
+ *   `VAULT_MISMATCH` with no way out of it, on the one code path whose entire promise is that
+ *   afterwards there is nothing left.
+ * - **Taking the sync area over** (`disconnect: false`), from {@link replaceRemoteVault}. Same
+ *   deletion, but the connection stays: the next sync writes this vault where the old one was.
+ *
+ * Never throws. It is best-effort by nature — Drive may be offline, the grant may have been
+ * withdrawn from Google's account page — and a destroy that refused to proceed because a network
+ * request failed would be a destroy that cannot be completed on a train. The boolean is reported so
+ * the screen can say which of the two things happened rather than claiming both.
+ */
+async function removeRemoteVault(options: { readonly disconnect: boolean }): Promise<boolean> {
+  const { providerId } = await readSettings();
+  try {
+    if (providerId === 'drive') {
+      const provider = new DriveSyncProvider({ cipher: () => cipher() });
+      await provider.init();
+      await provider.deleteRemote();
+      if (options.disconnect) {
+        await provider.disconnect();
+        await clearDriveRecord();
+      }
+      return true;
+    }
+    // `storage.sync` has no "stop using it but leave the copy behind": the keys *are* the copy, and
+    // the Chrome provider's `disconnect()` is documented as deliberately destructive for exactly
+    // this reason (§6.6). So both callers get the same thing here.
+    await chromeProvider().disconnect();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The synced copy, as part of destroying the vault.
+ *
+ * Called **before** the local erase, and it has to be: on Drive the file ids and the sealed refresh
+ * token live in `storage.local` under `vm.drive`, which `clearVault()` removes along with everything
+ * else — so a Drive vault destroyed the other way round would leave an orphaned folder in the user's
+ * Drive that nothing in the extension could still find.
+ */
+export async function destroyRemoteVault(): Promise<boolean> {
+  return await removeRemoteVault({ disconnect: true });
+}
+
+/**
+ * Replace whatever is in the sync area with this vault.
+ *
+ * The way out of `VAULT_MISMATCH`. Two vaults sharing one sync area cannot be merged — they are
+ * different keys, and §6.5 has nothing to say about it — so the only answers are "one of them goes"
+ * and "one of them moves to a different backend". Until now the UI stated the problem and offered
+ * neither: the toolbar's status *is* a Sync-now button, so the only thing to click retried the merge
+ * that cannot work and appeared to do nothing at all.
+ *
+ * Deliberately not offered as a repair the engine performs on its own. It discards another vault's
+ * only synced copy, and on a second computer that vault may be the one somebody still wants.
+ */
+export async function replaceRemoteVault(): Promise<SyncStatusResponse> {
+  // Unlocked, or there is no vault to put there. Throws `VaultLockedError`, which the wire turns
+  // into `VAULT_LOCKED` — the same answer every other vault operation gives.
+  await requireVault();
+  await session.touch();
+
+  const removed = await removeRemoteVault({ disconnect: false });
+  // The base says "this is what the remote has". After a deletion that is a lie, and a merge that
+  // believes it would treat every item as a remote deletion the moment something reappears there.
+  await clearBase();
+  if (!removed) return toWire(await status());
+
+  return toWire(await syncNow({ force: true }));
+}
+
+/**
+ * The other answer to the same question: keep the vault that is in the sync area, not this one.
+ *
+ * {@link replaceRemoteVault} settles "two vaults, one sync area" by discarding the remote. This
+ * settles it by discarding the local, which is the right way round in the two situations that
+ * actually produce a mismatch in the field:
+ *
+ * - **A profile that lost its vault.** A new extension id, a reinstall, a cleared profile: the
+ *   synced copy is untouched, but `storage.local` is empty, so a vault created with the same
+ *   password again gets a *new random DEK* and cannot open a byte of it. Retrying the merge can
+ *   never work, and the copy on the other side is the one with the bookmarks in it.
+ * - **A second computer joining through Drive.** Adoption from an empty profile only ever covered
+ *   the backend in `vm.settings`, which is `chrome` until a migration succeeds — and the migration
+ *   is exactly what a mismatch refuses. So this is also the door that was missing.
+ *
+ * `from` is passed rather than read, because the refused migration left `providerId` on the backend
+ * being *left*: a Drive connection that was turned down still has an authorized Drive behind it and
+ * a vault waiting in it, and that is the one being asked for.
+ *
+ * The Drive record is read before the adoption and written back after it, minus the refresh token.
+ * The ids in it — which folder, which file — describe where the ciphertext is kept and are still
+ * true of the adopted vault; `clearVault()` takes them because they live under `vm.`, and losing
+ * them would leave the provider to find its own folder again by name. The token cannot come with
+ * them: it is sealed under the *old* vault's `k_items` (§13.2) and is so much noise now. A profile
+ * on the PKCE route therefore signs in once more, which the status line already knows how to say.
+ */
+export async function adoptRemoteVault(
+  password: string,
+  from: ProviderId,
+): Promise<SyncStatusResponse> {
+  // Unlocked first, and that is a gate rather than plumbing: this erases the vault that is on this
+  // profile, so it must not be reachable by somebody who does not hold *its* master password.
+  // Destroying a vault is refused while locked for exactly the same reason. A profile with no vault
+  // at all never arrives here — joining from empty is `session.unlock`, which asks for one password
+  // and erases nothing.
+  await requireVault();
+  await session.touch();
+
+  const remote = await fetchRemote(from);
+  if (remote === null) {
+    throw new VaultStateError('There is no vault in that sync area to join.');
+  }
+  const drive = await readDriveRecord();
+
+  await session.adoptRemoteVault(remote.vault, password, from);
+
+  if (from === 'drive') await writeDriveRecord({ ...drive, refreshToken: null });
+
+  // The merge base, for the same reason the empty-profile adoption records one: without it the next
+  // sync reads every item as a local add and pushes the whole vault back where it came from.
+  const repo = await requireVault();
+  await markAdopted(repo, repo.items(), remote.stamp, remote.vault.header.vaultRev);
+
+  // Every open page is now showing another vault's bookmarks. `VAULT_CHANGED` is what makes the
+  // manager reload its list, and `settingsArrived` is the same call a merge makes when preferences
+  // cross — the adopted vault brought its theme and its idle window with it, and the second of
+  // those has an alarm behind it.
+  await broadcast({ type: 'VAULT_CHANGED' });
+  await session.settingsArrived();
+
+  // A run rather than a status read, and for a reason the tests found: `lastError` is remembered
+  // until the next attempt clears it, so a screen asked for the status here would still be showing
+  // `VAULT_MISMATCH` — the very thing that has just been settled — until something else happened to
+  // sync. The run itself has nothing to do (the base was recorded a few lines up) and says so.
+  const current = toWire(await syncNow());
+  await broadcast({ type: 'SYNC_CHANGED', status: current });
+  return current;
+}
+
 async function migrate(
   target: 'chrome' | 'drive',
-  deps: Pick<MigrationDeps, 'provider' | 'clearSource'>,
+  deps: Pick<MigrationDeps, 'provider' | 'clearSource' | 'replaceExisting'>,
 ): Promise<MigrationResponse> {
   const result = await migrateProvider(target, {
     ...deps,
