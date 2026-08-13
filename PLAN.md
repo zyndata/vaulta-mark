@@ -1395,13 +1395,22 @@ origin — which D26's permission table does not contain. Building it starts wit
 **Tests:** the E2E suite is the deliverable. Plus budget checks and the a11y sweep.
 
 **Definition of done**
-- [ ] Full E2E suite green in CI, < 10 min wall clock.
-- [ ] All performance budgets met and enforced.
-- [ ] Zero critical/serious axe violations on every page.
-- [ ] Security checklist complete, with every item traced to code or a test.
-- [ ] No user-facing string outside `_locales`.
-- [ ] `npm audit` reports no advisory, or each remaining one is recorded in the security checklist
-      with a written reason for accepting it. No Dependabot PR is left open without a decision.
+- [x] Full E2E suite green in CI, < 10 min wall clock. — 27 tests across 10 specs, 2¼ minutes
+      locally (~6½ on a runner). `journey.spec.ts` is the whole arc in one profile;
+      `large-vault.spec.ts` was split out of `manager.spec.ts` because it passed alone and failed in
+      sequence, which was a shared fixture rather than a product fault.
+- [x] All performance budgets met and enforced. — `scripts/check-budgets.mjs` on every
+      `npm run verify`; popup first paint in `test/e2e/budgets.spec.ts` (28 ms / 100 ms). The
+      single-chunk budget became two numbers; the amendment and its reasoning are in "In scope".
+- [x] Zero critical/serious axe violations on every page. — twelve *documents*, not two pages:
+      `test/e2e/a11y.ts` called from `manager`, `popup` and `onboarding` specs.
+- [x] Security checklist complete, with every item traced to code or a test. —
+      `docs/THREAT_MODEL.md` §5, thirty-eight rows. `/security-review` over the phase's diff
+      reported no HIGH or MEDIUM finding.
+- [x] No user-facing string outside `_locales`. — INV-10, `scripts/verify-strings.mjs`.
+- [x] `npm audit` reports no advisory, or each remaining one is recorded in the security checklist
+      with a written reason for accepting it. No Dependabot PR is left open without a decision. —
+      five advisories cleared to zero by the Vite 8 / Vitest 4 / ESLint 10 step.
 
 **Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-12-done` and push.
 

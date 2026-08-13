@@ -1280,6 +1280,12 @@ on a profile the user touches often.
 
 ## 8. Threat model
 
+> **[docs/THREAT_MODEL.md](THREAT_MODEL.md) is the expanded version**, written in Phase 12: the
+> assets in priority order, the same adversary and out-of-scope tables with their reasoning, and —
+> the part that is not here — a security self-review checklist in which every claim is traced to
+> the code or test that keeps it true. This section stays as the normative summary; where the two
+> disagree, that file is newer.
+
 ### 8.1 In scope — what VaultaMark defends against
 
 | Adversary / scenario | Defence |
