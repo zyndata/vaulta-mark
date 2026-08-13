@@ -196,6 +196,13 @@ below.
   vault, the read-back that checks the copy arrived intact, and the switch. On a slow connection
   that is a screen that looks frozen for a minute. Disconnecting no longer claims to be asking
   Google for anything, either, which was never true in that direction.
+- **Every screen is now checked for accessibility, not just the main one.** VaultaMark has two HTML
+  files and about a dozen screens, and each is a different thing to a screen reader — the setup
+  flow's five steps, the popup's four, the manager's list, dialogs, settings, import and export, and
+  the incognito prompt. All of them are now audited automatically on every change, for labelling,
+  structure and 4.5:1 contrast in both light and dark. `docs/ACCESSIBILITY.md` is new and lists
+  every keyboard shortcut in the product, along with the three things a keyboard genuinely cannot
+  do and why.
 - **A screen reader is told more of what is on screen.** The unlocked popup now has a name of its
   own instead of answering "where am I" with the product name, exactly as the locked one does; the
   bookmark list says which keys do what, which a sighted user reads off the toolbar; and the

@@ -16,7 +16,6 @@ import { fileURLToPath } from 'node:url';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import AxeBuilder from '@axe-core/playwright';
 import {
   chromium,
   expect,
@@ -25,6 +24,8 @@ import {
   type Locator,
   type Page,
 } from '@playwright/test';
+
+import { expectNoA11yViolations } from './a11y.js';
 
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
@@ -110,24 +111,6 @@ async function dragOnto(page: Page, source: Locator, target: Locator): Promise<v
   await page.mouse.up();
 }
 
-/**
- * Zero critical or serious violations, and the whole list printed when there are any.
- *
- * Scoped to the extension page itself. `color-contrast` is included deliberately: PLAN §9 asks for
- * 4.5:1 and it is the rule most easily lost to a later restyle.
- */
-async function expectNoA11yViolations(page: Page, label: string): Promise<void> {
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .analyze();
-  const serious = results.violations.filter(
-    (violation) => violation.impact === 'critical' || violation.impact === 'serious',
-  );
-  expect(
-    serious.map((violation) => `${violation.id}: ${violation.help} (${String(violation.nodes.length)})`),
-    label,
-  ).toEqual([]);
-}
 
 test.beforeAll(async () => {
   userDataDir = await mkdtemp(join(tmpdir(), 'vaultamark-e2e-manager-'));
@@ -309,6 +292,25 @@ test('has no critical or serious accessibility violations', async () => {
   await expectNoA11yViolations(page, 'a modal dialog');
   await page.getByRole('button', { name: 'Cancel' }).click();
 
+  // Import & export replaces the layout with a fifth: three file controls and a progress bar, which
+  // is where a label attached to the wrong thing hides.
+  await page.getByRole('button', { name: 'Import & export' }).click();
+  await expect(page.getByRole('button', { name: 'Back to bookmarks' })).toBeVisible();
+  await expectNoA11yViolations(page, 'the import and export screen');
+  await page.getByRole('button', { name: 'Back to bookmarks' }).click();
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+
+  await page.close();
+});
+
+/**
+ * The incognito prompt is its own document at its own address, and the one page here that a user
+ * reaches while something is *wrong* — which is exactly when a missing label costs most.
+ */
+test('the incognito prompt has no critical or serious accessibility violations', async () => {
+  const page = await openPage('manager.html#incognito=nothing-in-particular');
+  await expect(page.getByRole('heading', { level: 2 })).toBeVisible();
+  await expectNoA11yViolations(page, 'the guided incognito prompt');
   await page.close();
 });
 

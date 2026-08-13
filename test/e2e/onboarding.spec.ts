@@ -24,6 +24,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, expect, test, type BrowserContext, type Page, type Worker } from '@playwright/test';
 
+import { expectNoA11yViolations } from './a11y.js';
+
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
 const PASSWORD = 'correct horse battery staple';
@@ -71,6 +73,9 @@ test('walks a fresh profile through setup, and then never appears again', async 
   // ---------------------------------------------------------------- 1. what this is
   await expect(page.getByRole('heading', { name: 'Bookmarks that stay out of your address bar' })).toBeVisible();
   await expect(page.getByText('Step 1 of 5')).toBeVisible();
+  // Each step is its own document, and each is seen once per profile — so the axe pass over the
+  // five of them has to ride along with the walkthrough. There is no later run to do it in.
+  await expectNoA11yViolations(page, 'onboarding, step 1');
   await next(page).click();
 
   // ---------------------------------------------------------------- 2. the password
@@ -91,6 +96,7 @@ test('walks a fresh profile through setup, and then never appears again', async 
   // reproduce a string exactly".
   await page.getByLabel('Type the phrase to confirm').fill(`  ${CONFIRM_PHRASE.toLowerCase()} `);
   await expect(create).toBeEnabled();
+  await expectNoA11yViolations(page, 'onboarding, step 2 (the password form)');
   await create.click();
 
   // ---------------------------------------------------------------- 3. incognito
@@ -108,6 +114,7 @@ test('walks a fresh profile through setup, and then never appears again', async 
   await expect(page.getByText(/Turn on "Allow in Incognito"/)).toBeVisible();
   await expect(page.getByText('Step 3 of 5')).toBeVisible();
 
+  await expectNoA11yViolations(page, 'onboarding, step 3 (the incognito instruction)');
   await page.getByRole('button', { name: 'Skip for now' }).click();
 
   // ---------------------------------------------------------------- 4. the sync tier
@@ -118,6 +125,8 @@ test('walks a fresh profile through setup, and then never appears again', async 
   // the only option and then find their vault capped at a thousand bookmarks. Since Phase 10 it is a
   // thing you can switch on today, so the badge says "Optional" rather than promising a release.
   await expect(page.getByText('Optional')).toBeVisible();
+  // The only real table in the product, which is where a header cell that scopes nothing hides.
+  await expectNoA11yViolations(page, 'onboarding, step 4 (the sync comparison table)');
   await next(page).click();
 
   // ---------------------------------------------------------------- 5. what Chrome still does
@@ -128,6 +137,7 @@ test('walks a fresh profile through setup, and then never appears again', async 
   await expect(page.getByText('chrome://settings/?search=autocomplete')).toHaveCount(0);
   // The history tool asks for a permission first and explains why, rather than reaching for it.
   await expect(page.getByRole('button', { name: 'Allow history access' })).toBeVisible();
+  await expectNoA11yViolations(page, 'onboarding, step 5 (the history tool)');
 
   await page.getByRole('button', { name: 'Finish setup' }).click();
 

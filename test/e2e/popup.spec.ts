@@ -30,6 +30,8 @@ import {
   type Worker,
 } from '@playwright/test';
 
+import { expectNoA11yViolations } from './a11y.js';
+
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
 const PASSWORD = 'correct horse battery staple';
@@ -135,6 +137,9 @@ test('lists, filters, opens, deletes and undoes a bookmark without touching the 
 
   // ---------------------------------------------------------------- create the vault
   const popup = await openPopup();
+  // The create screen is a document that exists exactly once per profile, so the axe pass over it
+  // has to happen here or not at all. It is also the one screen a first-time user cannot skip.
+  await expectNoA11yViolations(popup, 'the popup, create screen');
   await popup.getByLabel('Master password').fill(PASSWORD);
   await popup.getByLabel('Repeat the password').fill(PASSWORD);
   await popup.getByLabel('Type the phrase to confirm').fill(CONFIRM_PHRASE);
@@ -214,4 +219,33 @@ test('lists, filters, opens, deletes and undoes a bookmark without touching the 
   // Browsing the vault rendered two favicons, a guided prompt and three popups. None of it may have
   // produced a single request — not for an icon, not for a font, not for anything.
   expect(requests).toEqual([]);
+});
+
+/**
+ * The popup's remaining documents (PLAN §9 Phase 12).
+ *
+ * Four screens live in one 26.4rem × 37.5rem window and the axe run only ever sees one of them at
+ * a time: unlocked, settings, and — after the vault is shut — unlock. Run after the journey above,
+ * which leaves a vault with something in it, because an empty list is not the document anybody has.
+ */
+test('every popup screen is free of critical and serious accessibility violations', async () => {
+  const popup = await openPopup();
+  await expect(popup.getByRole('button', { name: 'Add this page' })).toBeVisible();
+  await expectNoA11yViolations(popup, 'the popup, unlocked with bookmarks');
+
+  // Settings is a screen rather than a dialog here (post-phase-7 UI pass), which makes it a
+  // document of its own: nothing but controls, which is where labelling goes wrong.
+  await popup.getByRole('button', { name: 'Settings' }).click();
+  await expect(popup.getByRole('button', { name: 'Back' })).toBeVisible();
+  await expectNoA11yViolations(popup, 'the popup, settings screen');
+  await popup.getByRole('button', { name: 'Back' }).click();
+
+  await popup.getByRole('button', { name: 'Lock' }).click();
+  await expect(popup.getByLabel('Master password')).toBeVisible();
+  await expectNoA11yViolations(popup, 'the popup, unlock screen');
+
+  // Still nothing over the wire, from any of it — axe injects its own script by evaluation, and a
+  // page that reached for a font or an icon while being audited would be caught here.
+  expect(requests).toEqual([]);
+  await popup.close();
 });
