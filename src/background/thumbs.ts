@@ -183,8 +183,21 @@ export async function refresh(repo: VaultRepository, itemId: string): Promise<Th
  */
 export async function get(repo: VaultRepository, itemId: string): Promise<ThumbResponse> {
   const item = repo.getItem(itemId);
-  const meta = item !== undefined && isBookmark(item) ? item.thumb : undefined;
-  if (meta === undefined) return absent(itemId);
+  const bookmark = item !== undefined && isBookmark(item) ? item : undefined;
+  const meta = bookmark?.thumb;
+
+  /*
+   * The card's text is answered whether or not there is a picture, which is why this no longer
+   * returns early on a missing `thumb`. `og:title` and `og:description` have been captured since
+   * Phase 11 precisely so that a page whose *image* was refused — CSP, a CDN, a `data:` URL we
+   * would not follow — still has something worth opening; until this landed nothing ever read them.
+   */
+  const text = {
+    ogTitle: bookmark?.og?.title ?? null,
+    ogDescription: bookmark?.og?.description ?? null,
+  };
+
+  if (meta === undefined) return { ...absent(itemId), ...text };
 
   const provider = await activeProvider();
   const loaded = await loadThumb(storeDeps(repo, provider), itemId);
@@ -195,6 +208,7 @@ export async function get(repo: VaultRepository, itemId: string): Promise<ThumbR
     image: loaded.bytes === null ? null : toBase64Url(loaded.bytes),
     width: meta.w,
     height: meta.h,
+    ...text,
   };
 }
 
@@ -226,7 +240,16 @@ function storeDeps(repo: VaultRepository, provider: SyncProvider | null): ThumbS
 }
 
 function absent(itemId: string): ThumbResponse {
-  return { type: 'THUMB', id: itemId, state: 'none', image: null, width: 0, height: 0 };
+  return {
+    type: 'THUMB',
+    id: itemId,
+    state: 'none',
+    image: null,
+    width: 0,
+    height: 0,
+    ogTitle: null,
+    ogDescription: null,
+  };
 }
 
 /**

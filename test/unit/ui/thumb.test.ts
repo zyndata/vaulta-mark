@@ -49,9 +49,12 @@ afterEach(() => {
   uninstallChromeMock();
 });
 
+/** No card text unless a case asks for it — the common page publishes an image and nothing else. */
 function ready(image: Bytes, width = 320, height = 168): ThumbData {
-  return { state: 'ready', image: toBase64Url(image), width, height };
+  return { state: 'ready', image: toBase64Url(image), width, height, ogTitle: null, ogDescription: null };
 }
+
+const NO_TEXT = { ogTitle: null, ogDescription: null } as const;
 
 const WEBP: Bytes = new Uint8Array([0x52, 0x49, 0x46, 0x46, 8, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 1, 2]);
 const JPEG: Bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
@@ -103,7 +106,7 @@ describe('previewCard', () => {
   });
 
   it('says the picture is in Drive rather than showing a broken image', () => {
-    const card = previewCard({ state: 'remote', image: null, width: 320, height: 168 });
+    const card = previewCard({ state: 'remote', image: null, width: 320, height: 168, ...NO_TEXT });
     expect(card.element.tagName).toBe('P');
     expect(card.element.className).toContain('vm-thumb-absent');
     expect(created).toEqual([]);
@@ -112,13 +115,109 @@ describe('previewCard', () => {
   });
 
   it('says there is no preview when there is none', () => {
-    const card = previewCard({ state: 'none', image: null, width: 0, height: 0 });
+    const card = previewCard({ state: 'none', image: null, width: 0, height: 0, ...NO_TEXT });
     expect(card.element.tagName).toBe('P');
   });
 
   it('treats `ready` with no bytes as an absence rather than an empty image', () => {
-    const card = previewCard({ state: 'ready', image: null, width: 320, height: 168 });
+    const card = previewCard({ state: 'ready', image: null, width: 320, height: 168, ...NO_TEXT });
     expect(card.element.tagName).toBe('P');
+  });
+});
+
+/*
+ * The page's own title and summary — `og:title` and `og:description`, the two fields a chat client
+ * renders when a link is pasted into it. Captured since Phase 11 and read by nothing until this.
+ */
+describe('previewCard, with the page’s own words', () => {
+  const TITLE = 'Mushroom risotto, properly';
+  const DESCRIPTION = 'Why most recipes rush the stock, and what to do instead.';
+
+  it('puts the text under the picture', () => {
+    const card = previewCard({ ...ready(WEBP), ogTitle: TITLE, ogDescription: DESCRIPTION });
+    expect(card.element.tagName).toBe('FIGURE');
+    expect(card.element.querySelector('img')).not.toBeNull();
+    expect(card.element.querySelector('.vm-thumb-og-title')?.textContent).toBe(TITLE);
+    expect(card.element.querySelector('.vm-thumb-og-description')?.textContent).toBe(DESCRIPTION);
+    card.release();
+    // The object URL is still released through the figure — it is the image's, not the card's.
+    expect(revoked).toHaveLength(1);
+  });
+
+  it('is a bare image when the page published no words, exactly as before', () => {
+    // The common case keeps the DOM — and therefore the CSS — it had before any of this existed.
+    const card = previewCard(ready(WEBP));
+    expect(card.element.tagName).toBe('IMG');
+    card.release();
+  });
+
+  it('is still a card when the picture was refused but the words were not', () => {
+    /*
+     * The case the text was captured for, and the reason `thumbs.get()` no longer returns early on
+     * a missing image: a CSP, a CDN or a `data:` URL can refuse the picture while the page has
+     * published a perfectly good title and summary.
+     */
+    const card = previewCard({
+      state: 'none',
+      image: null,
+      width: 0,
+      height: 0,
+      ogTitle: TITLE,
+      ogDescription: DESCRIPTION,
+    });
+    expect(card.element.tagName).toBe('FIGURE');
+    expect(card.element.querySelector('img')).toBeNull();
+    expect(card.element.textContent).toContain(TITLE);
+    // No "there is no preview" line: there *is* one, and saying otherwise contradicts the card.
+    expect(card.element.querySelector('.vm-thumb-absent')).toBeNull();
+  });
+
+  it('keeps the "it is in Drive" note beside the words, because that is information', () => {
+    // Unlike `none`, `remote` means the picture exists and this machine cannot reach it — worth
+    // saying even when there is text to read.
+    const card = previewCard({
+      state: 'remote',
+      image: null,
+      width: 320,
+      height: 168,
+      ogTitle: TITLE,
+      ogDescription: null,
+    });
+    expect(card.element.querySelector('.vm-thumb-absent')).not.toBeNull();
+    expect(card.element.textContent).toContain(TITLE);
+  });
+
+  it('takes either field on its own', () => {
+    const titleOnly = previewCard({ ...ready(WEBP), ogTitle: TITLE, ogDescription: null });
+    expect(titleOnly.element.querySelector('.vm-thumb-og-description')).toBeNull();
+    titleOnly.release();
+
+    const descriptionOnly = previewCard({ ...ready(WEBP), ogTitle: null, ogDescription: DESCRIPTION });
+    expect(descriptionOnly.element.querySelector('.vm-thumb-og-title')).toBeNull();
+    descriptionOnly.release();
+  });
+
+  it('treats whitespace-only text as no text at all', () => {
+    // A page that publishes `<meta property="og:title" content="   ">` has published nothing, and a
+    // card drawn for it would be an empty box under a picture.
+    const card = previewCard({ ...ready(WEBP), ogTitle: '   ', ogDescription: '\n\t ' });
+    expect(card.element.tagName).toBe('IMG');
+    card.release();
+  });
+
+  it('renders the page’s words as text, never as markup', () => {
+    /*
+     * This is the one place in the product where a *page's own words* reach the document, and a
+     * page is hostile by assumption. `h` builds text nodes, so the check is that the angle brackets
+     * survive as characters rather than becoming an element.
+     */
+    const hostile = '<img src=x onerror=alert(1)>';
+    const card = previewCard({ ...ready(WEBP), ogTitle: hostile, ogDescription: null });
+    const rendered = card.element.querySelector('.vm-thumb-og-title');
+    expect(rendered?.textContent).toBe(hostile);
+    expect(rendered?.querySelector('img')).toBeNull();
+    expect(card.element.querySelectorAll('img')).toHaveLength(1); // the preview itself, and only it
+    card.release();
   });
 });
 

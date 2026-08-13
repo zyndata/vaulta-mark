@@ -351,7 +351,10 @@ function rowBuilder(items: ItemMap): (item: VaultItem) => ListRow {
       hasNote: noteOf(item) !== '',
       // Metadata only: whether this device can reach the *bytes* is a separate question, and asking
       // it here would turn rendering a list into one storage read per row (§14.5).
-      hasThumb: isBookmark(item) && item.thumb !== undefined,
+      // A picture, or the text that stands in for one when the picture was refused.
+      hasPreview:
+        isBookmark(item) &&
+        (item.thumb !== undefined || item.og?.title !== undefined || item.og?.description !== undefined),
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };

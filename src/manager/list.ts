@@ -229,7 +229,7 @@ export class BookmarkList {
       },
     });
 
-    if (row.hasThumb) {
+    if (row.hasPreview) {
       element.addEventListener('mouseenter', () => {
         this.#deps.onHover(row, element);
       });
@@ -258,7 +258,7 @@ export class BookmarkList {
         ),
       ),
       tagChips(row.tags),
-      row.hasThumb ? this.#eye(row, element) : h('span', { class: 'vm-row-eye' }),
+      row.hasPreview ? this.#eye(row, element) : h('span', { class: 'vm-row-eye' }),
       row.hasNote
         ? h('span', { class: 'vm-row-note', title: msg('listHasNote') }, '📝')
         : h('span', { class: 'vm-row-note' }),

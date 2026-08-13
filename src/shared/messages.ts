@@ -673,6 +673,19 @@ export interface ThumbResponse {
   readonly image: string | null;
   readonly width: number;
   readonly height: number;
+  /**
+   * The card's text — `og:title` and `og:description` as the page published them (§14.5).
+   *
+   * Carried here rather than on {@link ListRow} for the same reason the note is not on a row: it is
+   * up to 900 bytes an item, and a five-thousand-row view would put four megabytes of it on the
+   * wire to decide whether to draw an icon. This response is fetched exactly when a card opens.
+   *
+   * Independent of {@link state}. A page whose image was refused — CSP, a CDN, a `data:` URL we
+   * would not follow — can still have published a perfectly good title and summary, and that is
+   * the case this text was captured for.
+   */
+  readonly ogTitle: string | null;
+  readonly ogDescription: string | null;
 }
 
 export interface ItemsResponse {
@@ -706,14 +719,18 @@ export interface ListRow {
   readonly tags: readonly string[];
   readonly hasNote: boolean;
   /**
-   * This item has thumbnail metadata (§14.5).
+   * This item has a preview card to show (§14.5).
    *
    * A boolean for the same reason `hasNote` is one: it decides whether a row draws an eye icon, and
    * shipping forty kilobytes of picture per row to answer that would be absurd. Whether the *bytes*
    * are reachable from this device is a separate question, asked with {@link GetThumbRequest} when
    * somebody actually looks.
+   *
+   * It means a picture **or** the page's own title and summary. It was `hasThumb` and meant only
+   * the picture, which left a bookmark whose image had been refused — CSP, a CDN, a `data:` URL —
+   * with a card's worth of captured text and no way to open it.
    */
-  readonly hasThumb: boolean;
+  readonly hasPreview: boolean;
   readonly createdAt: number;
   readonly updatedAt: number;
   readonly openedAt?: number;

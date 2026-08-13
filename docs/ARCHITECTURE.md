@@ -1940,7 +1940,22 @@ it is a decision for a later phase, and it starts with a PLAN change, not with a
 
 ### 14.5 UI
 
-- **Eye icon** on rows whose item has `thumb` metadata → toggles a preview anchored to the row.
+- **The card is the picture *and* the page's own words.** `og:title` (≤300 chars) and
+  `og:description` (≤600 chars) have been captured since Phase 11 and, until they were wired up
+  after Phase 12, were read by nothing at all — stored inside the ciphertext, synced, and never
+  displayed. They render under the image as a `figure`/`figcaption`, which is the same pair of
+  fields a chat client shows when a link is pasted into it. Two consequences worth stating:
+  - **A page with words and no picture still has a card.** Most of the web publishes no `og:image`;
+    a great deal of it says what it is about. `thumbs.get()` therefore does not return early on a
+    missing `thumb` record, and the "there is no preview" line is suppressed when there are words to
+    read — it would be contradicting the card it sits in. It is *kept* for `remote`, where "the
+    picture is in Drive" is information rather than an absence.
+  - **This is the one place a page's own words reach the document**, and a page is hostile by
+    assumption. They are text nodes built by `h`, never markup; the lengths were already capped at
+    capture, and the CSS clamp (one line, then three) is about the shape of a floating card rather
+    than about trusting the source.
+- **Eye icon** on rows whose item has a card to show — a picture **or** those words; the row flag is
+  `hasPreview`, and was `hasThumb` when only a picture counted → toggles a preview anchored to the row.
   It is a `span`, not a `button`: a row is an `option` in a multi-selectable `listbox`, and a listbox
   may not contain interactive descendants (§ the same constraint that put every other per-row action
   in the toolbar). The keyboard equivalent is **`p`** on the list, which is not a convenience here —

@@ -387,12 +387,15 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
 
   /** A `THUMB` answer, or the shape "there is nothing here" when the worker refused. */
   function toThumbData(response: Awaited<ReturnType<typeof send>>): ThumbData {
-    if (response.type !== 'THUMB') return { state: 'none', image: null, width: 0, height: 0 };
+    if (response.type !== 'THUMB')
+      return { state: 'none', image: null, width: 0, height: 0, ogTitle: null, ogDescription: null };
     return {
       state: response.state,
       image: response.image,
       width: response.width,
       height: response.height,
+      ogTitle: response.ogTitle,
+      ogDescription: response.ogDescription,
     };
   }
 
@@ -1453,7 +1456,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
         // here, it is the equivalent.
         const row = cursorRow(state);
         const anchor = list.rowElement(state.cursor);
-        if (row?.hasThumb === true && anchor !== undefined) preview.toggle(anchor, row.id);
+        if (row?.hasPreview === true && anchor !== undefined) preview.toggle(anchor, row.id);
         break;
       }
       case 'Delete':

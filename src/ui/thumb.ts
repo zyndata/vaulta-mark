@@ -32,6 +32,9 @@ export interface ThumbData {
   readonly image: string | null;
   readonly width: number;
   readonly height: number;
+  /** `og:title` and `og:description`, as the page published them. Independent of {@link state}. */
+  readonly ogTitle: string | null;
+  readonly ogDescription: string | null;
 }
 
 export type ThumbFetch = (id: string) => Promise<ThumbData>;
@@ -85,14 +88,28 @@ export interface PreviewCard {
 }
 
 /**
- * The picture, or the quiet sentence that stands in for it.
+ * The card: the picture, the page's own title and summary, or the quiet sentence that stands in for
+ * a missing picture.
  *
  * `width`/`height` are set as attributes even when there is no image, so the box is the right shape
  * before anything loads and stays the right shape when nothing does — the "no layout shift" half of
  * §14.5's graceful absence. `remote` is a note, not an error: the picture exists, it is in Drive,
  * and this machine is not connected to it.
+ *
+ * **The text is not a caption for the image, and is shown without one.** `og:title` and
+ * `og:description` are what the page publishes about itself — the same two fields a chat client
+ * renders when a link is pasted into it — and they were captured from Phase 11 onward precisely so
+ * that a page whose image was refused still has something worth opening. A card with text and no
+ * picture is a card; a card with neither is the "no preview" sentence, as before.
+ *
+ * Everything here is a text node built by `h`, never markup: this is the one place in the product
+ * where a *page's own words* are rendered, and a page is hostile by assumption (INV: "everything
+ * from a web page is hostile"). The values were already length-capped at capture — 300 and 600
+ * characters — so the clamping below is about the shape of the card, not about trusting them.
  */
 export function previewCard(data: ThumbData): PreviewCard {
+  const text = cardText(data);
+
   if (data.state === 'ready' && data.image !== null) {
     const handle = thumbObjectUrl(data.image);
     const img = h('img', {
@@ -103,15 +120,46 @@ export function previewCard(data: ThumbData): PreviewCard {
       height: String(data.height),
     });
     img.src = handle.url;
-    return { element: img, release: handle.revoke };
+    // A bare `img` when there is nothing to say, so the common case keeps exactly the DOM — and the
+    // exactly the CSS — it had before this existed.
+    if (text === null) return { element: img, release: handle.revoke };
+    return { element: h('figure', { class: 'vm-thumb-figure' }, img, text), release: handle.revoke };
   }
 
-  const element = h(
+  const absent = h(
     'p',
     { class: 'vm-thumb-absent vm-small vm-muted' },
     msg(data.state === 'remote' ? 'thumbInDrive' : 'thumbNone'),
   );
-  return { element, release: () => undefined };
+  if (text === null) return { element: absent, release: () => undefined };
+
+  // Text but no picture. The note still appears when the picture is *elsewhere* — "it is in Drive"
+  // is information — but not when there never was one, where it would contradict the card above it.
+  return {
+    element: h(
+      'figure',
+      { class: 'vm-thumb-figure vm-thumb-figure--textonly' },
+      ...(data.state === 'remote' ? [absent] : []),
+      text,
+    ),
+    release: () => undefined,
+  };
+}
+
+/** The `og:title`/`og:description` block, or `null` when the page published neither. */
+function cardText(data: ThumbData): HTMLElement | null {
+  const title = data.ogTitle?.trim() ?? '';
+  const description = data.ogDescription?.trim() ?? '';
+  if (title === '' && description === '') return null;
+
+  return h(
+    'figcaption',
+    { class: 'vm-thumb-text' },
+    title === '' ? false : h('span', { class: 'vm-thumb-og-title' }, title),
+    description === ''
+      ? false
+      : h('span', { class: 'vm-thumb-og-description vm-small vm-muted' }, description),
+  );
 }
 
 /* ------------------------------------------------------------------ the floating card */

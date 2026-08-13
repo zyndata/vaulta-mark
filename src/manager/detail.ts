@@ -185,13 +185,13 @@ export function detailPane(deps: DetailDeps): HTMLElement {
  * be a Drive round trip away (§14.6), and a detail pane that waited for it would be a detail pane
  * that stutters every time the selection moves. The slot keeps its shape while it is empty.
  *
- * Nothing here fetches unless the item claims a picture — `hasThumb` is the whole of what a render
+ * Nothing here fetches unless the item claims a picture — `hasPreview` is the whole of what a render
  * is allowed to know without asking (INV-4).
  */
 function previewSection(item: ItemDetail, deps: DetailDeps): HTMLElement {
   const slot = h('div', { class: 'vm-thumb-slot' });
 
-  if (item.hasThumb) {
+  if (item.hasPreview) {
     void (async () => {
       const data = await deps.loadThumb(item.id);
       // The pane is rebuilt on every selection change, so by the time this resolves the element may

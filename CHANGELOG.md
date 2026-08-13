@@ -175,6 +175,15 @@ below.
 
 ### Added
 
+- **Previews now show what the page says about itself, not just its picture.** A preview card
+  carries the page's own headline and one-line summary underneath the image — the same two things
+  you see when a link is pasted into a chat app. VaultaMark has been reading and encrypting them
+  since previews arrived; they simply had nowhere to appear until now.
+  - **Pages with no picture get a card too.** Most of the web publishes no preview image, and a
+    good deal of it still says what it is about in a sentence. Those bookmarks used to show
+    nothing at all; now the eye appears on the row and opens their words.
+  - Nothing new is fetched, stored or asked for. This is text that was already in your vault.
+
 - **You can now put your bookmarks in your own order.** The sort menu has a sixth entry, *My own
   order*, and under it you can drag a bookmark between two others to place it exactly where you
   want — a line shows where it will land, which is how you can tell it apart from dropping it

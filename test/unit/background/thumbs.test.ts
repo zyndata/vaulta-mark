@@ -69,6 +69,19 @@ async function onlyRow(): Promise<Record<string, unknown>> {
   return all[0]!;
 }
 
+/**
+ * Whether a *picture* was stored for the only item, asked of the worker rather than of the row.
+ *
+ * The row's `hasPreview` stopped answering this question when the card grew text: a page whose
+ * image was refused still publishes `og:title`, so the row correctly offers a card and the picture
+ * is still absent. These are two different facts and the refusal tests are about the second.
+ */
+async function storedPicture(): Promise<boolean> {
+  const id = (await onlyRow())['id'] as string;
+  const thumb = await send({ type: 'GET_THUMB', id });
+  return thumb['state'] === 'ready' && thumb['image'] !== null;
+}
+
 /* ------------------------------------------------------------------ the platform stand-in */
 
 interface StubbedGlobals {
@@ -129,7 +142,7 @@ describe('tier gating (ARCHITECTURE §14.4)', () => {
 
     expect(response['status']).toBe('added');
     expect(mock.injections).toEqual([]);
-    expect((await onlyRow())['hasThumb']).toBe(false);
+    expect((await onlyRow())['hasPreview']).toBe(false);
   });
 
   it('offers the opt-in on the first add, and only then', async () => {
@@ -167,7 +180,7 @@ describe('tier gating (ARCHITECTURE §14.4)', () => {
       { tabId: 7, files: [CAPTURE_FILE], hasFunc: false },
       { tabId: 7, hasFunc: true },
     ]);
-    expect((await onlyRow())['hasThumb']).toBe(true);
+    expect((await onlyRow())['hasPreview']).toBe(true);
   });
 });
 
@@ -203,55 +216,68 @@ describe('capturing', () => {
     expect(typeof thumb['image']).toBe('string');
   });
 
-  it('keeps the card’s text even when there is no picture', async () => {
+  it('keeps the card’s text even when there is no picture, and offers it', async () => {
+    /*
+     * The case the text was captured for, and the one this test used to assert the *opposite* of:
+     * `og` was stored and nothing read it, so the row reported no preview and the words were
+     * unreachable. Most of the web has no `og:image`; a great deal of it has a title and a summary.
+     */
     mock.captureResult = captured({ image: undefined, imageUrl: undefined, reason: 'no-image' });
     await send({ type: 'ADD_ACTIVE_TAB' });
 
     const row = await onlyRow();
-    expect(row['hasThumb']).toBe(false);
-    // `og` is not on the wire, so the proof it was stored is that the item was written at all —
-    // asserted through the revision the update produced.
-    expect(row['updatedAt']).toBeGreaterThanOrEqual(row['createdAt'] as number);
+    expect(row['hasPreview']).toBe(true);
+    expect(await storedPicture()).toBe(false);
+
+    const thumb = await send({ type: 'GET_THUMB', id: row['id'] as string });
+    expect(thumb).toMatchObject({
+      state: 'none',
+      image: null,
+      ogTitle: 'An article',
+      ogDescription: 'About something',
+    });
   });
 
   it('refuses a picture on a private address, and stores nothing', async () => {
     mock.captureResult = captured({ imageUrl: 'https://169.254.169.254/latest/meta-data' });
     await send({ type: 'ADD_ACTIVE_TAB' });
-    expect((await onlyRow())['hasThumb']).toBe(false);
+    expect(await storedPicture()).toBe(false);
   });
 
   it('refuses an SVG', async () => {
     mock.captureResult = captured({ contentType: 'image/svg+xml' });
     await send({ type: 'ADD_ACTIVE_TAB' });
-    expect((await onlyRow())['hasThumb']).toBe(false);
+    expect(await storedPicture()).toBe(false);
   });
 
   it('refuses a decompression bomb', async () => {
     bitmapSize = { width: 20_000, height: 20_000 };
     mock.captureResult = captured();
     await send({ type: 'ADD_ACTIVE_TAB' });
-    expect((await onlyRow())['hasThumb']).toBe(false);
+    expect(await storedPicture()).toBe(false);
   });
 
   it('gives up rather than storing something past the byte cap', async () => {
     encodedBytes = 500_000;
     mock.captureResult = captured();
     await send({ type: 'ADD_ACTIVE_TAB' });
-    expect((await onlyRow())['hasThumb']).toBe(false);
+    expect(await storedPicture()).toBe(false);
   });
 
   it('survives a page that will not let us inject at all', async () => {
     mock.injectionFails = true;
     const response = await send({ type: 'ADD_ACTIVE_TAB' });
     expect(response['status']).toBe('added');
-    expect((await onlyRow())['hasThumb']).toBe(false);
+    // Nothing was read from the page at all, so there is no picture *and* no words — the one case
+    // where the row genuinely has no card to offer.
+    expect((await onlyRow())['hasPreview']).toBe(false);
   });
 
   it('survives a page whose hook answered with nonsense', async () => {
     mock.captureResult = 42;
     const response = await send({ type: 'ADD_ACTIVE_TAB' });
     expect(response['status']).toBe('added');
-    expect((await onlyRow())['hasThumb']).toBe(false);
+    expect((await onlyRow())['hasPreview']).toBe(false);
   });
 
   it('does not re-capture when the same page is added again', async () => {
@@ -315,12 +341,14 @@ describe('refreshing a preview', () => {
     mock.captureResult = captured({ image: undefined, imageUrl: undefined, reason: 'no-image' });
     await send({ type: 'ADD_ACTIVE_TAB' });
     const id = (await onlyRow())['id'] as string;
-    expect((await onlyRow())['hasThumb']).toBe(false);
+    // No picture to begin with — the row already offers a card, because the words arrived.
+    expect(await storedPicture()).toBe(false);
+    expect((await onlyRow())['hasPreview']).toBe(true);
 
     mock.captureResult = captured();
     const refreshed = await send({ type: 'REFRESH_THUMB', id });
     expect(refreshed).toMatchObject({ type: 'THUMB', state: 'ready' });
-    expect((await onlyRow())['hasThumb']).toBe(true);
+    expect(await storedPicture()).toBe(true);
   });
 
   it('refuses to capture from whatever page happens to be in front', async () => {
