@@ -143,6 +143,9 @@ export class VaultRepository {
   /** A write that failed on the coalescing timer, re-thrown at the next call the caller awaits. */
   #deferredError: unknown = null;
 
+  /** The tail of the serialised write chain. See {@link VaultRepository.apply}. */
+  #writes: Promise<void> = Promise.resolve();
+
   constructor(options: VaultRepositoryOptions = {}) {
     this.#now = options.now ?? (() => Date.now());
     this.#newId = options.newId ?? (() => crypto.randomUUID());
@@ -487,8 +490,28 @@ export class VaultRepository {
    * The whole batch commits at a single `vaultRev`, so a multi-item operation (a bulk move, an
    * import) is one revision to merge rather than a hundred. Returns the items that actually
    * changed — an edit that changes nothing returns an empty array and costs nothing.
+   *
+   * **Calls are serialised** (Phase 12). The body below reads `#header.vaultRev`, computes the new
+   * item set from `#items`, and only then `await`s — `bucketOf` is HMAC and therefore async. Two
+   * overlapping calls would both read the *old* `vaultRev` and commit two different item sets at
+   * the same revision, which is a lost update with a revision number that says nothing happened.
+   *
+   * That is reachable in the field, not only under a test that provokes it: `chrome.runtime
+   * .onMessage` delivers the next message without waiting for the previous handler's promise, so a
+   * keyboard-command add while the popup is adding, or two manager windows, is all it takes.
    */
   async apply(mutations: readonly Mutation[]): Promise<readonly VaultItem[]> {
+    // The chain never rejects — a failed mutation must not wedge every later one — while the
+    // promise handed to *this* caller still does.
+    const run = this.#writes.then(async () => await this.#applyNow(mutations));
+    this.#writes = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return await run;
+  }
+
+  async #applyNow(mutations: readonly Mutation[]): Promise<readonly VaultItem[]> {
     this.#throwDeferred();
     this.#assertUnlocked('applying mutations');
     const header = this.#header;

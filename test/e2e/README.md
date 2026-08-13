@@ -11,10 +11,25 @@
 | `onboarding.spec.ts` | 9 | the five-step first-run flow, its two gates, and that it never appears again |
 | `thumbs.spec.ts` | 11 | capture at add time, the quality ladder, EXIF removal, and **INV-4** while browsing |
 
-| `journey.spec.ts` | 12 | first run → onboarding → create → add → organise → lock/unlock → export/import → sync, in one profile |
-| `budgets.spec.ts` | 12 | the wall-clock budgets that can only be measured in a real browser (PLAN §9) |
+| `journey.spec.ts` | 12 | first run → onboarding → create → add → organise → open → lock/unlock → export/import → sync, in **one profile**, plus INV-4 over the whole arc |
+| `budgets.spec.ts` | 12 | popup first paint — the one performance budget that needs a real renderer |
+| `large-vault.spec.ts` | 6, moved in 12 | five thousand bookmarks in a windowed list, in a profile of its own |
 
-`manager.spec.ts` also carries the Phase-12 reordering case and the axe pass over four documents.
+`manager.spec.ts` also carries the Phase-12 reordering case and the axe pass over five documents;
+`popup.spec.ts` and `onboarding.spec.ts` carry the axe passes over theirs. There is no single
+"a11y test" — a page here means a *document*, and there are about a dozen. See `a11y.ts`.
+
+**Why `large-vault.spec.ts` is its own file.** It lived in `manager.spec.ts`, which shares one vault
+across a dozen tests, several of which have already pushed to `chrome.storage.sync`. By the time it
+ran, bulk-adding five times the Chrome-sync capacity into a 100 KB area made the worker grind:
+seeding took twice as long and the manager afterwards sat on "Opening the vault…" past the default
+five-second expectation. It passed alone and failed in sequence — the signature of a shared fixture,
+not a product fault. Every spec now builds its own profile in `beforeAll`.
+
+**Wall clock** (PLAN §9 Phase 12's DoD, under ten minutes in CI): about 2¼ minutes locally, of which
+1½ is seeding the large vault. `workers: 1` is deliberate and is left that way — every spec has its
+own persistent context now, so file-level parallelism would be safe if the budget ever gets tight,
+but a serial run is what makes a flake reproducible in the order it appeared.
 
 Things the harness gets wrong if you do not know them:
 

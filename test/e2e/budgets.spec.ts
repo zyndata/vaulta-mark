@@ -56,12 +56,36 @@ async function openPopup(): Promise<Page> {
  * the `paint` timeline, so taking the wrong one is a one-word mistake with a very flattering result.
  */
 async function firstPaintMs(page: Page): Promise<number> {
-  return await page.evaluate(() => {
-    const paint = performance
-      .getEntriesByType('paint')
-      .find((entry) => entry.name === 'first-contentful-paint');
+  return await page.evaluate(async () => {
+    /*
+     * Waited for, not read. The paint entry is queued by the compositor and lands a moment after
+     * the pixels do, so reading it the instant a locator becomes visible sometimes finds an empty
+     * timeline — which is how this test passed alone and failed inside the suite. `buffered: true`
+     * delivers an entry that arrived before the observer existed, so the wait is a formality in
+     * the common case rather than a second source of timing.
+     */
+    const paint = await new Promise<PerformanceEntry | null>((resolve) => {
+      const existing = performance
+        .getEntriesByType('paint')
+        .find((entry) => entry.name === 'first-contentful-paint');
+      if (existing !== undefined) {
+        resolve(existing);
+        return;
+      }
+      const timer = setTimeout(() => {
+        resolve(null);
+      }, 5_000);
+      new PerformanceObserver((list, observer) => {
+        const found = list.getEntries().find((entry) => entry.name === 'first-contentful-paint');
+        if (found === undefined) return;
+        clearTimeout(timer);
+        observer.disconnect();
+        resolve(found);
+      }).observe({ type: 'paint', buffered: true });
+    });
+
     const [navigation] = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
-    if (paint === undefined || navigation === undefined) return Number.NaN;
+    if (paint === null || navigation === undefined) return Number.NaN;
     return paint.startTime - navigation.responseStart;
   });
 }

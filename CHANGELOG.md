@@ -73,6 +73,13 @@ below.
 
 ### Fixed
 
+- **A bookmark could be lost if two of them were saved at the same instant.** Chrome hands the
+  extension its next instruction without waiting for the previous one to finish, so saving from the
+  keyboard shortcut while the popup was also saving — or two manager windows at once — could commit
+  both changes under one revision number. The bookmark itself survived on the computer it was made
+  on; what was lost was the record that anything had happened, so your other computers would never
+  have been told about it. Writes are now serialised.
+
 - **"There is already a different vault there" is now a question with two answers, not a dead end.**
   Connecting Google Drive to a folder that already holds another vault used to report the refusal and
   stop there — on a screen whose only other control was the button that had just been refused. The

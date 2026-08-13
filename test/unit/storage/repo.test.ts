@@ -240,6 +240,53 @@ describe('an unlocked vault', () => {
     expect(repo.header().vaultRev).toBe(2);
   });
 
+  it('loses nothing when two writes overlap, and gives each its own revision', async () => {
+    /*
+     * The lost update `apply`'s serialisation exists to prevent (Phase 12).
+     *
+     * `apply` reads `#header.vaultRev`, computes the new item set from `#items`, and only then
+     * awaits — `bucketOf` is HMAC and therefore async. Two overlapping calls would both read the
+     * old revision and commit two different item sets at the same one, which is a lost bookmark
+     * under a revision number saying nothing happened.
+     *
+     * It is reachable without a test provoking it: `chrome.runtime.onMessage` delivers the next
+     * message without waiting for the previous handler's promise, so a keyboard-command add while
+     * the popup is adding is enough — and the two devices in a sync pair would then disagree about
+     * a revision that had already been exchanged.
+     */
+    const before = repo.header().vaultRev;
+    await Promise.all(
+      Array.from({ length: 20 }, async (_unused, index) =>
+        repo.apply([
+          {
+            kind: 'add',
+            input: {
+              type: 'bookmark',
+              url: `https://example.org/${String(index)}`,
+              title: `Item ${String(index)}`,
+            },
+          },
+        ]),
+      ),
+    );
+
+    expect(repo.getAll()).toHaveLength(20);
+    // One revision per call, none shared: twenty adds are twenty revisions, not one and nineteen
+    // silent overwrites.
+    expect(repo.header().vaultRev).toBe(before + 20);
+    expect(new Set(repo.getAll().map((item) => item.title)).size).toBe(20);
+  });
+
+  it('does not wedge the queue when one write in it fails', async () => {
+    // The chain must swallow a rejection while still handing it to *that* caller — otherwise one
+    // bad mutation stops every later write in the worker's lifetime.
+    await expect(repo.apply([{ kind: 'delete', id: 'no-such-item' }])).rejects.toThrow();
+    const changed = await repo.apply([
+      { kind: 'add', input: { type: 'bookmark', url: 'https://example.org/after', title: 'After' } },
+    ]);
+    expect(changed).toHaveLength(1);
+  });
+
   it('writes only the buckets that changed', async () => {
     await repo.apply([
       { kind: 'add', input: { type: 'bookmark', url: 'https://example.org/a', title: 'A' } },
