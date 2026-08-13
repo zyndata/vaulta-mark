@@ -283,6 +283,7 @@ These are enforced by CI (`npm run verify:invariants`), not just by convention. 
 | **INV-7** | Locked state holds no plaintext: after `lock()`, `storage.session` is empty and no SW-module-scope variable holds the DEK or decrypted items. | Unit test on the session module + a heap-shape assertion helper. |
 | **INV-8** | No telemetry/analytics. Zero references to analytics SDKs, `navigator.sendBeacon`, or non-allowlisted `fetch`. | Same scan as INV-1/INV-3. |
 | **INV-9** | Required permission set never grows without an explicit changelog entry. | `scripts/verify-manifest.mjs` diffs against `build/permissions.lock.json`. |
+| **INV-10** | No user-facing string outside `_locales/en/messages.json`, no key named that does not exist, no key in the file that nothing names. | `scripts/verify-strings.mjs`, a TypeScript AST walk over `src/` — the only one of the three scanners that reads source rather than `dist/`, because what it checks is authorship and the bundler has thrown that seam away. Added in Phase 12; enforcement was always scoped there. |
 
 ---
 

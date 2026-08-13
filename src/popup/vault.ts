@@ -332,6 +332,16 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
   return h(
     'div',
     { class: 'vm-vault' },
+    /*
+     * A heading nobody sees, and the only thing that names this screen.
+     *
+     * The popup's three states — create, unlock, unlocked — differ visually by what is in them, and
+     * for a screen reader they differed by nothing at all: `h1` is the wordmark on all three, and
+     * below it the unlocked one is a search box and a list. So the answer to "where am I" was
+     * "VaultaMark", which is also the answer on the locked screen. `vm-visually-hidden` rather than
+     * `hidden`, because `hidden` takes it out of the accessibility tree along with the pixels.
+     */
+    h('h2', { class: 'vm-visually-hidden' }, msg('unlockedHeading')),
     notice,
     h('div', { class: 'vm-field vm-field--filter' }, filter),
     listBox,

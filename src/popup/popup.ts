@@ -270,9 +270,12 @@ onBroadcast((message) => {
     // `IO_PROGRESS` joins them for the same reason: import and export live in the manager, and a
     // popup rebuilding itself on every tick of somebody else's progress bar would be the same bug
     // again, with a faster clock.
+    // `MIGRATION_PROGRESS` is the same case once more: connecting Drive is done in settings, in the
+    // manager, and its progress line is drawn there.
     case 'VAULT_CHANGED':
     case 'SYNC_CHANGED':
     case 'IO_PROGRESS':
+    case 'MIGRATION_PROGRESS':
       return;
     case 'SESSION_LOCKED':
       // A panic-lock is meant to leave nothing on screen, this popup included. Chrome gives an

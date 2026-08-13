@@ -150,6 +150,34 @@ describe('Drive', () => {
     const result = await send({ type: 'DISCONNECT_DRIVE' });
     expect(result).toMatchObject({ type: 'MIGRATION', ok: true, providerId: 'chrome' });
   });
+
+  it('narrates the migration to open pages instead of leaving one sentence on screen', async () => {
+    /*
+     * `migrateProvider` has reported its phase since Phase 10 and nothing was subscribed until
+     * Phase 12, so settings said "Asking Google for permission…" through the authorization, the
+     * upload of an entire vault, a verifying read-back and the switch. The assertion is on the
+     * *sequence*, because that is the part that was missing: one phase is what the bug looked like.
+     */
+    const seen = mock.observeMessages();
+    await addBookmark('https://example.com/one', 'One');
+    await send({ type: 'DISCONNECT_DRIVE' });
+
+    const phases = seen
+      .filter(
+        (message): message is { type: string; phase: string } =>
+          typeof message === 'object' &&
+          message !== null &&
+          (message as { type?: unknown }).type === 'MIGRATION_PROGRESS',
+      )
+      .map((message) => message.phase);
+
+    // `authorizing` is emitted in both directions — it wraps the *target* backend's `init()`, so
+    // on a disconnect it is Chrome sync being prepared and nothing is asked of Google. Settings
+    // says "Getting ready…" rather than "Asking Google for permission…" on this path for exactly
+    // that reason. `done` is last, and is the one phase settings deliberately does not render:
+    // the outcome sentence replaces it.
+    expect(phases).toEqual(['authorizing', 'uploading', 'verifying', 'switching', 'done']);
+  });
 });
 
 /* ------------------------------------------------------------------ status */

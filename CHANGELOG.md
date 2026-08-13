@@ -168,6 +168,17 @@ below.
 
 ### Changed
 
+- **Connecting or disconnecting Google Drive now says which step it is on.** It used to say "Asking
+  Google for permission…" and then nothing else — through the authorization, the copy of your whole
+  vault, the read-back that checks the copy arrived intact, and the switch. On a slow connection
+  that is a screen that looks frozen for a minute. Disconnecting no longer claims to be asking
+  Google for anything, either, which was never true in that direction.
+- **A screen reader is told more of what is on screen.** The unlocked popup now has a name of its
+  own instead of answering "where am I" with the product name, exactly as the locked one does; the
+  bookmark list says which keys do what, which a sighted user reads off the toolbar; and the
+  expand arrows beside folders are no longer read out as part of the folder's name, while gaining
+  a tooltip for the mouse.
+
 - **The build toolchain was taken to Vite 8, Vitest 4 and ESLint 10 in one deliberate step**, which
   clears every outstanding dependency advisory: `npm audit` now reports none at all, where it had
   been reporting five. Nothing about this reaches an installed extension — VaultaMark ships zero

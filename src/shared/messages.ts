@@ -1177,6 +1177,24 @@ export interface IoProgressBroadcast {
   readonly total: number;
 }
 
+/**
+ * Which step of connecting or disconnecting Drive is running (Phase 12).
+ *
+ * Same shape of problem as {@link IoProgressBroadcast} and, until this landed, the same untreated
+ * one: `migration.ts` has always reported its phase through an `onPhase` callback documented as
+ * "reported as it goes, so a slow upload is not a frozen screen", and nothing was subscribed to it.
+ * Settings said "Asking Google for permission…" for the whole run — through the authorization, the
+ * upload of an entire vault, a verifying read-back and the switch — so the one phase that is over
+ * in a second was the only one the screen ever named.
+ *
+ * Carries the phase and nothing else. A phase name is an enum from our own source; the vault it is
+ * moving is not describable here (INV-6) and does not need to be.
+ */
+export interface MigrationProgressBroadcast {
+  readonly type: 'MIGRATION_PROGRESS';
+  readonly phase: 'authorizing' | 'uploading' | 'verifying' | 'switching' | 'cleaning' | 'done';
+}
+
 /** Service worker → open UIs. Never answered; `broadcast()` ignores the absence of a listener. */
 export type Broadcast =
   | SessionLockedBroadcast
@@ -1184,7 +1202,8 @@ export type Broadcast =
   | SettingsChangedBroadcast
   | VaultChangedBroadcast
   | SyncChangedBroadcast
-  | IoProgressBroadcast;
+  | IoProgressBroadcast
+  | MigrationProgressBroadcast;
 
 /* ------------------------------------------------------------------ parsing */
 

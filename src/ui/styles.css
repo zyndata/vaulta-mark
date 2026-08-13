@@ -120,6 +120,28 @@ body {
   outline-offset: 2px;
 }
 
+/*
+ * Present to assistive technology, absent from the layout.
+ *
+ * Every part of this is load-bearing and each one rules out a simpler-looking version.
+ * `display: none`, `visibility: hidden`, `hidden` and zero width/height all remove the element
+ * from the accessibility tree as well as from the page, which is the opposite of the point.
+ * `clip-path` needs a box with size, hence the 1px and the `overflow: hidden`; the negative margin
+ * keeps that pixel from occupying a line of its own in a flex column. `white-space: nowrap` stops a
+ * sentence wrapping inside a 1px box, which some engines then read a word at a time.
+ */
+.vm-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .vm-wordmark {
   margin: 0;
   font-size: 1.0625rem;

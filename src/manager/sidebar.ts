@@ -158,12 +158,23 @@ function treeItem(
   const open = expanded.has(node.id);
   const selected = node.id === selectedId;
 
+  /*
+   * The twisty is a mouse affordance and nothing else, and both attributes here say so.
+   *
+   * `aria-hidden` because a treeitem's accessible name is all of its descendant text, so the glyph
+   * was being read out — "▸ Recipes 12" — while `aria-expanded` on the row already carries the same
+   * fact properly. `title` because with the glyph hidden there is otherwise nothing at all to tell
+   * a mouse user what the arrow beside a folder does; the keyboard has the arrow keys, which the
+   * tree has answered since Phase 6.
+   */
   const twisty = hasChildren
     ? h(
         'span',
         {
           class: 'vm-twisty',
           role: 'presentation',
+          'aria-hidden': 'true',
+          title: msg(open ? 'navCollapse' : 'navExpand', [node.title]),
           onclick: (event: Event) => {
             // The row navigates; the twisty only opens. Without this the two fight over one click.
             event.stopPropagation();
@@ -173,7 +184,7 @@ function treeItem(
         },
         open ? '▾' : '▸',
       )
-    : h('span', { class: 'vm-twisty vm-twisty--leaf', role: 'presentation' });
+    : h('span', { class: 'vm-twisty vm-twisty--leaf', role: 'presentation', 'aria-hidden': 'true' });
 
   // The row is the draggable thing, not the `li`: an `li` that has been opened contains the `ul` of
   // its children, so a draggable `li` would let a grab anywhere in an expanded subtree start a drag

@@ -91,6 +91,7 @@ export class BookmarkList {
     this.#list = new VirtualList<ListRow>({
       rowHeight: ROW_HEIGHT,
       label: msg('listLabel'),
+      description: msg('listKeyboardHint'),
       renderRow: (row, index) => this.#renderRow(row, index),
     });
     this.element = this.#list.element;

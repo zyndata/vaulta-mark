@@ -2557,7 +2557,11 @@
   },
   "syncMigrateAuthorizing": {
     "message": "Asking Google for permission…",
-    "description": "Migration progress."
+    "description": "Migration progress. Shown only when connecting Drive — see syncMigratePreparing for the other direction, where nothing is being asked of Google."
+  },
+  "syncMigratePreparing": {
+    "message": "Getting ready…",
+    "description": "Migration progress: the first step of disconnecting Drive, where the backend being prepared is Chrome's own sync and no permission is involved."
   },
   "syncMigrateUploading": {
     "message": "Copying your vault across…",

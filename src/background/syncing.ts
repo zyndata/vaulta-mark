@@ -302,6 +302,12 @@ async function migrate(
   const result = await migrateProvider(target, {
     ...deps,
     repository: () => session.currentRepository(),
+    // `migrateProvider` has always reported where it had got to, and until Phase 12 nothing was
+    // listening: settings said "Asking Google for permission…" for the whole run, including the
+    // upload of an entire vault. One `await` would serialise the migration behind a message send
+    // to pages that may not exist, so these are fired and dropped — a progress line is the one
+    // thing that must never be able to hold up the work it is describing.
+    onPhase: (phase) => void broadcast({ type: 'MIGRATION_PROGRESS', phase }),
   });
   // The provider changed under every open page: the status line, the quota bar and the whole Drive
   // section are drawn from it.

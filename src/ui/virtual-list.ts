@@ -34,6 +34,14 @@ export interface VirtualListOptions<T> {
   readonly overscan?: number;
   /** Accessible name for the listbox. */
   readonly label?: string;
+  /**
+   * What to do once you are in it, for somebody who cannot see the toolbar the actions live on.
+   *
+   * A sighted user discovers `e` and `p` from the toolbar buttons beside the list; a screen-reader
+   * user arriving at a listbox is told it is a listbox and nothing else, and every action on this
+   * one is a bare keystroke because a listbox may not contain interactive descendants.
+   */
+  readonly description?: string;
   /** Test seam: jsdom reports every `clientHeight` as 0. */
   readonly viewportHeight?: () => number;
 }
@@ -71,6 +79,15 @@ export class VirtualList<T> {
     this.element.setAttribute('aria-multiselectable', 'true');
     this.element.tabIndex = 0;
     if (options.label !== undefined) this.element.setAttribute('aria-label', options.label);
+    /*
+     * `aria-description` rather than a hidden element and `aria-describedby`, because a listbox may
+     * contain nothing but options — the constraint that put every per-row action in the toolbar —
+     * and the alternative is a paragraph somewhere else in the document whose only purpose is to be
+     * pointed at. Chromium has implemented it since well before this extension's floor of 116, and
+     * this ships to Chrome only.
+     */
+    if (options.description !== undefined)
+      this.element.setAttribute('aria-description', options.description);
     this.element.append(this.#canvas);
 
     this.#onScroll = () => {

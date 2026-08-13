@@ -24,8 +24,10 @@ import { hasHistoryPermission, requestHistoryPermission } from '../history/clean
 import { DRIVE_SCOPE, requestDrivePermissions } from '../sync/drive/auth.js';
 import { copyableValue } from '../ui/address.js';
 import {
+  onBroadcast,
   send,
   type DriveStateResponse,
+  type MigrationProgressBroadcast,
   type MigrationResponse,
   type SyncStatusResponse,
 } from '../shared/messages.js';
@@ -477,11 +479,43 @@ function driveSection(drive: DriveStateResponse, deps: SettingsDeps): HTMLElemen
   ): Promise<void> => {
     button.disabled = true;
     render(escape);
-    say(msg('syncMigrateAuthorizing'));
-    const response =
-      request === 'connect'
-        ? await send({ type: 'CONNECT_DRIVE' })
-        : await send({ type: 'DISCONNECT_DRIVE', deleteRemote: request.deleteRemote });
+
+    /*
+     * `authorizing` is `to.init()`, whichever way the vault is going — so on a *disconnect* the
+     * backend being prepared is Chrome sync and "Asking Google for permission…" names the party
+     * being left. That sentence has been on the disconnect path since Drive landed; it is fixed
+     * here rather than left because this is the commit that makes the line change at all.
+     */
+    const phaseText = (phase: Exclude<MigrationProgressBroadcast['phase'], 'done'>): string =>
+      phase === 'authorizing' && request !== 'connect'
+        ? msg('syncMigratePreparing')
+        : msg(MIGRATION_PHASE_KEYS[phase]);
+
+    say(phaseText('authorizing'));
+
+    /*
+     * The worker narrates the migration; this listens for the duration of one run and no longer.
+     * Uploading an entire vault, reading it back to verify it and switching over take as long as
+     * they take, and this line used to say "Asking Google for permission…" through all of it — the
+     * one phase that is over in a second was the only one it ever named.
+     *
+     * `done` is deliberately not rendered: the sentence that replaces it is the outcome, a few
+     * lines below, and a "finished" that is then overwritten reads as two different results.
+     */
+    const stopWatching = onBroadcast((message) => {
+      if (message.type !== 'MIGRATION_PROGRESS' || message.phase === 'done') return;
+      say(phaseText(message.phase));
+    });
+
+    let response;
+    try {
+      response =
+        request === 'connect'
+          ? await send({ type: 'CONNECT_DRIVE' })
+          : await send({ type: 'DISCONNECT_DRIVE', deleteRemote: request.deleteRemote });
+    } finally {
+      stopWatching();
+    }
     button.disabled = false;
 
     if (response.type === 'ERROR') {
@@ -651,6 +685,24 @@ function openInDrive(link: string): HTMLElement {
     msg('syncDriveOpenFile'),
   );
 }
+
+/**
+ * The running commentary, one sentence per step. Exhaustive over the broadcast's phases for the
+ * same reason as the failure table below: a phase added to `sync/migration.ts` and forgotten here
+ * would leave the status line stuck on the previous step rather than failing anywhere visible.
+ *
+ * `done` is in the type and not in this table — it is the end of the narration, not a line of it.
+ */
+const MIGRATION_PHASE_KEYS: Record<
+  Exclude<MigrationProgressBroadcast['phase'], 'done'>,
+  string
+> = {
+  authorizing: 'syncMigrateAuthorizing',
+  uploading: 'syncMigrateUploading',
+  verifying: 'syncMigrateVerifying',
+  switching: 'syncMigrateSwitching',
+  cleaning: 'syncMigrateCleaning',
+};
 
 /** Spelled out rather than derived, so a new failure reason breaks the build instead of the UI. */
 const MIGRATION_FAILURE_KEYS: Record<
