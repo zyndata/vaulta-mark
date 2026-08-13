@@ -20,6 +20,7 @@
  *   reaches storage; `chrome.runtime` is not storage and is not reachable from a web page.
  */
 
+import type { Diagnostics } from './diagnostics.js';
 import type { FolderDeleteMode } from '../vault/model.js';
 import { isSortKey, type SortKey } from '../vault/sort.js';
 import {
@@ -353,6 +354,19 @@ export interface GetDriveStateRequest {
 }
 
 /**
+ * The redacted bug-report dump (Phase 12). Answered while locked, with the vault half left `null`.
+ *
+ * Gathered in the **worker**, not in the page, and that is the point of it being a message at all
+ * rather than something `manager/settings.ts` assembles from what it already has on screen. The
+ * worker is the only context holding decrypted items, so it is the only one that can count them —
+ * and having it hand back a finished {@link Diagnostics} record means the page never receives
+ * anything it would then have to be trusted to redact.
+ */
+export interface GetDiagnosticsRequest {
+  readonly type: 'GET_DIAGNOSTICS';
+}
+
+/**
  * Connect Google Drive and move the vault there (§6.6).
  *
  * One message rather than "authorize" plus "migrate", because they are one decision: nobody
@@ -526,6 +540,7 @@ export type Request =
   | ImportNativeRequest
   | DeleteNativeRequest
   | GetDriveStateRequest
+  | GetDiagnosticsRequest
   | ConnectDriveRequest
   | DisconnectDriveRequest
   | GetOnboardingRequest
@@ -967,6 +982,17 @@ export interface DriveStateResponse {
   readonly fileLink: string | null;
 }
 
+/**
+ * The redacted bug-report dump, already redacted (Phase 12).
+ *
+ * The payload is a {@link Diagnostics} record — a flat set of counts, booleans and enums with no
+ * free-form string in it anywhere. See `shared/diagnostics.ts` for the rule that keeps it that way.
+ */
+export interface DiagnosticsResponse {
+  readonly type: 'DIAGNOSTICS';
+  readonly diagnostics: Diagnostics;
+}
+
 /** The outcome of a provider migration (§6.6). `ok: false` means nothing was flipped. */
 export interface MigrationResponse {
   readonly type: 'MIGRATION';
@@ -1106,6 +1132,7 @@ export interface ResponseMap {
   readonly IMPORT_NATIVE: NativeImportResponse;
   readonly DELETE_NATIVE: NativeDeleteResponse;
   readonly GET_DRIVE_STATE: DriveStateResponse;
+  readonly GET_DIAGNOSTICS: DiagnosticsResponse;
   readonly CONNECT_DRIVE: MigrationResponse;
   readonly DISCONNECT_DRIVE: MigrationResponse;
   readonly GET_ONBOARDING: OnboardingResponse;
@@ -1294,6 +1321,7 @@ export function parseRequest(raw: unknown): Request | null {
     case 'ROLLBACK_IMPORT':
     case 'NATIVE_TREE':
     case 'GET_DRIVE_STATE':
+    case 'GET_DIAGNOSTICS':
     case 'GET_ONBOARDING':
     case 'PREVIEW_HISTORY_CLEANUP':
     case 'CLEAR_VAULTED_HISTORY':
@@ -1640,6 +1668,7 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'ONBOARDING',
   'HISTORY_PREVIEW',
   'DRIVE_STATE',
+  'DIAGNOSTICS',
   'MIGRATION',
   'ERROR',
 ]);

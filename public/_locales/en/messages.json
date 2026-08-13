@@ -2555,6 +2555,34 @@
     "message": "The copy in Chrome sync has been removed, so your other computers will ask you to connect Drive as well.",
     "description": "Explains the consequence of clearing the chrome.storage.sync copy."
   },
+  "diagnosticsHint": {
+    "message": "If you are reporting a problem, this produces a short report about how VaultaMark is set up. It contains no addresses, titles, folder or tag names, notes or account details — counts and settings only. You can read it before you copy it.",
+    "description": "Settings → About: what the diagnostics button does, said before it is pressed."
+  },
+  "diagnosticsButton": {
+    "message": "Create a diagnostic report",
+    "description": "Settings → About: the button that gathers the report."
+  },
+  "diagnosticsReportLabel": {
+    "message": "Diagnostic report",
+    "description": "Accessible name for the read-only box the report appears in."
+  },
+  "diagnosticsCopy": {
+    "message": "Copy to clipboard",
+    "description": "Settings → About: copies the report shown above it."
+  },
+  "diagnosticsCopied": {
+    "message": "Copied.",
+    "description": "Confirmation after the report was copied."
+  },
+  "diagnosticsCopyFailed": {
+    "message": "Chrome would not let VaultaMark use the clipboard. The report is above — select it and copy it by hand.",
+    "description": "Shown when the clipboard write is refused. The report is still on screen, which is the useful half."
+  },
+  "diagnosticsFailed": {
+    "message": "The report could not be gathered. VaultaMark’s background process did not answer; closing and reopening this page usually fixes it.",
+    "description": "Shown when the worker could not be reached at all."
+  },
   "syncMigrateAuthorizing": {
     "message": "Asking Google for permission…",
     "description": "Migration progress. Shown only when connecting Drive — see syncMigratePreparing for the other direction, where nothing is being asked of Google."

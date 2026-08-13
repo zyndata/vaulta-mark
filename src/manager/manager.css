@@ -1412,3 +1412,39 @@ body.vm-manager {
 .vm-thumb-slot {
   min-height: 2.5rem;
 }
+
+/* ------------------------------------------------------------------ diagnostics */
+
+/*
+ * The report, shown before it is copied.
+ *
+ * `display: grid` with a gap because the panel is a slot that is empty until the button is pressed
+ * and then holds three things — the settings section's own grid gap does not reach inside a child.
+ */
+.vm-diagnostics {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+
+.vm-diagnostics:empty {
+  display: none;
+}
+
+/*
+ * `resize: vertical` and not `both`: this sits in a fixed-width settings column, and a textarea
+ * dragged wider than its column overflows the card rather than widening it.
+ */
+.vm-diagnostics-text {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font:
+    12px/1.45 ui-monospace,
+    monospace;
+  resize: vertical;
+}

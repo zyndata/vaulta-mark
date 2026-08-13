@@ -41,6 +41,7 @@ import { armHousekeeping, registerLifecycleListeners } from './autolock.js';
 import { clearBadge, flashBadge, type BadgeKind } from './badge.js';
 import { registerCommandListener } from './commands.js';
 import { installContextMenus, registerContextMenuListener } from './contextmenu.js';
+import * as diagnostics from './diagnostics.js';
 import * as history from './history.js';
 import * as io from './io.js';
 import * as items from './items.js';
@@ -252,6 +253,11 @@ export async function handleRequest(request: Request): Promise<Response> {
       /* ---- Drive sync (Phase 10) ---- */
       case 'GET_DRIVE_STATE':
         return await syncing.driveState();
+
+      /* ---- diagnostics (Phase 12) ---- */
+      // Answered while locked, with the vault half reported as unknown rather than as zero.
+      case 'GET_DIAGNOSTICS':
+        return { type: 'DIAGNOSTICS', diagnostics: await diagnostics.collect() };
       case 'CONNECT_DRIVE':
         return await syncing.connectDrive(request.replaceExisting ?? false);
       case 'DISCONNECT_DRIVE':

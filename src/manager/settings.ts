@@ -23,6 +23,7 @@ import { estimateStrength, MIN_PASSWORD_LENGTH, passwordLength } from '../crypto
 import { hasHistoryPermission, requestHistoryPermission } from '../history/cleanup.js';
 import { DRIVE_SCOPE, requestDrivePermissions } from '../sync/drive/auth.js';
 import { copyableValue } from '../ui/address.js';
+import { diagnosticsPanel } from '../ui/diagnostics.js';
 import {
   onBroadcast,
   send,
@@ -200,6 +201,15 @@ function about(): HTMLElement[] {
       msg('settingsReplayOnboarding'),
     ),
     h('p', { class: 'vm-hint vm-small vm-muted' }, msg('settingsReplayOnboardingHint')),
+    diagnosticsPanel({
+      collect: async () => {
+        const response = await send({ type: 'GET_DIAGNOSTICS' });
+        return response.type === 'DIAGNOSTICS' ? response.diagnostics : null;
+      },
+      copy: async (text) => {
+        await navigator.clipboard.writeText(text);
+      },
+    }),
   ];
 }
 

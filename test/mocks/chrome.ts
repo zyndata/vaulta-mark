@@ -15,6 +15,8 @@
  * fails loudly on the rest.
  */
 
+import { OPTIONAL_PERMISSIONS } from '../../build/manifest.js';
+
 /** Chrome's documented `chrome.storage.sync` limits — docs/ARCHITECTURE.md §5.2. */
 export const SYNC_LIMITS = {
   QUOTA_BYTES: 102_400,
@@ -511,7 +513,14 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     runtime: {
       id: EXTENSION_ID,
       lastError: undefined as { message: string } | undefined,
-      getManifest: () => ({ version: options.manifestVersion ?? '0.0.0', manifest_version: 3 }),
+      // `optional_permissions` is taken from the real manifest source rather than spelled out, so
+      // the mock cannot drift from the list the extension actually declares — `background/
+      // diagnostics.ts` asks Chrome about each entry of it by name.
+      getManifest: () => ({
+        version: options.manifestVersion ?? '0.0.0',
+        manifest_version: 3,
+        optional_permissions: [...OPTIONAL_PERMISSIONS],
+      }),
       getURL: (path: string) => `chrome-extension://${EXTENSION_ID}/${path.replace(/^\//, '')}`,
       sendMessage,
       onMessage,

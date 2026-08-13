@@ -166,6 +166,17 @@ below.
   one part of setup nobody could actually finish in the guide. The point it made is real and is in
   `docs/PRIVACY.md`, which is where something we cannot do anything about belongs.
 
+### Added
+
+- **A "create a diagnostic report" button**, in Settings → About. Reporting a problem with an
+  encrypted bookmark manager is awkward: "sync stopped working" is not enough to act on, and the
+  obvious way to say more is the one thing this extension exists to prevent. So the button produces
+  a short report of counts and settings — how many bookmarks, which sync backend, what the last
+  sync error was, which permissions you have granted — and **no addresses, titles, folder or tag
+  names, notes, account details or tokens of any kind**. It is shown to you in full before anything
+  is copied, so you can read what you are about to paste; and if Chrome refuses the clipboard, the
+  report stays on screen to copy by hand.
+
 ### Changed
 
 - **Connecting or disconnecting Google Drive now says which step it is on.** It used to say "Asking
