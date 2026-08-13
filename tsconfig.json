@@ -7,6 +7,10 @@
     "moduleDetection": "force",
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
+    // Vite 8 loads vite.config.ts with Node's own type stripping, which resolves specifiers the
+    // way Node does: no extension inference, and JSON needs an import attribute. So the config and
+    // the build/ modules it pulls in spell their imports out. src/ is bundler-resolved and unaffected.
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "noEmit": true,
     "skipLibCheck": true,

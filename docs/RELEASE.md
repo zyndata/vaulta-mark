@@ -557,7 +557,7 @@ uploaded to the Store — see [ARCHITECTURE §2](ARCHITECTURE.md#version-mapping
 
 **Reproducibility.** The workflow prints the zip's SHA-256 and attaches `SHA256SUMS`. A user who
 builds the tagged source with the same Node version should get a functionally identical bundle;
-byte-identity is not promised (esbuild and timestamps do not guarantee it), and the README says so
+byte-identity is not promised (the minifier and timestamps do not guarantee it), and the README says so
 plainly rather than claiming a reproducible build we have not engineered.
 
 ---

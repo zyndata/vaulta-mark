@@ -168,6 +168,18 @@ below.
 
 ### Changed
 
+- **The build toolchain was taken to Vite 8, Vitest 4 and ESLint 10 in one deliberate step**, which
+  clears every outstanding dependency advisory: `npm audit` now reports none at all, where it had
+  been reporting five. Nothing about this reaches an installed extension — VaultaMark ships zero
+  runtime dependencies, and the package is byte-for-byte the same shape as before — but a
+  development toolchain nobody has updated is a supply-chain problem in a security tool, and this
+  is where the project had scheduled paying it off.
+  - Vite 8 bundles with Rolldown rather than Rollup. Three consequences were real enough to be
+    worth recording: the minifier is now `oxc` (Vite 8 ships no esbuild), the build plugin has to
+    re-emit the two HTML documents rather than move them inside the bundle (Rolldown ignores that
+    assignment, which had silently produced a package containing no HTML at all), and the Vite
+    config is loaded by Node's own type stripping, so its imports name their extensions.
+
 - **The setup guide no longer says Google Drive is "coming in the next release".** It is here; the
   comparison table marks it *Optional*, and Settings → Sync connects it whenever you want.
 - `build/url-allowlist.json` gained `https://oauth2.googleapis.com/` — the OAuth token endpoint,

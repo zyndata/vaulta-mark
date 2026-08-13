@@ -1,8 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 
-import { mv3 } from './build/mv3-plugin';
-import pkg from './package.json';
+import { mv3 } from './build/mv3-plugin.ts';
+import pkg from './package.json' with { type: 'json' };
 
 const src = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
 
@@ -37,7 +37,11 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
       emptyOutDir: true,
       target: 'chrome116',
-      minify: 'esbuild',
+      // Vite 8 bundles with Rolldown and no longer ships esbuild at all, so the old `'esbuild'`
+      // resolves to a package that is not installed. `'oxc'` is the minifier Vite 8 actually has;
+      // it is named rather than left as `true` so that the tool whose output ships is written down
+      // where a reviewer of dist/ can find it.
+      minify: 'oxc',
       // Maps are built and uploaded as a CI artifact for debugging, and excluded from the store
       // zip by scripts/zip.mjs. "hidden" keeps the `//# sourceMappingURL` comment out of dist/.
       sourcemap: 'hidden',

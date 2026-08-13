@@ -105,12 +105,12 @@ we would then have to prove are absent from production builds (INV-1). Our requi
 
 | Entry | Format | Notes |
 | --- | --- | --- |
-| `background.js` | `es` module | `"type": "module"` in the manifest. **No code splitting** — a dynamic import in a service worker after termination is a common failure source. `output.inlineDynamicImports = true`. |
+| `background.js` | `es` module | `"type": "module"` in the manifest. **No code splitting** — a dynamic import in a service worker after termination is a common failure source. `output.codeSplitting = false` (Rolldown's name for what Rollup called `inlineDynamicImports`). |
 | `popup.html` + `popup.js` | `es` | HTML entry, hashed asset names. |
 | `manager.html` + `manager.js` | `es` | Same. |
 | `og-capture.js` | `iife`, single file | `chrome.scripting.executeScript({ files: [...] })` needs one self-contained file with no imports. |
 
-Target `chrome116`. `minify: 'esbuild'`, `sourcemap: 'hidden'` (maps are built, uploaded as CI
+Target `chrome116`. `minify: 'oxc'` (Vite 8 bundles with Rolldown and ships no esbuild), `sourcemap: 'hidden'` (maps are built, uploaded as CI
 artifacts for debugging, and **excluded from the store zip**).
 
 ### `manifest.json` (generated)

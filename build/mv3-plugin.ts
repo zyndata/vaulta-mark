@@ -16,9 +16,9 @@
 import { existsSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, type Plugin } from 'vite';
+import { build, type Plugin, type ResolvedConfig } from 'vite';
 
-import { buildManifest } from './manifest';
+import { buildManifest } from './manifest.ts';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 
@@ -26,6 +26,14 @@ const BACKGROUND_ENTRY = resolve(repoRoot, 'src/background/index.ts');
 const CONTENT_ENTRY = resolve(repoRoot, 'src/content/og-capture.ts');
 
 const TARGET = 'chrome116';
+
+/**
+ * Whatever the installed Vite calls a minifier, taken from Vite rather than spelled out here.
+ * The set is not stable across majors — Vite 8 added `'oxc'` to `boolean | 'esbuild' | 'terser'` —
+ * and the only thing this plugin does with the value is hand the parent build's choice to the two
+ * child builds unchanged, so it has no business having an opinion about the members.
+ */
+type Minify = ResolvedConfig['build']['minify'];
 
 export interface Mv3PluginOptions {
   /** `package.json` version, mapped to a Chrome version by `build/version.ts`. */
@@ -48,7 +56,7 @@ export interface Mv3PluginOptions {
 
 export function mv3(options: Mv3PluginOptions): Plugin {
   let outDir = 'dist';
-  let minify: boolean | 'esbuild' | 'terser' = 'esbuild';
+  let minify: Minify = 'esbuild';
   let development = false;
 
   return {
@@ -81,16 +89,24 @@ export function mv3(options: Mv3PluginOptions): Plugin {
         )}\n`,
       });
 
-      // Vite names HTML outputs by their path relative to `root`; the manifest wants them at the
-      // package root. Script and style references are absolute (`/assets/…`), which resolves
-      // against the extension origin, so moving the document does not break them.
+      /*
+       * Vite names HTML outputs by their path relative to `root`; the manifest wants them at the
+       * package root. Script and style references are absolute (`/assets/…`), which resolves
+       * against the extension origin, so moving the document does not break them.
+       *
+       * Re-emitting rather than moving the entry inside `bundle` is not a style choice. Vite 8
+       * bundles with **Rolldown**, which refuses assignment to `bundle` outright ("This plugin
+       * assigns to bundle variable … This will be ignored") while still honouring the delete — so
+       * the previous delete-then-reassign pair silently shipped a `dist/` with **no HTML at all**
+       * and an extension that would not load. `this.emitFile` is the supported path and is what
+       * the Rolldown error message itself points at.
+       */
       for (const [key, output] of Object.entries(bundle)) {
         if (output.type !== 'asset' || !key.endsWith('.html')) continue;
         const flattened = basename(key);
         if (flattened === key) continue;
         Reflect.deleteProperty(bundle, key);
-        output.fileName = flattened;
-        bundle[flattened] = output;
+        this.emitFile({ type: 'asset', fileName: flattened, source: output.source });
       }
     },
 
@@ -123,7 +139,7 @@ interface SingleFileBuild {
   fileName: string;
   format: 'es' | 'iife';
   outDir: string;
-  minify: boolean | 'esbuild' | 'terser';
+  minify: Minify;
 }
 
 async function buildSingleFile({
@@ -151,7 +167,11 @@ async function buildSingleFile({
         fileName: () => fileName,
       },
       rollupOptions: {
-        output: { inlineDynamicImports: true },
+        // One file, always: `codeSplitting: false` is Rolldown's name for what Rollup called
+        // `inlineDynamicImports`, which Vite 8 still accepts and warns about. The requirement it
+        // encodes has not changed — a service worker that splits will eventually `import()` a
+        // chunk after the worker was torn down, which never reproduces in development.
+        output: { codeSplitting: false },
       },
     },
   });

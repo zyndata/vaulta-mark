@@ -18,11 +18,24 @@ import { storageSize } from '../../../src/manager/sync.js';
 
 const RealNumberFormat = Intl.NumberFormat;
 
+/**
+ * A `function`, not an arrow and not a subclass, and both halves of that matter.
+ *
+ * Vitest 4 stopped quietly making mock implementations `new`-able, so the arrow this used to be now
+ * fails with "is not a constructor" — `storageSize` says `new Intl.NumberFormat(…)`. And extending
+ * `Intl.NumberFormat` is not the fix either: the subclass instance never gets the internal slots
+ * `format` needs, so it fails one line further on with "`.format` is not a function". Returning a
+ * genuine instance from the constructor call is what leaves the caller holding the real thing.
+ */
+function fixedLocaleNumberFormat(
+  _locales?: Intl.LocalesArgument,
+  options?: Intl.NumberFormatOptions,
+): Intl.NumberFormat {
+  return new RealNumberFormat('en-US', options);
+}
+
 beforeAll(() => {
-  vi.spyOn(Intl, 'NumberFormat').mockImplementation(
-    (_locales: unknown, options: Intl.NumberFormatOptions | undefined) =>
-      new RealNumberFormat('en-US', options),
-  );
+  vi.spyOn(Intl, 'NumberFormat').mockImplementation(fixedLocaleNumberFormat);
 });
 
 afterAll(() => {

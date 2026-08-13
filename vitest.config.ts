@@ -9,9 +9,10 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text-summary', 'lcov'],
       reportsDirectory: 'coverage',
-      // `all: true` counts files with no tests at all, which is the only way a coverage gate
-      // catches "shipped untested" rather than "shipped untested and also unimported".
-      all: true,
+      // Files with no tests at all are counted, which is the only way a coverage gate catches
+      // "shipped untested" rather than "shipped untested and also unimported". Vitest 4 removed
+      // the `all` flag that used to say so: everything matched by `include` is now reported
+      // whether or not a test imported it, which is the behaviour this project always wanted.
       include: ['src/**/*.ts', 'build/**/*.ts', 'scripts/**/*.mjs'],
       exclude: [
         // The page entry points: they run on import, wire listeners to a live `chrome` and a live

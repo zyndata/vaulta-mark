@@ -6,7 +6,7 @@
  * Spec: docs/ARCHITECTURE.md §2 "`manifest.json` (generated)".
  */
 
-import { toChromeVersion } from './version';
+import { toChromeVersion } from './version.ts';
 
 /**
  * INV-2. Exact, byte-for-byte. `scripts/verify-manifest.mjs` asserts the same literal

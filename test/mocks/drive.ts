@@ -250,7 +250,7 @@ export class DriveMock {
     const at = path.indexOf(marker);
     const id = at < 0 ? null : decodeURIComponent(path.slice(at + marker.length));
 
-    let metadata: Record<string, unknown> = {};
+    let metadata: Record<string, unknown>;
     let content: Uint8Array | null = null;
 
     if (parsed.searchParams.get('uploadType') === 'multipart') {

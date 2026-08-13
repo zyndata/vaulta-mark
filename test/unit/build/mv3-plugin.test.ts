@@ -13,9 +13,17 @@ interface BundleEntry {
 }
 
 /**
- * Drive the plugin's `generateBundle` hook the way Rollup does, with a minimal plugin context.
+ * Drive the plugin's `generateBundle` hook the way **Rolldown** does, with a minimal plugin context.
  * `closeBundle` is deliberately not exercised here — it shells out to two real Vite builds, which
  * is what `npm run build` in `npm run verify` covers.
+ *
+ * The bundle is a Proxy that throws on assignment, and that is the whole point of it. Rollup let a
+ * plugin move an output by deleting one key and writing another; Rolldown — which is what Vite 8
+ * builds with — honours the delete and *ignores the write*, with a warning on stderr and a zero
+ * exit code. The plugin did exactly that, so the first Vite 8 build produced a `dist/` containing
+ * no HTML at all and an extension Chrome would refuse to load, while this file stayed green
+ * against a plain object that accepted the write. A mock that is more permissive than the real
+ * thing is how a build breaks with the suite passing.
  */
 function runGenerateBundle(
   bundle: Record<string, BundleEntry>,
@@ -30,6 +38,14 @@ function runGenerateBundle(
   const context = {
     emitFile: (file: EmittedFile) => emitted.push(file),
   };
+
+  const guarded = new Proxy(bundle, {
+    set(_target, key) {
+      throw new Error(
+        `the plugin assigned to bundle[${String(key)}]; Rolldown ignores that — use this.emitFile`,
+      );
+    },
+  });
 
   // `mode` is the only thing this hook reads off the resolved config that changes the manifest, and
   // it is what gates the development-only `key`. Skipping it leaves the plugin's default, which is
@@ -46,7 +62,7 @@ function runGenerateBundle(
 
   const hook = plugin.generateBundle;
   if (typeof hook !== 'function') throw new Error('generateBundle must be a plain hook');
-  void hook.call(context as never, {} as never, bundle as never, false);
+  void hook.call(context as never, {} as never, guarded as never, false);
 
   const manifest = emitted.find((file) => file.fileName === 'manifest.json');
   if (manifest === undefined) throw new Error('no manifest was emitted');
@@ -67,31 +83,43 @@ describe('mv3 build plugin', () => {
   });
 
   it('flattens HTML entries to the package root, where the manifest points', () => {
-    const { bundle } = runGenerateBundle({
-      'src/popup/popup.html': { type: 'asset', fileName: 'src/popup/popup.html', source: '<html>' },
+    const { bundle, emitted } = runGenerateBundle({
+      'src/popup/popup.html': {
+        type: 'asset',
+        fileName: 'src/popup/popup.html',
+        source: '<html>popup</html>',
+      },
       'src/manager/manager.html': {
         type: 'asset',
         fileName: 'src/manager/manager.html',
-        source: '<html>',
+        source: '<html>manager</html>',
       },
       'assets/popup-a1b2.js': { type: 'chunk', fileName: 'assets/popup-a1b2.js' },
     });
 
-    expect(Object.keys(bundle).sort()).toEqual([
-      'assets/popup-a1b2.js',
-      'manager.html',
-      'popup.html',
-    ]);
-    expect(bundle['popup.html']?.fileName).toBe('popup.html');
+    // The nested originals are gone — a delete is the one bundle mutation Rolldown honours...
+    expect(Object.keys(bundle).sort()).toEqual(['assets/popup-a1b2.js']);
+
+    // ...and the flat documents come back as emitted files, carrying the same bytes. Asserting the
+    // source is what separates "a document is emitted" from "the right document is emitted": the
+    // manifest points at these two names and Chrome loads whatever is behind them.
+    const html = emitted.filter((file) => file.fileName.endsWith('.html'));
+    expect(html.map((file) => file.fileName).sort()).toEqual(['manager.html', 'popup.html']);
+    expect(html.find((file) => file.fileName === 'popup.html')?.source).toBe('<html>popup</html>');
+    expect(html.find((file) => file.fileName === 'manager.html')?.source).toBe(
+      '<html>manager</html>',
+    );
   });
 
   it('leaves an already-flat document and every non-HTML output alone', () => {
-    const { bundle } = runGenerateBundle({
+    const { bundle, emitted } = runGenerateBundle({
       'popup.html': { type: 'asset', fileName: 'popup.html', source: '<html>' },
       'assets/popup-a1b2.css': { type: 'asset', fileName: 'assets/popup-a1b2.css', source: 'a{}' },
     });
 
     expect(Object.keys(bundle).sort()).toEqual(['assets/popup-a1b2.css', 'popup.html']);
+    // Re-emitting a document that is already where it belongs would be a duplicate-name collision.
+    expect(emitted.filter((file) => file.fileName.endsWith('.html'))).toEqual([]);
   });
 });
 
