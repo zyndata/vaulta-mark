@@ -209,6 +209,11 @@ below.
   expand arrows beside folders are no longer read out as part of the folder's name, while gaining
   a tooltip for the mouse.
 
+- **Size and speed are now measured on every build and refused when they slip.** The package is
+  156 KB zipped against a 400 KB ceiling; the popup paints in under 30 ms against a 100 ms one.
+  Nothing about this is visible, which is the point — a bundle grows one import at a time and the
+  day it crosses a line is not a day anybody notices.
+
 - **The build toolchain was taken to Vite 8, Vitest 4 and ESLint 10 in one deliberate step**, which
   clears every outstanding dependency advisory: `npm audit` now reports none at all, where it had
   been reporting five. Nothing about this reaches an installed extension — VaultaMark ships zero

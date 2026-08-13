@@ -653,8 +653,6 @@ export async function markAdopted(
 
 /* ------------------------------------------------------------------ conflict resolution */
 
-export type Resolution = 'mine' | 'theirs' | 'both';
-
 /**
  * What resolving a conflict does to the vault, expressed as the item the local side should hold.
  *

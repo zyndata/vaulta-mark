@@ -228,23 +228,6 @@ export async function moveItems(
   return (await commit(repo, mutations)).length;
 }
 
-/** Delete a selection as one revision, so one undo brings the whole batch back. */
-export async function deleteItems(ids: readonly string[]): Promise<void> {
-  const repo = await requireVault();
-  await commit(
-    repo,
-    ids.map((id) => ({ kind: 'delete', id })),
-  );
-}
-
-export async function restoreItems(ids: readonly string[]): Promise<void> {
-  const repo = await requireVault();
-  await commit(
-    repo,
-    ids.map((id) => ({ kind: 'restore', id })),
-  );
-}
-
 /** Delete a folder, either with everything in it or after lifting its children to its parent. */
 export async function deleteFolder(id: string, mode: FolderDeleteMode): Promise<void> {
   const repo = await requireVault();

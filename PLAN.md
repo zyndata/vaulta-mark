@@ -1348,6 +1348,22 @@ origin — which D26's permission table does not contain. Building it starts wit
 - Performance budgets, enforced in CI (`scripts/check-budgets.mjs`):
   popup first paint < 100 ms; SW cold start < 50 ms; unlock (excluding KDF) < 200 ms for 1,000 items;
   total zip < 400 KB; largest single JS chunk < 150 KB.
+  **Amended during Phase 12: the last one is two numbers.** "Largest single JS chunk < 150 KB" was
+  written before the code it would measure existed, and `background.js` is 307 KB. The measurement
+  says why: 147 KB of it is one string literal (the bundled public-suffix list, §12.1) and 6 KB is
+  another (the common-password list), leaving 161 KB of code for the entire feature set in a file
+  that **may not be split** — ARCHITECTURE §2, a service worker that code-splits will eventually
+  `import()` a chunk after being torn down. There is no arrangement of the same code that passes.
+  The property the number was a proxy for is parse-and-evaluate cost at cold start, which is
+  measured directly at 50 ms and is green (the PSL's own module-eval cost was measured at 0.06 ms —
+  it is newline-joined strings that become sets lazily), and the download cost is the zip budget,
+  which the package uses 156 KB of its 400 KB. So **150 KB is kept unchanged for a document's
+  JavaScript** — what a page parses before it paints, which is what it was about, and where
+  `manager.js` sits at 76 KB — and the worker takes a ceiling of its own at **340 KB**. If it ever
+  needs to shrink, the PSL is the obvious 147 KB: it can ship as a package asset read with
+  `fetch(chrome.runtime.getURL(…))` at first use, which is an extension-origin read and not network
+  traffic (INV-4 is unaffected). Deliberately not done in this phase, which hardens rather than
+  reworks proven Phase 9 code.
 - Bundle analysis committed as a report artifact; tree-shaking verified; dead code removed.
 - Drag-and-drop reordering and re-parenting in the folder tree and list (the one optional feature
   promoted into 1.0 because the manager feels incomplete without it), with full keyboard equivalents.

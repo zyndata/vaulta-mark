@@ -33,7 +33,16 @@ jobs:
       - run: npm run test
       - run: npm run build
       # INV-1, INV-2, INV-3, INV-8, INV-9 against the real dist/, not against the source.
+      # INV-10 is the odd one out and reads src/ — what it checks is authorship.
       - run: npm run verify:invariants
+      # The shipped-size budgets (PLAN §9 Phase 12), plus the bundle report kept as an artifact so
+      # a size jump between two builds can be attributed rather than guessed at.
+      - run: node scripts/check-budgets.mjs --report release/bundle-report.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-report
+          path: release/bundle-report.md
+          retention-days: 90
       - uses: actions/upload-artifact@v4
         with:
           name: dist

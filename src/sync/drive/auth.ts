@@ -35,7 +35,6 @@ import {
   readDriveRecord,
   sealRefreshToken,
   writeAccessToken,
-  type AuthMode,
 } from './record.js';
 
 /**
@@ -63,10 +62,6 @@ export async function hasDrivePermissions(): Promise<boolean> {
 /** Must be called from a page during a user gesture — Chrome refuses this from a worker. */
 export async function requestDrivePermissions(): Promise<boolean> {
   return await chrome.permissions.request(DRIVE_PERMISSIONS);
-}
-
-export async function dropDrivePermissions(): Promise<boolean> {
-  return await chrome.permissions.remove(DRIVE_PERMISSIONS);
 }
 
 /** How long before a token's stated expiry we stop trusting it. One in-flight request's worth. */
@@ -365,9 +360,4 @@ function codeFrom(redirect: string | undefined): string | null {
 function manifestClientId(): string {
   const oauth2 = (chrome.runtime.getManifest() as { oauth2?: { client_id?: string } }).oauth2;
   return oauth2?.client_id ?? '';
-}
-
-/** The current mode, for the settings screen. */
-export async function authMode(): Promise<AuthMode> {
-  return (await readDriveRecord()).mode;
 }
