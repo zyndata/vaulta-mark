@@ -76,6 +76,12 @@ below.
 
 ### Fixed
 
+- **Enter now confirms in a dialog that asks a yes-or-no question.** Pressing Delete on a bookmark
+  or a folder raises "are you sure?", and Enter did nothing there but close it the same way Escape
+  does — because the button that had the keyboard was *Cancel*. Enter answers the question and
+  Escape backs out, in every dialog that has one thing to confirm. The question about what to do
+  with a folder's contents is unchanged: it offers two real answers and preselects neither.
+
 - **"Refresh preview" left the old preview in place.** A page that had stopped publishing a preview —
   or a bookmark you had pointed at a different address — kept the picture and the words of the page
   that used to be there, under a notice saying the page offered no preview picture. Refreshing now

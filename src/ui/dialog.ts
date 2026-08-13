@@ -100,8 +100,9 @@ export function openDialog<T>(options: DialogOptions<T>): Promise<T | null> {
     });
 
     const buttons: HTMLButtonElement[] = [cancel];
+    let confirm: HTMLButtonElement | undefined;
     if (options.confirmLabel !== undefined) {
-      const confirm = h(
+      confirm = h(
         'button',
         {
           type: 'submit',
@@ -173,7 +174,14 @@ export function openDialog<T>(options: DialogOptions<T>): Promise<T | null> {
 
     document.body.append(dialog);
     dialog.showModal();
-    options.focus?.focus();
+    // The caller's field if it named one, and otherwise the confirming button — not Cancel, which is
+    // what `showModal` picks on its own for being first in the DOM. With Cancel focused, Enter and
+    // Escape both backed out and a question could only be answered with the mouse; Enter answering
+    // it is the pairing every other dialog in the platform has. It stays true of a destructive
+    // confirmation on purpose: this one is reached by a deliberate Delete, and a delete has eight
+    // seconds of undo behind it. A choice with no safe default is not asked here — that is
+    // `chooseDialog`, which preselects nothing.
+    (options.focus ?? confirm)?.focus();
   });
 }
 

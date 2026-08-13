@@ -162,6 +162,18 @@ describe('openDialog', () => {
     expect(document.activeElement).toBe(input);
   });
 
+  it('focuses the confirming button when there is no field, so Enter answers the question', () => {
+    // Not Cancel, which is what `showModal` picks on its own for being first in the DOM — that left
+    // Enter and Escape both meaning "no", and a question answerable only with the mouse.
+    void openDialog<string>({
+      heading: 'Heading',
+      body: [],
+      confirmLabel: 'Do it',
+      onConfirm: () => 'x',
+    });
+    expect(document.activeElement).toBe(button('Do it'));
+  });
+
   it('waits for an async onConfirm, and keeps the dialog open when it refuses', async () => {
     // The shape the import and backup dialogs use: the answer needs a round trip to the worker and a
     // 600,000-iteration derivation, so "wrong password" arrives long after the button was pressed.
@@ -251,6 +263,21 @@ describe('confirmDialog', () => {
       danger: true,
     });
     submit();
+    expect(await pending).toBe(true);
+  });
+
+  it('puts Enter on the confirming button even when it is destructive', async () => {
+    // The Delete key raised this dialog; Enter is the answer to it. Deliberate on a delete because
+    // the delete is undoable for eight seconds afterwards — a choice with no safe default goes to
+    // `chooseDialog` instead, which preselects nothing.
+    const pending = confirmDialog({
+      heading: 'Delete “A”?',
+      body: [],
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    expect(document.activeElement).toBe(button('Delete'));
+    button('Delete').click();
     expect(await pending).toBe(true);
   });
 
