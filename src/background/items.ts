@@ -27,7 +27,15 @@ import type { Mutation } from '../vault/model.js';
 import { sortItems } from '../vault/sort.js';
 import { isBookmark, isDeleted, type Bookmark } from '../vault/types.js';
 import type { VaultRepository } from '../storage/repo.js';
-import { addActiveTab as addActiveTabTo, addUrl as addUrlTo, summarize, type AddResult } from './add.js';
+import {
+  activeTab,
+  addActiveTab as addActiveTabTo,
+  addUrl as addUrlTo,
+  findDuplicate,
+  summarize,
+  vaultableUrl,
+  type AddResult,
+} from './add.js';
 import {
   extensionSettingsUrl,
   isAllowedIncognitoAccess,
@@ -94,6 +102,31 @@ export async function addActiveTab(): Promise<AddResult> {
  */
 export async function thumbnailOffer(): Promise<boolean> {
   return thumbs.offersThumbnails(await session.settings(), await thumbs.activeProvider());
+}
+
+/**
+ * The vault item for the page the popup is looking at, or `null`.
+ *
+ * A read, and only a read: it exists so the popup can offer *Refresh preview* on a page that is
+ * already saved without first asking the user to press *Add this page* — the popup is the one place
+ * that can re-capture (§14.5), and burying that behind an add is what made the feature read as
+ * broken.
+ *
+ * Every reason there is no answer collapses to `null`. A `chrome://` tab, a scheme the vault
+ * refuses, no `activeTab` grant, no tab at all: none of them is a failure of anything the user
+ * asked for, and this runs on every popup open, where an error would be noise.
+ */
+export async function lookupActiveTab(): Promise<ItemSummary | null> {
+  const repo = await requireVault();
+  await session.touch();
+  let url: string;
+  try {
+    url = vaultableUrl((await activeTab()).url, await addOptions());
+  } catch {
+    return null;
+  }
+  const existing = findDuplicate(repo.getAll(), url);
+  return existing === undefined ? null : summarize(existing);
 }
 
 export async function addUrl(url: string, title?: string): Promise<AddResult> {

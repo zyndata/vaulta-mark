@@ -18,6 +18,9 @@ below.
   publishes for social media — the one you see when a link is pasted into a chat — and shows it
   beside the bookmark. An eye on a row opens it; hovering a row opens it after a moment; the item's
   detail pane shows it inline. Press **p** on the list for the same thing from the keyboard.
+  - **The toolbar popup has the eye too**, just left of the delete button, on the rows that have
+    something to show and on no others. Hover it for the preview, or press it — it is a button, so
+    Enter and Space work as well.
   - **The picture is read once, when you save the page, and never again.** Browsing your vault makes
     no network requests of any kind, exactly as before. There is no re-fetching, no background
     refresh and no timer; refreshing a preview is a button you press, on a page you have open.
@@ -72,6 +75,25 @@ below.
     it. A theme is not worth a dialog.
 
 ### Fixed
+
+- **"Refresh preview" left the old preview in place.** A page that had stopped publishing a preview —
+  or a bookmark you had pointed at a different address — kept the picture and the words of the page
+  that used to be there, under a notice saying the page offered no preview picture. Refreshing now
+  writes down what the page shows *now*, including that it shows nothing: the stale picture and its
+  words are removed. A refresh that could not read the page at all — a restricted page, or one you
+  did not open VaultaMark on — still changes nothing, because it learned nothing.
+
+- **Changing a bookmark's address now clears the preview that came with the old one.** The picture
+  and the summary described the page that used to be there; keeping them beside a different address
+  was simply wrong, and nothing in the manager could remove them. Saving the same address back — a
+  retitle, say — leaves the preview alone.
+
+- **Refreshing a preview is now two clicks, not three.** Opening VaultaMark on a page you have
+  already saved says so straight away, with **Open it** and **Refresh preview** beside the notice.
+  Until now that notice appeared only after you pressed *Add this page* — an add in the middle of a
+  refresh, which is not what anyone reads when they are trying to refresh something. The manager's
+  button, which can only open the page (re-capturing needs the page in front of you), now says
+  exactly where to press next.
 
 - **A bookmark could be lost if two of them were saved at the same instant.** Chrome hands the
   extension its next instruction without waiting for the previous one to finish, so saving from the

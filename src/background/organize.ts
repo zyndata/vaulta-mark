@@ -35,6 +35,7 @@ import {
   countsByFolder,
   deleteFolderMutations,
   listChildren,
+  normalizeUrl,
   pathOf,
   renameTagMutations,
   tagMutations,
@@ -46,6 +47,7 @@ import { isEmptyQuery, parseQuery } from '../vault/search.js';
 import { DEFAULT_SORT, sortItems, type SortKey } from '../vault/sort.js';
 import {
   ROOT_ID,
+  hasPreview,
   isBookmark,
   isDeleted,
   isFolder,
@@ -59,6 +61,7 @@ import type { VaultRepository } from '../storage/repo.js';
 import { vaultableUrl } from './add.js';
 import { requireVault } from './items.js';
 import * as session from './session.js';
+import { forgetThumb } from './thumbs.js';
 
 export interface ViewOptions {
   /** The folder to list. `ROOT_ID` (the default) is the top level. */
@@ -188,19 +191,39 @@ export async function createFolder(title: string, parentId?: string): Promise<st
  * A URL typed into the detail pane goes through the same allowlist as a URL arriving from a tab.
  * The edit box is a second way into the vault, and a `javascript:` bookmark that the add pipeline
  * refuses must not be reachable by saving it here instead.
+ *
+ * **Pointing a bookmark at a different address drops its preview.** The picture and the words came
+ * from the page that used to be there; keeping them would leave a card describing something this
+ * bookmark no longer opens, and no amount of re-capturing can dislodge them from the manager, which
+ * cannot inject (§14.5). Cleared in the same batch as the edit, so it is one revision and one thing
+ * for the merge to see; the bytes go afterwards, because losing them is a decoration and losing the
+ * edit is not.
  */
 export async function editItem(id: string, patch: ItemEdit): Promise<void> {
   const repo = await requireVault();
   const settings = await session.settings();
+  const url =
+    patch.url === undefined
+      ? undefined
+      : vaultableUrl(patch.url, { stripTrackingParams: settings.stripTrackingParams });
+
+  const before = repo.getItem(id);
+  const staleThumb =
+    url !== undefined &&
+    before !== undefined &&
+    isBookmark(before) &&
+    normalizeUrl(url) !== before.url &&
+    (before.thumb !== undefined || before.og !== undefined);
+
   const next: ItemPatch = {
     ...(patch.title === undefined ? {} : { title: patch.title }),
-    ...(patch.url === undefined
-      ? {}
-      : { url: vaultableUrl(patch.url, { stripTrackingParams: settings.stripTrackingParams }) }),
+    ...(url === undefined ? {} : { url }),
     ...(patch.note === undefined ? {} : { note: patch.note }),
     ...(patch.tags === undefined ? {} : { tags: patch.tags }),
+    ...(staleThumb ? { thumb: null, og: null } : {}),
   };
   await commit(repo, [{ kind: 'update', id, patch: next }]);
+  if (staleThumb) await forgetThumb(repo, id);
 }
 
 /**
@@ -349,12 +372,7 @@ function rowBuilder(items: ItemMap): (item: VaultItem) => ListRow {
       title: item.title,
       tags: tagsOf(item),
       hasNote: noteOf(item) !== '',
-      // Metadata only: whether this device can reach the *bytes* is a separate question, and asking
-      // it here would turn rendering a list into one storage read per row (§14.5).
-      // A picture, or the text that stands in for one when the picture was refused.
-      hasPreview:
-        isBookmark(item) &&
-        (item.thumb !== undefined || item.og?.title !== undefined || item.og?.description !== undefined),
+      hasPreview: hasPreview(item),
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };

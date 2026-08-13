@@ -24,7 +24,7 @@
 import type { ItemSummary } from '../shared/messages.js';
 import { UnsupportedUrlError } from '../vault/errors.js';
 import { duplicateKeyOf, normalizeUrl } from '../vault/model.js';
-import { isBookmark, isDeleted, type Bookmark, type VaultItem } from '../vault/types.js';
+import { hasPreview, isBookmark, isDeleted, type Bookmark, type VaultItem } from '../vault/types.js';
 import type { VaultRepository } from '../storage/repo.js';
 
 /**
@@ -178,6 +178,7 @@ export function summarize(item: Bookmark): ItemSummary {
     url: item.url,
     createdAt: item.createdAt,
     ...(item.openedAt === undefined ? {} : { openedAt: item.openedAt }),
+    hasPreview: hasPreview(item),
   };
 }
 

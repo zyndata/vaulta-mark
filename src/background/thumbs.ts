@@ -59,13 +59,29 @@ export function offersThumbnails(settings: VaultSettings, provider: SyncProvider
   return !hasHeavyTier(provider) && !settings.localThumbnails && !settings.thumbnailsOffered;
 }
 
+export interface CaptureOptions {
+  /**
+   * Treat what the page offers now as the whole truth, and clear what it no longer offers.
+   *
+   * Off for an add, where there is nothing to clear. On for a re-capture, where there is: a page
+   * that has lost its `og:image`, or a bookmark pointed at a different address, would otherwise
+   * keep the previous page's picture and words — a preview that describes something the bookmark
+   * no longer opens, which is worse than no preview at all.
+   */
+  readonly replace?: boolean;
+}
+
 /**
  * Capture for `itemId` from the tab the user is on, and record whatever came back.
  *
  * Never throws. The worst outcome is a bookmark with no picture, which is the outcome for most
  * bookmarks and is not worth a single line of user-facing anything.
  */
-export async function capture(repo: VaultRepository, itemId: string): Promise<CaptureOutcome> {
+export async function capture(
+  repo: VaultRepository,
+  itemId: string,
+  options: CaptureOptions = {},
+): Promise<CaptureOutcome> {
   const provider = await activeProvider();
   const settings = await readSettings();
   if (!capturesThumbs(settings, provider)) return 'off';
@@ -74,11 +90,15 @@ export async function capture(repo: VaultRepository, itemId: string): Promise<Ca
   if (tabId === null) return 'blocked';
 
   const result = await inject(tabId);
+  // Nothing was read, so nothing is known — and `replace` clears only what the page contradicts.
+  // An injection that never ran contradicts nothing, and must not take a good preview with it.
   if (result === null) return 'blocked';
 
-  await recordOgMeta(repo, itemId, result);
+  const replace = options.replace === true;
+  await recordOgMeta(repo, itemId, result, replace);
 
   if (result.image === undefined || result.imageUrl === undefined) {
+    if (replace) await clearThumb(repo, itemId, provider);
     return result.reason ?? 'no-image';
   }
 
@@ -117,8 +137,38 @@ export async function capture(repo: VaultRepository, itemId: string): Promise<Ca
     // A refusal is the expected outcome for a large part of the web, and it is the only thing that
     // reaches here — `processThumb` and the validators throw nothing else. Anything that is not a
     // `ThumbRejected` is a bug, and it still must not take the add down with it.
+    if (replace) await clearThumb(repo, itemId, provider);
     return error instanceof ThumbRejected ? error.reason : 'blocked';
   }
+}
+
+/**
+ * Forget the picture for one item: the record inside the vault, and the bytes in both copies.
+ *
+ * Exported because a picture also stops being true without any capture running — editing a
+ * bookmark's URL points it at a different page — and `organize.ts` clears the record in the same
+ * batch as the edit, so the bytes are all that is left for this to take.
+ */
+export async function forgetThumb(repo: VaultRepository, itemId: string): Promise<void> {
+  await dropThumbs(storeDeps(repo, await activeProvider()), [itemId]);
+}
+
+/**
+ * Drop a stale picture, record and bytes.
+ *
+ * The vault write is skipped when there is no record to remove: a re-capture on the ordinary page
+ * with no `og:image` at all must not spend a revision — and therefore a sync push — saying so.
+ */
+async function clearThumb(
+  repo: VaultRepository,
+  itemId: string,
+  provider: SyncProvider | null,
+): Promise<void> {
+  const item = repo.getItem(itemId);
+  if (item === undefined || !isBookmark(item) || item.thumb === undefined) return;
+  await repo.apply([{ kind: 'update', id: itemId, patch: { thumb: null } }]);
+  await repo.flush();
+  await dropThumbs(storeDeps(repo, provider), [itemId]);
 }
 
 /**
@@ -126,25 +176,33 @@ export async function capture(repo: VaultRepository, itemId: string): Promise<Ca
  *
  * `og:title` and `og:description` are light-tier data — a few hundred bytes inside the ciphertext —
  * and they are the reason a preview is worth expanding even when the image was refused. Written only
- * when something is actually there, so a page with no card costs no revision.
+ * when something is actually there, so a page with no card costs no revision — unless this is a
+ * re-capture, where a page that has stopped publishing a card is exactly the thing that has to be
+ * written down, or the card keeps showing the words of a page that is no longer at this address.
  */
 async function recordOgMeta(
   repo: VaultRepository,
   itemId: string,
   result: CaptureResult,
+  replace: boolean,
 ): Promise<void> {
-  if (result.ogTitle === undefined && result.ogDescription === undefined) return;
   const item = repo.getItem(itemId);
   if (item === undefined || !isBookmark(item)) return;
+
+  const empty = result.ogTitle === undefined && result.ogDescription === undefined;
+  if (empty && (!replace || item.og === undefined)) return;
+
   await repo.apply([
     {
       kind: 'update',
       id: itemId,
       patch: {
-        og: {
-          ...(result.ogTitle === undefined ? {} : { title: result.ogTitle }),
-          ...(result.ogDescription === undefined ? {} : { description: result.ogDescription }),
-        },
+        og: empty
+          ? null
+          : {
+              ...(result.ogTitle === undefined ? {} : { title: result.ogTitle }),
+              ...(result.ogDescription === undefined ? {} : { description: result.ogDescription }),
+            },
       },
     },
   ]);
@@ -162,6 +220,11 @@ async function recordOgMeta(
  * The tab has to *be* the item's page, and that is checked here rather than trusted: the caller is a
  * popup that believes the two match, and a refresh that ran against whatever page happened to be in
  * front would quietly put one site's picture on another site's bookmark.
+ *
+ * It **replaces**. A refresh is the user saying "this is what the page shows now", so a page that
+ * has lost its card loses the card here too — the alternative is a button that reports "this page
+ * offered no preview picture" while leaving the old picture on screen, which reads as the button
+ * being broken and is how this was reported.
  */
 export async function refresh(repo: VaultRepository, itemId: string): Promise<ThumbResponse> {
   const item = repo.getItem(itemId);
@@ -170,7 +233,7 @@ export async function refresh(repo: VaultRepository, itemId: string): Promise<Th
   const tab = await activeTab();
   if (tab === null || !samePage(tab.url ?? '', item.url)) return await get(repo, itemId);
 
-  await capture(repo, itemId);
+  await capture(repo, itemId, { replace: true });
   return await get(repo, itemId);
 }
 

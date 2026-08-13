@@ -181,6 +181,25 @@ export function noteOf(item: VaultItem): string {
 }
 
 /**
+ * Whether this item has a preview worth opening: a picture, **or** the page's own words.
+ *
+ * Metadata only. Whether *this device* can reach the bytes is a separate and much more expensive
+ * question — one storage read per row — and is asked when a card is actually opened (§14.5).
+ *
+ * Here rather than in either caller because the manager's list and the popup's list both draw an eye
+ * from it, and an eye that appears in one window and not the other for the same bookmark is two
+ * products.
+ */
+export function hasPreview(item: VaultItem): boolean {
+  if (!isBookmark(item)) return false;
+  return (
+    item.thumb !== undefined ||
+    item.og?.title !== undefined ||
+    item.og?.description !== undefined
+  );
+}
+
+/**
  * The orders the manager's list can be in.
  *
  * The names live here rather than in `sort.ts` because `VaultSettings` below needs them, and

@@ -157,6 +157,8 @@ export async function handleRequest(request: Request): Promise<Response> {
         return await items.thumb(request.id);
       case 'REFRESH_THUMB':
         return await items.refreshThumb(request.id);
+      case 'LOOKUP_ACTIVE_TAB':
+        return { type: 'ACTIVE_TAB', item: await items.lookupActiveTab() };
       case 'LIST_ITEMS': {
         const result = await items.list({
           ...(request.query === undefined ? {} : { query: request.query }),

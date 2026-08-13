@@ -23,8 +23,9 @@ import {
   type StateResponse,
 } from '../shared/messages.js';
 import { confirmDialog, dialogText } from '../ui/dialog.js';
-import { h, msg, render } from '../ui/dom.js';
+import { append, h, msg, render } from '../ui/dom.js';
 import { displayHost, faviconImage } from '../ui/favicon.js';
+import { ThumbPopover } from '../ui/thumb.js';
 import type { VaultSettings } from '../vault/types.js';
 
 /** How long the undo toast stays up, per PLAN §9 Phase 5. */
@@ -52,6 +53,25 @@ export interface VaultScreenDeps {
 }
 
 export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
+  /**
+   * The floating preview card, hosted on the screen rather than on the list.
+   *
+   * `.vm-list` is the popup's scrolling box, and a card appended inside it would be clipped by the
+   * first row it overhung. The screen is the nearest ancestor that both contains the rows and does
+   * not scroll, which is exactly what `position()` in `ui/thumb.ts` measures against.
+   */
+  const screen = h('div', { class: 'vm-vault' });
+  const popover = new ThumbPopover({
+    host: screen,
+    fetch: async (id) => {
+      const response = await send({ type: 'GET_THUMB', id });
+      if (response.type === 'ERROR') {
+        return { state: 'none', image: null, width: 0, height: 0, ogTitle: null, ogDescription: null };
+      }
+      return response;
+    },
+  });
+
   const notice = h('p', { class: 'vm-notice', role: 'status', hidden: true });
   const listBox = h('ul', { class: 'vm-list' });
   const summary = h('p', { class: 'vm-small vm-muted vm-count', role: 'status' });
@@ -95,6 +115,9 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
   }
 
   async function reload(): Promise<void> {
+    // The rows about to be replaced are what the open card is anchored to. Left alone it would hang
+    // over the new list, pointing at a bookmark that is no longer under it.
+    popover.close();
     const token = ++latestList;
     const query = filter.value.trim();
     const response = await send({
@@ -167,7 +190,45 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
       '×',
     );
 
-    return h('li', { class: 'vm-row' }, open, remove);
+    return h('li', { class: 'vm-row' }, open, ...eye(item), remove);
+  }
+
+  /**
+   * The eye that opens a row's preview — nothing at all when there is none to open.
+   *
+   * Deliberately **not** the manager's arrangement, where an empty same-width `span` sits on every
+   * row. There it is load-bearing: the list is windowed and every column after the eye would shift
+   * as rows scrolled past. Here the row is a two-item flex with the delete button pinned at the end,
+   * so an eye that only sometimes exists moves nothing.
+   *
+   * It is also a real `button` here, where the manager's is a `span`: the manager's row is an
+   * `option` in a `listbox` and may not contain interactive descendants, and this one is an `li`
+   * that already holds two buttons. That is worth having — hover is not available to a keyboard, and
+   * a focused button answers Enter and Space with the same click that pins the card, so the popup
+   * needs no equivalent of the manager's separate `p` binding.
+   */
+  function eye(item: ItemSummary): HTMLElement[] {
+    if (!item.hasPreview) return [];
+    const button = h(
+      'button',
+      {
+        class: 'vm-row-eye',
+        type: 'button',
+        'aria-label': msg('vaultPreviewLabel', [item.title]),
+        title: msg('vaultPreviewLabel', [item.title]),
+        onclick: () => {
+          popover.toggle(button, item.id);
+        },
+        onmouseenter: () => {
+          popover.hover(button, item.id);
+        },
+        onmouseleave: () => {
+          popover.cancelHover();
+        },
+      },
+      '👁',
+    );
+    return [button];
   }
 
   /* ---------------------------------------------------------------- actions */
@@ -199,42 +260,69 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
       return;
     }
     if (response.status === 'duplicate') {
-      const item = response.item;
-      // **This is where re-capturing a preview lives** (§14.5). The page is in the tab in front of
-      // us and this click is a gesture on it, so `activeTab` covers the injection — which is the one
-      // arrangement in the whole extension where a refresh is possible without a host permission.
-      // The manager's button can only open the page and point here.
-      showNoticeWith(
-        msg('vaultAlreadySaved'),
-        h(
-          'button',
-          {
-            class: 'vm-button vm-button--quiet vm-button--inline',
-            type: 'button',
-            onclick: () => {
-              void openItem(item);
-            },
-          },
-          msg('vaultOpenItButton'),
-        ),
-        h(
-          'button',
-          {
-            class: 'vm-button vm-button--quiet vm-button--inline',
-            type: 'button',
-            onclick: () => {
-              void refreshPreview(item);
-            },
-          },
-          msg('thumbRefresh'),
-        ),
-      );
+      showAlreadySaved(response.item);
       return;
     }
     showNotice(msg('vaultAdded', [response.item.title]));
     filter.value = '';
     await reload();
     if (response.offerThumbnails === true) await offerThumbnails();
+  }
+
+  /**
+   * "You already have this page" — with the two things worth doing about it.
+   *
+   * **This is where re-capturing a preview lives** (§14.5). The page is in the tab in front of us
+   * and opening this popup was a gesture on it, so `activeTab` covers the injection — the one
+   * arrangement in the whole extension where a refresh is possible without a host permission. The
+   * manager's button can only open the page and point here.
+   *
+   * Shown from two places: after an add that turned out to be a duplicate, and on open, from
+   * `LOOKUP_ACTIVE_TAB`. The second is what makes the refresh reachable in two clicks instead of
+   * three — an instruction that began "press Add this page" to *refresh* something was misread often
+   * enough to be reported as the button not working.
+   */
+  function showAlreadySaved(item: ItemSummary): void {
+    showNoticeWith(
+      msg('vaultAlreadySaved'),
+      h(
+        'button',
+        {
+          class: 'vm-button vm-button--quiet vm-button--inline',
+          type: 'button',
+          onclick: () => {
+            void openItem(item);
+          },
+        },
+        msg('vaultOpenItButton'),
+      ),
+      h(
+        'button',
+        {
+          class: 'vm-button vm-button--quiet vm-button--inline',
+          type: 'button',
+          onclick: () => {
+            void refreshPreview(item);
+          },
+        },
+        msg('thumbRefresh'),
+      ),
+    );
+  }
+
+  /**
+   * Ask, once, whether the page in front of us is already in the vault.
+   *
+   * Silent about every failure. There is no tab on a `chrome://` page, no grant on some, and no
+   * answer at all while the vault is relocking — none of which the user asked about by opening a
+   * popup, so none of which may write a message into it.
+   */
+  async function announceIfSaved(): Promise<void> {
+    const response = await send({ type: 'LOOKUP_ACTIVE_TAB' });
+    if (response.type === 'ERROR' || response.item === null) return;
+    // A notice that arrived while the user was already reading one stays out of the way.
+    if (!notice.hidden) return;
+    showAlreadySaved(response.item);
   }
 
   /** Re-capture the preview for the page in front of us. */
@@ -328,10 +416,10 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
   });
 
   void reload();
+  void announceIfSaved();
 
-  return h(
-    'div',
-    { class: 'vm-vault' },
+  append(
+    screen,
     /*
      * A heading nobody sees, and the only thing that names this screen.
      *
@@ -349,6 +437,7 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
     toastBox,
     footer(deps),
   );
+  return screen;
 }
 
 /* ------------------------------------------------------------------ footer */

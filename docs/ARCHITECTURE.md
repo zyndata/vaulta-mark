@@ -1954,13 +1954,28 @@ it is a decision for a later phase, and it starts with a PLAN change, not with a
     assumption. They are text nodes built by `h`, never markup; the lengths were already capped at
     capture, and the CSS clamp (one line, then three) is about the shape of a floating card rather
     than about trusting the source.
-- **Eye icon** on rows whose item has a card to show — a picture **or** those words; the row flag is
-  `hasPreview`, and was `hasThumb` when only a picture counted → toggles a preview anchored to the row.
-  It is a `span`, not a `button`: a row is an `option` in a multi-selectable `listbox`, and a listbox
-  may not contain interactive descendants (§ the same constraint that put every other per-row action
-  in the toolbar). The keyboard equivalent is **`p`** on the list, which is not a convenience here —
-  it is the only route a keyboard has. An empty, same-width `span` sits on rows with no picture, so
-  the columns after it do not move as the list scrolls.
+- **Eye icon** on rows whose item has a card to show — a picture **or** those words; the flag is
+  `hasPreview`, computed by `vault/types.ts` `hasPreview()` for both lists, and was `hasThumb` when
+  only a picture counted → toggles a preview anchored to the row. **Both lists have one**, and they
+  are deliberately not the same element:
+  - **The manager's** is a `span`, not a `button`: a row is an `option` in a multi-selectable
+    `listbox`, and a listbox may not contain interactive descendants (§ the same constraint that put
+    every other per-row action in the toolbar). The keyboard equivalent is **`p`** on the list, which
+    is not a convenience here — it is the only route a keyboard has. An empty, same-width `span` sits
+    on rows with no preview, so the columns after it do not move as the list scrolls.
+  - **The popup's** is a real `button`, immediately left of the delete button, and is **absent**
+    rather than empty on a row with nothing to show. Both differences follow from the row: it is an
+    `li` holding two buttons rather than an `option`, and the list is not windowed, so nothing moves
+    when an eye is missing. Being a button is what gives the popup's preview a keyboard route without
+    a second binding — Enter and Space pin the same card a hover opens. `ItemSummary.hasPreview`
+    carries the flag; the card's contents still come from `GET_THUMB` when one is opened, for the
+    reason the note is not on that wire either.
+
+  The card is one card: `ui/thumb.ts` renders it and, since the popup grew an eye, `ui/styles.css`
+  styles it — a preview that looked like one thing in one window and another in the other would be
+  two products (the reasoning that moved `dialog.ts` in Phase 8). In the popup it is hosted on
+  `.vm-vault`, the nearest ancestor of a row that does not scroll; hosting it on `.vm-list` would
+  clip it at the first row it overhung.
 - **The preview is a floating card, not an expanded row.** This section used to say "inline
   expansion", and the manager's list is windowed (`ui/virtual-list.ts`) with one fixed row height
   that the scroll arithmetic multiplies by: a row that grew to hold a picture would put every row
@@ -1974,13 +1989,31 @@ it is a decision for a later phase, and it starts with a PLAN change, not with a
   Re-capturing needs a script in the page; `chrome.scripting` needs either a host permission or an
   `activeTab` grant; and `activeTab` is only ever granted by a gesture *on that tab*. VaultaMark asks
   for no host permission at install (D25/INV-9), so:
-  - **The popup** offers it when the page in front of it is already vaulted. That click *is* the
-    gesture, so the capture runs there and then. This is the one arrangement in the whole extension
-    where a refresh is possible.
+  - **The popup** offers it when the page in front of it is already vaulted. Opening the popup *is*
+    the gesture, so the capture runs there and then. This is the one arrangement in the whole
+    extension where a refresh is possible. The notice appears **on open**, from
+    `LOOKUP_ACTIVE_TAB` — a read of the active tab's URL against the vault, no injection and no
+    write. It used to appear only after *Add this page* answered `duplicate`, which put an *add* in
+    the middle of a *refresh*: two rounds of user reports treated that step as absent and concluded
+    the button did nothing. Every reason the lookup has no answer — no tab, no grant, a `chrome://`
+    page, an unvaultable scheme — collapses to `null` and shows nothing, because a popup opening is
+    not a question anyone asked.
   - **The manager's detail pane** states plainly that re-capturing means opening the page, and on
-    click opens it — in an incognito window, through the ordinary open path — and says to use the
-    toolbar button there. It cannot do more, and pretending otherwise would mean a button that
-    silently does nothing.
+    click opens it — in an incognito window, through the ordinary open path — and names the three
+    steps that finish the job there: the toolbar button, *Add this page*, then *Refresh preview* on
+    the notice that says it is already saved. It cannot do more, and pretending otherwise would mean
+    a button that silently does nothing. The wording is load-bearing: an earlier version said only
+    "use the toolbar button", and the popup does not offer a refresh until the add reports a
+    duplicate — so the instruction ran out one step early and the feature was reported as broken.
+
+  **A refresh replaces; an add merely adds.** A re-capture writes down what the page publishes *now*,
+  including that it publishes nothing: a page that has lost its `og:image` loses its stored picture
+  and bytes, and one that has lost its card loses `og` with it. The alternative was reported as
+  "Refresh preview does nothing" — the notice said the page offered no preview picture while the
+  previous page's card stayed on screen. The clearing is conditioned on the injection having actually
+  run: a restricted page or a missing `activeTab` grant is *no information*, not evidence of an
+  absence, and must not throw away a good preview. Nothing is written when there was nothing to
+  clear, so the ordinary picture-less refresh still costs no revision and no sync push.
 
   Never automatic, never in the background, never on a timer. (The version this section described —
   the manager opening a window and injecting into it — is not implementable without a host permission
@@ -2012,6 +2045,14 @@ for the difference. Sweeping by comparison rather than by list is also what catc
 merge, an import or a rollback leaves behind — none of which passes through the delete path at all.
 A remote deletion that fails is swallowed: the alternative is refusing to delete a bookmark because
 Drive is unreachable.
+
+**They are also dropped when the bookmark stops pointing at the page they came from.** Editing a
+bookmark's URL in the detail pane clears `thumb` and `og` in the same batch as the edit — one
+revision, one thing for the merge to see — and drops the bytes afterwards. A preview is a statement
+about a page, not a decoration of a row: keeping it would leave a card describing something the
+bookmark no longer opens, and nothing in the manager can dislodge it, because the manager cannot
+inject (§14.5). A save that leaves the normalized URL unchanged (a retitle through the same form)
+clears nothing.
 
 ---
 

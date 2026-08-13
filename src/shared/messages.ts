@@ -323,6 +323,21 @@ export interface RefreshThumbRequest {
   readonly id: string;
 }
 
+/**
+ * Is the page in front of the popup already vaulted?
+ *
+ * Asked when the popup opens, so the one place that *can* re-capture a preview offers it directly
+ * rather than only after an add reports a duplicate — a refresh that begins with "press Add this
+ * page" reads as the wrong button, and the step was missed often enough to be reported as the
+ * feature not working (§14.5).
+ *
+ * It reads the active tab under the same `activeTab` grant the click that opened the popup created,
+ * and it is a **read**: nothing is vaulted, nothing is injected, nothing is written.
+ */
+export interface LookupActiveTabRequest {
+  readonly type: 'LOOKUP_ACTIVE_TAB';
+}
+
 /* --- sync (Phase 7) -------------------------------------------------------- */
 
 /** Where sync got to. Cheap, and answered while locked — the lock screen shows it too. */
@@ -521,6 +536,7 @@ export type Request =
   | IncognitoAccessRequest
   | GetThumbRequest
   | RefreshThumbRequest
+  | LookupActiveTabRequest
   | GetTreeRequest
   | ListViewRequest
   | GetItemRequest
@@ -638,6 +654,16 @@ export interface ItemSummary {
   readonly url: string;
   readonly createdAt: number;
   readonly openedAt?: number;
+  /**
+   * Whether there is a preview to open — a picture, **or** the page's own title and summary.
+   *
+   * A boolean and not the thing itself, for the reason the note is absent: the popup draws an eye
+   * from it, and shipping the words (900 bytes) or the picture (up to 40 KB) with every row to
+   * decide whether to draw an icon is the version of this that makes a list of 5,000 bookmarks
+   * expensive. `GET_THUMB` fetches the card when one is actually opened. Same field, same meaning,
+   * same source as {@link ListRow.hasPreview}.
+   */
+  readonly hasPreview: boolean;
 }
 
 export interface AddedResponse {
@@ -653,6 +679,18 @@ export interface AddedResponse {
    * they never set it. The UI marks the offer as made whichever way it is answered.
    */
   readonly offerThumbnails?: boolean;
+}
+
+/**
+ * What the popup is looking at: the vault item for the active tab, or `null`.
+ *
+ * `null` covers every reason there is nothing to say — no tab, a `chrome://` page, a scheme the
+ * vault will not take, a page that simply is not saved. The popup treats them identically, so none
+ * of them is an error and none of them produces a message on open.
+ */
+export interface ActiveTabResponse {
+  readonly type: 'ACTIVE_TAB';
+  readonly item: ItemSummary | null;
 }
 
 /**
@@ -1130,6 +1168,7 @@ export interface ResponseMap {
   readonly INCOGNITO_ACCESS: IncognitoAccessResponse;
   readonly GET_THUMB: ThumbResponse;
   readonly REFRESH_THUMB: ThumbResponse;
+  readonly LOOKUP_ACTIVE_TAB: ActiveTabResponse;
   readonly GET_TREE: TreeResponse;
   readonly LIST_VIEW: ViewResponse;
   readonly GET_ITEM: ItemResponse;
@@ -1294,6 +1333,7 @@ export function parseRequest(raw: unknown): Request | null {
       return settings === null ? null : { type, settings };
     }
     case 'ADD_ACTIVE_TAB':
+    case 'LOOKUP_ACTIVE_TAB':
       return { type };
     case 'ADD_URL': {
       const url = raw['url'];

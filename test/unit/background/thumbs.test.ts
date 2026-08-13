@@ -374,6 +374,146 @@ describe('refreshing a preview', () => {
     mock.captureResult = captured();
     expect(await send({ type: 'REFRESH_THUMB', id })).toMatchObject({ state: 'ready' });
   });
+
+  /*
+   * A refresh replaces. Reported as "Refresh preview does nothing": the page behind the bookmark
+   * had changed, the new one published no card, and the old card stayed on screen underneath a
+   * notice saying the page offered no picture — which reads as the button being broken.
+   */
+  it('clears a picture the page no longer offers', async () => {
+    mock.captureResult = captured();
+    await send({ type: 'ADD_ACTIVE_TAB' });
+    const id = (await onlyRow())['id'] as string;
+    expect(await storedPicture()).toBe(true);
+
+    mock.captureResult = captured({ image: undefined, imageUrl: undefined, reason: 'no-image' });
+    expect(await send({ type: 'REFRESH_THUMB', id })).toMatchObject({
+      state: 'none',
+      image: null,
+    });
+    // The bytes go with the record, or the cache keeps a picture nothing can still ask for.
+    expect(await chrome.storage.local.get(`${LOCAL_KEYS.thumbPrefix}${id}`)).toEqual({});
+  });
+
+  it('clears the words when the page has stopped publishing them', async () => {
+    mock.captureResult = captured();
+    await send({ type: 'ADD_ACTIVE_TAB' });
+    const id = (await onlyRow())['id'] as string;
+
+    mock.captureResult = captured({
+      ogTitle: undefined,
+      ogDescription: undefined,
+      image: undefined,
+      imageUrl: undefined,
+      reason: 'no-image',
+    });
+    expect(await send({ type: 'REFRESH_THUMB', id })).toMatchObject({
+      state: 'none',
+      ogTitle: null,
+      ogDescription: null,
+    });
+    // Nothing is left to expand, so the row stops offering an eye.
+    expect((await onlyRow())['hasPreview']).toBe(false);
+  });
+
+  it('keeps the preview when the injection never ran', async () => {
+    mock.captureResult = captured();
+    await send({ type: 'ADD_ACTIVE_TAB' });
+    const id = (await onlyRow())['id'] as string;
+
+    // A restricted page, or an `activeTab` grant that was not there. Nothing was read, so nothing
+    // is known — and a refresh that could not look must not throw away what it could not check.
+    mock.injectionFails = true;
+    expect(await send({ type: 'REFRESH_THUMB', id })).toMatchObject({ state: 'ready' });
+    expect(await storedPicture()).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ what the popup is looking at */
+
+/*
+ * The popup offers *Refresh preview* on open rather than only after an add reports a duplicate.
+ * Reported twice as "refresh preview does nothing": the manager opens the page and can do no more
+ * (§14.5), and the instruction it left behind began with "press Add this page" — which is not what
+ * anyone reads when they are trying to refresh something.
+ */
+describe('recognising the page in front of the popup', () => {
+  it('answers with the item when this page is already vaulted', async () => {
+    await send({ type: 'ADD_ACTIVE_TAB' });
+    const id = (await onlyRow())['id'] as string;
+
+    const looked = await send({ type: 'LOOKUP_ACTIVE_TAB' });
+    expect(looked).toMatchObject({ type: 'ACTIVE_TAB' });
+    expect((looked['item'] as Record<string, unknown>)['id']).toBe(id);
+    // A lookup is a read: nothing is vaulted and nothing is injected by opening a popup.
+    expect(Object.keys(await rows())).toHaveLength(1);
+    expect(mock.injections).toEqual([]);
+  });
+
+  it('answers `null` for a page that is not vaulted, and for one that cannot be', async () => {
+    await send({ type: 'ADD_ACTIVE_TAB' });
+    mock.injections.length = 0;
+
+    openPage('https://example.com/somewhere-else');
+    expect(await send({ type: 'LOOKUP_ACTIVE_TAB' })).toMatchObject({ item: null });
+
+    // A refusal is not an error here: opening the popup on the settings page asked nothing.
+    openPage('chrome://settings/');
+    expect(await send({ type: 'LOOKUP_ACTIVE_TAB' })).toMatchObject({ type: 'ACTIVE_TAB', item: null });
+
+    mock.openTabs.length = 0;
+    expect(await send({ type: 'LOOKUP_ACTIVE_TAB' })).toMatchObject({ type: 'ACTIVE_TAB', item: null });
+    expect(mock.injections).toEqual([]);
+  });
+
+  it('refuses the lookup while the vault is locked', async () => {
+    await send({ type: 'ADD_ACTIVE_TAB' });
+    await send({ type: 'LOCK' });
+    expect(await send({ type: 'LOOKUP_ACTIVE_TAB' })).toMatchObject({
+      type: 'ERROR',
+      code: 'VAULT_LOCKED',
+    });
+  });
+});
+
+/* ------------------------------------------------------------------ a bookmark that moves */
+
+describe('editing the address', () => {
+  beforeEach(async () => {
+    await send({ type: 'SET_SETTINGS', settings: { localThumbnails: true } });
+  });
+
+  it('drops the preview that described the page that used to be there', async () => {
+    mock.captureResult = captured();
+    await send({ type: 'ADD_ACTIVE_TAB' });
+    const id = (await onlyRow())['id'] as string;
+    expect(await storedPicture()).toBe(true);
+
+    await send({
+      type: 'UPDATE_ITEM',
+      id,
+      patch: { title: 'One', url: 'https://example.com/articles/two' },
+    });
+
+    expect(await send({ type: 'GET_THUMB', id })).toMatchObject({
+      state: 'none',
+      image: null,
+      ogTitle: null,
+      ogDescription: null,
+    });
+    expect(await chrome.storage.local.get(`${LOCAL_KEYS.thumbPrefix}${id}`)).toEqual({});
+    expect((await onlyRow())['hasPreview']).toBe(false);
+  });
+
+  it('keeps the preview when the address did not actually change', async () => {
+    mock.captureResult = captured();
+    await send({ type: 'ADD_ACTIVE_TAB' });
+    const id = (await onlyRow())['id'] as string;
+
+    // A retitle, saved through the same form, which sends the URL back unchanged.
+    await send({ type: 'UPDATE_ITEM', id, patch: { title: 'Another title', url: PAGE } });
+    expect(await storedPicture()).toBe(true);
+  });
 });
 
 /* ------------------------------------------------------------------ housekeeping */

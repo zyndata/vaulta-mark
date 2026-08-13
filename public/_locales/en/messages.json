@@ -285,6 +285,16 @@
       }
     }
   },
+  "vaultPreviewLabel": {
+    "message": "Preview of “$TITLE$”",
+    "description": "Accessible name and tooltip for the eye button on a popup list row. Hovering it, or pressing it, shows the page's preview picture and words.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
   "vaultDeleted": {
     "message": "Deleted “$TITLE$”.",
     "description": "Undo toast shown for eight seconds after a delete.",
@@ -388,11 +398,11 @@
     "description": "Button that re-captures a bookmark's preview picture."
   },
   "thumbRefreshExplain": {
-    "message": "Re-capturing means loading the page again. This button opens it in an incognito window; use the VaultaMark toolbar button there to capture what it shows.",
+    "message": "Re-capturing means loading the page again. This button opens it in an incognito window; there, open VaultaMark from the toolbar and press Refresh preview on the notice at the top.",
     "description": "Explanation above the manager's Refresh preview button (ARCHITECTURE §14.5)."
   },
   "thumbRefreshOpened": {
-    "message": "Opened the page. Click the VaultaMark toolbar button on it, then Refresh preview.",
+    "message": "Opened the page in an incognito window. Open VaultaMark from its toolbar there and press Refresh preview on the notice at the top.",
     "description": "Status line after the manager's Refresh preview button opened the page."
   },
   "thumbRefreshing": {

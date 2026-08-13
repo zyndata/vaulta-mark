@@ -126,7 +126,11 @@ body.vm-popup {
 
 /* The vault screen is the popup, minus the header: the filter at the top, the footer pinned to the
    bottom, and the list taking everything between them. */
+/* `position: relative` makes this the box the preview card is placed against — see `.vm-row-eye`
+   below and `position()` in `ui/thumb.ts`. It is the nearest ancestor of a row that does not
+   scroll; hosting the card on `.vm-list` instead would clip it at the first row it overhung. */
 .vm-vault {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -203,6 +207,32 @@ body.vm-popup {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/*
+ * The eye that opens a row's preview, immediately left of the delete button.
+ *
+ * The manager has a rule with the same name and a different job: there it is a `span` of fixed width
+ * present on *every* row, because that list is windowed and a marker that came and went would move
+ * every column after it as rows scrolled past. Here the row is a flex with one growing child and the
+ * buttons pinned at the end, so a button that only exists on rows with a preview moves nothing — and
+ * it can be a real button, which is what gives the preview a keyboard route.
+ */
+.vm-row-eye {
+  flex: none;
+  width: 1.75rem;
+  border: 0;
+  border-radius: var(--vm-radius);
+  background: none;
+  font-size: 0.9rem;
+  line-height: 1;
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.vm-row-eye:hover,
+.vm-row-eye:focus-visible {
+  opacity: 1;
 }
 
 .vm-row-delete {

@@ -215,7 +215,13 @@ describe('addActiveTab', () => {
 });
 
 describe('summarize', () => {
-  it('carries no note, tags, OG data or thumbnail onto the wire', async () => {
+  /*
+   * A closed list, checked by name. `hasPreview` is on it and the words behind it are not: the popup
+   * draws an eye from a boolean and asks `GET_THUMB` for the card only when one is opened — the same
+   * split as `ListRow.hasNote`. Anything else appearing here should fail this test and be argued for
+   * rather than noticed later.
+   */
+  it('carries no note, tags, OG text or thumbnail onto the wire', async () => {
     const repo = await unlockedVault();
     const [added] = await repo.apply([
       {
@@ -233,9 +239,23 @@ describe('summarize', () => {
 
     expect(Object.keys(summarize(added as Bookmark)).sort()).toEqual([
       'createdAt',
+      'hasPreview',
       'id',
       'title',
       'url',
     ]);
+  });
+
+  it('reports a preview from the page’s words alone, not only from a picture', async () => {
+    const repo = await unlockedVault();
+    const [plain] = await repo.apply([
+      { kind: 'add', input: { type: 'bookmark', url: 'https://example.com/a', title: 'A' } },
+    ]);
+    expect(summarize(plain as Bookmark).hasPreview).toBe(false);
+
+    const [worded] = await repo.apply([
+      { kind: 'update', id: (plain as Bookmark).id, patch: { og: { title: 'What the page says' } } },
+    ]);
+    expect(summarize(worded as Bookmark).hasPreview).toBe(true);
   });
 });
