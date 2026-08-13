@@ -9,8 +9,12 @@
 | `portable.spec.ts` | 8 | `.vmv` backup and restore, and a merge that produces conflicts |
 | `focus-ring.spec.ts` | 8 | focus rings are not clipped by boxes that scroll — **measure, never read the CSS** |
 | `onboarding.spec.ts` | 9 | the five-step first-run flow, its two gates, and that it never appears again |
+| `thumbs.spec.ts` | 11 | capture at add time, the quality ladder, EXIF removal, and **INV-4** while browsing |
 
-The full user-journey suite arrives in **Phase 12** (PLAN.md §9).
+| `journey.spec.ts` | 12 | first run → onboarding → create → add → organise → lock/unlock → export/import → sync, in one profile |
+| `budgets.spec.ts` | 12 | the wall-clock budgets that can only be measured in a real browser (PLAN §9) |
+
+`manager.spec.ts` also carries the Phase-12 reordering case and the axe pass over four documents.
 
 Things the harness gets wrong if you do not know them:
 

@@ -23,7 +23,7 @@ import { h, msg } from '../ui/dom.js';
 import { displayHost, faviconImage } from '../ui/favicon.js';
 import { matchRanges } from '../vault/search.js';
 import { VirtualList } from '../ui/virtual-list.js';
-import { dropZone, startItemDrag } from './dnd.js';
+import { reorderZone, startItemDrag, type DropPlacement } from './dnd.js';
 import type { ListRow } from '../shared/messages.js';
 
 /** Must match `.vm-row` in manager.css — the windowing arithmetic depends on it. */
@@ -53,6 +53,16 @@ export interface ListDeps {
   /** Whether the drag in flight may land in this folder. */
   readonly acceptsDrop: (folderId: string) => boolean;
   readonly onDropInFolder: (folderId: string) => void;
+  /**
+   * Whether a *position* is something this view can show (Phase 12).
+   *
+   * False under every derived sort order and in every cross-folder view — a search, a tag filter,
+   * "Untagged" — where a drop between two rows would rearrange nothing anybody could see. The rows
+   * then offer folders and nothing else, exactly as they did before reordering existed.
+   */
+  readonly reorderable: () => boolean;
+  /** Put the drag in flight immediately before or after the row at `index`. */
+  readonly onDropAt: (index: number, placement: 'before' | 'after') => void;
   /** The eye was clicked: pin this row's preview, or put it away (§14.5). */
   readonly onPreview: (row: ListRow, anchor: HTMLElement) => void;
   /** The pointer came to rest on a row that has a picture. Arms the 200 ms hover delay. */
@@ -202,14 +212,22 @@ export class BookmarkList {
       if (!startItemDrag(event, this.#deps.onDragStart(index))) event.preventDefault();
     });
 
-    if (row.type === 'folder') {
-      dropZone(element, {
-        accepts: () => this.#deps.acceptsDrop(row.id),
-        onDrop: () => {
-          this.#deps.onDropInFolder(row.id);
-        },
-      });
-    }
+    /*
+     * One zone per row, asked afresh on every `dragover` what it can accept — a folder in a
+     * manually ordered listing answers all three placements, a bookmark in the same listing answers
+     * two, and a folder under "newest first" answers only `into`.
+     */
+    reorderZone(element, {
+      placements: (): readonly DropPlacement[] => {
+        const into: DropPlacement[] =
+          row.type === 'folder' && this.#deps.acceptsDrop(row.id) ? ['into'] : [];
+        return this.#deps.reorderable() ? ['before', 'after', ...into] : into;
+      },
+      onDrop: (placement) => {
+        if (placement === 'into') this.#deps.onDropInFolder(row.id);
+        else this.#deps.onDropAt(index, placement);
+      },
+    });
 
     if (row.hasThumb) {
       element.addEventListener('mouseenter', () => {

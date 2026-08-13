@@ -641,6 +641,25 @@
     "message": "Most opened",
     "description": "Sort order: highest open count first."
   },
+  "sortManual": {
+    "message": "My own order",
+    "description": "Sort order: the arrangement the user has dragged the items into. The only order that can be reordered."
+  },
+  "reorderMovedOne": {
+    "message": "Moved.",
+    "description": "Live-region confirmation after one item was dragged or nudged to a new position."
+  },
+  "reorderMovedCount": {
+    "message": "Moved $COUNT$ items.",
+    "description": "Live-region confirmation after several items were moved to a new position.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "4" }
+    }
+  },
+  "reorderUnavailable": {
+    "message": "Reordering works in “My own order”, inside a folder, with the search box empty.",
+    "description": "Shown when someone presses the move-up/move-down shortcut in a view whose order is not theirs to set."
+  },
   "managerSettingsButton": {
     "message": "Settings",
     "description": "Button that opens the manager's settings dialog."

@@ -178,10 +178,19 @@ export interface ItemEdit {
   readonly tags?: readonly string[] | null;
 }
 
+/**
+ * Move a selection into a folder, optionally to a position within it (Phase 12).
+ *
+ * `afterId` is the sibling the selection lands *after*; `null` means "first"; omitting it appends,
+ * which is what dropping onto a folder has always done. The model has supported this since Phase 3
+ * — `moveItem` takes an `afterId` — and until the manager grew a manual sort order there was no
+ * view in which the answer was visible, so the wire never carried it.
+ */
 export interface MoveItemsRequest {
   readonly type: 'MOVE_ITEMS';
   readonly ids: readonly string[];
   readonly parentId: string;
+  readonly afterId?: string | null;
 }
 
 /** Delete a folder. The caller must say what happens to what is inside it; there is no default. */
@@ -1424,8 +1433,14 @@ export function parseRequest(raw: unknown): Request | null {
     case 'MOVE_ITEMS': {
       const ids = parseIdList(raw['ids']);
       const parentId = raw['parentId'];
+      const afterId = raw['afterId'];
       if (ids === null || !isNonEmptyString(parentId)) return null;
-      return { type, ids, parentId };
+      // Three distinct answers, and the parser has to keep them apart: absent means "append",
+      // `null` means "first", and a string means "after that one". Collapsing absent into `null`
+      // would silently turn every drop onto a folder into a drop at the top of it.
+      if (afterId === undefined) return { type, ids, parentId };
+      if (afterId !== null && !isNonEmptyString(afterId)) return null;
+      return { type, ids, parentId, afterId };
     }
     case 'DELETE_FOLDER': {
       const id = raw['id'];

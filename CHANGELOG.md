@@ -168,6 +168,18 @@ below.
 
 ### Added
 
+- **You can now put your bookmarks in your own order.** The sort menu has a sixth entry, *My own
+  order*, and under it you can drag a bookmark between two others to place it exactly where you
+  want — a line shows where it will land, which is how you can tell it apart from dropping it
+  *into* a folder. Folders in the sidebar can be dragged between their neighbours the same way,
+  which also moves them into or out of nesting.
+  - **The keyboard does all of it**: **Alt+↑** and **Alt+↓** move whatever is selected one place,
+    in the list and in the folder tree alike. Hold a multiple selection and it travels together.
+  - Reordering is offered only where a position is a thing you can see: under *My own order*,
+    inside a folder, with the search box empty. Everywhere else — a search, a tag, *Untagged*, or
+    any of the five orders VaultaMark works out for you — the gesture is simply not offered, rather
+    than accepted and then quietly ignored. Pressing the shortcut there says so.
+
 - **A "create a diagnostic report" button**, in Settings → About. Reporting a problem with an
   encrypted bookmark manager is awkward: "sync stopped working" is not enough to act on, and the
   obvious way to say more is the one thing this extension exists to prevent. So the button produces

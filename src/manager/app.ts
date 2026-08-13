@@ -48,11 +48,13 @@ import { settingsScreen } from './settings.js';
 import { sidebar } from './sidebar.js';
 import { conflictBanner, conflictScreen, syncStatusButton } from './sync.js';
 import {
+  canReorder,
   cursorRow,
   initialState,
   refreshAll,
   refreshDetail,
   refreshView,
+  reorderParent,
   rowsOf,
   soleSelection,
   type ManagerState,
@@ -207,6 +209,10 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     acceptsDrop: (folderId) => acceptsDrop(folderId),
     onDropInFolder: (folderId) => {
       void dropInFolder(folderId);
+    },
+    reorderable: () => canReorder(state),
+    onDropAt: (index, placement) => {
+      void dropAt(index, placement);
     },
     onPreview: (row, anchor) => {
       preview.toggle(anchor, row.id);
@@ -478,6 +484,12 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
         acceptsDrop: (folderId) => acceptsDrop(folderId),
         onDropInFolder: (folderId) => {
           void dropInFolder(folderId);
+        },
+        onDropBeside: (folderId, placement) => {
+          void dropBesideFolder(folderId, placement);
+        },
+        nudgeFolder: (folderId, step) => {
+          void nudgeFolder(folderId, step);
         },
         onDragFolder: (folderId) => beginFolderDrag(folderId),
         deleteFolder: (folder) => {
@@ -920,6 +932,174 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     say(response.count === 1 ? msg('movedOne') : msg('movedCount', [String(response.count)]));
   }
 
+  /**
+   * A drop between two rows: same folder or a different one, but to a *position*.
+   *
+   * The anchor is the row the drop landed on, and `before` has to become "after the row above it",
+   * because the model positions by predecessor. Dropping above the first row therefore anchors on
+   * `null`, which `moveItem` reads as "put it first" — a distinct answer from omitting it, which
+   * appends.
+   *
+   * Rows that are themselves being dragged are skipped when looking upwards. Without that, dragging
+   * a block of three onto its own second row would anchor on a row that is about to move, and the
+   * batch would land in an order nobody asked for.
+   */
+  async function dropAt(index: number, placement: 'before' | 'after'): Promise<void> {
+    const ids = dragging;
+    dragging = [];
+    const parentId = reorderParent(state);
+    if (ids.length === 0 || parentId === null) return;
+
+    const rows = rowsOf(state);
+    const moving = new Set(ids);
+    let at = placement === 'after' ? index : index - 1;
+    while (at >= 0 && moving.has(rows[at]?.id ?? '')) at--;
+    const afterId = at < 0 ? null : (rows[at]?.id ?? null);
+
+    const response = await send({ type: 'MOVE_ITEMS', ids, parentId, afterId });
+    if (response.type === 'ERROR') {
+      warn(response.code);
+      return;
+    }
+    await reloadAll();
+    reselect(ids);
+    say(
+      response.count === 1
+        ? msg('reorderMovedOne')
+        : msg('reorderMovedCount', [String(response.count)]),
+    );
+  }
+
+  /**
+   * A drop beside a folder in the sidebar tree: reorder among siblings, or re-parent to that level.
+   *
+   * The anchor's *parent* is the destination, which is what makes this both operations at once —
+   * dropping a top-level folder just below a nested one moves it into that nesting, at that
+   * position, which is the thing the insertion line was drawn between. The tree is the one place
+   * this is offered unconditionally: folders have always been in their own order, and there is no
+   * sort selector over the tree to disagree with.
+   */
+  async function dropBesideFolder(anchorId: string, placement: 'before' | 'after'): Promise<void> {
+    const ids = dragging;
+    dragging = [];
+    if (ids.length === 0) return;
+
+    const folders = state.tree?.folders ?? [];
+    const anchor = folders.find((folder) => folder.id === anchorId);
+    if (anchor === undefined) return;
+    // An anchor being dragged is no anchor: the position it names is about to stop existing.
+    if (ids.includes(anchorId)) return;
+
+    const siblings = folders.filter(
+      (folder) => folder.parentId === anchor.parentId && !ids.includes(folder.id),
+    );
+    const at = siblings.findIndex((folder) => folder.id === anchorId);
+    const target = placement === 'after' ? at : at - 1;
+    const afterId = target < 0 ? null : (siblings[target]?.id ?? null);
+
+    const response = await send({
+      type: 'MOVE_ITEMS',
+      ids,
+      parentId: anchor.parentId,
+      afterId,
+    });
+    if (response.type === 'ERROR') {
+      warn(response.code);
+      return;
+    }
+    await reloadAll();
+    say(
+      response.count === 1
+        ? msg('reorderMovedOne')
+        : msg('reorderMovedCount', [String(response.count)]),
+    );
+  }
+
+  /**
+   * Alt+Up / Alt+Down on a folder in the tree: one step among its siblings.
+   *
+   * Expressed as a drop beside its new neighbour rather than as a swap, so it goes through exactly
+   * the code the drag does — one `MOVE_ITEMS`, one revision, one thing to get right.
+   */
+  async function nudgeFolder(folderId: string, step: -1 | 1): Promise<void> {
+    const folders = state.tree?.folders ?? [];
+    const self = folders.find((folder) => folder.id === folderId);
+    if (self === undefined) return;
+    const siblings = folders.filter((folder) => folder.parentId === self.parentId);
+    const at = siblings.findIndex((folder) => folder.id === folderId);
+    const neighbour = siblings[at + step];
+    if (neighbour === undefined) return;
+
+    dragging = [folderId];
+    await dropBesideFolder(neighbour.id, step === -1 ? 'before' : 'after');
+    // The tree is rebuilt by `reloadAll`, so the focus has to be put back on the folder that moved
+    // or a second press goes nowhere — the same reason the list's nudge reselects.
+    layout
+      .querySelector<HTMLElement>(`[role="treeitem"][data-folder-id="${CSS.escape(folderId)}"]`)
+      ?.focus();
+  }
+
+  /**
+   * Nudge the selection one place up or down — the keyboard's whole answer to dragging.
+   *
+   * PLAN §9 asks for "full keyboard equivalents", and a one-step nudge is the equivalent rather
+   * than a lesser version of it: repeated, it reaches every position, and it needs no notion of
+   * "pick up" and "put down" that a screen reader would have to narrate. Re-parenting already has
+   * its keyboard route in the toolbar's *Move to…*.
+   *
+   * `step` is applied to the *block* of selected rows, so a contiguous multi-selection travels
+   * together and a scattered one closes up around its neighbours, which is what every list that
+   * does this settles on.
+   */
+  async function nudgeSelection(step: -1 | 1): Promise<void> {
+    const parentId = reorderParent(state);
+    if (parentId === null) {
+      say(msg('reorderUnavailable'));
+      return;
+    }
+    const rows = rowsOf(state);
+    const chosen = rows
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => state.selection.has(row.id));
+    if (chosen.length === 0) return;
+
+    // The row the block would step over, which is also the one that has to be stepped *past*.
+    const edge = step === -1 ? (chosen[0]?.index ?? 0) : (chosen.at(-1)?.index ?? 0);
+    const target = edge + step;
+    if (target < 0 || target >= rows.length) return;
+
+    // Going up: land after whatever precedes the row we are stepping over (`null` at the top).
+    // Going down: land after the row we are stepping over. Both are "the predecessor", counted
+    // from where the block ends up rather than from where it started.
+    const afterId = step === -1 ? (rows[target - 1]?.id ?? null) : (rows[target]?.id ?? null);
+    const ids = chosen.map(({ row }) => row.id);
+
+    const response = await send({ type: 'MOVE_ITEMS', ids, parentId, afterId });
+    if (response.type === 'ERROR') {
+      warn(response.code);
+      return;
+    }
+    await reloadAll();
+    reselect(ids);
+    say(ids.length === 1 ? msg('reorderMovedOne') : msg('reorderMovedCount', [String(ids.length)]));
+  }
+
+  /**
+   * Put the selection back on the items that just moved, and the cursor on the first of them.
+   *
+   * A reload rebuilds the view from the worker's answer, so without this a nudge would move the
+   * rows and drop the selection — and the second press of the same key would do nothing, which is
+   * the difference between a shortcut and a trick.
+   */
+  function reselect(ids: readonly string[]): void {
+    state.selection = new Set(ids);
+    const rows = rowsOf(state);
+    const first = rows.findIndex((row) => state.selection.has(row.id));
+    state.cursor = first;
+    afterSelectionChange();
+    if (first >= 0) list.focus();
+  }
+
   /* ---------------------------------------------------------------- selection */
 
   function selectAt(index: number, modifiers: { toggle: boolean; range: boolean }): void {
@@ -1223,6 +1403,21 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   /* ---------------------------------------------------------------- keyboard */
 
   function onListKey(event: KeyboardEvent): void {
+    /*
+     * Alt+Up / Alt+Down move the *items*; unmodified, the same keys move the cursor. Checked before
+     * the switch because the two share a key and the modifier is the whole difference.
+     *
+     * Alt rather than Ctrl or Shift: Ctrl+Up/Down is "extend the cursor without the selection" in
+     * every list widget, Shift+Up/Down extends the selection and this list already does that, and
+     * Alt+Up/Down is what every editor and file manager uses for exactly this. It is also the pair
+     * the browser does not claim.
+     */
+    if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      void nudgeSelection(event.key === 'ArrowUp' ? -1 : 1);
+      event.preventDefault();
+      return;
+    }
+
     switch (event.key) {
       case 'j':
       case 'ArrowDown':
@@ -1370,6 +1565,7 @@ const SORT_LABEL_KEYS: Record<SortKey, string> = {
   title: 'sortTitle',
   opened: 'sortOpened',
   opens: 'sortOpens',
+  manual: 'sortManual',
 };
 
 function splitTags(value: string): string[] {

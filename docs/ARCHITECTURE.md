@@ -643,6 +643,20 @@ connection, and "keep preview pictures on this device only" describes this compu
 must not inherit a desktop's columns, a profile with no Drive token must not be told to use Drive,
 and a machine that opted into local-only pictures has not opted the others in.
 
+`sortBy` names one of six orders. Five are derived from a field of the item — date added, date
+modified, title, recently opened, most opened — and the sixth, **`manual`** (Phase 12), reads
+`item.order`, the fractional index the model has maintained since Phase 3 and which nothing
+displayed until reordering arrived. That is what makes dragging a bookmark to a *position* mean
+anything: under a derived order the list re-sorts itself on the next reload, so a drop between two
+rows would be a gesture with no effect and no explanation. The manager therefore withdraws the
+gesture rather than making it a no-op — reordering is offered only under `manual`, inside a folder,
+with the search box empty, because order keys are unique within a parent and every cross-folder view
+(a search, a tag filter, "Untagged") interleaves parents. The folder **tree** offers it
+unconditionally: folders have always been in their own order and there is no sort selector over the
+tree to disagree with. Keyboard equivalent throughout: **Alt+↑ / Alt+↓**, in both the list and the
+tree. `manual` is deliberately not the default — a fresh vault has never been arranged, so it would
+present the order things happened to be added in as a choice somebody made.
+
 `sortBy` is one order for the whole manager rather than one per folder, and that is a privacy
 decision rather than a simplification. A per-folder preference has to be keyed by folder id, and
 this file is plaintext, so it would put a map of folder ids on disk — leaking how many folders a

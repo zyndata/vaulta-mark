@@ -19,7 +19,7 @@
 import { h, msg, render } from '../ui/dom.js';
 import type { FolderNode, TagCount, TreeResponse } from '../shared/messages.js';
 import { ROOT_ID } from '../vault/types.js';
-import { dropZone, startItemDrag } from './dnd.js';
+import { dropZone, reorderZone, startItemDrag, type DropPlacement } from './dnd.js';
 import type { Scope } from './state.js';
 
 export interface SidebarDeps {
@@ -33,6 +33,17 @@ export interface SidebarDeps {
   /** Whether the drag in flight may land in this folder. `ROOT_ID` is the top level. */
   readonly acceptsDrop: (folderId: string) => boolean;
   readonly onDropInFolder: (folderId: string) => void;
+  /**
+   * Put the drag in flight beside `folderId` rather than inside it — a folder reordered among its
+   * siblings, or re-parented to the level the anchor is on (Phase 12).
+   *
+   * The tree offers this whatever the list is sorted by. The list's sort order is a property of
+   * the *list*, and the tree has always been in the folders' own order; a folder tree that
+   * rearranged itself by date would be a different product.
+   */
+  readonly onDropBeside: (folderId: string, placement: 'before' | 'after') => void;
+  /** Alt+Up / Alt+Down on a focused folder: one step among its siblings. */
+  readonly nudgeFolder: (folderId: string, step: -1 | 1) => void;
   /** A folder has started being dragged. Returns the ids the drag carries, or none to refuse it. */
   readonly onDragFolder: (folderId: string) => readonly string[];
   /** Delete the folder, having asked what happens to what is inside it. */
@@ -225,10 +236,20 @@ function treeItem(
   );
   item.dataset['folderId'] = node.id;
 
-  dropZone(item, {
-    accepts: () => deps.acceptsDrop(node.id),
-    onDrop: () => {
-      deps.onDropInFolder(node.id);
+  /*
+   * The zone is on the `li`, which contains its children's rows when it is open — so the
+   * `stopPropagation` inside `reorderZone` matters here more than anywhere: without it a drop on a
+   * nested row would be answered by every ancestor as well, and the outermost would win.
+   */
+  reorderZone(item, {
+    placements: (): readonly DropPlacement[] => [
+      'before',
+      'after',
+      ...(deps.acceptsDrop(node.id) ? (['into'] as const) : []),
+    ],
+    onDrop: (placement) => {
+      if (placement === 'into') deps.onDropInFolder(node.id);
+      else deps.onDropBeside(node.id, placement);
     },
   });
 
@@ -278,6 +299,17 @@ function onTreeKeydown(
     target.tabIndex = 0;
     target.focus();
   };
+
+  /*
+   * Alt+Up / Alt+Down move the folder among its siblings — the keyboard equivalent of dragging it
+   * in the tree, and the same pair the list uses for the same thing (`onListKey` in `app.ts`).
+   * Checked before the switch because unmodified they move the focus instead.
+   */
+  if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown') && id !== undefined) {
+    deps.nudgeFolder(id, event.key === 'ArrowUp' ? -1 : 1);
+    event.preventDefault();
+    return;
+  }
 
   switch (event.key) {
     case 'ArrowDown':

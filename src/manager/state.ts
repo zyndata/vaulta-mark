@@ -79,6 +79,25 @@ export function cursorRow(state: ManagerState): ListRow | undefined {
   return state.cursor < 0 ? undefined : rowsOf(state)[state.cursor];
 }
 
+/**
+ * Whether a *position* is a thing this view can show, and therefore whether it can be reordered
+ * (Phase 12).
+ *
+ * Three conditions, and each one is a view in which a drop between two rows would rearrange
+ * nothing anybody could see. Under a derived order the list re-sorts itself on the next reload; a
+ * search or a tag filter draws from every folder at once, and `order` keys are unique only within
+ * a parent; and "Untagged" is the same. The gesture is withdrawn rather than made a no-op, because
+ * a drag that lands and changes nothing is indistinguishable from one that failed.
+ */
+export function canReorder(state: ManagerState): boolean {
+  return state.sort === 'manual' && state.query.trim() === '' && state.scope.kind === 'folder';
+}
+
+/** The folder a reorder happens inside — the scope, which `canReorder` has already vouched for. */
+export function reorderParent(state: ManagerState): string | null {
+  return canReorder(state) && state.scope.kind === 'folder' ? state.scope.folderId : null;
+}
+
 /** The one selected row, or `undefined` when zero or many are selected. */
 export function soleSelection(state: ManagerState): ListRow | undefined {
   if (state.selection.size !== 1) return undefined;

@@ -186,8 +186,14 @@ export function noteOf(item: VaultItem): string {
  * The names live here rather than in `sort.ts` because `VaultSettings` below needs them, and
  * `sort.ts` needs the item types from this file — putting them there would make the two modules
  * import each other. The *comparators* are in `sort.ts`; this is only the vocabulary.
+ *
+ * `manual` (Phase 12) is the one that is not derived from a field of the item: it reads
+ * {@link ItemBase.order}, the fractional index the model has maintained since Phase 3 and which
+ * until now nothing ever displayed. It is what makes dragging a bookmark to a *position* mean
+ * anything — under any of the other five, a list rearranges itself the instant it reloads and a
+ * drop between two rows would be a gesture with no effect and no explanation.
  */
-export const SORT_KEYS = ['added', 'modified', 'title', 'opened', 'opens'] as const;
+export const SORT_KEYS = ['added', 'modified', 'title', 'opened', 'opens', 'manual'] as const;
 
 export type SortKey = (typeof SORT_KEYS)[number];
 

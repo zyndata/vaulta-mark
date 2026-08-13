@@ -14,6 +14,7 @@
  *   direction, and offering ten choices to make five of them useful is not a better menu.
  */
 
+import { compareOrder } from './order.js';
 import { isBookmark, type SortKey, type VaultItem } from './types.js';
 
 // The key names themselves live in `types.ts`, which `VaultSettings` needs them for and which this
@@ -43,6 +44,14 @@ const PRIMARY: Record<SortKey, (a: VaultItem, b: VaultItem) => number> = {
   title: (a, b) => byTitle(a, b),
   opened: (a, b) => openedAt(b) - openedAt(a),
   opens: (a, b) => openCount(b) - openCount(a),
+  /*
+   * The one order the user sets by hand, and the only one that reads a field maintained rather
+   * than observed. Fractional index keys are unique *within a parent*, which is exactly the scope
+   * that can be reordered — a folder listing. Across parents (a search, a tag filter, "Untagged")
+   * they interleave arbitrarily, which is why those views refuse to reorder rather than pretending
+   * a drop there means something; the comparator is still total, so the list does not shuffle.
+   */
+  manual: (a, b) => compareOrder(a.order, b.order),
 };
 
 /** A total comparator for `key`: primary, then title, then id. */

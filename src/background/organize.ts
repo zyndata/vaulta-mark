@@ -203,10 +203,28 @@ export async function editItem(id: string, patch: ItemEdit): Promise<void> {
   await commit(repo, [{ kind: 'update', id, patch: next }]);
 }
 
-/** Move a selection into a folder. Rejected whole if any one of them cannot go there. */
-export async function moveItems(ids: readonly string[], parentId: string): Promise<number> {
+/**
+ * Move a selection into a folder, optionally to a position. Rejected whole if any one of them
+ * cannot go there.
+ *
+ * The chain is the subtle part. Each item lands after the one before it rather than all of them
+ * after `afterId`, because `moveItem` inserts *immediately* after its anchor — so a shared anchor
+ * would reverse the selection, and a five-bookmark drag would arrive upside down. Chaining keeps
+ * the order they were displayed in, which is the order the person could see when they picked them up.
+ */
+export async function moveItems(
+  ids: readonly string[],
+  parentId: string,
+  afterId?: string | null,
+): Promise<number> {
   const repo = await requireVault();
-  const mutations: Mutation[] = ids.map((id) => ({ kind: 'move', id, parentId }));
+  let anchor = afterId;
+  const mutations: Mutation[] = ids.map((id) => {
+    const mutation: Mutation =
+      anchor === undefined ? { kind: 'move', id, parentId } : { kind: 'move', id, parentId, afterId: anchor };
+    anchor = id;
+    return mutation;
+  });
   return (await commit(repo, mutations)).length;
 }
 

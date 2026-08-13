@@ -75,6 +75,30 @@ async function vault(page: Page, url: string, title: string): Promise<void> {
  * The second move at the same coordinates is what makes Chromium emit the last `dragover` before
  * the button comes up.
  */
+/**
+ * Drag `source` onto the top or bottom edge of `target` — a drop *between* rows rather than into one.
+ *
+ * The offset is deliberately 15% and 85% rather than 1px from each edge: `reorderZone` reads the
+ * top and bottom quarters, and a test aimed at the extreme pixel would pass against an
+ * implementation whose bands were one pixel deep.
+ */
+async function dragBeside(
+  page: Page,
+  source: Locator,
+  target: Locator,
+  edge: 'top' | 'bottom',
+): Promise<void> {
+  const from = await source.boundingBox();
+  const to = await target.boundingBox();
+  if (from === null || to === null) throw new Error('drag needs two visible elements');
+  const y = to.y + to.height * (edge === 'top' ? 0.15 : 0.85);
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, y, { steps: 12 });
+  await page.mouse.move(to.x + to.width / 2, y);
+  await page.mouse.up();
+}
+
 async function dragOnto(page: Page, source: Locator, target: Locator): Promise<void> {
   const from = await source.boundingBox();
   const to = await target.boundingBox();
@@ -395,6 +419,89 @@ test('drags a bookmark into a folder in the sidebar, and back out to the top lev
   await expect(row(page, 'Draggable one')).toHaveCount(0);
   await folder.click();
   await expect(row(page, 'Draggable one')).toBeVisible();
+
+  await expect(page.locator('#vm-status .vm-notice--danger')).toHaveCount(0);
+  await page.close();
+});
+
+/**
+ * Reordering (Phase 12), by drag and by keyboard.
+ *
+ * The order the vault has always maintained — a fractional index per item, since Phase 3 — became
+ * visible in this phase as the `manual` sort key. Nothing here is testable under any other order:
+ * the list re-sorts itself on the next reload and a drop between two rows would be a gesture with
+ * no effect, which is exactly why those views withdraw the gesture rather than making it a no-op.
+ */
+test('reorders bookmarks by dragging between rows, and by the keyboard', async () => {
+  const page = await openPage('manager.html');
+
+  await page.getByRole('button', { name: 'New folder' }).click();
+  await page.getByLabel('Folder name').fill('Ordering');
+  await page.getByRole('button', { name: 'Create folder' }).click();
+  const folder = page.getByRole('treeitem', { name: /Ordering/ });
+  await expect(folder).toBeVisible();
+
+  // `vault()` is the context-menu path and always adds at the top level, so the three are dragged
+  // into the folder one at a time — which also seeds a known order, since each drop appends.
+  for (const title of ['Alpha', 'Bravo', 'Charlie']) {
+    await vault(page, `https://order-e2e.invalid/${title.toLowerCase()}`, title);
+    await page.reload();
+    await dragOnto(page, row(page, title), folder);
+    await expect(row(page, title)).toHaveCount(0);
+  }
+  await folder.click();
+
+  // "My own order" is the whole precondition. Under any other key this test is meaningless.
+  await page.getByLabel('Sort by').selectOption('manual');
+  await expect(row(page, 'Alpha')).toBeVisible();
+  /*
+   * Polled, not read once. Every move here is a round trip to the worker followed by a reload, so a
+   * bare read races the repaint — and the first version of this test did, passing the drag and
+   * then reading the previous order back.
+   */
+  const expectOrder = async (...titles: string[]): Promise<void> => {
+    await expect
+      .poll(async () => await page.locator('.vm-row .vm-row-title').allInnerTexts())
+      .toEqual(titles);
+  };
+  await expectOrder('Alpha', 'Bravo', 'Charlie');
+
+  // Drag the last one above the first: the drop lands on Alpha's top edge, so the anchor is
+  // "nothing" and the model is asked to put it first.
+  await dragBeside(page, row(page, 'Charlie'), row(page, 'Alpha'), 'top');
+  await expect(page.getByText('Moved.')).toBeVisible();
+  await expectOrder('Charlie', 'Alpha', 'Bravo');
+
+  // And back down, onto the bottom edge of the last row.
+  await dragBeside(page, row(page, 'Charlie'), row(page, 'Bravo'), 'bottom');
+  await expectOrder('Alpha', 'Bravo', 'Charlie');
+
+  /*
+   * The keyboard equivalent, which PLAN §9 asks for by name. Alt+Up / Alt+Down move the *items*
+   * where the unmodified keys move the cursor, and the selection has to survive the reload the
+   * move causes — otherwise a second press does nothing, which is the difference between a
+   * shortcut and a trick. So this presses twice.
+   */
+  await row(page, 'Alpha').click();
+  await page.keyboard.press('Alt+ArrowDown');
+  await expectOrder('Bravo', 'Alpha', 'Charlie');
+  await page.keyboard.press('Alt+ArrowDown');
+  await expectOrder('Bravo', 'Charlie', 'Alpha');
+  await page.keyboard.press('Alt+ArrowUp');
+  await expectOrder('Bravo', 'Alpha', 'Charlie');
+
+  // At the end of the list it stops rather than wrapping; a wrap would be a two-key trip from one
+  // end of five thousand rows to the other, by accident.
+  await row(page, 'Bravo').click();
+  await page.keyboard.press('Alt+ArrowUp');
+  await expectOrder('Bravo', 'Alpha', 'Charlie');
+
+  // Under a derived order the same keystroke says why it did nothing, rather than doing nothing.
+  await page.getByLabel('Sort by').selectOption('title');
+  await row(page, 'Alpha').click();
+  await page.keyboard.press('Alt+ArrowDown');
+  await expect(page.getByText('Reordering works in')).toBeVisible();
+  await expectOrder('Alpha', 'Bravo', 'Charlie');
 
   await expect(page.locator('#vm-status .vm-notice--danger')).toHaveCount(0);
   await page.close();

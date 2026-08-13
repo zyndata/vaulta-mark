@@ -201,7 +201,17 @@ export async function handleRequest(request: Request): Promise<Response> {
         await organize.editItem(request.id, request.patch);
         return { type: 'OK' };
       case 'MOVE_ITEMS':
-        return { type: 'COUNT', count: await organize.moveItems(request.ids, request.parentId) };
+        return {
+          type: 'COUNT',
+          // Spread rather than passed straight through: `afterId` absent and `afterId: null` are
+          // "append" and "put it first", and `exactOptionalPropertyTypes` is what keeps the two
+          // from collapsing into one on the way past.
+          count: await organize.moveItems(
+            request.ids,
+            request.parentId,
+            ...(request.afterId === undefined ? [] : ([request.afterId] as const)),
+          ),
+        };
       case 'DELETE_FOLDER':
         await organize.deleteFolder(request.id, request.mode);
         return { type: 'OK' };

@@ -55,9 +55,27 @@ function ids(items: readonly VaultItem[]): string[] {
 }
 
 describe('the key set', () => {
-  it('is the five orders PLAN §9 names, and the default is one of them', () => {
-    expect(SORT_KEYS).toEqual(['added', 'modified', 'title', 'opened', 'opens']);
+  it('is the five orders PLAN §9 names plus the one it can be set to, with a default among them', () => {
+    // `manual` arrived in Phase 12 with drag-to-reorder. It is the only key that is not derived
+    // from a field of the item, and the only one under which a drop between two rows means
+    // anything — see the comment on `SORT_KEYS` in `vault/types.ts`.
+    expect(SORT_KEYS).toEqual(['added', 'modified', 'title', 'opened', 'opens', 'manual']);
     expect(SORT_KEYS).toContain(DEFAULT_SORT);
+    // Not the default: a fresh vault has never been arranged, so "my own order" would be whatever
+    // order things happened to be added in, presented as a choice the user had made.
+    expect(DEFAULT_SORT).not.toBe('manual');
+  });
+
+  it('puts items in their fractional-index order under `manual`, and nothing else does', () => {
+    // Built with orders that disagree with every other key: `c` was added first and titled last.
+    const items: VaultItem[] = [
+      bookmark('c', { title: 'Zulu', order: 'a0', createdAt: 1 }),
+      bookmark('a', { title: 'Alpha', order: 'a1', createdAt: 3 }),
+      bookmark('b', { title: 'Mike', order: 'a2', createdAt: 2 }),
+    ];
+    expect(ids(sortItems(items, 'manual'))).toEqual(['c', 'a', 'b']);
+    expect(ids(sortItems(items, 'title'))).toEqual(['a', 'b', 'c']);
+    expect(ids(sortItems(items, 'added'))).toEqual(['a', 'b', 'c']);
   });
 
   it('recognises its own keys and nothing else', () => {

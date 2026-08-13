@@ -412,6 +412,69 @@ describe('bulk operations', () => {
     expect(await titles()).toEqual(['Work']);
   });
 
+  /*
+   * Positioned moves (Phase 12). `moveItem` has taken an `afterId` since Phase 3; until the manager
+   * grew a manual sort order there was no view in which the answer was visible, so the wire never
+   * carried it and nothing exercised it end to end.
+   */
+  describe('to a position', () => {
+    it('tells "append", "put it first" and "after that one" apart', async () => {
+      const ids = await seedThree();
+      const order = async (): Promise<string[]> => await titles({ sort: 'manual' });
+      expect(await order()).toEqual(['One', 'Two', 'Three']);
+
+      // `null` is the top. Absent would have appended, which is what a drop *onto* a folder does,
+      // and collapsing the two is the bug the wire parser is written to prevent.
+      await send({ type: 'MOVE_ITEMS', ids: [ids[2]!], parentId: 'root', afterId: null });
+      expect(await order()).toEqual(['Three', 'One', 'Two']);
+
+      await send({ type: 'MOVE_ITEMS', ids: [ids[2]!], parentId: 'root', afterId: ids[0]! });
+      expect(await order()).toEqual(['One', 'Three', 'Two']);
+
+      await send({ type: 'MOVE_ITEMS', ids: [ids[2]!], parentId: 'root' });
+      expect(await order()).toEqual(['One', 'Two', 'Three']);
+    });
+
+    it('keeps a multiple selection the way round it was picked up', async () => {
+      /*
+       * The chained-anchor rule. `moveItem` inserts *immediately* after its anchor, so giving all
+       * three the same `afterId` lands each one on top of the last and the block arrives reversed.
+       * This is the assertion that would fail against the obvious implementation.
+       */
+      const ids = await seedThree();
+      const fourth = await addBookmark('https://example.com/4', 'Four');
+      await send({ type: 'MOVE_ITEMS', ids, parentId: 'root', afterId: fourth });
+      expect(await titles({ sort: 'manual' })).toEqual(['Four', 'One', 'Two', 'Three']);
+    });
+
+    it('leaves every other order alone, because a position is not a date', async () => {
+      const ids = await seedThree();
+      const before = { added: await titles({ sort: 'added' }), title: await titles({ sort: 'title' }) };
+
+      await send({ type: 'MOVE_ITEMS', ids: [ids[2]!], parentId: 'root', afterId: null });
+
+      // Compared with what those orders were rather than with a literal: the point is that a
+      // positioned move touches `order` and nothing a derived comparator reads.
+      expect(await titles({ sort: 'added' })).toEqual(before.added);
+      expect(await titles({ sort: 'title' })).toEqual(before.title);
+      expect(await titles({ sort: 'manual' })).toEqual(['Three', 'One', 'Two']);
+    });
+
+    it('refuses a malformed position rather than silently appending', async () => {
+      const ids = await seedThree();
+      await expectRejected({ type: 'MOVE_ITEMS', ids, parentId: 'root', afterId: '' });
+      await expectRejected({ type: 'MOVE_ITEMS', ids, parentId: 'root', afterId: 7 });
+    });
+
+    it('refuses an anchor that is not a sibling, which would be a position that does not exist', async () => {
+      const ids = await seedThree();
+      const work = await addFolder('Work');
+      expect(
+        await send({ type: 'MOVE_ITEMS', ids: [ids[0]!], parentId: work, afterId: ids[1]! }),
+      ).toMatchObject({ code: 'INVALID_MUTATION' });
+    });
+  });
+
   it('moves nothing at all when one item in the batch is impossible', async () => {
     const ids = await seedThree();
     const work = await addFolder('Work');
