@@ -76,6 +76,13 @@ the relevant section.
 Set in **Settings → Rules → Rulesets** (or Settings → Branches). These cannot be configured from
 repository contents, so `docs/BRANCH_PROTECTION.md` (Phase 0) mirrors them for discoverability.
 
+> **Not available on this repository yet.** Branch protection is gated on a public repository or a
+> paid plan, and this one is private on Free: both the rulesets API and the classic branch-protection
+> API answer `403 Upgrade to GitHub Pro or make this repository public` (measured 2026-08-14, Phase
+> 13). The settings below are correct and unchanged; none of them is currently in force, and what
+> stands in for them is in
+> [BRANCH_PROTECTION.md](BRANCH_PROTECTION.md#-none-of-14-can-be-applied-to-this-repository-today).
+
 **Solo repository: no PR requirement, no approvals, no conversation resolution.** The only rules that
 remain are the ones that prevent accidents — losing a branch, rewriting published history.
 
@@ -158,6 +165,7 @@ jobs:
       - run: npm run test                     # runs with coverage; thresholds gate here
       - run: npm run build
       - run: npm run verify:invariants     # INV-1, 2, 3, 8, 9 against real dist/
+      - run: node scripts/check-budgets.mjs --report release/bundle-report.md   # Phase 12
       - uses: actions/upload-artifact@v4
         with: { name: dist, path: dist/, retention-days: 7 }
       - uses: actions/upload-artifact@v4
@@ -458,89 +466,52 @@ Revoke it immediately at <https://myaccount.google.com/permissions>, then regene
 
 ## 7. The release workflow
 
-`.github/workflows/release.yml`:
+[`.github/workflows/release.yml`](../.github/workflows/release.yml), built in Phase 13. This section
+is the normative part — what must be true, and in what order — and the file is the mechanics. It is
+deliberately no longer a copy of the YAML: §3 held a copy of `ci.yml` that was silently a step out of
+date within one phase, and a spec that disagrees with the thing it specifies is worse than a pointer.
 
-```yaml
-name: release
-on:
-  push:
-    tags: ['v[0-9]+.[0-9]+.[0-9]+', 'v[0-9]+.[0-9]+.[0-9]+-*']
-  workflow_dispatch:
-    inputs:
-      tag:          { description: 'Tag to publish (e.g. v1.2.3)', required: true }
-      publish:      { description: 'Upload to the Chrome Web Store', type: boolean, default: false }
-      auto_publish: { description: 'Also submit for review (otherwise upload as draft)',
-                      type: boolean, default: false }
+**Triggers.** A tag matching `v*.*.*` (or `v*.*.*-*`), or a `workflow_dispatch` taking `tag`,
+`publish` and `auto_publish`. Concurrency is grouped per tag and **never** cancels in progress: a
+half-finished Store upload is worse than a queued one.
 
-permissions: { contents: read }
+**The `build` job, in order.** Each of the first three is placed where it is so that the cheap
+refusals happen before the expensive work:
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions: { contents: write }
-    steps:
-      - uses: actions/checkout@v4
-        with: { ref: '${{ inputs.tag || github.ref }}', fetch-depth: 0 }
+1. Check out the tag with full history — `fetch-depth: 0`, which also brings `origin/main`.
+2. **The tag must be an ancestor of `main`.** A tag on `dev` would build green and ship code that
+   never went through a release merge.
+3. **`check-version-sync.mjs`** — the tag and `package.json` must agree.
+4. **`release-notes.mjs`** — the CHANGELOG section must exist and be non-empty. Extracted *before*
+   the build, because an unfinalized changelog is a mistake to catch before six minutes of tests
+   rather than after the Release exists.
+5. `npm run lint`, `type-check`, `test` (coverage thresholds gate here), `build`,
+   `verify:invariants`, `check-budgets`.
+6. **`check-version-sync.mjs --built`** — now the manifest leg too, which needs a `dist/` to read.
+7. `npx playwright install --with-deps chromium`, then `npm run test:e2e`.
+8. `npm run zip`, then `sha256sum *.zip > SHA256SUMS`.
+9. `softprops/action-gh-release@v2` with the zip, the checksums and the extracted notes;
+   `prerelease` when the tag carries a `-`.
+10. The whole `release/` directory is kept as an artifact, which is what the `publish` job consumes.
 
-      - name: Tag must be on main
-        run: git merge-base --is-ancestor HEAD origin/main
+**The `publish` job** runs only on a `workflow_dispatch` with `publish: true`, in the
+`chrome-web-store` environment, and refuses a pre-release tag outright before touching anything.
+`chrome-webstore-upload-cli@3` reads the four secrets from the environment and uploads a draft
+unless `auto_publish` was also ticked.
 
-      - uses: actions/setup-node@v4
-        with: { node-version-file: '.nvmrc', cache: npm }
-      - run: npm ci
+<details>
+<summary>Two shell details that are load-bearing, and were wrong in the Phase-0 sketch</summary>
 
-      - name: Version must match the tag
-        run: node scripts/check-version-sync.mjs "${{ inputs.tag || github.ref_name }}"
+The default shell for a `run` step is `bash -e` **without** `pipefail`. So
+`node scripts/release-notes.mjs … | tee release/NOTES.md` reports *tee's* exit code, and a refused
+extraction — the whole point of that script — would be swallowed and the release would be published
+with an empty body. Both places that produced a file through a pipe now redirect and then `cat`.
 
-      - run: npm run lint
-      - run: npm run type-check
-      - run: npm run test                     # runs with coverage; thresholds gate here
-      - run: npm run build
-      - run: npm run verify:invariants
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+`git merge-base --is-ancestor` says everything in its exit code and nothing in its output, so it is
+wrapped in an `if` that prints what failed and why. A bare invocation fails the job with no line
+saying which of the two conditions was not met.
 
-      - run: npm run zip                       # → release/vaulta-mark-<version>.zip
-      - name: Checksums
-        run: |
-          cd release
-          sha256sum *.zip | tee SHA256SUMS
-      - name: Release notes
-        run: node scripts/release-notes.mjs "${{ inputs.tag || github.ref_name }}" > release/NOTES.md
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
-          body_path: release/NOTES.md
-          files: |
-            release/*.zip
-            release/SHA256SUMS
-          draft: false
-          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
-
-      - uses: actions/upload-artifact@v4
-        with: { name: package, path: release/ }
-
-  publish:
-    needs: build
-    if: ${{ inputs.publish == true }}          # never runs on a bare tag push
-    runs-on: ubuntu-latest
-    environment: chrome-web-store              # ← requires a human approval
-    steps:
-      - uses: actions/download-artifact@v4
-        with: { name: package, path: release/ }
-      - run: npm install -g chrome-webstore-upload-cli@3
-      - name: Upload to the Chrome Web Store
-        env:
-          EXTENSION_ID:  ${{ secrets.CWS_EXTENSION_ID }}
-          CLIENT_ID:     ${{ secrets.CWS_CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
-        run: |
-          chrome-webstore-upload upload \
-            --source release/vaulta-mark-*.zip \
-            ${{ inputs.auto_publish && '--auto-publish' || '' }}
-```
+</details>
 
 **The three gates before anything reaches users:**
 
@@ -568,17 +539,21 @@ Drafts live in `docs/STORE_LISTING.md` (Phase 0) and are finalized in Phase 13.
 
 | Asset | Spec | Status |
 | --- | --- | --- |
-| Icon | 128×128 PNG, no alpha padding issues | Phase 13 |
-| Screenshots | 1280×800 or 640×400, **1–5**, showing: vault list with favicons, add flow, search/tags, sync settings, thumbnail preview | Phase 13 |
-| Small promo tile | 440×280 PNG | Phase 13 |
-| Marquee promo tile | 1400×560 (optional, only for featuring) | Optional |
-| Short description | ≤ 132 chars | Phase 0 draft |
-| Detailed description | Leads with the five differentiators; states the no-recovery warning; explains the two sync tiers | Phase 0 draft |
+| Icon | 128×128 PNG, artwork at 96×96 with transparent padding | ✅ `docs/store/icon-128.png` |
+| Screenshots | 1280×800, **1–5**: vault list with favicons, add flow, search/tags, sync settings, the no-recovery warning | ✅ `docs/store/screenshot-{1..5}-*.png` |
+| Small promo tile | 440×280 PNG | ✅ `docs/store/promo-440x280.png` |
+| Marquee promo tile | 1400×560 (optional, only for featuring) | Not produced; optional |
+| Short description | ≤ 132 chars | ✅ 131, STORE_LISTING §2 |
+| Detailed description | Leads with the five differentiators; states the no-recovery warning; explains the two sync tiers | ✅ STORE_LISTING §3 |
 | Category | Productivity | — |
 | Language | English | — |
-| Privacy policy URL | GitHub Pages URL for `docs/PRIVACY.md` | **Blocked on a decision — see below** |
-| Single-purpose statement | "Store, organize, and open bookmarks from a password-encrypted vault that is kept separate from Chrome's own bookmarks." | Phase 0 draft |
-| Data-usage disclosures | **No data collected.** No data sold, no data used for anything beyond the single purpose, no data transferred except to the user's own Google Drive at their instruction. | Phase 13 |
+| Privacy policy URL | a publicly reachable URL serving `docs/PRIVACY.md` | **Blocked on a decision — see below** |
+| Single-purpose statement | "Store, organize, and open bookmarks from a password-encrypted vault that is kept separate from Chrome's own bookmarks." | ✅ STORE_LISTING §4 |
+| Data-usage disclosures | **No data collected.** No data sold, no data used for anything beyond the single purpose, no data transferred except to the user's own Google Drive at their instruction. | ✅ STORE_LISTING §6 |
+
+The images are regenerated by `scripts/gen-brand-assets.mjs` and
+`scripts/capture-store-screenshots.mjs`; the submission-day order is
+[STORE_LISTING §9](STORE_LISTING.md#9-submission-day-in-order).
 
 **Permission justifications** (each field has a character limit; keep them one or two sentences):
 

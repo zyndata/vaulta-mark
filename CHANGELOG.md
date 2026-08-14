@@ -14,6 +14,12 @@ below.
 
 ### Added
 
+- **Releases are published with a checksum.** Every GitHub Release carries the packaged extension
+  and a `SHA256SUMS` file beside it, so a downloaded package can be checked against what was built
+  from the tag. The `README` says plainly how far that goes: the zip container is byte-for-byte
+  reproducible by construction, the bundle inside it is not promised to be, and a matching hash
+  therefore proves a great deal while a differing one proves nothing on its own.
+
 - **Page previews.** When you save a page, VaultaMark now keeps the preview picture the page
   publishes for social media — the one you see when a link is pasted into a chat — and shows it
   beside the bookmark. An eye on a row opens it; hovering a row opens it after a moment; the item's
