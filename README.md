@@ -2,7 +2,9 @@
 
 > **Encrypted bookmarks that never touch your omnibox — synced through your own Google Drive.**
 
-<!-- badges: CI · latest release · license · Chrome Web Store — added in Phase 1 / Phase 13 -->
+[![ci](https://github.com/zyndata/vaulta-mark/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/zyndata/vaulta-mark/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/zyndata/vaulta-mark?sort=semver)](https://github.com/zyndata/vaulta-mark/releases)
+[![license: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
 VaultaMark is a Manifest V3 Chrome extension that keeps your bookmarks in a password-encrypted vault
 stored **completely outside** Chrome's bookmark and history systems. Chrome never learns those URLs
@@ -11,10 +13,13 @@ window. Nothing leaves your machine unless you explicitly connect your own Googl
 
 **Repository:** <https://github.com/zyndata/vaulta-mark>
 
-**Status: in development, repository private.** The extension is being built in numbered phases — see
-[PLAN.md](PLAN.md) for the plan and the current phase. There is no installable release yet, and
-whether the source is published is a decision for later ([PLAN.md §2.5, D36](PLAN.md#25-project--process)).
-GPL-3.0-only is the license it will carry if and when it is distributed.
+**Status: 1.0.0, feature-complete, repository private.** Every phase in [PLAN.md](PLAN.md) is built
+and tested; what remains before the Chrome Web Store listing is the store submission itself and one
+open decision — where the privacy policy is hosted, which needs a public URL
+([docs/RELEASE.md §8](docs/RELEASE.md#8-store-listing-checklist)). Whether the source is published is
+a separate decision ([PLAN.md §2.5, D36](PLAN.md#25-project--process)); GPL-3.0-only is the license
+it carries when distributed. The two badges above resolve only for accounts with access to the
+repository, which is everyone who can read this file.
 
 ---
 
@@ -35,15 +40,55 @@ GPL-3.0-only is the license it will carry if and when it is distributed.
 
 ## Screenshots
 
-<!-- Phase 13 -->
+| | |
+| --- | --- |
+| ![The vault list, with folders, tags and an inline preview](docs/store/screenshot-1-vault.png) | ![Searching with tag:crypto](docs/store/screenshot-3-search.png) |
+| **The vault** — folders, tags, favicons from Chrome's local cache, and the page's own preview drawn in the detail pane. | **Search** — `tag:`, `folder:`, `host:` and `in:` prefixes, reaching into folders. |
+| ![Sync settings, with both tiers and the quota bar](docs/store/screenshot-4-sync.png) | ![Setup step 2, stating that there is no password recovery](docs/store/screenshot-5-no-recovery.png) |
+| **Sync** — Chrome sync by default with its quota in view; Drive is one button and a permission screen. | **Setup** — the constraint stated before you can get past it, and a phrase you have to type. |
+
+Everything in the pictures is invented: real destinations, made-up titles and folders. They are
+regenerated from a real build by `node scripts/capture-store-screenshots.mjs`.
 
 ## Install
 
-Not yet available. The Chrome Web Store listing ships with 1.0.0 (Phase 13), and this section will
-then cover: the Store link, building from source, and verifying the published zip's SHA-256 against
-your own build.
+**From the Chrome Web Store:** not yet. The listing is written and its assets are built
+([docs/STORE_LISTING.md](docs/STORE_LISTING.md)); submission is waiting on a publicly hosted privacy
+policy, which needs a decision about publishing this repository. The link lands here when it exists.
 
-Until then, see [Development](#development) to build and load it unpacked.
+**From source**, which is what works today:
+
+```bash
+npm ci
+npx vite build --mode development     # → dist/
+```
+
+Then `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select `dist/`. Also
+enable **Allow in incognito** on the extension's details page, or opening a bookmark cannot do the
+one thing it promises.
+
+Use `--mode development` rather than `npm run build` if you intend to connect Google Drive: the
+development build carries a manifest `key` that pins the extension id, and the OAuth client is
+registered against exactly one id. `npm run build` is the *packaging* command — correct for the
+Store, which assigns its own id, and the cause of an otherwise unexplainable
+`Error 400: redirect_uri_mismatch` if you install it locally and connect Drive
+([docs/RELEASE.md §5.4](docs/RELEASE.md#54-stable-extension-id-for-local-development)).
+
+**Verifying a published zip.** Every GitHub Release carries `SHA256SUMS` alongside the package. To
+check it against your own build:
+
+```bash
+git checkout v1.0.0
+npm ci && npm run build && npm run zip     # prints the sha256 it just wrote
+sha256sum release/vaulta-mark-1.0.0.zip
+```
+
+The zip **container** is byte-for-byte deterministic by construction — fixed timestamps, sorted
+entries, no extra fields, all of it in `scripts/zip.mjs` rather than trusted to a library. The
+**bundle inside it** is not promised to be: it comes out of a minifier and a toolchain whose exact
+version is yours, not ours. So a matching hash proves a great deal and a differing one proves
+nothing on its own — compare the unzipped files if it differs. This is deliberately a weaker claim
+than "reproducible build", because a reproducible build is a thing you engineer, and we have not.
 
 ## How it works
 
@@ -116,7 +161,7 @@ the feature that needs them.
 | `alarms` | Auto-locks the vault after your idle timeout. | required |
 | `favicon` | Shows site icons from Chrome's **local** cache — never a third-party favicon service. | required |
 | `identity` + `googleapis.com` | Google Drive sync. | optional |
-| `history` | History cleanup for vaulted domains. | optional |
+| `history` | History cleanup for vaulted domains — the one-click tool, clearing on lock, and quick-close. | optional |
 | `bookmarks` | Importing your existing Chrome bookmarks. | optional |
 | `idle` | Locking on system idle. | optional |
 
@@ -139,21 +184,20 @@ Privacy policy: [docs/PRIVACY.md](docs/PRIVACY.md)
 
 ```bash
 npm ci
-npm run build        # → dist/, load unpacked in chrome://extensions
-npm run dev          # watch build
-npm run verify       # lint + type-check + tests + build + invariant scan
+npm run dev          # watch build, development mode → dist/
+npm run build        # production build, for packaging
+npm run verify       # lint + type-check + tests + build + invariant scan + size budgets
+npm run test         # unit + integration
+npm run test:e2e     # Playwright, against a real Chromium with the extension loaded
+npm run zip          # → release/vaulta-mark-<version>.zip
 ```
 
-Then `chrome://extensions` → enable Developer mode → **Load unpacked** → select `dist/`. To exercise
-"open in incognito", also enable **Allow in incognito** on the extension's details page.
+`npm run verify` is the gate — it runs before every push, because CI can report a failure but
+cannot block a direct commit ([docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md)). Which build
+variant to install is the same question the [Install](#install) section answers.
 
-The three test tiers — Vitest unit, Vitest integration, and Playwright E2E against a real Chromium
-with the extension loaded — are `npm run test` and `npm run test:e2e`. Full setup, the build layout,
-and the invariant scanners: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
-
-> The extension builds, loads and is usable: an encrypted vault, a full bookmark manager, and
-> zero-configuration sync across your own Chrome profiles. Google Drive sync, thumbnails, and
-> import/export arrive in the phases described in [PLAN.md](PLAN.md).
+Full setup, the build layout, the invariant scanners and the manual passes an automated harness
+cannot perform: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Architecture
 
