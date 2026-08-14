@@ -76,6 +76,11 @@ below.
 
 ### Fixed
 
+- Settings → Sync said "The copy in Chrome sync **has been** removed" while Chrome sync was still
+  the only place the vault was kept. It sat above the *Connect Google Drive* button and described,
+  in the past tense, something that happens when you press it. It now says what moving to Drive
+  will do.
+
 - **Enter now confirms in a dialog that asks a yes-or-no question.** Pressing Delete on a bookmark
   or a folder raises "are you sure?", and Enter did nothing there but close it the same way Escape
   does — because the button that had the keyboard was *Cancel*. Enter answers the question and

@@ -2581,8 +2581,8 @@
     "description": "Announced after a successful migration back to Chrome sync."
   },
   "syncDriveChromeCopyGone": {
-    "message": "The copy in Chrome sync has been removed, so your other computers will ask you to connect Drive as well.",
-    "description": "Explains the consequence of clearing the chrome.storage.sync copy."
+    "message": "Moving to Drive removes the copy in Chrome sync, so your other computers will ask you to connect Drive as well.",
+    "description": "Settings → Sync → Google Drive, shown *before* connecting: what moving to Drive will do to the Chrome-sync copy. Future tense on purpose — it is the only place this string appears, and it sits above the Connect button."
   },
   "diagnosticsHint": {
     "message": "If you are reporting a problem, this produces a short report about how VaultaMark is set up. It contains no addresses, titles, folder or tag names, notes or account details — counts and settings only. You can read it before you copy it.",
