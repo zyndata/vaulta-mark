@@ -8,12 +8,38 @@ source and this file is the thing to fix.
 Everything below takes about ten minutes and is done from the repository's **Settings** tab. You need
 admin rights on the repository.
 
-> **The repository is private for now** ([PLAN.md §2.5, D36](../PLAN.md#25-project--process)). The
-> branch, tag, and Actions rules in §1–§4 apply unchanged — they protect against accidents, and
-> accidents do not care who can see the repository. Several of the **code-security** features in §5
-> are gated on a public repository or a paid plan; each one is marked. Re-run §5 the day the
-> repository is published, because features that were unavailable become available and are **off by
-> default**.
+> ## ⚠️ None of §1–§4 can be applied to this repository today
+>
+> **The repository is private** ([PLAN.md §2.5, D36](../PLAN.md#25-project--process)) on a Free
+> plan, and **branch protection is a paid or public-repository feature**. Measured on 2026-08-14,
+> both routes refuse it identically:
+>
+> ```
+> $ gh api repos/zyndata/vaulta-mark/rulesets
+> 403  Upgrade to GitHub Pro or make this repository public to enable this feature.
+> $ gh api repos/zyndata/vaulta-mark/branches/main/protection
+> 403  Upgrade to GitHub Pro or make this repository public to enable this feature.
+> ```
+>
+> The Settings tab does not offer them either — the API and the UI are the same feature gate. An
+> earlier version of this note said §1–§4 "apply unchanged" while private; that was an assumption
+> and it was wrong.
+>
+> **So the accident protection is currently a habit, not a rule**, and it is worth naming what that
+> means: nothing stops a force-push over `main`, nothing stops deleting either branch, and nothing
+> stops a non-linear merge. Until this is unblocked:
+>
+> - Never `git push --force` in this repository. Fix forward, always — which was already the rule
+>   ([CLAUDE.md, RELEASE §2](RELEASE.md#2-branch-protection-settings)), and is now the only thing
+>   enforcing it.
+> - Treat `main` as append-only by hand: it takes one `--no-ff` merge per release and nothing else.
+> - `git config --local receive.denyDeletes true` protects nothing here (the remote is GitHub, not
+>   your machine), so there is no local substitute worth pretending about.
+>
+> §1–§4 are kept in full, because the day the repository is published or the plan is upgraded they
+> become a ten-minute checklist rather than something to reconstruct. Several **code-security**
+> features in §5 are gated the same way; each one is marked. Re-run §5 that day too — features that
+> were unavailable become available and are **off by default**.
 
 ---
 

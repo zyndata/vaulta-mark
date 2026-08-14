@@ -12,6 +12,10 @@ below.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-14
+
+The first release. Everything below is new, because there was nothing before it.
+
 ### Added
 
 - **Releases are published with a checksum.** Every GitHub Release carries the packaged extension
@@ -719,4 +723,5 @@ below.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
-[Unreleased]: https://github.com/zyndata/vaulta-mark/commits/dev
+[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.0.0...dev
+[1.0.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.0.0

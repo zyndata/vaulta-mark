@@ -317,11 +317,20 @@ These are enforced by CI (`npm run verify:invariants`), not just by convention. 
 | Disguise mode (camouflaged icon/title) | Optional | Post-1.0 (B2) |
 | Argon2id KDF option | Optional | Post-1.0 (B7) |
 
-**Post-1.0 backlog** (tracked as GitHub issues at the end of Phase 13, not as phases):
-B1 QR codes · B2 disguise/panic camouflage · B3 keyboard-driven command palette ·
-B4 vault-in-vault (second hidden vault under a different password) · B5 duplicate detection &
-dead-link check (explicit action only) · B6 per-folder auto-lock · B7 Argon2id ·
-B8 Firefox port evaluation · B9 optional local-only WebDAV provider.
+**Post-1.0 backlog** — opened as GitHub issues at the end of Phase 13 (2026-08-14), labelled
+`post-1.0`, each carrying the constraint that deferred it:
+
+| | | |
+| --- | --- | --- |
+| [#18](https://github.com/zyndata/vaulta-mark/issues/18) | B1 QR code for a vaulted URL | needs a bundled encoder — D4 |
+| [#19](https://github.com/zyndata/vaulta-mark/issues/19) | B2 disguise / panic camouflage | the manifest name cannot be hidden; decide what is being promised first |
+| [#20](https://github.com/zyndata/vaulta-mark/issues/20) | B3 keyboard-driven command palette | mostly a second front end onto existing vocabulary |
+| [#21](https://github.com/zyndata/vaulta-mark/issues/21) | B4 vault-in-vault | vault-format change; the plaintext header is the hard part |
+| [#22](https://github.com/zyndata/vaulta-mark/issues/22) | B5 duplicate detection & dead-link check | the dead-link half is the first outbound traffic that is not Drive — INV-4 |
+| [#23](https://github.com/zyndata/vaulta-mark/issues/23) | B6 per-folder auto-lock | "locked" means one thing today, and cryptography enforces it |
+| [#24](https://github.com/zyndata/vaulta-mark/issues/24) | B7 Argon2id | needs `wasm-unsafe-eval` — INV-2, D3 |
+| [#25](https://github.com/zyndata/vaulta-mark/issues/25) | B8 Firefox port evaluation | an evaluation, not a commitment; `storage.session` and `_favicon/` decide it |
+| [#26](https://github.com/zyndata/vaulta-mark/issues/26) | B9 local-only WebDAV provider | a third `SyncProvider`; needs an optional host permission |
 
 ---
 
@@ -405,9 +414,12 @@ vaulta-mark/
 │  ├─ PULL_REQUEST_TEMPLATE.md
 │  └─ dependabot.yml
 ├─ build/                            # in-repo Vite MV3 plugin, manifest source, version mapping
-├─ docs/{ARCHITECTURE.md,RELEASE.md,PRIVACY.md,STORE_LISTING.md,THREAT_MODEL.md}
+├─ docs/{ARCHITECTURE,RELEASE,PRIVACY,STORE_LISTING,THREAT_MODEL,DEVELOPMENT,
+│         ACCESSIBILITY,BRANCH_PROTECTION}.md + docs/store/   # listing assets, not shipped
 ├─ public/{icons/,_locales/en/messages.json}
-├─ scripts/{verify-no-remote-code.mjs,verify-manifest.mjs,zip.mjs,dev-reload.mjs}
+├─ scripts/                          # verify-{manifest,no-remote-code,strings}, zip, check-budgets,
+│                                    # release-notes, check-version-sync, dev-key, update-psl,
+│                                    # gen-{common-passwords,brand-assets}, capture-store-screenshots
 ├─ src/
 │  ├─ background/  crypto/  vault/  storage/  sync/  thumbs/  import/
 │  ├─ popup/  manager/  ui/  shared/
@@ -1445,10 +1457,13 @@ a Chrome Web Store submission.
   differentiators, single-purpose statement, and a per-permission justification string for each
   requested and optional permission (draft text lives in `docs/STORE_LISTING.md`).
 - `docs/PRIVACY.md` published (GitHub Pages or a raw-file URL) and linked from the Store listing.
+  **Not done — the maintainer chose (2026-08-14) to leave the hosting decision open.** The document
+  is finished; there is nowhere private-and-free to serve it from, and the three ways out are in
+  RELEASE §8. This blocks Store submission and nothing else.
 - README completed: badges (CI, release, license), install-from-Store link, build-from-source
   instructions, the reproducibility note (how to verify the published zip's hash against a local
   build), security policy link, and the differentiators up top.
-- GitHub issues created for the post-1.0 backlog (B1–B9).
+- GitHub issues created for the post-1.0 backlog (B1–B9) — [#18–#26](https://github.com/zyndata/vaulta-mark/issues?q=label%3Apost-1.0), §5.
 - Release `1.0.0`: `git checkout main && git merge --no-ff dev`, push, annotated tag `v1.0.0`, verify
   the GitHub Release, then the **manual first Store upload** (the API cannot create a new item);
   subsequent releases can use the gated automation.
@@ -1457,13 +1472,53 @@ a Chrome Web Store submission.
 - `scripts/*` unit tests (release-notes extraction, version-sync detection).
 - A dry-run of the release workflow on a `v0.0.0-test` tag in a fork or with the publish gate off.
 
+**Amendments made while building it**
+
+1. **`check-version-sync.mjs` runs twice**, not once. The manifest leg needs a built `dist/`, and
+   the tag-versus-`package.json` leg should fail in thirty seconds rather than after the suite. So
+   the tag leg runs before the build and `--built` runs after it. Recorded in RELEASE §7.
+2. **The `publish` job refuses a pre-release outright.** RELEASE §7 already said pre-releases are
+   never uploaded — Chrome sorts `1.2.0.1` below `1.2.0`, so an uploaded rc makes the real release
+   unpublishable — but nothing enforced it, and a `workflow_dispatch` form is exactly where that
+   gets typed by mistake.
+3. **RELEASE §7 no longer duplicates the workflow YAML.** §3's copy of `ci.yml` was a step out of
+   date within one phase; the section keeps the normative part (what must be true, in what order,
+   and the three gates) and points at the file for the mechanics.
+4. **Screenshot 5 is the vault-creation screen, not the unlock screen.** Those are two screens: the
+   unlock one is a password box, and the no-recovery warning — which is the stated reason for the
+   shot — lives where the vault is created. Recorded in STORE_LISTING §1.
+5. **`scripts/gen-brand-assets.mjs` and `scripts/capture-store-screenshots.mjs`** were not in the
+   phase's file list, because "produce store assets" reads like a manual task. They are committed so
+   that a retake is a command; the PNGs remain the deliverable, and neither script runs in `verify`.
+6. **The privacy-policy hosting decision stands unresolved**, by the maintainer's choice
+   (2026-08-14). Everything that depends on a public repository is written and explicitly *cut*
+   rather than left pointing at a 404: the Store's privacy-policy, support and homepage URLs, and
+   the closing "open source" line of the detailed description. STORE_LISTING §1 says so at the top.
+
 **Definition of done**
-- [ ] A tag push produces a GitHub Release with the zip and checksums, without publishing to the Store.
-- [ ] `workflow_dispatch` with `publish: true` uploads a draft to the Store (verified once the item exists).
-- [ ] All four Store secrets documented end-to-end in `docs/RELEASE.md`, with screenshots-in-words for
-      each Google Cloud step.
-- [ ] `main` is protected exactly as `docs/BRANCH_PROTECTION.md` specifies.
-- [ ] v1.0.0 tagged and released.
+- [x] A tag push produces a GitHub Release with the zip and checksums, without publishing to the
+      Store. — built as `.github/workflows/release.yml`; every step that can be exercised without a
+      tag on `main` is (`release-notes.mjs` against the real 1.0.0 section, `check-version-sync.mjs`
+      both ways, `npm run zip` and its sha256). **The end-to-end proof is the release itself**, and
+      so is the `v0.0.0-test` dry run the Tests list asks for: the job refuses any tag that is not
+      an ancestor of `main`, and `main` is four phases behind `dev` until the release merge. A dry
+      run that passed the ancestry check today would be building Phase-0 code.
+- [ ] `workflow_dispatch` with `publish: true` uploads a draft to the Store (verified once the item
+      exists). — the Store item does not exist; the first upload is manual by API design
+      (RELEASE §6.1). Blocked on the privacy-policy URL, which blocks submission.
+- [x] All four Store secrets documented end-to-end in `docs/RELEASE.md`, with screenshots-in-words
+      for each Google Cloud step. — RELEASE §6.1–§6.5, including the two flags without which Google
+      returns no refresh token and why a Testing-status consent screen expires one after 7 days.
+- [ ] `main` is protected exactly as `docs/BRANCH_PROTECTION.md` specifies. — **cannot be done on
+      this repository.** Measured 2026-08-14: both the rulesets API and the classic branch-protection
+      API answer `403 Upgrade to GitHub Pro or make this repository public`, so the settings are not
+      reachable from the UI either. BRANCH_PROTECTION.md had claimed §1–§4 "apply unchanged" while
+      private and has been corrected, with the manual habits that stand in for them. This unblocks
+      the day the repository is published or the plan is upgraded — the same decision the
+      privacy-policy URL waits on.
+- [ ] v1.0.0 tagged and released. — deferred to the maintainer (2026-08-14). `dev` is at 1.0.0 with
+      the CHANGELOG finalized and `[Unreleased]` empty; four manual passes from earlier phases are
+      still unrun (DEVELOPMENT §5.2–§5.5). The commands are RELEASE §4 steps 5–8.
 
 **Git:** direct commits on `dev`, tag `phase-13-done`. Then the release itself:
 `git checkout main && git merge --no-ff dev -m "release: v1.0.0"`, push `main`, and push the
