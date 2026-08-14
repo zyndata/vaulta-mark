@@ -240,6 +240,11 @@ below.
 
 ### Changed
 
+- **A real icon.** The blue square with a bookmark on it was a placeholder from the first week. The
+  icon is now a bookmark with a keyhole cut through it — the two things this extension is, in the
+  order you read them. The 16- and 32-pixel versions are drawn separately rather than shrunk, since
+  the keyhole's slot is smaller than a pixel at that size and turned into a smudge.
+
 - **Connecting or disconnecting Google Drive now says which step it is on.** It used to say "Asking
   Google for permission…" and then nothing else — through the authorization, the copy of your whole
   vault, the read-back that checks the copy arrived intact, and the switch. On a slow connection
