@@ -2,7 +2,7 @@
   "name": "vaulta-mark",
   "version": "1.0.0",
   "private": true,
-  "description": "Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito. Optional sync via your own Google Drive.",
+  "description": "Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito. Optional sync via your Google Drive.",
   "license": "GPL-3.0-only",
   "author": "zyndata",
   "type": "module",

@@ -41,9 +41,9 @@ retake is a command rather than an afternoon:
 | Screenshots | 1280 × 800 PNG, five of them | `docs/store/screenshot-{1..5}-*.png` |
 | Small promo tile | 440 × 280 PNG | `docs/store/promo-440x280.png` |
 | Marquee promo tile | 1400 × 560 PNG — only needed if the listing is ever considered for featuring | not produced; optional |
-| Short description | ≤ 132 characters | §2 below (131) |
+| Short description | ≤ 132 characters | §2 below (129) |
 | Detailed description | Leads with the differentiators; states the no-recovery warning; explains both sync tiers | §3 below |
-| Category | Productivity | fixed |
+| Category | **Privacy & Security** | chosen 2026-08-15 — see below |
 | Language | English (United States) | fixed |
 | Privacy policy URL | <https://zyndata.github.io/vaulta-mark/PRIVACY> | Pages, from `main`/`docs` — [PRIVACY.md](PRIVACY.md) |
 | Single-purpose statement | one sentence | §4 below |
@@ -51,6 +51,19 @@ retake is a command rather than an afternoon:
 | Data-usage disclosures | "No data collected" across the board | §6 below |
 | Support URL | <https://github.com/zyndata/vaulta-mark/issues> | restored 2026-08-15 |
 | Homepage URL | <https://github.com/zyndata/vaulta-mark> | restored 2026-08-15 |
+
+### The category
+
+**Privacy & Security**, decided at the dashboard on 2026-08-15. Phase 0 wrote *Productivity* and
+carried it to Phase 13 unexamined; it was never a decision, only the obvious label for "a bookmark
+manager". The listing that was actually written argues from the other side — the short description
+leads with *password-encrypted*, four of the six differentiators are privacy properties, and §4's
+single purpose is a vault. A browsing category is where a person decides what a thing is *for*, and
+this one is for keeping bookmarks out of somebody else's reach.
+
+It also costs nothing to be wrong about: the category is editable on a published listing without a
+new package. PLAN §9 Phase 0 still names `Productivity` in its description of what that phase was
+asked to draft, which is left as written — it is a record of the task, not of the listing.
 
 ### The icon
 
@@ -90,10 +103,18 @@ Light mode for 1–4 and dark for 5, so both themes appear in the strip.
 ## 2. Short description (≤ 132 characters)
 
 > Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito.
-> Optional sync via your own Google Drive.
+> Optional sync via your Google Drive.
 
-**131 characters.** Settled in [PLAN.md §11](../PLAN.md#11-risks--open-questions); Phase 13 may adjust
-only for length or clarity.
+**129 characters**, and this is also the manifest's `extDescription` — the same string is the Store's
+short description and the toolbar tooltip's subtitle, so there is one place to change it:
+`public/_locales/en/messages.json`.
+
+The wording settled in [PLAN.md §11](../PLAN.md#11-risks--open-questions) said *your **own** Google
+Drive* and was recorded as 131 characters. It was 133, nobody counted it, and the 1.0.0 upload was
+**rejected** for it: the limit is a hard 132 and the Store refuses the package rather than truncating
+the text. Dropping "own" is the smallest edit that keeps the claim ("your Google Drive" is still not
+ours) and leaves three characters of margin. `scripts/verify-manifest.mjs` measures it now, so the
+next one fails locally instead of at the upload form.
 
 ## 3. Detailed description (draft)
 
@@ -251,8 +272,8 @@ The first upload is manual: the Store API can only *update* an item, never creat
 ([RELEASE §6.1](RELEASE.md#61-developer-account-and-the-first-upload)). Everything after this is the
 gated `workflow_dispatch`.
 
-1. **Settle the privacy-policy URL.** Nothing below can be finished without it, and it is the one
-   item on this page with no answer yet.
+1. **Check the privacy-policy URL resolves** — <https://zyndata.github.io/vaulta-mark/PRIVACY>, 200
+   and `text/html`. It serves from `main`, so it is only live once the release merge has landed.
 2. Register the developer account ($5, one-time) and complete the publisher profile.
 3. `npm run build` — the **production** build, not `--mode development`. The Store assigns the
    extension id and a manifest `key` that disagrees with it breaks the upload, which is exactly why
@@ -262,7 +283,7 @@ gated `workflow_dispatch`.
 5. Paste §2, §3, §4 and the §5 justifications. Upload the five screenshots, the 128 × 128 store
    icon and the 440 × 280 promo tile from `docs/store/`.
 6. Answer §6 (nothing collected, three certifications) and §7 (no remote code).
-7. Category **Productivity**, language **English (United States)**.
+7. Category **Privacy & Security**, language **English (United States)**.
 8. Submit, then **register the extension id against the Drive OAuth client's Item ID**
    ([RELEASE §5.3](RELEASE.md#53-create-the-extension-oauth-client)) — the id changes from the
    development one, and Drive fails with `redirect_uri_mismatch` until it is updated.

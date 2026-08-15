@@ -19,6 +19,15 @@ below.
   release workflow, from a named commit, rather than being uploaded by hand. Check it with
   `gh attestation verify --owner zyndata vaulta-mark-<version>.zip`.
 
+### Fixed
+
+- **The Store description is one sentence shorter**, because the old one was one character too long
+  for Chrome to accept: 133 against a hard limit of 132. It reads "…Optional sync via your Google
+  Drive" now rather than "your **own** Google Drive". Nothing about the extension changed; the
+  package simply could not be uploaded. `npm run verify` measures both the name and the description
+  against the Store's limits from now on, so the next one is caught before the upload rather than by
+  it.
+
 ### Security
 
 - **The release pipeline no longer trusts a mutable name.** Every GitHub Action the three workflows

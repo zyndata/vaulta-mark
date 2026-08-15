@@ -577,11 +577,11 @@ Drafts live in `docs/STORE_LISTING.md` (Phase 0) and are finalized in Phase 13.
 | Screenshots | 1280×800, **1–5**: vault list with favicons, add flow, search/tags, sync settings, the no-recovery warning | ✅ `docs/store/screenshot-{1..5}-*.png` |
 | Small promo tile | 440×280 PNG | ✅ `docs/store/promo-440x280.png` |
 | Marquee promo tile | 1400×560 (optional, only for featuring) | Not produced; optional |
-| Short description | ≤ 132 chars | ✅ 131, STORE_LISTING §2 |
+| Short description | ≤ 132 chars | ✅ 129, measured by `verify:manifest` — STORE_LISTING §2 |
 | Detailed description | Leads with the five differentiators; states the no-recovery warning; explains the two sync tiers | ✅ STORE_LISTING §3 |
-| Category | Productivity | — |
+| Category | Privacy & Security | Chosen on submission day, 2026-08-15 — see STORE_LISTING §1 |
 | Language | English | — |
-| Privacy policy URL | a publicly reachable URL serving `docs/PRIVACY.md` | **Blocked on a decision — see below** |
+| Privacy policy URL | <https://zyndata.github.io/vaulta-mark/PRIVACY> | ✅ Pages, from `main`/`docs` — see below |
 | Single-purpose statement | "Store, organize, and open bookmarks from a password-encrypted vault that is kept separate from Chrome's own bookmarks." | ✅ STORE_LISTING §4 |
 | Data-usage disclosures | **No data collected.** No data sold, no data used for anything beyond the single purpose, no data transferred except to the user's own Google Drive at their instruction. | ✅ STORE_LISTING §6 |
 
