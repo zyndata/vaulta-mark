@@ -160,6 +160,17 @@ things about it that are decisions rather than boilerplate:
   `.git/config` and stays readable by every later step, including anything `npm` executes. No job
   here needs authenticated git after the checkout.
 
+**Considered and not adopted: an egress-audited runner** (`step-security/harden-runner`), which logs
+and can block outbound connections, turning "a compromised dev dependency phones home" from
+undetectable into blocked-and-logged. It was weighed on 2026-08-15 and declined *for now*, because
+the thing it defends is narrower here than it looks and the thing it costs is not: the runtime
+dependency tree is empty, the lockfile is committed, the credential-bearing install is pinned exact
+and runs `--ignore-scripts`, and the action itself installs a privileged agent on every runner — the
+same category of trust that the SHA pins above exist to limit. The honest gap it would close is
+`npm ci` running lifecycle scripts of the dev tree. **Revisit when either of those changes**: a
+runtime dependency, or a second person with push access. Adopt in `audit` mode first and read one
+release cycle of the log before switching to `block`, and SHA-pin it like everything else.
+
 **Coverage gates** (enforced by `vitest.config.ts`, not by a separate step):
 
 | Path | Lines | Branches |
