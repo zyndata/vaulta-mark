@@ -13,13 +13,11 @@ window. Nothing leaves your machine unless you explicitly connect your own Googl
 
 **Repository:** <https://github.com/zyndata/vaulta-mark>
 
-**Status: 1.0.0, feature-complete, repository private.** Every phase in [PLAN.md](PLAN.md) is built
-and tested; what remains before the Chrome Web Store listing is the store submission itself and one
-open decision — where the privacy policy is hosted, which needs a public URL
-([docs/RELEASE.md §8](docs/RELEASE.md#8-store-listing-checklist)). Whether the source is published is
-a separate decision ([PLAN.md §2.5, D36](PLAN.md#25-project--process)); GPL-3.0-only is the license
-it carries when distributed. The two badges above resolve only for accounts with access to the
-repository, which is everyone who can read this file.
+**Status: 1.0.0, feature-complete, source published.** Every phase in [PLAN.md](PLAN.md) is built and
+tested, and the source is public under GPL-3.0-only ([PLAN.md §2.5, D36](PLAN.md#25-project--process))
+— for a tool that asks you to trust it with an unrecoverable password, being readable is part of the
+product. What remains is the Chrome Web Store submission itself. The privacy policy is served at
+<https://zyndata.github.io/vaulta-mark/PRIVACY>.
 
 ---
 
@@ -212,10 +210,14 @@ Web Store publishing. User-visible changes are recorded in [CHANGELOG.md](CHANGE
 
 ## Contributing
 
-The repository is private and not taking outside contributions yet. If that changes,
-[CONTRIBUTING.md](CONTRIBUTING.md) is the entry point — branching model, Conventional Commits, DCO sign-off, how to run
-the tests, and the rules that are not negotiable (zero runtime dependencies, no remote code, no
-plaintext anywhere, and no crypto pull request without a linked issue first).
+VaultaMark has **one maintainer**, and issues, discussions and pull requests are all open. Bug
+reports and questions are genuinely welcome. Pull requests are read and judged on their merits —
+there is no roadmap soliciting them, and a large one is worth an issue before it is worth your
+weekend.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) is the entry point — branching model, Conventional Commits, DCO
+sign-off, how to run the tests, and the rules that are not negotiable (zero runtime dependencies, no
+remote code, no plaintext anywhere, and no crypto pull request without a linked issue first).
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) applies to everyone here.
 
 ## Security
@@ -223,13 +225,12 @@ plaintext anywhere, and no crypto pull request without a linked issue first).
 Report vulnerabilities **privately** through
 [GitHub Security Advisories](https://github.com/zyndata/vaulta-mark/security/advisories/new) — see
 [SECURITY.md](SECURITY.md) for scope, timelines, and what to include. Please do not open a public
-issue for a security problem. While the repository is private, that form is reachable only by
-accounts with access to it.
+issue for a security problem — a public report starts the clock for every user before a fix exists.
 
 ## License
 
 [GPL-3.0-only](LICENSE) — Copyright (C) 2026 zyndata.
 
-VaultaMark is a security tool. Copyleft keeps every fork auditable, which is the point. The license
-applies to the code as distributed; the repository is private for now, and publishing the source is a
-separate decision that has not been made.
+VaultaMark is a security tool. Copyleft keeps every fork auditable, which is the point: you can read
+what encrypts your bookmarks, build it yourself, and check that the extension you installed is the
+one this source produces ([docs/RELEASE.md](docs/RELEASE.md)).

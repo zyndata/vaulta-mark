@@ -12,11 +12,21 @@ below.
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-08-14
+## [1.0.0] - 2026-08-15
 
 The first release. Everything below is new, because there was nothing before it.
 
 ### Added
+
+- **The source is public, under GPL-3.0-only.** VaultaMark asks you to trust it with a password
+  nobody can recover, so the code that does the encrypting is readable, forkable, and checkable
+  against the extension you installed. Every release is built from a tag by a GitHub Actions
+  workflow and its SHA-256 is published in the release notes — you can now build the same tag
+  yourself and compare. The cryptography has still not had a formal third-party audit, and
+  `SECURITY.md` says so; publishing makes the claims checkable rather than proven.
+- **The privacy policy has a permanent address:** <https://zyndata.github.io/vaulta-mark/PRIVACY>.
+  It is the same document that has shipped in the repository since Phase 9, served from the released
+  branch, so it always describes the version you can actually install.
 
 - **Releases are published with a checksum.** Every GitHub Release carries the packaged extension
   and a `SHA256SUMS` file beside it, so a downloaded package can be checked against what was built

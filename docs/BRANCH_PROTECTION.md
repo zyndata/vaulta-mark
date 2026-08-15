@@ -8,11 +8,11 @@ source and this file is the thing to fix.
 Everything below takes about ten minutes and is done from the repository's **Settings** tab. You need
 admin rights on the repository.
 
-> ## ⚠️ None of §1–§4 can be applied to this repository today
+> ## §1–§4 are applied. They were not always applicable.
 >
-> **The repository is private** ([PLAN.md §2.5, D36](../PLAN.md#25-project--process)) on a Free
-> plan, and **branch protection is a paid or public-repository feature**. Measured on 2026-08-14,
-> both routes refuse it identically:
+> **This section is history, kept because the reason matters.** While the repository was private on
+> a Free plan, **branch protection was refused outright** — it is a paid *or* public-repository
+> feature. Measured 2026-08-14, both routes answered identically:
 >
 > ```
 > $ gh api repos/zyndata/vaulta-mark/rulesets
@@ -21,25 +21,22 @@ admin rights on the repository.
 > 403  Upgrade to GitHub Pro or make this repository public to enable this feature.
 > ```
 >
-> The Settings tab does not offer them either — the API and the UI are the same feature gate. An
-> earlier version of this note said §1–§4 "apply unchanged" while private; that was an assumption
-> and it was wrong.
+> The Settings tab did not offer them either — the API and the UI are the same feature gate. So for
+> the whole build, from Phase 0 to 1.0.0, **the accident protection was a habit rather than a rule**:
+> nothing stopped a force-push over `main`, nothing stopped deleting either branch. §1–§4 were kept
+> in full anyway, so that the day the repository was published they would be a ten-minute checklist
+> rather than something to reconstruct.
 >
-> **So the accident protection is currently a habit, not a rule**, and it is worth naming what that
-> means: nothing stops a force-push over `main`, nothing stops deleting either branch, and nothing
-> stops a non-linear merge. Until this is unblocked:
+> **The repository was made public on 2026-08-15** ([PLAN.md §2.5, D36](../PLAN.md#25-project--process)),
+> and that day arrived. §1–§4 below are applied, not aspirational; §6 is how to check that for
+> yourself rather than taking this paragraph's word for it. The habit stays anyway — a rule that
+> stops a force-push is not a reason to reach for one.
 >
-> - Never `git push --force` in this repository. Fix forward, always — which was already the rule
->   ([CLAUDE.md, RELEASE §2](RELEASE.md#2-branch-protection-settings)), and is now the only thing
->   enforcing it.
-> - Treat `main` as append-only by hand: it takes one `--no-ff` merge per release and nothing else.
-> - `git config --local receive.denyDeletes true` protects nothing here (the remote is GitHub, not
->   your machine), so there is no local substitute worth pretending about.
->
-> §1–§4 are kept in full, because the day the repository is published or the plan is upgraded they
-> become a ten-minute checklist rather than something to reconstruct. Several **code-security**
-> features in §5 are gated the same way; each one is marked. Re-run §5 that day too — features that
-> were unavailable become available and are **off by default**.
+> Two things are worth carrying forward from the private years. **§5's code-security features were
+> gated the same way and are *off by default* when they become available** — being eligible is not
+> being enabled. And the earlier version of this note claimed §1–§4 "apply unchanged" while private;
+> that was an assumption nobody had tested, and it was wrong. Neither the API nor the UI was
+> consulted before it was written down. **Measure the setting; do not reason about the plan.**
 
 ---
 
@@ -140,17 +137,20 @@ published SHA-256 in the release notes no longer proves anything.
 
 **Settings → Code security** (some are under **Settings → General → Features**):
 
-| Setting | State | Available while private? | Why |
-| --- | --- | --- | --- |
-| **Private vulnerability reporting** | ✅ | ❌ **public repositories only** | This is the channel `SECURITY.md` and the issue templates point at. **Turn it on the moment the repository is made public** — until then that link works only for accounts with repository access, which `SECURITY.md` now states. |
-| **Dependabot alerts** | ✅ | ✅ | |
-| **Dependabot security updates** | ✅ | ✅ | |
-| **Dependabot version updates** | ✅ | ✅ | Configured by [`.github/dependabot.yml`](../.github/dependabot.yml) — weekly npm, monthly actions. |
-| **Secret scanning** | ✅ | ⚠️ check your plan | Free on public repositories; on a private repository it depends on the plan (Advanced Security). The Chrome Web Store credentials in [RELEASE §6](RELEASE.md#6-chrome-web-store-setup-and-the-four-secrets) are exactly the kind of thing that gets pasted into a commit by accident. |
-| **Secret scanning push protection** | ✅ | ⚠️ check your plan | Blocks the paste *before* it enters the history — and history is what gets published later, in full. If this is unavailable, the mitigation is manual: never paste a credential into a file, and keep them in Actions secrets only. |
-| **CodeQL / code scanning** | ✅ | ⚠️ check your plan | Free on public repositories; on a private repository it generally requires Advanced Security. The workflow arrives in Phase 1 — if code scanning cannot run, keep the workflow file and expect the run to fail or be skipped rather than deleting it. |
-| **Discussions** | ✅ | ✅ (visible only to people with access) | The issue-template config routes questions there. |
-| **Wiki, Projects** | ❌ | — | Unused; documentation lives in the repository. |
+All of these are free on a public repository. Every one of them is **off by default** — becoming
+eligible for a feature does not switch it on.
+
+| Setting | State | Why |
+| --- | --- | --- |
+| **Private vulnerability reporting** | ✅ | This is the channel `SECURITY.md` and the issue templates point at, and it is **public-repositories-only** — for the whole private period those links went to a form that only accounts with repository access could reach, which `SECURITY.md` said out loud. Switching it on was the first thing done after publication. |
+| **Dependabot alerts** | ✅ | |
+| **Dependabot security updates** | ✅ | |
+| **Dependabot version updates** | ✅ | Configured by [`.github/dependabot.yml`](../.github/dependabot.yml) — weekly npm, monthly actions. |
+| **Secret scanning** | ✅ | Free on public repositories; on the private Free plan it needed Advanced Security. The Chrome Web Store credentials in [RELEASE §6](RELEASE.md#6-chrome-web-store-setup-and-the-four-secrets) are exactly the kind of thing that gets pasted into a commit by accident. |
+| **Secret scanning push protection** | ✅ | Blocks the paste *before* it enters the history. That mattered more when publication was still ahead; now that the history is public, it is the difference between a close call and a rotation. |
+| **CodeQL / code scanning** | ✅ | Free on public repositories, and the upload step that failed on every push while private now works — which is why [`codeql.yml`](../.github/workflows/codeql.yml) analyses each push and pull request again rather than only running weekly. |
+| **Discussions** | ✅ | The issue-template config routes questions there. |
+| **Wiki, Projects** | ❌ | Unused; documentation lives in the repository. |
 
 **Settings → Actions → General:**
 
@@ -186,32 +186,43 @@ If a force push succeeds, the ruleset is either **Disabled**, targeting the wron
 in its bypass list. Check enforcement status first — a ruleset saved in **Evaluate** mode reports
 what it *would* have done and blocks nothing.
 
-## 7. If the repository is ever made public
+## 7. Publication — what was audited, 2026-08-15
 
 Publishing is one click and is **irreversible in practice**: the entire history, every branch, and
-every tag become readable at once, and anything that was ever committed is assumed cloned. Before
-flipping it:
+every tag become readable at once, and anything that was ever committed is assumed cloned. This
+section was written in advance as a pre-flight checklist; it is kept as the record of what was
+actually run, because "we checked" is not a finding and a future fork deserves the evidence.
 
-1. **Audit the whole history, not the working tree.** `git log --all --stat` and
-   `git log -p -- '*.env*' '*.pem'`. A secret deleted in a later commit is still in the history.
-2. **Confirm the assistant-tooling files never entered it** ([PLAN.md §8.1](../PLAN.md#81-files-that-are-never-committed)):
-   `git log --all --oneline -- CLAUDE.md CLAUDE.local.md .claude .mcp.json` must print nothing.
-3. **Check for real vault data or personal URLs** in fixtures and test files. Fixtures must be
-   synthetic.
-4. **Decide on the committer email** you have been using — it becomes public with every commit.
+The audit, over all 91 commits on every branch and tag:
 
-Then, immediately after publishing:
+| Check | Result |
+| --- | --- |
+| Secrets ever committed — `*.pem`, `.env*`, `client_secret_*.json`, `*.crx` | Only `.env.example`. A secret deleted in a later commit still sits in the history, so this was run over `--all`, not the working tree. |
+| Credential material by content — the OAuth client id, `GOCSPX`, `BEGIN PRIVATE KEY`, refresh-token prefixes | `git log --all -S` finds nothing for any of them. |
+| Assistant tooling ([PLAN.md §8.1](../PLAN.md#81-files-that-are-never-committed)) | `git log --all --oneline -- CLAUDE.md CLAUDE.local.md .claude .mcp.json` prints nothing. The rule held from the first commit. |
+| Real vault data or personal URLs in fixtures | `test/fixtures/` uses `example.com`/`.net`/`.org` only. No `*.vmv` outside the synthetic fixture. |
+| Local absolute paths | No `C:\Users\…` or `D:\Work\…` in the tree or in any commit. |
+| Committer identity — it becomes public with every commit | All 91 commits are `zyndata <8853758+zyndata@users.noreply.github.com>`. GitHub's noreply address throughout; no personal email is exposed. |
 
-- Turn on **private vulnerability reporting** (§5) — `SECURITY.md` and the issue chooser both point
-  at a form that does not exist until you do.
-- Re-check **secret scanning**, **push protection**, and **CodeQL**; they may have become available,
-  and they are off by default.
-- Restore the `push` and `pull_request` triggers in
-  [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml). They were removed while the
-  repository was private because the upload step failed on every single push, and a permanently red
-  check is worse than no check. On a public repository the upload works, and analysing each change
-  as it lands is the entire point — weekly alone would let a bad commit sit for six days.
-- Update the "repository is private" notes in `README.md`, `SECURITY.md`, `CONTRIBUTING.md`,
-  `docs/PRIVACY.md`, `docs/STORE_LISTING.md`, and decision **D36** in `PLAN.md`.
-- If PRs from outsiders are now possible, revisit §3: turning on *require a pull request* +
-  required `verify` / `e2e` checks for `main` is the moment's one real decision.
+Applied immediately after the flip, in this order:
+
+1. **Private vulnerability reporting** (§5) — `SECURITY.md` and the issue chooser had been pointing
+   at a form that could not exist until this was on.
+2. **Secret scanning, push protection, CodeQL** — all newly available, all off by default.
+3. **The `push` and `pull_request` triggers in
+   [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml)**, restored. They had been
+   removed while private because the upload step failed on every single push, and a permanently red
+   check is worse than no check. On a public repository the upload works, and analysing each change
+   as it lands is the entire point — weekly alone lets a bad commit sit for six days.
+4. **§1–§4's rulesets**, which had been unapplicable for the whole build.
+5. **Pages** — Settings → Pages → Deploy from a branch → `main` / `docs`, which is what finally
+   answers the Store's privacy-policy URL ([RELEASE §8](RELEASE.md#8-store-listing-checklist)). It
+   serves from `main`, so it is empty until a release merge lands there.
+6. The "repository is private" notes in `README.md`, `SECURITY.md`, `CONTRIBUTING.md`,
+   `docs/PRIVACY.md`, `docs/STORE_LISTING.md` and **D36** in `PLAN.md`, all rewritten — in the
+   commit *before* the flip, so the repository was never publicly claiming to be private.
+
+**The one real decision at this moment was §3's**, and it was taken deliberately: *require a pull
+request* stays **off**. Outside PRs are now possible, but there is still exactly one maintainer, and
+a PR gate with a self-approval is ceremony that catches nothing. Revisit it when a second person has
+commit rights — not when the first outside PR arrives.

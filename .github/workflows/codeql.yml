@@ -2,20 +2,25 @@ name: codeql
 
 # Static analysis for JavaScript/TypeScript.
 #
-# Code scanning is free on public repositories; on a private one it requires GitHub Advanced
-# Security. This repository is private (PLAN.md D36), so the analysis itself runs fine but the
-# upload step fails: "Code scanning is not enabled for this repository."
+# Code scanning is free on public repositories and needs GitHub Advanced Security on a private one.
+# While this repository was private (PLAN.md D36) the analysis ran fine but the upload step failed
+# on every push with "Code scanning is not enabled for this repository" — so the push and
+# pull_request triggers were removed and only the weekly run was kept. A workflow that fails on
+# every single push teaches you to ignore a red check, which costs more than the analysis is worth
+# while its results have nowhere to be stored.
 #
-# Hence weekly only, not on every push. A workflow that fails on every single push teaches you to
-# ignore a red check — which costs more than this analysis is worth while its results have nowhere
-# to be stored. The file stays (docs/BRANCH_PROTECTION.md §5) so that scanning starts working the
-# day the repository is made public; restoring the `push` and `pull_request` triggers is on the
-# checklist in BRANCH_PROTECTION.md §7.
+# The repository was made public on 2026-08-15 and the upload works, so those triggers are back:
+# analysing each change as it lands is the entire point, and weekly alone would let a bad commit sit
+# for six days. The weekly run stays as well — it re-analyses unchanged code against updated CodeQL
+# queries, which is the half that pushes cannot cover.
 on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
   schedule:
-    # Monday 04:17 UTC. The only automatic trigger while the repository is private.
+    # Monday 04:17 UTC — catches new queries against code that has not changed.
     - cron: '17 4 * * 1'
-  # So a run can still be started by hand — e.g. right after code scanning becomes available.
   workflow_dispatch:
 
 permissions:

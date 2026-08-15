@@ -7,18 +7,22 @@ were written while the reasoning was fresh rather than reconstructed months late
 The submission process itself — accounts, secrets, the upload workflow — is in
 [RELEASE §6–§8](RELEASE.md#6-chrome-web-store-setup-and-the-four-secrets).
 
-> **One field is still blocked, and it is a hard blocker: the privacy-policy URL.** The Store
-> requires a publicly reachable one, the document is finished ([PRIVACY.md](PRIVACY.md), Phase 9),
-> and the repository is private ([PLAN.md §2.5, D36](../PLAN.md#25-project--process)), so there is
-> nowhere to serve it from yet. The three ways out are in
-> [RELEASE §8](RELEASE.md#8-store-listing-checklist); it is a maintainer decision, not something a
-> phase can settle, and it must be settled **before** submission rather than on the day.
+> **Every field now has an answer, including the one that was blocked.** The privacy-policy URL was
+> a hard blocker for as long as the repository was private: the Store requires a publicly reachable
+> one and there was nowhere to serve the finished document from. **Settled 2026-08-15**
+> ([PLAN.md §2.5, D36](../PLAN.md#25-project--process)) — the repository is public and GitHub Pages
+> serves the policy from `main`/`docs`:
 >
-> The same privacy setting removes three other fields from the listing: the **support URL**, the
-> **homepage URL**, and the closing "open source" line of the detailed description. All three are
-> written below and all three are currently **cut**, because a listing that advertises a repository
-> and links to a 404 is worse than one that says nothing. The day the repository is published they
-> go back in, together, and this note goes away.
+> > <https://zyndata.github.io/vaulta-mark/PRIVACY>
+>
+> The same setting had removed three other fields, and all three are **restored** with it: the
+> **support URL**, the **homepage URL**, and the closing "open source" line of the detailed
+> description. They were written out in full below and held back rather than deleted, because a
+> listing that advertises a repository and links to a 404 is worse than one that says nothing —
+> and because holding them back is reversible in a way that rewriting them later is not.
+>
+> **The Pages URL is live only once a release merge lands on `main`**, since that is the branch it
+> serves. Check it resolves before pasting it into the dashboard, not after.
 
 ---
 
@@ -41,12 +45,12 @@ retake is a command rather than an afternoon:
 | Detailed description | Leads with the differentiators; states the no-recovery warning; explains both sync tiers | §3 below |
 | Category | Productivity | fixed |
 | Language | English (United States) | fixed |
-| Privacy policy URL | a publicly reachable URL serving [PRIVACY.md](PRIVACY.md) | **blocked — see the note above** |
+| Privacy policy URL | <https://zyndata.github.io/vaulta-mark/PRIVACY> | Pages, from `main`/`docs` — [PRIVACY.md](PRIVACY.md) |
 | Single-purpose statement | one sentence | §4 below |
 | Permission justifications | one or two sentences each | §5 below |
 | Data-usage disclosures | "No data collected" across the board | §6 below |
-| Support URL | <https://github.com/zyndata/vaulta-mark/issues> | **cut while the repo is private** |
-| Homepage URL | <https://github.com/zyndata/vaulta-mark> | **cut while the repo is private** |
+| Support URL | <https://github.com/zyndata/vaulta-mark/issues> | restored 2026-08-15 |
+| Homepage URL | <https://github.com/zyndata/vaulta-mark> | restored 2026-08-15 |
 
 ### The icon
 
@@ -138,10 +142,12 @@ only for length or clarity.
 >
 > Chrome sync (default): no setup, roughly 600 bookmarks, no thumbnails.
 > Google Drive (opt-in): effectively unlimited, with encrypted preview thumbnails.
+>
+> Open source, GPL-3.0-only: <https://github.com/zyndata/vaulta-mark>
 
-**The closing line is cut.** It read *"Open source, GPL-3.0-only:
-<https://github.com/zyndata/vaulta-mark>"* and it is held back until the repository is public — see
-the note at the top. Restore it verbatim on the day; nothing else in the description changes.
+**The closing line is restored** (2026-08-15), verbatim as it was drafted and held back while the
+repository was private. Nothing else in the description changed — which was the point of writing it
+out and cutting it rather than leaving it to be composed on submission day.
 
 **Checked against the shipped 1.0.0 build**, claim by claim:
 
@@ -155,10 +161,10 @@ the note at the top. Restore it verbatim on the day; nothing else in the descrip
 | PBKDF2 600,000 / AES-256-GCM / 256-bit key | D3, D4; known-answer tested against committed vectors in `test/fixtures/`. |
 | "no password recovery" | No verifier blob and no escrow exists to build one from. Stated at creation behind a typed confirmation. |
 
-No sentence above promises a feature that slipped. The two things deliberately **not** claimed are a
-byte-for-byte reproducible build (the zip is deterministic, the bundle is not promised to be — see
-[RELEASE §7](RELEASE.md#7-the-release-workflow)) and a public specification, which is true again the
-day the repository is.
+No sentence above promises a feature that slipped. The one thing deliberately **not** claimed is a
+byte-for-byte reproducible build: the zip is deterministic, the bundle is not promised to be — see
+[RELEASE §7](RELEASE.md#7-the-release-workflow). The public specification, which was the second
+withheld claim, is now simply true and the "open source" closing line carries it.
 
 ## 4. Single-purpose statement
 

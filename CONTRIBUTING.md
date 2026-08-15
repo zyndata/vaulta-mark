@@ -4,11 +4,22 @@ Thanks for looking. VaultaMark is a security tool, so a few of the rules below a
 may be used to. They exist to keep the extension auditable and its threat model honest — not to make
 contributing tedious.
 
-> **The repository is private for now, and outside contributions are not open yet.** Whether the
-> source is published is a decision for later ([PLAN.md §2.5, D36](PLAN.md#25-project--process)).
-> Until then this document is the maintainer's own working agreement — and it is written now, rather
-> than at publication, because the rules it describes have to be followed from the first commit to be
-> worth anything. Where it says "pull request", read "the change you are about to push".
+> **VaultaMark has a single maintainer, and contributions are open**
+> ([PLAN.md §2.5, D36](PLAN.md#25-project--process)). Two things follow, and it is fairer to say both
+> up front than to let you discover them from a stale pull request.
+>
+> **Issues and Discussions are the cheap door.** A bug report, a question, or "is this supposed to
+> work like that?" costs you five minutes and is genuinely useful. Start there.
+>
+> **A pull request is read on its merits, and review latency is one person's.** There is no roadmap
+> soliciting work and no `good first issue` queue pretending otherwise. Small, focused changes —
+> a bug with the test that catches it, a doc that has gone out of date — are the ones most likely to
+> land quickly. **For anything larger, open an issue first**; the rules in this document are
+> non-negotiable and it is better to find that out before you have written the code than after.
+>
+> This document was written in Phase 0, while the repository was still private, because rules like
+> these are only worth anything if they were followed from the first commit rather than adopted at
+> publication. That is why the history reads as though it always expected an audience.
 
 Before anything else, please read:
 

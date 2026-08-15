@@ -3,11 +3,10 @@
 VaultaMark stores people's bookmarks under a password they cannot recover. Security reports are taken
 seriously and answered.
 
-> **Current status:** the repository is **private** and there is no released version yet. This policy
-> is in force from the first public release; until then the advisory form below is reachable only by
-> accounts with access to the repository, and GitHub's private vulnerability reporting cannot be
-> switched on at all while a repository is private. If you are reading this without repository
-> access, nothing here is live yet.
+> **Current status:** the repository is **public** and private vulnerability reporting is switched
+> on, so the advisory form below works for anyone. There is no Chrome Web Store release yet — the
+> "supported versions" table below therefore describes the policy from the first published version
+> onward, and today the only build in anyone's hands is one they made from this source.
 
 ---
 
@@ -158,7 +157,9 @@ Every release is built from a tagged commit by a GitHub Actions workflow, and th
 published in the GitHub Release notes. The invariant scanners that prove "no remote code" are in the
 repository and run on every build. See [docs/RELEASE.md](docs/RELEASE.md).
 
-**While the repository is private, you cannot verify any of that yourself** — building from source
-and comparing hashes requires the source. Independent verification becomes possible only if and when
-the repository is published; until then the claims in this document are claims, and the reasonable
-posture toward an unpublished security tool is skepticism.
+**You can check all of that yourself, and you should.** The source is public, so building from a tag
+and comparing your zip's SHA-256 against the one in the Release notes is something you can do without
+asking anyone's permission — which is the whole reason the repository was published. The
+cryptography is specified in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), tested against committed
+known-answer vectors, and has still **not** had a formal third-party audit; publication makes the
+claims checkable, not proven. Skepticism remains reasonable. It is now also actionable.

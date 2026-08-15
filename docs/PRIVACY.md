@@ -1,11 +1,17 @@
+---
+title: Privacy Policy
+---
+
 # VaultaMark Privacy Policy
 
 **Applies to:** the VaultaMark Chrome extension (all versions)
 **Last updated:** 2026-08-05
 
-*This document is publishable as it stands. Where it is hosted, and the decision about making the
-repository public in order to host it, is a release step rather than a content one — see
-[RELEASE §8](RELEASE.md#8-store-listing-checklist).*
+*Published at <https://zyndata.github.io/vaulta-mark/PRIVACY>, which is the URL given to the Chrome
+Web Store and must stay stable across releases. GitHub Pages serves it from this file on the `main`
+branch, so it always shows the policy as of the last release rather than as of the latest commit —
+see [RELEASE §8](RELEASE.md#8-store-listing-checklist). The content has not changed since it was
+written in Phase 9; only its address is new.*
 
 ---
 

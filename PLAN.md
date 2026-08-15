@@ -66,8 +66,8 @@ Rules:
 4. **Incognito-only opening**, with a guided flow when the required permission is missing.
 5. **Reviewable and publishable**: minimal permissions, all code in the package, MV3-clean.
 6. **Auditable, and buildable as open source**: GPLv3, documented crypto, reproducible build,
-   CI-enforced invariants. The repository is private for now and whether the source is published is a
-   later decision (D36) — the code is written to survive publication regardless.
+   CI-enforced invariants. The repository is public (D36) — the code was written from the first
+   commit to survive publication, and now has.
 
 ### Non-goals (explicitly out of scope for 1.0)
 
@@ -144,7 +144,7 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | D33 | **Coverage gates: 90 % lines / 85 % branches on `src/crypto/**`, `src/vault/**`, `src/sync/**`; 70 % lines global** | Pragmatic: near-total on the parts where a bug loses user data, moderate on UI glue. |
 | D34 | **Store upload is gated behind `workflow_dispatch` input `publish: true`** | A tag push builds and creates a GitHub Release with the zip attached, but never publishes to the Store by itself. |
 | D35 | **Versioning: SemVer**, `manifest.json` version generated from `package.json` at build time | Chrome versions must be `1.2.3` numeric-only; pre-release tags (`1.2.0-rc.1`) map to `1.2.0.1` via a documented rule in `build/version.ts`. |
-| D36 | **Repository visibility: private for now.** Publishing the source is a separate decision, taken later. | Licensing and publishing are different things: GPL-3.0-only (D31) governs the terms under which the code is distributed *if and when* it is, and obliges nothing while the repository is private. Nothing in the build, the test suite, or the invariant scanners depends on the repository being public. **Consequences to respect while it stays private:** (a) several GitHub features the docs assume are public-repo or paid-plan features — private vulnerability reporting, CodeQL/code scanning, secret-scanning push protection, and GitHub Pages for the privacy-policy URL — so re-check each before relying on it (see [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md) §5); (b) the Chrome Web Store listing must not link to a repository nobody can open; (c) §8.1 becomes **more** important, not less — history published later is published in full, so nothing that must never be public may enter it now. |
+| D36 | **Repository visibility: public, single maintainer.** Decided 2026-08-15; private from the first commit until then. | Licensing and publishing are different things, and for this product the gap between them was a real cost: GPL-3.0-only (D31) governs the terms under which the code is distributed, but a security tool nobody can read is one whose claims cannot be checked, which `SECURITY.md` said in as many words while the repository was private. Publishing settles that, and unblocks four GitHub features the docs had to work around — private vulnerability reporting, CodeQL upload, secret-scanning push protection, and GitHub Pages, which is where the Store's privacy-policy URL now comes from ([docs/RELEASE.md](docs/RELEASE.md) §8). Branch protection, which the Free plan refused outright on a private repository (measured 2026-08-14), becomes available with it and is applied — see [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md). **Public is not the same as shared.** There is one maintainer, so D32 stands unchanged: no pull-request requirement, no approval gate, direct commits to `dev`. Issues, Discussions and pull requests are open; a pull request is judged on its merits, and none is solicited by a roadmap. **What was true while it was private stays true:** §8.1 is not relaxed by publication but *settled* by it — the history is readable in full now, so the rule about what may never enter it no longer has an undo. |
 
 ---
 
@@ -432,9 +432,10 @@ vaulta-mark/
 
 ### 8.1 Files that are never committed
 
-The repository is **private for now** and may be published later (D36). Git history is published in
-full or not at all, so the rule is written for the moment of publication, not for today: anything
-that must never be public must never enter the history in the first place. Assistant tooling is a
+The repository is **public** (D36). Git history is published in full or not at all, and this one now
+is: the rule was written for the moment of publication rather than for the day it was drafted, and
+that moment has passed. Anything that must never be public must never enter the history in the first
+place — there is no longer a version of that sentence with an escape in it. Assistant tooling is a
 local development detail, not part of the product, and it stays out of the tree and out of the
 history either way.
 
@@ -1490,10 +1491,12 @@ a Chrome Web Store submission.
 5. **`scripts/gen-brand-assets.mjs` and `scripts/capture-store-screenshots.mjs`** were not in the
    phase's file list, because "produce store assets" reads like a manual task. They are committed so
    that a retake is a command; the PNGs remain the deliverable, and neither script runs in `verify`.
-6. **The privacy-policy hosting decision stands unresolved**, by the maintainer's choice
-   (2026-08-14). Everything that depends on a public repository is written and explicitly *cut*
-   rather than left pointing at a 404: the Store's privacy-policy, support and homepage URLs, and
-   the closing "open source" line of the detailed description. STORE_LISTING §1 says so at the top.
+6. **The privacy-policy hosting decision stood unresolved** at the close of the phase, by the
+   maintainer's choice (2026-08-14). Everything that depended on a public repository was written and
+   explicitly *cut* rather than left pointing at a 404: the Store's privacy-policy, support and
+   homepage URLs, and the closing "open source" line of the detailed description. **Settled
+   2026-08-15 by D36** — the repository is public, Pages serves the policy from `main`/`docs`, and
+   all four are restored. STORE_LISTING §1 records the resolution.
 
 **Definition of done**
 - [x] A tag push produces a GitHub Release with the zip and checksums, without publishing to the
