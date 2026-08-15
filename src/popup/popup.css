@@ -1,0 +1,355 @@
+/* Popup layout only. Tokens and shared components live in src/ui/styles.css. */
+
+/*
+ * Chrome clamps a popup at 800×600 px and will not scroll it for us beyond that, so both dimensions
+ * are fixed here and stay inside it: 26.4rem (422 px) wide and 37.5rem (600 px) tall.
+ *
+ * The width was 24rem through Phase 5. A tenth wider buys roughly six characters of every row's
+ * title and host — which is where the space goes, because a bookmark list is a column of truncated
+ * strings and the truncation is what makes one hard to scan.
+ *
+ * **The height is fixed and taken from the settings screen**, which is the tallest of them and which
+ * measures a couple of pixels *over* Chrome's cap — so it sets the height and the cap rounds it. A
+ * popup sized to its contents is a window that jumps every time you press something: going to
+ * settings grew it, coming back shrank it, and deleting the last bookmark shrank it again, moving
+ * the footer under the pointer each time. So the popup is one size, the list takes whatever room the
+ * rest of the screen leaves, and the buttons along the bottom are always in the same place.
+ */
+body.vm-popup {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 26.4rem;
+  height: 37.5rem;
+  padding: 0.875rem 1rem 1rem;
+}
+
+/*
+ * The screen fills what the header leaves, and scrolls if it has to.
+ *
+ * "If it has to" is the create screen — a password, a repeat, a strength meter, a no-recovery
+ * warning and a typed confirmation is more than 568 px of form. Chrome would otherwise scroll the
+ * popup itself, which it only does past 600 px and which leaves the header scrolling away with it.
+ */
+/*
+ * `--vm-ring-room` on all four sides: this box scrolls, and a scroll box clips (see `ui/styles.css`,
+ * where the value and the reasoning live). It is the popup's only clipping ancestor, and everything
+ * a person types into is inside it — the master password, its repeat, the typed confirmation, the
+ * vault filter, all `width: 100%`. The filter is also the *first* thing in here on the unlocked
+ * screen, its top edge exactly on this box's, so inline padding alone left the top of its ring cut.
+ */
+#vm-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: calc(-1 * var(--vm-ring-room));
+  padding: var(--vm-ring-room);
+}
+
+.vm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  min-height: 1.9rem;
+}
+
+.vm-header p {
+  margin: 0;
+}
+
+/* Empty on every screen but the unlocked vault, and it must not take a row when it is. */
+.vm-header-action:empty {
+  display: none;
+}
+
+.vm-warnings {
+  margin: 0 0 0.75rem;
+  padding-left: 1.1rem;
+}
+
+.vm-warnings:empty {
+  display: none;
+}
+
+.vm-blocked {
+  margin: 0.5rem 0 0;
+  text-align: center;
+}
+
+/* Sits under the control it explains, indented past the checkbox it belongs to. */
+.vm-hint {
+  margin: -0.4rem 0 0.55rem;
+  padding-left: 1.4rem;
+}
+
+.vm-unlocked {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+  color: var(--vm-ok);
+}
+
+.vm-rule {
+  margin: 1rem 0 0.875rem;
+  border: 0;
+  border-top: 1px solid var(--vm-border);
+}
+
+/* The strength line and the warning list sit tight under the field they describe. */
+.vm-field + .vm-meter {
+  margin-top: -0.5rem;
+}
+
+.vm-meter + p {
+  margin: 0.25rem 0 0.5rem;
+}
+
+/* ------------------------------------------------------------------ the vault screen */
+
+.vm-field--filter {
+  margin-bottom: 0.5rem;
+}
+
+.vm-field--filter input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font: inherit;
+}
+
+/* The vault screen is the popup, minus the header: the filter at the top, the footer pinned to the
+   bottom, and the list taking everything between them. */
+/* `position: relative` makes this the box the preview card is placed against — see `.vm-row-eye`
+   below and `position()` in `ui/thumb.ts`. It is the nearest ancestor of a row that does not
+   scroll; hosting the card on `.vm-list` instead would clip it at the first row it overhung. */
+.vm-vault {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The list is the part that scrolls, so the filter and the footer stay reachable however many
+   bookmarks are in the vault. There is no row cap behind this — favicons load lazily
+   (ui/favicon.ts), so the rows below the fold cost nothing until they are scrolled to.
+
+   No `max-height` any more: the popup is a fixed size, so the list is simply what is left over. */
+.vm-list {
+  flex: 1 1 auto;
+  min-height: 4rem;
+  /*
+   * Room for a row's focus ring — and **no negative margin at all**, deliberately, unlike
+   * `#vm-root` above.
+   *
+   * This is the one box on the screen that carries a scrollbar, and a scrollbar is painted at the
+   * inline end of the border box. Widening the box by 12 px to keep the rows where they were also
+   * moved the scrollbar 6 px out, past the right edge of everything else on the screen and directly
+   * under the filter's own focus ring — sharing its column, an arrow-button's height below it. The
+   * ring was no longer clipped; it was crowded.
+   *
+   * So the box stays exactly where it is and the rows move in instead. The scrollbar now sits
+   * inside the filter's width, and the filter's ring is drawn outside it, with nothing shared. The
+   * twelve pixels come out of the space for rows, because this is `flex: 1 1 auto` and the footer
+   * is pinned below it.
+   */
+  margin: 0;
+  padding: var(--vm-ring-room);
+  overflow-y: auto;
+  list-style: none;
+}
+
+.vm-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  border-radius: var(--vm-radius);
+}
+
+.vm-row:hover,
+.vm-row:focus-within {
+  background: var(--vm-surface);
+}
+
+.vm-row-open {
+  display: flex;
+  flex: 1;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.35rem 0.4rem;
+  border: 0;
+  border-radius: var(--vm-radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vm-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Both lines truncate rather than wrap: two rows of the same height are scannable, and a title
+   that reflows to four lines pushes the rest of the vault off screen. */
+.vm-row-title,
+.vm-row-host {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/*
+ * The eye that opens a row's preview, immediately left of the delete button.
+ *
+ * The manager has a rule with the same name and a different job: there it is a `span` of fixed width
+ * present on *every* row, because that list is windowed and a marker that came and went would move
+ * every column after it as rows scrolled past. Here the row is a flex with one growing child and the
+ * buttons pinned at the end, so a button that only exists on rows with a preview moves nothing — and
+ * it can be a real button, which is what gives the preview a keyboard route.
+ */
+.vm-row-eye {
+  flex: none;
+  width: 1.75rem;
+  border: 0;
+  border-radius: var(--vm-radius);
+  background: none;
+  font-size: 0.9rem;
+  line-height: 1;
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.vm-row-eye:hover,
+.vm-row-eye:focus-visible {
+  opacity: 1;
+}
+
+.vm-row-delete {
+  flex: none;
+  width: 1.75rem;
+  border: 0;
+  border-radius: var(--vm-radius);
+  background: none;
+  color: var(--vm-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.vm-row-delete:hover {
+  color: var(--vm-danger);
+}
+
+.vm-empty {
+  padding: 1rem 0.4rem;
+  color: var(--vm-muted);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.vm-count {
+  margin: 0.35rem 0 0;
+  text-align: center;
+}
+
+/* Reserves no space when empty, so the list does not jump when a toast appears. */
+.vm-toast-slot:empty {
+  display: none;
+}
+
+.vm-toast {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--vm-radius);
+  background: var(--vm-surface);
+  font-size: 0.8125rem;
+}
+
+.vm-toast > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------------ the settings screen */
+
+/*
+ * A screen, not a disclosure — see the note at the top of settings.ts.
+ *
+ * The vertical rhythm here is tight on purpose, and it is the popup's height that decides how tight:
+ * this screen is the tallest one and Chrome will not give a popup more than 600 px. Loosening any of
+ * these margins puts the version line under the fold, which is a scrollbar for one line of text —
+ * and a scrollbar narrows the column, rewraps three paragraphs of hint text and makes the screen
+ * taller still.
+ */
+.vm-screen-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.vm-screen-title {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.vm-settings-screen .vm-settings-section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.vm-settings-screen h3 {
+  margin: 0.6rem 0 0.35rem;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vm-muted);
+}
+
+/* `auto` above it, so on the screens where the settings do not fill the popup the version still
+   sits on the floor rather than halfway up. */
+.vm-version-line {
+  margin: auto 0 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--vm-border);
+  text-align: center;
+}
+
+.vm-settings-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------------ footer */
+
+/* Lock, manager, settings — spread across the width rather than huddled in the middle, so each
+   button keeps a fixed place instead of shifting sideways when a label's length changes. `auto`
+   above it pins the row to the bottom of the popup on a short list as well as a full one. */
+.vm-footer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--vm-border);
+}

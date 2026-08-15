@@ -1,0 +1,110 @@
+name: 🐛 Bug report
+description: Something in VaultaMark does not work the way it should.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not report security vulnerabilities here.** Use the
+        [private advisory form](https://github.com/zyndata/vaulta-mark/security/advisories/new)
+        instead — see [SECURITY.md](https://github.com/zyndata/vaulta-mark/blob/dev/SECURITY.md).
+
+        **Never paste real vault data, a master password, or a real exported `.vmv` file** into this
+        issue. Reproduce with a throwaway vault and synthetic bookmarks.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you file
+      options:
+        - label: This is not a security vulnerability (those go to the private advisory form).
+          required: true
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This issue contains no real vault contents, passwords, or personal URLs.
+          required: true
+        - label: >-
+            I understand there is no password recovery, and this issue is not about a forgotten
+            password.
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+      placeholder: |
+        I clicked "Save to VaultaMark" on a page and expected the bookmark to appear in the popup.
+        Instead the popup stayed empty and the toolbar icon flashed red.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps, starting from a fresh state where possible.
+      placeholder: |
+        1. Create a new vault and unlock it
+        2. Open https://example.com
+        3. Press Ctrl+Shift+S
+        4. Open the popup
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: VaultaMark version
+      description: From `chrome://extensions`, or the commit SHA if you built from source.
+      placeholder: "0.1.0 (or commit a1b2c3d)"
+    validations:
+      required: true
+
+  - type: input
+    id: chrome
+    attributes:
+      label: Chrome version and OS
+      placeholder: "Chrome 131.0.6778.86 · Windows 11 24H2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How was it installed?
+      options:
+        - Chrome Web Store
+        - Load unpacked from a release zip
+        - Load unpacked from a local build
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sync
+    attributes:
+      label: Which sync tier was active?
+      options:
+        - Chrome sync (default)
+        - Google Drive
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output
+      description: >-
+        From `chrome://extensions` → **service worker** → Console, and the DevTools console of the
+        popup or manager page if the problem is in the UI. **Redact anything that reveals a real URL
+        or title before pasting.**
+      render: text
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: >-
+        Screenshots (with vault contents blurred), how often it reproduces, whether it started after
+        an update, roughly how many bookmarks are in the vault.

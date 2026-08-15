@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VaultaMark</title>
+    <script type="module" src="./manager.ts"></script>
+  </head>
+  <body class="vm-manager">
+    <!-- Everything below #vm-root is built by manager.ts. The static markup is only the landmarks,
+         so a screen reader has a document structure before the first message round trip returns. -->
+    <a class="vm-skip" href="#vm-root" data-i18n="listLabel"></a>
+    <div id="vm-root">
+      <p class="vm-placeholder" data-i18n="managerLoading"></p>
+    </div>
+    <div id="vm-status" aria-live="polite"></div>
+  </body>
+</html>

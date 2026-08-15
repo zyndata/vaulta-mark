@@ -1,0 +1,2675 @@
+{
+  "extName": {
+    "message": "VaultaMark",
+    "description": "The extension name, as shown in Chrome and on the Web Store."
+  },
+  "extDescription": {
+    "message": "Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito. Optional sync via your own Google Drive.",
+    "description": "Store and toolbar description. Chrome truncates at 132 characters."
+  },
+  "actionTitle": {
+    "message": "VaultaMark — encrypted bookmarks",
+    "description": "Tooltip on the toolbar button."
+  },
+  "cmdAdd": {
+    "message": "Add the current tab to the vault",
+    "description": "Keyboard shortcut description, shown on chrome://extensions/shortcuts."
+  },
+  "cmdLock": {
+    "message": "Lock the vault now",
+    "description": "Keyboard shortcut description, shown on chrome://extensions/shortcuts."
+  },
+  "cmdManager": {
+    "message": "Open the VaultaMark manager",
+    "description": "Keyboard shortcut description, shown on chrome://extensions/shortcuts."
+  },
+  "popupVersion": {
+    "message": "v$VERSION$",
+    "description": "Build version shown in the popup header.",
+    "placeholders": {
+      "version": {
+        "content": "$1",
+        "example": "0.1.0"
+      }
+    }
+  },
+  "popupLoading": {
+    "message": "Checking the vault…",
+    "description": "Shown for the moment before the service worker answers."
+  },
+  "popupOpenManager": {
+    "message": "Open the manager",
+    "description": "Link from the popup to the full manager page."
+  },
+  "menuAddPage": {
+    "message": "Add to VaultaMark",
+    "description": "Right-click entry on a page or a text selection. Vaults the page you are on."
+  },
+  "menuAddLink": {
+    "message": "Add link to VaultaMark",
+    "description": "Right-click entry on a link. Vaults the link's target without opening it."
+  },
+  "createIntro": {
+    "message": "Choose a master password. It encrypts everything you save, and it is never stored or sent anywhere.",
+    "description": "Introduction at the top of the create-vault form."
+  },
+  "createFieldPassword": {
+    "message": "Master password",
+    "description": "Label for the password field on the create-vault form."
+  },
+  "createFieldConfirm": {
+    "message": "Repeat the password",
+    "description": "Label for the confirm-password field on the create-vault form."
+  },
+  "createFieldPhrase": {
+    "message": "Type the phrase to confirm",
+    "description": "Label for the typed-confirmation field on the create-vault form."
+  },
+  "createConfirmPhrase": {
+    "message": "I understand",
+    "description": "The exact phrase the user must type to confirm there is no password recovery. Compared case-insensitively after trimming."
+  },
+  "createPhraseHint": {
+    "message": "Type “$PHRASE$” above to continue.",
+    "description": "Hint under the typed-confirmation field.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "I understand"
+      }
+    }
+  },
+  "createNoRecoveryHeading": {
+    "message": "There is no way to recover this password.",
+    "description": "Heading of the no-recovery warning on the create-vault form."
+  },
+  "createNoRecoveryBody": {
+    "message": "No reset link, no recovery code, no support request. If you forget it, everything in the vault is gone for good — not even we can read it.",
+    "description": "Body of the no-recovery warning on the create-vault form."
+  },
+  "createStrength": {
+    "message": "Strength: $LEVEL$",
+    "description": "Password strength line under the meter.",
+    "placeholders": {
+      "level": {
+        "content": "$1",
+        "example": "Strong"
+      }
+    }
+  },
+  "createPasswordsDiffer": {
+    "message": "The two passwords do not match.",
+    "description": "Shown when the confirm field differs from the password field."
+  },
+  "createWeakConfirm": {
+    "message": "That password is weaker than we would like, and it cannot be recovered later. Press the button again to use it anyway.",
+    "description": "Second confirmation shown when the chosen password scores below “good”."
+  },
+  "createButton": {
+    "message": "Create vault",
+    "description": "Submit button on the create-vault form."
+  },
+  "createButtonAnyway": {
+    "message": "Create vault anyway",
+    "description": "Submit button after the weak-password warning has been shown."
+  },
+  "createNeedsLength": {
+    "message": "Still needed: a password of at least $MINIMUM$ characters.",
+    "description": "Shown under the disabled create button when the password is too short.",
+    "placeholders": {
+      "minimum": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "createNeedsMatch": {
+    "message": "Still needed: the two passwords have to match.",
+    "description": "Shown under the disabled create button when the confirmation differs."
+  },
+  "createNeedsPhrase": {
+    "message": "Still needed: type “$PHRASE$” in the box above.",
+    "description": "Shown under the disabled create button when the typed confirmation is missing.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "I understand"
+      }
+    }
+  },
+  "strength0": {
+    "message": "Very weak",
+    "description": "Password strength level 0 of 4."
+  },
+  "strength1": {
+    "message": "Weak",
+    "description": "Password strength level 1 of 4."
+  },
+  "strength2": {
+    "message": "Fair",
+    "description": "Password strength level 2 of 4."
+  },
+  "strength3": {
+    "message": "Good",
+    "description": "Password strength level 3 of 4."
+  },
+  "strength4": {
+    "message": "Strong",
+    "description": "Password strength level 4 of 4."
+  },
+  "warnTooShort": {
+    "message": "Too short — use at least 10 characters.",
+    "description": "Password warning: below the hard minimum length."
+  },
+  "warnCommonPassword": {
+    "message": "This is one of the most commonly used passwords.",
+    "description": "Password warning: an exact match in the bundled common-password list."
+  },
+  "warnCommonPasswordVariant": {
+    "message": "This is a common password with small substitutions — those are the first thing an attacker tries.",
+    "description": "Password warning: a leet or suffixed variant of a common password."
+  },
+  "warnSingleCharacterClass": {
+    "message": "Only one kind of character. Mixing in others helps.",
+    "description": "Password warning: all lowercase, all digits, and so on."
+  },
+  "warnRepeatedCharacters": {
+    "message": "Contains a long run of repeated characters.",
+    "description": "Password warning: a repeated-character run."
+  },
+  "warnSequentialCharacters": {
+    "message": "Contains a sequence like “abcd” or “1234”.",
+    "description": "Password warning: a sequential run."
+  },
+  "warnKeyboardPattern": {
+    "message": "Contains a keyboard pattern like “qwerty”.",
+    "description": "Password warning: a keyboard walk."
+  },
+  "warnYearLike": {
+    "message": "Contains something that looks like a year.",
+    "description": "Password warning: a four-digit year."
+  },
+  "unlockFieldPassword": {
+    "message": "Master password",
+    "description": "Label for the password field on the unlock form."
+  },
+  "unlockButton": {
+    "message": "Unlock",
+    "description": "Submit button on the unlock form."
+  },
+  "lockedManual": {
+    "message": "The vault was locked.",
+    "description": "Shown on the unlock screen after the user locked the vault."
+  },
+  "lockedPanic": {
+    "message": "The vault was locked immediately.",
+    "description": "Shown on the unlock screen after a panic-lock."
+  },
+  "lockedExpired": {
+    "message": "The vault locked itself after a period of inactivity.",
+    "description": "Shown on the unlock screen after the idle timeout expired."
+  },
+  "lockedIdle": {
+    "message": "The vault locked itself because the computer went idle.",
+    "description": "Shown on the unlock screen after a system-idle lock."
+  },
+  "lockedBlur": {
+    "message": "The vault locked itself when you switched away from Chrome.",
+    "description": "Shown on the unlock screen after a lock-on-blur lock."
+  },
+  "vaultAddButton": {
+    "message": "Add this page",
+    "description": "Primary button on the unlocked popup. Vaults the tab you are looking at."
+  },
+  "vaultAdded": {
+    "message": "Saved “$TITLE$”.",
+    "description": "Confirmation after the current page was added to the vault.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "vaultAlreadySaved": {
+    "message": "This page is already in your vault.",
+    "description": "Shown when adding a page whose address is already vaulted."
+  },
+  "vaultOpenItButton": {
+    "message": "Open it",
+    "description": "Button beside the already-vaulted notice; opens the existing bookmark."
+  },
+  "vaultFilterLabel": {
+    "message": "Filter your vault",
+    "description": "Accessible name for the filter box on the unlocked popup."
+  },
+  "vaultFilterPlaceholder": {
+    "message": "Filter…",
+    "description": "Placeholder in the filter box on the unlocked popup."
+  },
+  "vaultEmpty": {
+    "message": "Nothing in the vault yet. “Add this page” puts the tab you are on in it.",
+    "description": "Shown instead of the list when the vault holds no bookmarks."
+  },
+  "vaultNoMatches": {
+    "message": "Nothing matches “$QUERY$”.",
+    "description": "Shown instead of the list when a filter matched no bookmarks.",
+    "placeholders": {
+      "query": {
+        "content": "$1",
+        "example": "github"
+      }
+    }
+  },
+  "vaultShowingCount": {
+    "message": "Showing $SHOWN$ of $TOTAL$.",
+    "description": "Line under the list when more bookmarks matched than the list shows.",
+    "placeholders": {
+      "shown": {
+        "content": "$1",
+        "example": "20"
+      },
+      "total": {
+        "content": "$2",
+        "example": "143"
+      }
+    }
+  },
+  "vaultDeleteLabel": {
+    "message": "Delete “$TITLE$”",
+    "description": "Accessible name and tooltip for the delete button on a list row.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "vaultPreviewLabel": {
+    "message": "Preview of “$TITLE$”",
+    "description": "Accessible name and tooltip for the eye button on a popup list row. Hovering it, or pressing it, shows the page's preview picture and words.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "vaultDeleted": {
+    "message": "Deleted “$TITLE$”.",
+    "description": "Undo toast shown for eight seconds after a delete.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "vaultUndo": {
+    "message": "Undo",
+    "description": "Button on the delete toast. Restores the bookmark under the same identity."
+  },
+  "unlockedHeading": {
+    "message": "Vault unlocked",
+    "description": "Status line on the unlocked popup screen."
+  },
+  "unlockedAutoLockIn": {
+    "message": "Locks itself after about $MINUTES$ min of inactivity.",
+    "description": "Auto-lock countdown on the unlocked popup screen.",
+    "placeholders": {
+      "minutes": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "unlockedAutoLockNever": {
+    "message": "Stays unlocked until you lock it or close Chrome.",
+    "description": "Shown instead of the countdown when the idle timeout is set to Never."
+  },
+  "unlockedLockButton": {
+    "message": "Lock now",
+    "description": "Button that locks the vault from the popup."
+  },
+  "settingsIdleTimeout": {
+    "message": "Lock after inactivity",
+    "description": "Label for the idle-timeout selector."
+  },
+  "settingsIdleMinutes": {
+    "message": "$MINUTES$ minutes",
+    "description": "An idle-timeout choice.",
+    "placeholders": {
+      "minutes": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "settingsIdleNever": {
+    "message": "Never",
+    "description": "The idle-timeout choice that disables auto-locking."
+  },
+  "settingsLockOnBlur": {
+    "message": "Lock when I switch to another app",
+    "description": "Label for the lock-on-browser-blur toggle. Must not read as 'when Chrome closes' — it fires on focus loss, which is a very different promise."
+  },
+  "settingsLockOnBlurHint": {
+    "message": "Locks the moment Chrome loses focus, so you re-enter your password on every switch back. Moving between Chrome windows does not lock.",
+    "description": "Explanation under the lock-on-browser-blur toggle."
+  },
+  "settingsReuseWindow": {
+    "message": "Reuse the incognito window I already have open",
+    "description": "Label for the reuse-incognito-window toggle. On by default."
+  },
+  "settingsReuseWindowHint": {
+    "message": "Off, every bookmark opens a window of its own — and each one is a separate incognito session you have to close separately.",
+    "description": "Explanation under the reuse-incognito-window toggle."
+  },
+  "settingsStripTracking": {
+    "message": "Remove tracking parameters when saving",
+    "description": "Label for the strip-tracking-parameters toggle. On by default."
+  },
+  "settingsStripTrackingHint": {
+    "message": "Drops utm_*, fbclid, gclid and similar — campaign tags that no site needs to find the page. On by default, so the same article saved from two newsletters is one bookmark.",
+    "description": "Explanation under the strip-tracking-parameters toggle."
+  },
+  "settingsLocalThumbnails": {
+    "message": "Keep preview pictures on this device only",
+    "description": "Label for the local-thumbnails toggle (ARCHITECTURE §14.4). Off by default."
+  },
+  "settingsLocalThumbnailsHint": {
+    "message": "Chrome sync has nowhere to keep pictures, so previews captured here stay here and other computers will not see them. With Google Drive connected, previews are captured and synced whatever this says.",
+    "description": "Explanation under the local-thumbnails toggle."
+  },
+  "thumbHeading": {
+    "message": "Preview",
+    "description": "Heading of the preview section in the manager's detail pane."
+  },
+  "thumbNone": {
+    "message": "No preview available.",
+    "description": "Shown where a preview would be when the page never offered one."
+  },
+  "thumbInDrive": {
+    "message": "Preview stored in Drive.",
+    "description": "Shown when an item has a preview whose bytes this device cannot reach."
+  },
+  "thumbRefresh": {
+    "message": "Refresh preview",
+    "description": "Button that re-captures a bookmark's preview picture."
+  },
+  "thumbRefreshExplain": {
+    "message": "Re-capturing means loading the page again. This button opens it in an incognito window; there, open VaultaMark from the toolbar and press Refresh preview on the notice at the top.",
+    "description": "Explanation above the manager's Refresh preview button (ARCHITECTURE §14.5)."
+  },
+  "thumbRefreshOpened": {
+    "message": "Opened the page in an incognito window. Open VaultaMark from its toolbar there and press Refresh preview on the notice at the top.",
+    "description": "Status line after the manager's Refresh preview button opened the page."
+  },
+  "thumbRefreshing": {
+    "message": "Reading the page…",
+    "description": "Popup notice while a preview is being re-captured."
+  },
+  "thumbRefreshed": {
+    "message": "Preview updated.",
+    "description": "Popup notice after a successful re-capture."
+  },
+  "thumbRefreshFailed": {
+    "message": "This page offered no preview picture.",
+    "description": "Popup notice after a re-capture that produced nothing. Not an error."
+  },
+  "thumbOfferHeading": {
+    "message": "Keep preview pictures?",
+    "description": "Heading of the one-time local-thumbnails offer (ARCHITECTURE §14.4)."
+  },
+  "thumbOfferBody": {
+    "message": "VaultaMark can save the preview picture a page publishes and show it beside the bookmark. Chrome sync has nowhere to keep pictures, so they would stay on this computer and your other devices would not see them.",
+    "description": "First paragraph of the one-time local-thumbnails offer."
+  },
+  "thumbOfferCost": {
+    "message": "Pictures are read from the page while you save it, re-encoded, and encrypted like everything else. Connect Google Drive instead and they sync to every device. You can change this later in Settings.",
+    "description": "Second paragraph of the one-time local-thumbnails offer."
+  },
+  "thumbOfferConfirm": {
+    "message": "Keep them here",
+    "description": "Confirming button of the one-time local-thumbnails offer."
+  },
+  "trackingCleanupHeading": {
+    "message": "Clean the bookmarks you already have?",
+    "description": "Heading of the dialog offered when the strip-tracking setting is switched on."
+  },
+  "trackingCleanupBody": {
+    "message": "$COUNT$ saved bookmarks still carry tracking parameters. They can be removed from those addresses now.",
+    "description": "Body of the tracking clean-up offer.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "trackingCleanupBodyOne": {
+    "message": "One saved bookmark still carries tracking parameters. They can be removed from its address now.",
+    "description": "Body of the tracking clean-up offer when exactly one bookmark is affected."
+  },
+  "trackingCleanupCaveat": {
+    "message": "Only the campaign tags are removed; nothing is deleted and every page still opens where it did. This cannot be undone.",
+    "description": "Second paragraph of the tracking clean-up offer. Says what it will not do, and that it is one-way."
+  },
+  "trackingCleanupButton": {
+    "message": "Clean them up",
+    "description": "Confirming button on the tracking clean-up offer."
+  },
+  "trackingCleaned": {
+    "message": "Cleaned $COUNT$ bookmarks.",
+    "description": "Reported after the tracking clean-up ran.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "trackingCleanedOne": {
+    "message": "Cleaned 1 bookmark.",
+    "description": "Reported after the tracking clean-up changed exactly one bookmark."
+  },
+  "incognitoHeading": {
+    "message": "VaultaMark needs permission to open incognito windows",
+    "description": "Heading of the guided prompt shown when “Allow in Incognito” is off."
+  },
+  "incognitoWhy": {
+    "message": "VaultaMark opens every vaulted link in an incognito window, so the address never reaches your history or the address bar's suggestions. Chrome only lets an extension do that once you switch it on by hand — there is no way for us to ask you for it in a dialog.",
+    "description": "Explanation at the top of the guided incognito prompt."
+  },
+  "incognitoStep1": {
+    "message": "Copy this address and paste it into the address bar:",
+    "description": "First step of the guided incognito prompt. Chrome forbids an extension from opening a chrome:// URL, so the user has to paste it."
+  },
+  "incognitoStep2": {
+    "message": "On the page that opens, find the “Allow in Incognito” switch — it is near the bottom of VaultaMark's details, under “Site access”.",
+    "description": "Second step of the guided incognito prompt."
+  },
+  "incognitoStep3": {
+    "message": "Turn it on, come back here, and press Re-check.",
+    "description": "Third step of the guided incognito prompt."
+  },
+  "copyButton": {
+    "message": "Copy",
+    "description": "Button that copies the value shown beside it to the clipboard. Used by the guided incognito prompt and by the Drive setup steps in Settings."
+  },
+  "copied": {
+    "message": "Copied.",
+    "description": "Confirmation after a value was copied to the clipboard."
+  },
+  "copyFailed": {
+    "message": "Could not copy — select the value above instead.",
+    "description": "Shown when the clipboard write was refused, for example by an enterprise policy or an unfocused document."
+  },
+  "incognitoRecheck": {
+    "message": "Re-check",
+    "description": "Button that asks Chrome again whether incognito access has been granted."
+  },
+  "incognitoStillOff": {
+    "message": "Still off. Turn on “Allow in Incognito”, then press Re-check again.",
+    "description": "Result of a re-check that found the setting still disabled."
+  },
+  "incognitoNowOn": {
+    "message": "Incognito access is on. You can close this tab — your bookmarks will open in incognito from now on.",
+    "description": "Result of a re-check that found the setting enabled."
+  },
+  "incognitoFallbackHeading": {
+    "message": "Or open it in a normal window, this once",
+    "description": "Heading of the explicit fallback section of the guided incognito prompt."
+  },
+  "incognitoFallbackWarning": {
+    "message": "A normal window records the visit in your history and feeds the address bar's suggestions — which is what vaulting the bookmark was meant to avoid.",
+    "description": "Warning above the normal-window fallback button."
+  },
+  "incognitoFallbackClearHistory": {
+    "message": "Clear this site from my history afterwards",
+    "description": "Checkbox that queues a history cleanup for the site being opened."
+  },
+  "incognitoFallbackClearHistoryHint": {
+    "message": "Queued until the cleanup arrives in a later version, and only for as long as the vault stays unlocked — the queue is never written to disk.",
+    "description": "Explanation under the clear-history checkbox, stating the Phase-9 limitation honestly."
+  },
+  "incognitoFallbackButton": {
+    "message": "Open in a normal window",
+    "description": "Button that takes the explicit normal-window fallback."
+  },
+  "errorWrongPassword": {
+    "message": "That password is not right.",
+    "description": "Error shown when the master password fails to unwrap the data key."
+  },
+  "errorPasswordTooShort": {
+    "message": "A master password needs at least $MINIMUM$ characters.",
+    "description": "Error shown when the password is below the hard minimum length.",
+    "placeholders": {
+      "minimum": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "errorCorruptVault": {
+    "message": "The vault data on this device is damaged. Restore a backup to recover it.",
+    "description": "Error shown when authenticated decryption fails."
+  },
+  "errorUnsupportedSchema": {
+    "message": "This vault was made by a newer version of VaultaMark. Update the extension to open it.",
+    "description": "Error shown when the vault schema version is newer than this build supports."
+  },
+  "errorVaultLocked": {
+    "message": "The vault is locked.",
+    "description": "Error shown when an operation needed an unlocked vault."
+  },
+  "errorVaultState": {
+    "message": "That does not match the state of the vault on this device.",
+    "description": "Error shown when creating a vault that exists, or unlocking one that does not."
+  },
+  "errorItemNotFound": {
+    "message": "That bookmark is no longer in the vault.",
+    "description": "Error shown when an action names an item that has since been removed."
+  },
+  "errorInvalidMutation": {
+    "message": "That change would not leave a workable set of folders — a folder cannot go inside itself, and a bookmark cannot hold other bookmarks.",
+    "description": "Error shown when the item tree refuses a move or an edit."
+  },
+  "errorNoActiveTab": {
+    "message": "There is no page to add here.",
+    "description": "Error shown when the active tab could not be read."
+  },
+  "errorUrlInternalPage": {
+    "message": "This is one of the browser's own pages, and VaultaMark cannot reopen it later.",
+    "description": "Error shown when adding a chrome://, about: or extension page."
+  },
+  "errorUrlLocalFile": {
+    "message": "Files on your computer cannot be opened from an incognito window, so there would be no way to open this bookmark.",
+    "description": "Error shown when adding a file:// URL."
+  },
+  "errorUrlUnsupportedScheme": {
+    "message": "VaultaMark saves web addresses; this one is not a page it could open again.",
+    "description": "Error shown when adding a URL whose scheme is not http(s) or ftp."
+  },
+  "errorUnreachable": {
+    "message": "The background service is not responding. Try reopening this window.",
+    "description": "Error shown when the service worker did not answer at all."
+  },
+  "errorUnknown": {
+    "message": "Something went wrong.",
+    "description": "Error shown for anything not covered by a more specific message."
+  },
+  "managerLoading": {
+    "message": "Opening the vault…",
+    "description": "Shown on the manager page for the moment before the service worker answers."
+  },
+  "managerLocked": {
+    "message": "The vault is locked. Open the VaultaMark popup to unlock it.",
+    "description": "Shown on the manager page when the vault is locked. Unlocking happens in the popup, which is the one surface that is always one click away."
+  },
+  "managerNoVault": {
+    "message": "There is no vault on this device yet. Open the VaultaMark popup to create one.",
+    "description": "Shown on the manager page before a vault exists."
+  },
+  "managerSearchLabel": {
+    "message": "Search your vault",
+    "description": "Accessible name for the manager's search box."
+  },
+  "managerSearchPlaceholder": {
+    "message": "Search — or tag:x, folder:y, host:z, in:note",
+    "description": "Placeholder in the manager's search box. Names the query prefixes so they are discoverable without documentation."
+  },
+  "managerSearchHint": {
+    "message": "Press / to search.",
+    "description": "Keyboard hint shown beside the search box."
+  },
+  "managerSortLabel": {
+    "message": "Sort by",
+    "description": "Label for the sort selector."
+  },
+  "managerSortRanked": {
+    "message": "Sorted by best match.",
+    "description": "Shown in place of the sort selector while a search is ranked by relevance."
+  },
+  "sortAdded": {
+    "message": "Date added",
+    "description": "Sort order: newest first."
+  },
+  "sortModified": {
+    "message": "Date modified",
+    "description": "Sort order: most recently changed first."
+  },
+  "sortTitle": {
+    "message": "Title",
+    "description": "Sort order: alphabetical."
+  },
+  "sortOpened": {
+    "message": "Recently opened",
+    "description": "Sort order: most recently opened first."
+  },
+  "sortOpens": {
+    "message": "Most opened",
+    "description": "Sort order: highest open count first."
+  },
+  "sortManual": {
+    "message": "My own order",
+    "description": "Sort order: the arrangement the user has dragged the items into. The only order that can be reordered."
+  },
+  "reorderMovedOne": {
+    "message": "Moved.",
+    "description": "Live-region confirmation after one item was dragged or nudged to a new position."
+  },
+  "reorderMovedCount": {
+    "message": "Moved $COUNT$ items.",
+    "description": "Live-region confirmation after several items were moved to a new position.",
+    "placeholders": {
+      "count": { "content": "$1", "example": "4" }
+    }
+  },
+  "reorderUnavailable": {
+    "message": "Reordering works in “My own order”, inside a folder, with the search box empty.",
+    "description": "Shown when someone presses the move-up/move-down shortcut in a view whose order is not theirs to set."
+  },
+  "managerSettingsButton": {
+    "message": "Settings",
+    "description": "Button that opens the manager's settings dialog."
+  },
+  "managerLockButton": {
+    "message": "Lock",
+    "description": "Button that locks the vault from the manager."
+  },
+  "navSidebarLabel": {
+    "message": "Folders and tags",
+    "description": "Accessible name for the manager's sidebar."
+  },
+  "navAllBookmarks": {
+    "message": "All bookmarks",
+    "description": "Sidebar entry showing the whole vault."
+  },
+  "navUntagged": {
+    "message": "Untagged",
+    "description": "Sidebar filter showing bookmarks that carry no tags."
+  },
+  "navFolders": {
+    "message": "Folders",
+    "description": "Heading above the folder tree in the sidebar."
+  },
+  "navTags": {
+    "message": "Tags",
+    "description": "Heading above the tag list in the sidebar."
+  },
+  "navNoFolders": {
+    "message": "No folders yet.",
+    "description": "Shown under the Folders heading when the vault has none."
+  },
+  "navNoTags": {
+    "message": "No tags yet.",
+    "description": "Shown under the Tags heading when nothing is tagged."
+  },
+  "navNewFolder": {
+    "message": "New folder",
+    "description": "Button that creates a folder in the sidebar."
+  },
+  "navExpand": {
+    "message": "Expand $FOLDER$",
+    "description": "Accessible name for the twisty that opens a folder's children.",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Work"
+      }
+    }
+  },
+  "navCollapse": {
+    "message": "Collapse $FOLDER$",
+    "description": "Accessible name for the twisty that closes a folder's children.",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Work"
+      }
+    }
+  },
+  "listLabel": {
+    "message": "Bookmarks",
+    "description": "Accessible name for the manager's main list."
+  },
+  "listEmptyVault": {
+    "message": "Nothing in the vault yet. Add a page from the VaultaMark popup or with the toolbar button.",
+    "description": "Shown instead of the list when the whole vault is empty."
+  },
+  "listEmptyFolder": {
+    "message": "This folder is empty.",
+    "description": "Shown instead of the list when an open folder holds nothing."
+  },
+  "listEmptySearch": {
+    "message": "Nothing matches that search.",
+    "description": "Shown instead of the list when a search found nothing."
+  },
+  "listEmptyUntagged": {
+    "message": "Every bookmark has at least one tag.",
+    "description": "Shown instead of the list when the Untagged filter finds nothing."
+  },
+  "listCountBookmarks": {
+    "message": "$COUNT$ bookmarks",
+    "description": "Count of the bookmarks in the current view.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "listCountOneBookmark": {
+    "message": "1 bookmark",
+    "description": "Singular of listCountBookmarks."
+  },
+  "listFolderCount": {
+    "message": "$COUNT$ inside",
+    "description": "Bookmark count shown on a folder row, counting the whole subtree.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "listHasNote": {
+    "message": "Has a note",
+    "description": "Accessible label for the marker on a row whose bookmark carries a note."
+  },
+  "listHasThumb": {
+    "message": "Show preview",
+    "description": "Tooltip on the eye marker of a row whose bookmark has a preview picture."
+  },
+  "listKeyboardHint": {
+    "message": "j and k move, Enter opens, e edits, p previews, Delete removes, Esc clears.",
+    "description": "Keyboard hint under the manager's list."
+  },
+  "selectionCount": {
+    "message": "$COUNT$ selected",
+    "description": "How many rows are selected.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "actionsLabel": {
+    "message": "Actions for the selected bookmarks",
+    "description": "Accessible name for the bulk-action toolbar."
+  },
+  "actionOpen": {
+    "message": "Open",
+    "description": "Bulk action: open the selected bookmark in incognito."
+  },
+  "actionMove": {
+    "message": "Move to…",
+    "description": "Bulk action: move the selection into a folder."
+  },
+  "actionTag": {
+    "message": "Tag…",
+    "description": "Bulk action: add or remove tags across the selection."
+  },
+  "actionDelete": {
+    "message": "Delete",
+    "description": "Bulk action: delete the selection."
+  },
+  "actionSelectAll": {
+    "message": "Select all",
+    "description": "Bulk action: select every row in the current view."
+  },
+  "actionClearSelection": {
+    "message": "Clear selection",
+    "description": "Bulk action: deselect everything."
+  },
+  "deletedCount": {
+    "message": "Deleted $COUNT$ bookmarks.",
+    "description": "Undo toast after a bulk delete.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "movedCount": {
+    "message": "Moved $COUNT$ items.",
+    "description": "Confirmation after bookmarks are dragged into a folder.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "movedOne": {
+    "message": "Moved 1 item.",
+    "description": "Confirmation after a single bookmark is dragged into a folder."
+  },
+  "paneResizeSidebar": {
+    "message": "Resize the sidebar",
+    "description": "Accessible name for the drag handle between the sidebar and the list."
+  },
+  "paneResizeDetail": {
+    "message": "Resize the detail pane",
+    "description": "Accessible name for the drag handle between the list and the detail pane."
+  },
+  "detailLabel": {
+    "message": "Details",
+    "description": "Accessible name for the manager's detail pane."
+  },
+  "detailNothing": {
+    "message": "Select a bookmark to see and edit it.",
+    "description": "Shown in the detail pane when nothing is selected."
+  },
+  "detailMany": {
+    "message": "$COUNT$ bookmarks selected. Use the actions above the list to move, tag or delete them together.",
+    "description": "Shown in the detail pane when more than one row is selected.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "detailFieldTitle": {
+    "message": "Title",
+    "description": "Label for the title field in the detail pane."
+  },
+  "detailFieldUrl": {
+    "message": "Address",
+    "description": "Label for the URL field in the detail pane."
+  },
+  "detailFieldNote": {
+    "message": "Note",
+    "description": "Label for the note field in the detail pane."
+  },
+  "detailFieldTags": {
+    "message": "Tags",
+    "description": "Label for the tag field in the detail pane."
+  },
+  "detailTagsPlaceholder": {
+    "message": "Add a tag and press Enter",
+    "description": "Placeholder in the tag chip input."
+  },
+  "detailRemoveTag": {
+    "message": "Remove tag $TAG$",
+    "description": "Accessible name for the × on a tag chip.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "detailNoteCount": {
+    "message": "$USED$ of $MAX$ characters",
+    "description": "Character counter under the note field.",
+    "placeholders": {
+      "used": {
+        "content": "$1",
+        "example": "312"
+      },
+      "max": {
+        "content": "$2",
+        "example": "4096"
+      }
+    }
+  },
+  "detailSave": {
+    "message": "Save changes",
+    "description": "Button that writes the detail pane's edits to the vault."
+  },
+  "detailSaved": {
+    "message": "Saved.",
+    "description": "Confirmation after the detail pane's edits were written."
+  },
+  "detailOpen": {
+    "message": "Open in incognito",
+    "description": "Button in the detail pane that opens the bookmark."
+  },
+  "detailInFolder": {
+    "message": "In: $PATH$",
+    "description": "Where the bookmark lives, as a breadcrumb path.",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "Work / Roadmaps"
+      }
+    }
+  },
+  "detailAtTopLevel": {
+    "message": "At the top level",
+    "description": "Shown instead of detailInFolder when the item has no parent folder."
+  },
+  "detailStats": {
+    "message": "Added $ADDED$ · opened $COUNT$ times",
+    "description": "Timestamps and counters in the detail pane.",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "12 March 2026"
+      },
+      "count": {
+        "content": "$2",
+        "example": "4"
+      }
+    }
+  },
+  "folderNewHeading": {
+    "message": "New folder",
+    "description": "Heading of the new-folder dialog."
+  },
+  "folderNameLabel": {
+    "message": "Folder name",
+    "description": "Label for the folder-name field."
+  },
+  "folderCreate": {
+    "message": "Create folder",
+    "description": "Confirm button of the new-folder dialog."
+  },
+  "folderRenameHeading": {
+    "message": "Rename folder",
+    "description": "Heading of the rename-folder dialog."
+  },
+  "folderRename": {
+    "message": "Rename",
+    "description": "Confirm button of the rename dialog, and the menu entry that opens it."
+  },
+  "folderDelete": {
+    "message": "Delete folder",
+    "description": "Menu entry that opens the delete-folder dialog."
+  },
+  "folderDeleteHeading": {
+    "message": "Delete “$FOLDER$”?",
+    "description": "Heading of the delete-folder dialog.",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Work"
+      }
+    }
+  },
+  "folderDeleteQuestion": {
+    "message": "There are $COUNT$ bookmarks inside. What should happen to them?",
+    "description": "The choice the delete-folder dialog asks for. There is no default: one answer loses a subtree and the other rearranges the tree.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "folderDeleteReparent": {
+    "message": "Keep them, one level up",
+    "description": "Delete-folder choice: move the children to the folder's parent."
+  },
+  "folderDeleteRecursive": {
+    "message": "Delete them too",
+    "description": "Delete-folder choice: tombstone the whole subtree."
+  },
+  "moveHeading": {
+    "message": "Move to a folder",
+    "description": "Heading of the move dialog."
+  },
+  "moveTopLevel": {
+    "message": "Top level",
+    "description": "The move dialog's entry for the root of the vault."
+  },
+  "moveConfirm": {
+    "message": "Move here",
+    "description": "Confirm button of the move dialog."
+  },
+  "tagBulkHeading": {
+    "message": "Tag the selection",
+    "description": "Heading of the bulk-tag dialog."
+  },
+  "tagBulkAdd": {
+    "message": "Add these tags",
+    "description": "Label for the add field in the bulk-tag dialog."
+  },
+  "tagBulkRemove": {
+    "message": "Remove these tags",
+    "description": "Label for the remove field in the bulk-tag dialog."
+  },
+  "tagBulkHint": {
+    "message": "Separate tags with commas. A tag named in both boxes is removed.",
+    "description": "Explanation under the bulk-tag fields."
+  },
+  "tagBulkApply": {
+    "message": "Apply",
+    "description": "Confirm button of the bulk-tag dialog."
+  },
+  "tagRenameHeading": {
+    "message": "Rename the tag “$TAG$”",
+    "description": "Heading of the rename-tag dialog.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagRenameLabel": {
+    "message": "New name",
+    "description": "Label for the new-name field in the rename-tag dialog."
+  },
+  "tagRenameEverywhere": {
+    "message": "Renames it on every bookmark that carries it.",
+    "description": "Explanation under the rename-tag field."
+  },
+  "tagRenameUnchanged": {
+    "message": "That is already the tag’s name.",
+    "description": "Shown when a tag is renamed to what it is already called."
+  },
+  "tagBulkNothing": {
+    "message": "Enter at least one tag to add or remove.",
+    "description": "Shown when the bulk-tag dialog is submitted with both fields empty."
+  },
+  "tagRenamed": {
+    "message": "Renamed on $COUNT$ bookmarks.",
+    "description": "Confirmation after a tag rename.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "tagFilterBy": {
+    "message": "Show bookmarks tagged $TAG$",
+    "description": "Accessible name for a tag in the sidebar.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagRenameAction": {
+    "message": "Rename the tag $TAG$",
+    "description": "Accessible name for the rename button beside a tag in the sidebar.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "dialogCancel": {
+    "message": "Cancel",
+    "description": "Cancel button, shared by every dialog."
+  },
+  "dialogInvalid": {
+    "message": "That cannot be used here.",
+    "description": "Fallback complaint when a dialog refuses to close on the value it was given."
+  },
+  "dialogNameRequired": {
+    "message": "Type a name — this cannot be empty.",
+    "description": "Shown when a name dialog is submitted with an empty field."
+  },
+  "dialogClose": {
+    "message": "Close",
+    "description": "Close button, shared by every dialog."
+  },
+  "deleteConfirmHeadingOne": {
+    "message": "Delete “$TITLE$”?",
+    "description": "Heading of the delete confirmation for a single bookmark or folder. Asked in the popup and in the manager alike.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "deleteConfirmHeading": {
+    "message": "Delete $COUNT$ items?",
+    "description": "Heading of the delete confirmation for a multiple selection.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "deleteConfirmBody": {
+    "message": "Undo is offered briefly afterwards. After that this cannot be reversed.",
+    "description": "Body of the delete confirmation. Deliberately does not name the number of seconds — the undo toast draws its own countdown, and a duration read before the delete is one nobody is still counting from after it."
+  },
+  "deleteConfirmButton": {
+    "message": "Delete",
+    "description": "Confirming button on the delete confirmation. A verb, never “OK”."
+  },
+  "settingsHeading": {
+    "message": "Settings",
+    "description": "Heading of the settings screen, and the accessible name of the popup's settings cog."
+  },
+  "settingsBack": {
+    "message": "‹ Back",
+    "description": "Returns the popup from the settings screen to the bookmark list."
+  },
+  "settingsBackToBookmarks": {
+    "message": "Back to bookmarks",
+    "description": "Button that leaves the manager's settings screen."
+  },
+  "settingsTheme": {
+    "message": "Theme",
+    "description": "Label for the theme selector."
+  },
+  "themeSystem": {
+    "message": "Match the system",
+    "description": "Theme choice: follow prefers-color-scheme."
+  },
+  "themeLight": {
+    "message": "Light",
+    "description": "Theme choice: always light."
+  },
+  "themeDark": {
+    "message": "Dark",
+    "description": "Theme choice: always dark."
+  },
+  "settingsSectionAppearance": {
+    "message": "Appearance",
+    "description": "Heading of the appearance section in settings."
+  },
+  "settingsSectionLock": {
+    "message": "Locking",
+    "description": "Heading of the locking section in settings."
+  },
+  "settingsSectionBrowsing": {
+    "message": "Opening and saving",
+    "description": "Heading of the browsing section in settings."
+  },
+  "settingsSectionPassword": {
+    "message": "Master password",
+    "description": "Heading of the change-password section in settings."
+  },
+  "settingsSectionDanger": {
+    "message": "Destroy this vault",
+    "description": "Heading of the destructive section in settings."
+  },
+  "settingsCurrentPassword": {
+    "message": "Current password",
+    "description": "Label for the current-password field."
+  },
+  "settingsNewPassword": {
+    "message": "New password",
+    "description": "Label for the new-password field."
+  },
+  "settingsConfirmPassword": {
+    "message": "Repeat the new password",
+    "description": "Label for the confirm-new-password field."
+  },
+  "settingsChangePassword": {
+    "message": "Change password",
+    "description": "Button that re-wraps the data key under a new password."
+  },
+  "settingsPasswordChanged": {
+    "message": "Password changed. Your bookmarks were not re-encrypted — only the key that unlocks them was re-wrapped.",
+    "description": "Confirmation after a successful password change."
+  },
+  "settingsDestroyWarning": {
+    "message": "This erases the vault and everything in it from this device. There is no backup and no recovery — not by us, not by anyone.",
+    "description": "Warning above the destroy-vault control."
+  },
+  "settingsDestroyPhrase": {
+    "message": "destroy my vault",
+    "description": "The exact phrase the user must type to destroy the vault. Compared case-insensitively after trimming."
+  },
+  "settingsDestroyLabel": {
+    "message": "Type the phrase to confirm",
+    "description": "Label for the destroy-vault confirmation field."
+  },
+  "settingsDestroyHint": {
+    "message": "Type “$PHRASE$” to enable the button.",
+    "description": "Hint under the destroy-vault confirmation field.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "destroy my vault"
+      }
+    }
+  },
+  "settingsDestroyRemote": {
+    "message": "Also delete the synced copy",
+    "description": "Checkbox in the danger zone. On by default."
+  },
+  "settingsDestroyRemoteHint": {
+    "message": "On, so that destroying really means destroying. Leave it on unless another computer is still using this vault and you want its synced copy to survive — a new vault made here afterwards cannot open that copy, even with the same password, and the two will refuse to sync until one of them goes.",
+    "description": "Explains the consequence of leaving the synced copy behind."
+  },
+  "settingsDestroyButton": {
+    "message": "Destroy this vault",
+    "description": "Button that erases the vault. Enabled only after the typed confirmation."
+  },
+  "settingsDestroyConfirm": {
+    "message": "Last chance. Press again to erase the vault.",
+    "description": "The second of the two confirmations before the vault is destroyed."
+  },
+  "settingsDestroyed": {
+    "message": "The vault has been erased, here and from sync.",
+    "description": "Shown after the vault and its synced copy were both destroyed."
+  },
+  "settingsDestroyedRemoteKept": {
+    "message": "The vault has been erased from this device. The synced copy is still there, as you asked.",
+    "description": "Shown after a destroy that deliberately left the synced copy alone."
+  },
+  "settingsDestroyedRemoteFailed": {
+    "message": "The vault has been erased from this device, but the synced copy could not be reached and is still there. Connect and try again, or destroy it from the computer that can reach it.",
+    "description": "Shown after a destroy whose remote deletion failed."
+  },
+  "errorSyncFailed": {
+    "message": "That could not be synced. See the sync status for what went wrong.",
+    "description": "Error shown when a request that involved syncing failed."
+  },
+  "syncErrorQuotaExceeded": {
+    "message": "Chrome sync storage is full. Delete some bookmarks, or connect Google Drive for more room.",
+    "description": "Sync error: the vault no longer fits in chrome.storage.sync."
+  },
+  "syncErrorRateLimited": {
+    "message": "Syncing too often. This will catch up on its own in a moment.",
+    "description": "Sync error: the write-rate budget is spent."
+  },
+  "syncErrorOffline": {
+    "message": "No connection. Your bookmarks are safe on this device and will sync when you are back online.",
+    "description": "Sync error: no network."
+  },
+  "syncErrorAuthRequired": {
+    "message": "Sync needs you to sign in again.",
+    "description": "Sync error: the backend needs re-authorization."
+  },
+  "syncErrorCorruptRemote": {
+    "message": "The synced copy was left half-written by another device. This one will repair it.",
+    "description": "Sync error: the remote vault is torn."
+  },
+  "syncErrorPreconditionFailed": {
+    "message": "Another device wrote first. Merging and trying again.",
+    "description": "Sync error: the compare-and-swap on push failed."
+  },
+  "syncErrorVaultMismatch": {
+    "message": "The synced copy belongs to a different vault. Two vaults cannot share one sync area — open Settings → Sync to choose which one keeps it.",
+    "description": "Sync error: the vault in the sync area cannot be opened with this device's key."
+  },
+  "syncMismatchExplain": {
+    "message": "Nothing here can merge the two — they are locked with different keys, and that is true even when both were given the same master password: a vault made a second time is a new vault. So one of them keeps syncing and the other does not. Both answers are below; neither happens without a second confirmation.",
+    "description": "Explains the two ways out of a vault mismatch."
+  },
+  "syncMismatchKeepRemote": {
+    "message": "Use the synced vault on this computer",
+    "description": "Button that erases the local vault and joins the synced one."
+  },
+  "syncMismatchKeepRemoteHint": {
+    "message": "This is the answer when the synced vault is the one with your bookmarks in it — after a reinstall, say, or on a computer that has only just been set up. You need the master password that opens it.",
+    "description": "Hint under the button that joins the synced vault."
+  },
+  "syncMismatchAdoptHeading": {
+    "message": "Use the synced vault",
+    "description": "Heading of the dialog that joins the synced vault."
+  },
+  "syncMismatchAdoptExplain": {
+    "message": "The synced vault stays exactly as it is. This computer joins it the way a second computer does: its bookmarks, folders, tags and notes appear here, and the two keep each other up to date from now on.",
+    "description": "What joining the synced vault does."
+  },
+  "syncMismatchAdoptLoses": {
+    "message": "The $COUNT$ bookmarks in this computer's own vault are erased. There is no undo.",
+    "description": "What the local vault loses when the synced one is adopted.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "syncMismatchAdoptLosesNone": {
+    "message": "This computer's own vault has no bookmarks in it, so nothing here is lost.",
+    "description": "Shown instead of the warning when the local vault is empty."
+  },
+  "syncMismatchAdoptLosesOne": {
+    "message": "The one bookmark in this computer's own vault is erased. There is no undo.",
+    "description": "Singular form of the warning about the local vault."
+  },
+  "syncMismatchAdoptBackupFirst": {
+    "message": "To keep them, close this and back the vault up first under Import & export.",
+    "description": "Points at the backup that has to be taken before adopting."
+  },
+  "syncMismatchAdoptPassword": {
+    "message": "The synced vault's master password",
+    "description": "Password field in the adopt-the-synced-vault dialog."
+  },
+  "syncMismatchAdoptConfirm": {
+    "message": "Erase this vault and join the synced one",
+    "description": "Confirming button in the adopt-the-synced-vault dialog."
+  },
+  "syncMismatchAdoptNeedsPassword": {
+    "message": "Type the master password of the synced vault.",
+    "description": "Shown when the adopt dialog is confirmed with an empty password field."
+  },
+  "syncMismatchAdopted": {
+    "message": "This computer is on the synced vault now.",
+    "description": "Shown after the synced vault was adopted."
+  },
+  "syncMismatchReplace": {
+    "message": "Overwrite the synced copy with this vault",
+    "description": "Button that deletes the mismatched remote vault and pushes this one."
+  },
+  "syncMismatchReplaceHint": {
+    "message": "This is the answer when the vault on this computer is the one to keep. The other vault's synced copy is deleted, and computers that were using it will be asked for this vault's password instead.",
+    "description": "Hint under the button that overwrites the synced vault."
+  },
+  "syncMismatchReplaceConfirm": {
+    "message": "This deletes the other vault's only synced copy. Press again to do it.",
+    "description": "Second confirmation before overwriting the synced vault."
+  },
+  "syncMismatchReplaceWorking": {
+    "message": "Replacing the synced copy…",
+    "description": "Shown while the remote vault is being replaced."
+  },
+  "syncMismatchReplaced": {
+    "message": "The synced copy is this vault now.",
+    "description": "Shown after the remote vault was successfully replaced."
+  },
+  "syncErrorVaultLocked": {
+    "message": "Unlock the vault to sync it.",
+    "description": "Sync error: the vault is locked, so there is no key to sync with."
+  },
+  "syncErrorUnknown": {
+    "message": "Syncing failed. It will be retried.",
+    "description": "Sync error: anything not otherwise classified."
+  },
+  "adoptHeading": {
+    "message": "There is already a vault on your other computer",
+    "description": "Heading of the screen shown when a profile has no vault but the sync area does."
+  },
+  "adoptBody": {
+    "message": "Chrome has synced it here, still encrypted. Type the master password you use for it and this computer joins the same vault — there is nothing to export or copy across.",
+    "description": "Explanation on the adopt-a-synced-vault screen."
+  },
+  "adoptFieldPassword": {
+    "message": "Master password",
+    "description": "Label for the password field on the adopt screen."
+  },
+  "adoptButton": {
+    "message": "Use this vault here",
+    "description": "Button that joins the synced vault."
+  },
+  "adoptWorking": {
+    "message": "Opening…",
+    "description": "Label on the adopt button while the vault is being decrypted."
+  },
+  "adoptCreateInstead": {
+    "message": "Create a separate vault instead",
+    "description": "Secondary action that leaves the adopt screen for the create form."
+  },
+  "adoptSeparateHeading": {
+    "message": "This will not sync with your other computer",
+    "description": "Heading of the warning shown when creating a vault while a synced one exists."
+  },
+  "adoptSeparateBody": {
+    "message": "A second vault with its own password cannot merge with the one already in Chrome sync — the two would sit there refusing to sync until one is deleted. Only do this if you meant to keep them apart.",
+    "description": "Warning body shown when creating a vault while a synced one exists."
+  },
+  "adoptSeparateBack": {
+    "message": "Go back and use the existing vault",
+    "description": "Button returning from the create form to the adopt screen."
+  },
+  "syncSectionHeading": {
+    "message": "Sync",
+    "description": "Heading of the sync section in settings."
+  },
+  "syncProviderChrome": {
+    "message": "Chrome sync",
+    "description": "Name of the chrome.storage.sync provider."
+  },
+  "syncProviderDrive": {
+    "message": "Google Drive",
+    "description": "Name of the Google Drive provider."
+  },
+  "syncNever": {
+    "message": "Not synced yet",
+    "description": "Shown in place of a last-synced time when this device has never completed a sync."
+  },
+  "syncLastSynced": {
+    "message": "Last synced $WHEN$",
+    "description": "The last successful sync, as a relative time.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "2 minutes ago"
+      }
+    }
+  },
+  "syncNowButton": {
+    "message": "Sync now",
+    "description": "Button that runs a sync immediately."
+  },
+  "syncBusy": {
+    "message": "Syncing…",
+    "description": "Shown while a sync is running."
+  },
+  "syncQuotaLabel": {
+    "message": "Sync storage",
+    "description": "Label for the sync quota bar."
+  },
+  "syncQuotaUsed": {
+    "message": "$USED$ of $TOTAL$ used",
+    "description": "The sync quota, in kilobytes.",
+    "placeholders": {
+      "used": {
+        "content": "$1",
+        "example": "42 kB"
+      },
+      "total": {
+        "content": "$2",
+        "example": "100 kB"
+      }
+    }
+  },
+  "syncQuotaWarn": {
+    "message": "This vault is filling up Chrome sync. Google Drive holds far more — connect it in Settings → Sync.",
+    "description": "Shown when sync storage passes 70% full."
+  },
+  "syncQuotaFull": {
+    "message": "Chrome sync storage is full. New bookmarks stay on this device until you free some room.",
+    "description": "Shown when sync storage passes 95% full."
+  },
+  "conflictBannerOne": {
+    "message": "One bookmark changed on two devices at once.",
+    "description": "Persistent banner shown when exactly one conflict is pending."
+  },
+  "conflictBannerMany": {
+    "message": "$COUNT$ bookmarks changed on two devices at once.",
+    "description": "Persistent banner shown when several conflicts are pending.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "conflictReview": {
+    "message": "Review",
+    "description": "Button on the conflict banner that opens the conflict view."
+  },
+  "conflictHeading": {
+    "message": "Changed in two places",
+    "description": "Heading of the conflict resolution view."
+  },
+  "conflictIntro": {
+    "message": "These were edited on this device and on another one before the two could sync. Nothing has been thrown away — choose which version to keep. The rest of your vault keeps syncing meanwhile.",
+    "description": "Explanation at the top of the conflict resolution view."
+  },
+  "conflictMine": {
+    "message": "This device",
+    "description": "Column heading for the local version of a conflicted item."
+  },
+  "conflictTheirs": {
+    "message": "The other device",
+    "description": "Column heading for the remote version of a conflicted item."
+  },
+  "conflictDeletedSide": {
+    "message": "Deleted here",
+    "description": "Shown in place of a version when that side deleted the item."
+  },
+  "conflictKeepMine": {
+    "message": "Keep this device’s",
+    "description": "Button that resolves a conflict in favour of the local version."
+  },
+  "conflictKeepTheirs": {
+    "message": "Keep the other one",
+    "description": "Button that resolves a conflict in favour of the remote version."
+  },
+  "conflictKeepBoth": {
+    "message": "Keep both",
+    "description": "Button that resolves a conflict by duplicating the remote version under a new id."
+  },
+  "conflictKeepAllMine": {
+    "message": "Keep this device’s for all",
+    "description": "Batch action that resolves every pending conflict in favour of the local version."
+  },
+  "conflictKeepAllTheirs": {
+    "message": "Keep the other device’s for all",
+    "description": "Batch action that resolves every pending conflict in favour of the remote version."
+  },
+  "conflictCopySuffix": {
+    "message": "(conflicted copy)",
+    "description": "Appended to the title of the duplicate created by “keep both”."
+  },
+  "conflictResolvedOne": {
+    "message": "Settled.",
+    "description": "Confirmation after resolving one conflict."
+  },
+  "conflictResolvedCount": {
+    "message": "Settled $COUNT$ of them.",
+    "description": "Confirmation after resolving several conflicts.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "conflictFieldTitle": {
+    "message": "Title",
+    "description": "Field name in the conflict comparison."
+  },
+  "conflictFieldUrl": {
+    "message": "Address",
+    "description": "Field name in the conflict comparison."
+  },
+  "conflictFieldNote": {
+    "message": "Note",
+    "description": "Field name in the conflict comparison."
+  },
+  "conflictFieldFolder": {
+    "message": "Folder",
+    "description": "Field name in the conflict comparison."
+  },
+  "conflictFieldTags": {
+    "message": "Tags",
+    "description": "Field name in the conflict comparison."
+  },
+  "conflictBack": {
+    "message": "Back to bookmarks",
+    "description": "Button that leaves the conflict view."
+  },
+  "conflictNone": {
+    "message": "Nothing is in conflict.",
+    "description": "Shown in the conflict view when there is nothing to settle."
+  },
+  "errorBookmarksPermission": {
+    "message": "VaultaMark needs permission to read this browser's bookmarks. Grant it on the import screen.",
+    "description": "Error shown when a bookmark import runs without the optional bookmarks permission."
+  },
+  "managerIoButton": {
+    "message": "Import & export",
+    "description": "Toolbar button that opens the import/export screen."
+  },
+  "ioHeading": {
+    "message": "Import & export",
+    "description": "Heading of the import/export screen."
+  },
+  "ioBack": {
+    "message": "Back to bookmarks",
+    "description": "Button that leaves the import/export screen."
+  },
+  "ioWorking": {
+    "message": "Working…",
+    "description": "Label on the progress bar during a long import or export."
+  },
+  "ioBackupHeading": {
+    "message": "Back up the vault",
+    "description": "Heading of the encrypted-export section."
+  },
+  "ioBackupHint": {
+    "message": "Saves an encrypted .vmv file containing every bookmark, folder, tag and note. Keep it somewhere safe — it is as valuable as the vault itself, and just as unreadable without its password.",
+    "description": "Explanation under the encrypted-export heading."
+  },
+  "ioBackupButton": {
+    "message": "Save a backup…",
+    "description": "Button that starts an encrypted export."
+  },
+  "ioBackupPasswordIntro": {
+    "message": "Choose the password this backup file will be locked with.",
+    "description": "First line of the export-password dialog."
+  },
+  "ioBackupUseVaultPassword": {
+    "message": "Use my vault password",
+    "description": "Radio: the export uses the master password."
+  },
+  "ioBackupUseOtherPassword": {
+    "message": "Use a different password for this file",
+    "description": "Radio: the export uses a password of its own."
+  },
+  "ioBackupPasswordLabel": {
+    "message": "Password",
+    "description": "Password field in the export dialog."
+  },
+  "ioBackupConfirmLabel": {
+    "message": "Confirm password",
+    "description": "Confirmation field, used only for a different export password."
+  },
+  "ioBackupConfirmHint": {
+    "message": "Only needed when the file gets a password of its own.",
+    "description": "Hint under the export confirmation field."
+  },
+  "ioBackupNoRecovery": {
+    "message": "There is no recovery for this file either. If you forget its password, the backup is gone.",
+    "description": "Warning in the export dialog."
+  },
+  "ioBackupPasswordRequired": {
+    "message": "Type the password first.",
+    "description": "Refusal when the export dialog is submitted with no password."
+  },
+  "ioBackupDone": {
+    "message": "Backup saved as $FILE$.",
+    "description": "Announced after an encrypted export.",
+    "placeholders": {
+      "file": {
+        "content": "$1",
+        "example": "vaultamark-2026-08-03.vmv"
+      }
+    }
+  },
+  "ioRestoreHeading": {
+    "message": "Restore from a backup",
+    "description": "Heading of the import section."
+  },
+  "ioRestoreHint": {
+    "message": "Open a .vmv file — either a backup made here, or the vault file downloaded from your Google Drive. You will see what is in it and choose what to do with it before anything changes.",
+    "description": "Explanation under the import heading."
+  },
+  "ioRestoreFileLabel": {
+    "message": "Backup file",
+    "description": "Label on the file picker."
+  },
+  "ioRestoreUnreadable": {
+    "message": "That file could not be read.",
+    "description": "Shown when the browser cannot read the chosen file at all."
+  },
+  "ioRestorePasswordHeading": {
+    "message": "Open the backup",
+    "description": "Heading of the import-password dialog."
+  },
+  "ioRestorePasswordIntro": {
+    "message": "Type the password $FILE$ was saved with.",
+    "description": "First line of the import-password dialog.",
+    "placeholders": {
+      "file": {
+        "content": "$1",
+        "example": "vaultamark-2026-08-03.vmv"
+      }
+    }
+  },
+  "ioRestorePasswordLabel": {
+    "message": "Backup password",
+    "description": "Password field in the import dialog."
+  },
+  "ioRestoreOpenButton": {
+    "message": "Open",
+    "description": "Button that decrypts the chosen backup."
+  },
+  "ioPreviewHeading": {
+    "message": "What is in this backup",
+    "description": "Heading of the import preview dialog."
+  },
+  "ioPreviewCounts": {
+    "message": "$BOOKMARKS$ bookmarks in $FOLDERS$ folders.",
+    "description": "Line of the import preview. Both counts plural; the three keys after it are the singular forms.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      },
+      "folders": {
+        "content": "$2",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCountsOneBookmark": {
+    "message": "$BOOKMARKS$ bookmark in $FOLDERS$ folders.",
+    "description": "Line of the import preview when the file holds exactly one bookmark.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      },
+      "folders": {
+        "content": "$2",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCountsOneFolder": {
+    "message": "$BOOKMARKS$ bookmarks in $FOLDERS$ folder.",
+    "description": "Line of the import preview when the file holds exactly one folder.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      },
+      "folders": {
+        "content": "$2",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCountsOneEach": {
+    "message": "$BOOKMARKS$ bookmark in $FOLDERS$ folder.",
+    "description": "Line of the import preview when the file holds exactly one of each.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      },
+      "folders": {
+        "content": "$2",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCountsNoFolders": {
+    "message": "$BOOKMARKS$ bookmarks and no folders.",
+    "description": "Line of the import preview when the file holds no folders at all.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      }
+    }
+  },
+  "ioPreviewCountsOneNoFolders": {
+    "message": "$BOOKMARKS$ bookmark and no folders.",
+    "description": "Line of the import preview when the file holds one bookmark and no folders.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "ioPreviewCreated": {
+    "message": "Saved $WHEN$ by $BY$.",
+    "description": "Line of the import preview.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "3 August 2026, 14:02"
+      },
+      "by": {
+        "content": "$2",
+        "example": "VaultaMark 1.0.0"
+      }
+    }
+  },
+  "ioPreviewCreatedUnknown": {
+    "message": "This backup does not say when it was made.",
+    "description": "Line of the import preview when the file carries no date."
+  },
+  "ioPreviewSyncHeading": {
+    "message": "What is in this vault file",
+    "description": "Heading of the import preview when the file is the synced vault rather than a backup."
+  },
+  "ioPreviewSynced": {
+    "message": "This is a synced vault file, last changed $WHEN$.",
+    "description": "Line of the import preview for a synced vault file.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "3 August 2026, 14:02"
+      }
+    }
+  },
+  "ioPreviewSyncedUnknown": {
+    "message": "This is a synced vault file. It does not say when it was last changed.",
+    "description": "Line of the import preview for a synced vault file with no date."
+  },
+  "ioPreviewKnown": {
+    "message": "$COUNT$ of them are already in this vault.",
+    "description": "Line of the import preview naming the overlap with the current vault.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "38"
+      }
+    }
+  },
+  "ioPreviewKnownOne": {
+    "message": "One of them is already in this vault.",
+    "description": "Line of the import preview when exactly one item overlaps."
+  },
+  "ioPreviewAllNew": {
+    "message": "None of them are in this vault yet.",
+    "description": "Line of the import preview when nothing overlaps."
+  },
+  "ioPreviewMergeExplained": {
+    "message": "Merge adds what is missing and keeps everything you already have. Where a bookmark differs on both sides, both versions are kept and you choose afterwards. Nothing is lost.",
+    "description": "Explanation of merge mode."
+  },
+  "ioPreviewReplaceExplained": {
+    "message": "Replace throws away the current vault and puts the backup in its place. You get one chance to undo it, for 24 hours.",
+    "description": "Explanation of replace mode."
+  },
+  "ioModeMerge": {
+    "message": "Merge into this vault",
+    "description": "Radio label for merge mode."
+  },
+  "ioModeReplace": {
+    "message": "Replace this vault entirely",
+    "description": "Radio label for replace mode."
+  },
+  "ioPreviewApply": {
+    "message": "Continue",
+    "description": "Button that applies the chosen import mode."
+  },
+  "ioPreviewPickMode": {
+    "message": "Choose merge or replace first.",
+    "description": "Refusal when the preview dialog is submitted with no mode chosen."
+  },
+  "ioImportDone": {
+    "message": "Imported $ADDED$ bookmarks. The vault now holds $TOTAL$ items.",
+    "description": "Announced after a successful import with no conflicts.",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "412"
+      },
+      "total": {
+        "content": "$2",
+        "example": "930"
+      }
+    }
+  },
+  "ioImportDoneConflicts": {
+    "message": "Imported $ADDED$ bookmarks. $CONFLICTS$ differ from what you already had — open the conflicts banner to choose.",
+    "description": "Announced after an import that produced conflicts.",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "412"
+      },
+      "conflicts": {
+        "content": "$2",
+        "example": "3"
+      }
+    }
+  },
+  "importReplaceHeading": {
+    "message": "Replace the whole vault?",
+    "description": "Heading of the first replace-import confirmation."
+  },
+  "importReplaceWarning": {
+    "message": "This removes all $CURRENT$ bookmarks currently in the vault and puts the backup's $INCOMING$ in their place.",
+    "description": "Warning in the replace-import confirmation.",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "930"
+      },
+      "incoming": {
+        "content": "$2",
+        "example": "412"
+      }
+    }
+  },
+  "importReplaceUndo": {
+    "message": "A copy of the current vault is kept for 24 hours, so this can be undone once.",
+    "description": "Reassurance in the replace-import confirmation."
+  },
+  "importReplaceNoUndo": {
+    "message": "This cannot be undone.",
+    "description": "Shown instead when no rollback copy will be kept."
+  },
+  "importReplacePhrase": {
+    "message": "REPLACE MY VAULT",
+    "description": "The phrase typed to confirm a replace-mode import. Keep it short and in capitals."
+  },
+  "importReplaceConfirmLabel": {
+    "message": "Type the phrase to continue",
+    "description": "Label on the typed-confirmation field."
+  },
+  "importReplaceConfirmHint": {
+    "message": "Type $PHRASE$ exactly.",
+    "description": "Hint under the typed-confirmation field.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "REPLACE MY VAULT"
+      }
+    }
+  },
+  "importReplaceConfirmRefused": {
+    "message": "That is not $PHRASE$.",
+    "description": "Refusal when the typed phrase does not match.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "REPLACE MY VAULT"
+      }
+    }
+  },
+  "importReplaceButton": {
+    "message": "Continue",
+    "description": "Button on the first replace confirmation."
+  },
+  "importReplaceLastHeading": {
+    "message": "Last chance",
+    "description": "Heading of the second replace confirmation."
+  },
+  "importReplaceLastBody": {
+    "message": "$COUNT$ bookmarks are about to be replaced. Press once more to go ahead.",
+    "description": "Body of the second replace confirmation.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "930"
+      }
+    }
+  },
+  "importReplaceLastButton": {
+    "message": "Replace the vault",
+    "description": "Button on the second replace confirmation."
+  },
+  "ioUndoAvailable": {
+    "message": "The vault from before the last import can still be restored until $WHEN$.",
+    "description": "Shown while a replace-import rollback is available.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "4 August 2026, 14:02"
+      }
+    }
+  },
+  "ioUndoButton": {
+    "message": "Undo the import",
+    "description": "Button that restores the pre-import vault."
+  },
+  "ioUndoHeading": {
+    "message": "Undo the import?",
+    "description": "Heading of the undo confirmation."
+  },
+  "ioUndoBody": {
+    "message": "The vault goes back to what it was before the import. Anything added or changed since then is lost, and this copy is used up.",
+    "description": "Body of the undo confirmation."
+  },
+  "ioUndoDone": {
+    "message": "The vault has been restored.",
+    "description": "Announced after a successful undo."
+  },
+  "ioNativeHeading": {
+    "message": "Import from this browser",
+    "description": "Heading of the native-bookmark section."
+  },
+  "ioNativeHint": {
+    "message": "Copy bookmarks out of Chrome and into the vault. Copying does not remove them from Chrome — that is a separate step, and it is the step that takes them out of the address bar.",
+    "description": "Explanation under the native-import heading."
+  },
+  "ioNativePermissionExplained": {
+    "message": "VaultaMark does not have permission to read this browser's bookmarks. It asks only when you use this feature, and you can take the permission back afterwards.",
+    "description": "Shown when the optional bookmarks permission has not been granted."
+  },
+  "ioNativeGrantButton": {
+    "message": "Allow reading bookmarks",
+    "description": "Button that requests the optional bookmarks permission."
+  },
+  "ioNativePermissionRefused": {
+    "message": "Permission was not granted, so there is nothing to show.",
+    "description": "Shown when the user declines the bookmarks permission prompt."
+  },
+  "ioNativeUntitled": {
+    "message": "(untitled)",
+    "description": "Stand-in for a bookmark or folder with no title."
+  },
+  "ioNativeImportButton": {
+    "message": "Copy the selection into the vault",
+    "description": "Button that imports the checked native bookmarks."
+  },
+  "ioNativeNothingSelected": {
+    "message": "Tick something first.",
+    "description": "Shown when an import or delete is pressed with nothing selected."
+  },
+  "ioNativeImported": {
+    "message": "Copied $BOOKMARKS$ bookmarks and $FOLDERS$ folders. $SKIPPED$ were skipped as duplicates or unsupported addresses.",
+    "description": "Announced after a native import.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "180"
+      },
+      "folders": {
+        "content": "$2",
+        "example": "12"
+      },
+      "skipped": {
+        "content": "$3",
+        "example": "4"
+      }
+    }
+  },
+  "ioNativeDeleteButton": {
+    "message": "Delete the originals from Chrome…",
+    "description": "Button that starts the separate native-deletion step."
+  },
+  "ioNativeDeleteHint": {
+    "message": "Deleting the Chrome copies is what removes those addresses from the address bar's suggestions. Nothing is deleted until you press the button above and confirm.",
+    "description": "Hint under the native-import buttons."
+  },
+  "ioNativeDeleteHeading": {
+    "message": "Delete $COUNT$ bookmarks from Chrome?",
+    "description": "Heading of the native-deletion confirmation.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteBody": {
+    "message": "$COUNT$ selected bookmarks and folders will be removed from Chrome's own bookmarks.",
+    "description": "Body of the native-deletion confirmation.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteWhy": {
+    "message": "This is what stops those addresses appearing in the address bar. Make sure they are in the vault first.",
+    "description": "Second line of the native-deletion confirmation."
+  },
+  "ioNativeDeleteNoUndo": {
+    "message": "VaultaMark cannot undo this. Chrome's own undo may still be able to.",
+    "description": "Third line of the native-deletion confirmation."
+  },
+  "ioNativeDeleteConfirm": {
+    "message": "Delete from Chrome",
+    "description": "Confirming button of the native-deletion dialog."
+  },
+  "ioNativeDeleted": {
+    "message": "Removed $COUNT$ bookmarks from Chrome.",
+    "description": "Announced after a successful native deletion.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeletedPartial": {
+    "message": "Removed $COUNT$ bookmarks from Chrome. $FAILED$ could not be removed — Chrome's built-in folders cannot be deleted.",
+    "description": "Announced after a partially successful native deletion.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "178"
+      },
+      "failed": {
+        "content": "$2",
+        "example": "2"
+      }
+    }
+  },
+  "cmdQuickClose": {
+    "message": "Close this tab and clear its site from history",
+    "description": "Keyboard shortcut description, shown on chrome://extensions/shortcuts. Inert until enabled in Settings."
+  },
+  "errorHistoryPermission": {
+    "message": "VaultaMark needs permission to read and delete browsing history before it can clear anything.",
+    "description": "Shown when a history operation runs without the optional history permission."
+  },
+  "onboardingTitle": {
+    "message": "Setting up VaultaMark",
+    "description": "Heading of the first-run flow."
+  },
+  "onboardingStepOf": {
+    "message": "Step $CURRENT$ of $TOTAL$",
+    "description": "Progress line in the first-run flow.",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "2"
+      },
+      "total": {
+        "content": "$2",
+        "example": "5"
+      }
+    }
+  },
+  "onboardingBack": {
+    "message": "Back",
+    "description": "Previous step."
+  },
+  "onboardingNext": {
+    "message": "Next",
+    "description": "Next step."
+  },
+  "onboardingFinish": {
+    "message": "Finish setup",
+    "description": "Leaves the flow on the last step."
+  },
+  "onboardingNeedsVault": {
+    "message": "Create your master password first — including typing the confirmation. There is no way past this step, because there is no way to recover a password you have not chosen yet.",
+    "description": "Shown when Next is pressed on the password step before a vault exists."
+  },
+  "onboardingNeedsIncognito": {
+    "message": "Turn on \"Allow in Incognito\" and press Re-check, or choose \"Skip for now\".",
+    "description": "Shown when Next is pressed on the incognito step without an answer."
+  },
+  "onboardingIntroHeading": {
+    "message": "Bookmarks that stay out of your address bar",
+    "description": "Heading of onboarding step 1."
+  },
+  "onboardingIntroBody": {
+    "message": "Chrome autocompletes anything you bookmark. Start typing in the address bar and there it is, in front of whoever is looking at your screen. VaultaMark keeps its bookmarks somewhere Chrome cannot see.",
+    "description": "Body of onboarding step 1."
+  },
+  "onboardingIntroPointOmnibox": {
+    "message": "Vaulted bookmarks are never written to Chrome's bookmarks, so they never appear in autocomplete.",
+    "description": "Onboarding step 1, first point."
+  },
+  "onboardingIntroPointIncognito": {
+    "message": "Opening one uses an incognito window, so the visit leaves no history, cache or cookies behind.",
+    "description": "Onboarding step 1, second point."
+  },
+  "onboardingIntroPointEncrypted": {
+    "message": "Everything — addresses, titles, folders, tags, notes — is encrypted with a key derived from your master password.",
+    "description": "Onboarding step 1, third point."
+  },
+  "onboardingIntroFooter": {
+    "message": "Four more screens. Two of them matter a great deal, and this flow will say which.",
+    "description": "Onboarding step 1 footer."
+  },
+  "onboardingPasswordHeading": {
+    "message": "Create your master password",
+    "description": "Heading of onboarding step 2."
+  },
+  "onboardingPasswordBody": {
+    "message": "This password is the only key to your vault. Choose something long that you will not forget, and store it in a password manager if you use one.",
+    "description": "Intro paragraph above the create form in onboarding step 2."
+  },
+  "onboardingPasswordDone": {
+    "message": "Your vault is ready.",
+    "description": "Confirmation after the vault is created."
+  },
+  "onboardingPasswordExists": {
+    "message": "This profile already has a vault, so there is nothing to create here. You can change the master password later in Settings.",
+    "description": "Shown on onboarding step 2 when a vault already exists."
+  },
+  "onboardingIncognitoSkip": {
+    "message": "Skip for now",
+    "description": "Passes the incognito step without turning the setting on."
+  },
+  "onboardingIncognitoSkipHint": {
+    "message": "Skipping is fine — but until this is on, VaultaMark will refuse to open a vaulted link rather than open it somewhere that records it. The manager will keep a reminder.",
+    "description": "Explains the consequence of skipping the incognito step."
+  },
+  "onboardingIncognitoSkipped": {
+    "message": "Skipped. VaultaMark will keep reminding you in the manager until this is on.",
+    "description": "Announced after the incognito step is skipped."
+  },
+  "onboardingSyncHeading": {
+    "message": "Choose how your vault syncs",
+    "description": "Heading of onboarding step 4."
+  },
+  "onboardingSyncBody": {
+    "message": "Your vault is encrypted before it leaves this device either way. What differs is where the encrypted copy goes, and how much of it fits.",
+    "description": "Body of onboarding step 4."
+  },
+  "onboardingSyncChrome": {
+    "message": "Chrome sync",
+    "description": "Column header for the Chrome sync tier."
+  },
+  "onboardingSyncDrive": {
+    "message": "Google Drive",
+    "description": "Column header for the Drive sync tier."
+  },
+  "onboardingSyncDefault": {
+    "message": "Active",
+    "description": "Badge on the tier currently in use."
+  },
+  "onboardingSyncLater": {
+    "message": "Optional",
+    "description": "Badge on the Drive tier, which is not built yet."
+  },
+  "onboardingSyncRowSetup": {
+    "message": "Setup",
+    "description": "Comparison table row label."
+  },
+  "onboardingSyncRowCapacity": {
+    "message": "Capacity",
+    "description": "Comparison table row label."
+  },
+  "onboardingSyncRowThumbs": {
+    "message": "Page previews",
+    "description": "Comparison table row label."
+  },
+  "onboardingSyncRowWhere": {
+    "message": "Where the encrypted copy goes",
+    "description": "Comparison table row label."
+  },
+  "onboardingSyncChromeSetup": {
+    "message": "None. It is already working.",
+    "description": "Chrome tier, setup row."
+  },
+  "onboardingSyncDriveSetup": {
+    "message": "Sign in to Google once, granting access to one file.",
+    "description": "Drive tier, setup row."
+  },
+  "onboardingSyncChromeCapacity": {
+    "message": "About 1,000 bookmarks.",
+    "description": "Chrome tier, capacity row."
+  },
+  "onboardingSyncDriveCapacity": {
+    "message": "Effectively unlimited.",
+    "description": "Drive tier, capacity row."
+  },
+  "onboardingSyncChromeThumbs": {
+    "message": "No — there is no room for them.",
+    "description": "Chrome tier, thumbnails row."
+  },
+  "onboardingSyncDriveThumbs": {
+    "message": "Yes.",
+    "description": "Drive tier, thumbnails row."
+  },
+  "onboardingSyncChromeWhere": {
+    "message": "Your Chrome profile's sync storage.",
+    "description": "Chrome tier, destination row."
+  },
+  "onboardingSyncDriveWhere": {
+    "message": "One file in your own Google Drive.",
+    "description": "Drive tier, destination row."
+  },
+  "onboardingSyncActive": {
+    "message": "Chrome sync is on and needs nothing from you. You can connect Google Drive at any time from Settings → Sync, and nothing you save now is lost when you switch.",
+    "description": "Summary under the sync comparison table."
+  },
+  "onboardingSyncChangeLater": {
+    "message": "You can change this at any time in Settings.",
+    "description": "Footer of onboarding step 4."
+  },
+  "onboardingChromeHeading": {
+    "message": "One thing Chrome still remembers",
+    "description": "Heading of onboarding step 5."
+  },
+  "onboardingChromeBody": {
+    "message": "A vault keeps addresses out of Chrome's bookmarks. It cannot reach the record Chrome keeps of the pages you visited, and pretending otherwise would be worse than saying so.",
+    "description": "Body of onboarding step 5."
+  },
+  "onboardingHistoryHeading": {
+    "message": "Pages you visited before you vaulted them",
+    "description": "Heading of the history offer on onboarding step 5."
+  },
+  "onboardingHistoryBody": {
+    "message": "Typed addresses live in Chrome's history and autocomplete from there, even when nothing is bookmarked. VaultaMark can remove the history entries for the sites in your vault — and only those.",
+    "description": "Body of the history offer on onboarding step 5."
+  },
+  "historyPermissionExplained": {
+    "message": "To find and remove those entries, VaultaMark needs Chrome's permission to read and delete browsing history. It is asked for here rather than at install, and you can take it back afterwards.",
+    "description": "Explains the optional history permission before it is requested."
+  },
+  "historyGrantButton": {
+    "message": "Allow history access",
+    "description": "Requests the optional history permission."
+  },
+  "historyRefused": {
+    "message": "Permission refused. Nothing was changed, and the history tools stay switched off.",
+    "description": "Shown when the history permission request is declined."
+  },
+  "historyCheckHint": {
+    "message": "Nothing is deleted until you have seen exactly what would go.",
+    "description": "Sits above the dry-run button."
+  },
+  "historyCheckButton": {
+    "message": "Check what would be removed",
+    "description": "Runs the dry run."
+  },
+  "historyCheckAgainButton": {
+    "message": "Check again",
+    "description": "Runs the dry run a second time."
+  },
+  "historyCheckFailed": {
+    "message": "That did not work. Nothing has been deleted.",
+    "description": "Shown when the dry run or the deletion fails."
+  },
+  "historyDryRun": {
+    "message": "This will remove $ENTRIES$ history entries across $DOMAINS$ sites.",
+    "description": "The dry-run result.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      },
+      "domains": {
+        "content": "$2",
+        "example": "27"
+      }
+    }
+  },
+  "historyDryRunOneDomain": {
+    "message": "This will remove $ENTRIES$ history entries, all from one site.",
+    "description": "The dry-run result when only one site matched.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyDryRunNothing": {
+    "message": "Nothing to remove. None of the $DOMAINS$ sites in your vault has anything in Chrome's history.",
+    "description": "The dry-run result when nothing matched.",
+    "placeholders": {
+      "domains": {
+        "content": "$1",
+        "example": "27"
+      }
+    }
+  },
+  "historyReview": {
+    "message": "Review the list",
+    "description": "Expands the per-site breakdown of the dry run."
+  },
+  "historyReviewEntries": {
+    "message": "$COUNT$ entries",
+    "description": "Per-site count in the review list.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "historyReviewOneEntry": {
+    "message": "1 entry",
+    "description": "Per-site count in the review list, singular."
+  },
+  "historyClearButton": {
+    "message": "Remove them",
+    "description": "Carries out the deletion."
+  },
+  "historyCancelButton": {
+    "message": "Leave it alone",
+    "description": "Abandons the deletion."
+  },
+  "historyConfirmHeading": {
+    "message": "Delete these history entries?",
+    "description": "Confirmation dialog heading."
+  },
+  "historyConfirmBody": {
+    "message": "$ENTRIES$ entries across $DOMAINS$ sites will be deleted from Chrome's browsing history.",
+    "description": "Confirmation dialog body.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      },
+      "domains": {
+        "content": "$2",
+        "example": "27"
+      }
+    }
+  },
+  "historyConfirmCaveat": {
+    "message": "This is real browsing history and Chrome offers no undo. Sites that are not in your vault are not touched.",
+    "description": "Confirmation dialog caveat."
+  },
+  "historyCleared": {
+    "message": "Removed $COUNT$ history entries.",
+    "description": "Announced after a cleanup.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyClearedOne": {
+    "message": "Removed 1 history entry.",
+    "description": "Announced after a cleanup, singular."
+  },
+  "settingsSectionPrivacy": {
+    "message": "Privacy",
+    "description": "Settings section heading."
+  },
+  "settingsSectionAbout": {
+    "message": "About",
+    "description": "Settings section heading."
+  },
+  "settingsHistoryIntro": {
+    "message": "Vaulting a page does not remove it from Chrome's history, and history autocompletes in the address bar on its own.",
+    "description": "Intro to the privacy section."
+  },
+  "settingsClearHistoryOnLock": {
+    "message": "Clear vaulted sites from history whenever the vault locks",
+    "description": "Settings toggle label."
+  },
+  "settingsClearHistoryOnLockHint": {
+    "message": "Runs the same cleanup automatically, without asking, every time the vault locks. It deletes real browsing history for the sites in your vault — including visits that had nothing to do with VaultaMark.",
+    "description": "Settings toggle hint."
+  },
+  "settingsQuickClose": {
+    "message": "Quick-close (Ctrl+Shift+X)",
+    "description": "Settings toggle label."
+  },
+  "settingsQuickCloseHint": {
+    "message": "Closes the current tab and deletes that site's history in one keystroke. This deletes the site's real browsing history, not only entries related to VaultaMark, and it does so whether or not the site is in your vault.",
+    "description": "Settings toggle hint."
+  },
+  "settingsRestartLock": {
+    "message": "The vault always locks when Chrome restarts.",
+    "description": "Stated fact in the security section — not a setting."
+  },
+  "settingsRestartLockHint": {
+    "message": "The unlocked key is held in memory only and is discarded when Chrome exits, so there is nothing to switch on or off here.",
+    "description": "Explains why restart locking is not a toggle."
+  },
+  "settingsAboutVersion": {
+    "message": "VaultaMark $VERSION$",
+    "description": "Version line in the About section.",
+    "placeholders": {
+      "version": {
+        "content": "$1",
+        "example": "0.1.0"
+      }
+    }
+  },
+  "settingsAboutLicense": {
+    "message": "Licensed GPL-3.0-only.",
+    "description": "Licence line in the About section."
+  },
+  "settingsAboutPrivacy": {
+    "message": "VaultaMark collects nothing. There is no server, no account, no telemetry and no identifier of any kind. Browsing your vault makes zero network requests. The only exception is Google Drive sync, which is off unless you turn it on, and which stores nothing but ciphertext in your own account.",
+    "description": "The privacy policy, in the four sentences that matter."
+  },
+  "settingsAboutSecurity": {
+    "message": "There is no password recovery, by design: nobody — including the developer — holds a key to your vault. Use an encrypted export as your backup. Security issues can be reported privately through the project's security advisories.",
+    "description": "Security summary in the About section."
+  },
+  "settingsAboutProject": {
+    "message": "The full privacy policy, threat model and cryptographic specification ship with the project source at github.com/zyndata/vaulta-mark.",
+    "description": "Where the full documents live. Written without a scheme deliberately: INV-3 forbids absolute URLs in the shipped package."
+  },
+  "settingsReplayOnboarding": {
+    "message": "Replay the setup guide",
+    "description": "Restarts the first-run flow."
+  },
+  "settingsReplayOnboardingHint": {
+    "message": "Runs the five setup screens again. Nothing is changed or reset — your vault, your password and your settings stay exactly as they are.",
+    "description": "Hint under the replay button."
+  },
+  "managerIncognitoNudge": {
+    "message": "\"Allow in Incognito\" is still off, so VaultaMark cannot open your bookmarks the way it promises to.",
+    "description": "Persistent banner shown after the incognito step was skipped during setup."
+  },
+  "managerIncognitoNudgeFix": {
+    "message": "Show me how",
+    "description": "Opens the guided incognito prompt."
+  },
+  "syncDriveHeading": {
+    "message": "Google Drive",
+    "description": "Sub-heading of the Drive part of the sync settings."
+  },
+  "syncDriveExplain": {
+    "message": "Drive holds far more than Chrome sync — thousands of bookmarks instead of hundreds — and it is where page previews are stored. It needs a Google account and one permission screen. You can connect or disconnect it here at any time; nothing you have saved is lost either way.",
+    "description": "What connecting Drive gives you."
+  },
+  "syncDriveScope": {
+    "message": "VaultaMark can only see the files it creates in your Drive. It cannot read anything else there, and what it does store is encrypted with your master password before it leaves this computer — Google cannot read it either.",
+    "description": "The drive.file scope, in plain words."
+  },
+  "syncDriveConnect": {
+    "message": "Connect Google Drive",
+    "description": "Button that authorizes Drive and moves the vault there."
+  },
+  "syncDriveDisconnect": {
+    "message": "Switch back to Chrome sync",
+    "description": "Button that moves the vault back into chrome.storage.sync."
+  },
+  "syncDriveAccount": {
+    "message": "Connected as $EMAIL$",
+    "description": "Which Google account Drive sync is using.",
+    "placeholders": {
+      "email": {
+        "content": "$1"
+      }
+    }
+  },
+  "syncDriveOpenFile": {
+    "message": "Open the vault file in Drive",
+    "description": "Opens the file Drive holds, in a new tab."
+  },
+  "syncDriveDisconnectExplain": {
+    "message": "Your vault moves back into Chrome sync. Nothing you have saved is lost, and connecting Drive again later picks up where this leaves off. Page previews stay on this computer, because Chrome sync has nowhere to keep them.",
+    "description": "Body of the dialog that asks before disconnecting Drive."
+  },
+  "syncDriveDisconnectConfirm": {
+    "message": "Switch back",
+    "description": "Confirming button in the disconnect-Drive dialog."
+  },
+  "syncDriveDeleteRemote": {
+    "message": "Also delete the copy in my Drive",
+    "description": "Checkbox in the disconnect-Drive dialog."
+  },
+  "syncDriveDeleteRemoteHint": {
+    "message": "Off by default: it is a file in your own Drive, and leaving it there costs nothing and keeps a copy you can restore from later under Import & export.",
+    "description": "Hint under the delete-the-Drive-copy checkbox."
+  },
+  "syncDriveUnavailable": {
+    "message": "This build of VaultaMark has no Google project configured, so Drive sync is not available in it. Chrome sync is unaffected.",
+    "description": "Shown when the package was built without an OAuth client id."
+  },
+  "syncDriveSetupIntro": {
+    "message": "If you built this yourself, these are the steps that turn Drive on. They only have to be done once, and only by whoever builds the package — people who install VaultaMark from the Chrome Web Store never see any of this.",
+    "description": "Introduces the Drive setup steps shown to a maintainer running a build with no OAuth client id."
+  },
+  "syncDriveSetupProject": {
+    "message": "In the Google Cloud console, create a project and enable the Google Drive API.",
+    "description": "Drive setup step 1."
+  },
+  "syncDriveSetupScope": {
+    "message": "On the OAuth consent screen, add this one scope and nothing wider:",
+    "description": "Drive setup step 2. Followed by the drive.file scope with a Copy button."
+  },
+  "syncDriveSetupPublish": {
+    "message": "Publish the consent screen — move it from Testing to In production. There is no review to pass, because this scope is not a sensitive one, but an app left in Testing hands out sign-ins that stop working after seven days.",
+    "description": "Drive setup step 3. The seven-day figure is the refresh-token lifetime for an app in Testing status, which breaks the PKCE sign-in path."
+  },
+  "syncDriveSetupClient": {
+    "message": "Create an OAuth client of type “Chrome Extension”, and give it this extension's ID:",
+    "description": "Drive setup step 4. Followed by the extension id with a Copy button."
+  },
+  "syncDriveSetupEnv": {
+    "message": "Put the client ID it gives you into the .env.local file as VM_OAUTH_CLIENT_ID, and build again.",
+    "description": "Drive setup step 5."
+  },
+  "syncDriveSetupIdNote": {
+    "message": "The ID above is this installation's. An extension loaded from a folder gets its ID from that folder's path, so it changes if the folder moves — and the OAuth client would stop matching it. Running “npm run dev-key” once fixes the ID to a key instead, before you register it.",
+    "description": "Warns that an unpacked extension id is path-derived unless pinned, and names the script that pins it."
+  },
+  "syncDriveSetupNoLink": {
+    "message": "There is deliberately no link to the console here. VaultaMark ships no web addresses it does not need, so that anyone reading the code can see at a glance where it is able to connect — and one convenience link would be one more.",
+    "description": "Explains the absence of a hyperlink to the Google Cloud console, which is INV-3 (no absolute URLs outside the allowlist)."
+  },
+  "syncDriveConnected": {
+    "message": "Drive is connected, and your vault has moved there.",
+    "description": "Announced after a successful migration to Drive."
+  },
+  "syncDriveDisconnected": {
+    "message": "Your vault is back in Chrome sync.",
+    "description": "Announced after a successful migration back to Chrome sync."
+  },
+  "syncDriveChromeCopyGone": {
+    "message": "Moving to Drive removes the copy in Chrome sync, so your other computers will ask you to connect Drive as well.",
+    "description": "Settings → Sync → Google Drive, shown *before* connecting: what moving to Drive will do to the Chrome-sync copy. Future tense on purpose — it is the only place this string appears, and it sits above the Connect button."
+  },
+  "diagnosticsHint": {
+    "message": "If you are reporting a problem, this produces a short report about how VaultaMark is set up. It contains no addresses, titles, folder or tag names, notes or account details — counts and settings only. You can read it before you copy it.",
+    "description": "Settings → About: what the diagnostics button does, said before it is pressed."
+  },
+  "diagnosticsButton": {
+    "message": "Create a diagnostic report",
+    "description": "Settings → About: the button that gathers the report."
+  },
+  "diagnosticsReportLabel": {
+    "message": "Diagnostic report",
+    "description": "Accessible name for the read-only box the report appears in."
+  },
+  "diagnosticsCopy": {
+    "message": "Copy to clipboard",
+    "description": "Settings → About: copies the report shown above it."
+  },
+  "diagnosticsCopied": {
+    "message": "Copied.",
+    "description": "Confirmation after the report was copied."
+  },
+  "diagnosticsCopyFailed": {
+    "message": "Chrome would not let VaultaMark use the clipboard. The report is above — select it and copy it by hand.",
+    "description": "Shown when the clipboard write is refused. The report is still on screen, which is the useful half."
+  },
+  "diagnosticsFailed": {
+    "message": "The report could not be gathered. VaultaMark’s background process did not answer; closing and reopening this page usually fixes it.",
+    "description": "Shown when the worker could not be reached at all."
+  },
+  "syncMigrateAuthorizing": {
+    "message": "Asking Google for permission…",
+    "description": "Migration progress. Shown only when connecting Drive — see syncMigratePreparing for the other direction, where nothing is being asked of Google."
+  },
+  "syncMigratePreparing": {
+    "message": "Getting ready…",
+    "description": "Migration progress: the first step of disconnecting Drive, where the backend being prepared is Chrome's own sync and no permission is involved."
+  },
+  "syncMigrateUploading": {
+    "message": "Copying your vault across…",
+    "description": "Migration progress."
+  },
+  "syncMigrateVerifying": {
+    "message": "Checking the copy reads back correctly…",
+    "description": "Migration progress."
+  },
+  "syncMigrateSwitching": {
+    "message": "Switching over…",
+    "description": "Migration progress."
+  },
+  "syncMigrateCleaning": {
+    "message": "Tidying up the old copy…",
+    "description": "Migration progress."
+  },
+  "syncMigrateFailedAuth": {
+    "message": "Google did not grant access, so nothing was changed.",
+    "description": "Migration failed: authorization."
+  },
+  "syncMigrateFailedOffline": {
+    "message": "There is no connection, so nothing was changed.",
+    "description": "Migration failed: offline."
+  },
+  "syncMigrateFailedLocked": {
+    "message": "Unlock the vault first.",
+    "description": "Migration failed: the vault is locked."
+  },
+  "syncMigrateFailedVerify": {
+    "message": "The copy did not read back as what was sent, so nothing was changed. Your vault is exactly where it was.",
+    "description": "Migration failed: verification."
+  },
+  "syncMigrateFailedMismatch": {
+    "message": "There is already a different vault in that Drive folder. Not a different password, necessarily — a vault created a second time is a new vault whatever it was given to open it, so a computer that lost its copy and started again lands here too. The two cannot be merged and nothing was changed. Choose below which of them to keep.",
+    "description": "Migration failed: the target holds another vault."
+  },
+  "syncMigrateFailedTooLarge": {
+    "message": "This vault no longer fits in Chrome sync: it holds $ITEMS$ bookmarks and about $FITS$ would fit. Export a backup and remove some, or stay on Drive.",
+    "description": "Migration failed: the vault is too large for chrome.storage.sync.",
+    "placeholders": {
+      "items": {
+        "content": "$1"
+      },
+      "fits": {
+        "content": "$2"
+      }
+    }
+  },
+  "syncMigrateFailedUnknown": {
+    "message": "That did not work, so nothing was changed.",
+    "description": "Migration failed: anything else."
+  }
+}

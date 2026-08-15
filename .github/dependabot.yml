@@ -1,0 +1,41 @@
+# Dependency updates.
+#
+# VaultaMark ships ZERO runtime dependencies (PLAN.md §2.1 D4), so everything Dependabot touches here
+# is a dev dependency or a CI action — nothing it bumps reaches a user's browser. Minor and patch
+# bumps are grouped into one PR per ecosystem to keep the noise down; majors come one at a time,
+# because those are the ones that break the build.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    target-branch: dev
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    labels: ["dependencies", "javascript"]
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      dev-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    target-branch: dev
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: ci
+    groups:
+      actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

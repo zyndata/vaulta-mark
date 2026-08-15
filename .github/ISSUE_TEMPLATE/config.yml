@@ -1,0 +1,22 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔐 Report a security vulnerability (private)
+    url: https://github.com/zyndata/vaulta-mark/security/advisories/new
+    about: >-
+      Never report a security problem in a public issue. Use the private security advisory form.
+      See SECURITY.md for scope, timelines, and what to include.
+  - name: 🔑 I forgot my master password
+    url: https://github.com/zyndata/vaulta-mark/blob/dev/SECURITY.md#there-is-no-password-recovery-none
+    about: >-
+      There is no password recovery. None — not by the maintainers, not by Google, not by anyone.
+      This is the design. Please do not open an issue for it.
+  - name: 💬 Questions and ideas
+    url: https://github.com/zyndata/vaulta-mark/discussions
+    about: >-
+      Usage questions, half-formed ideas, and "is this supposed to work like that?" belong in
+      Discussions.
+  - name: 📖 Architecture, crypto, and the phased plan
+    url: https://github.com/zyndata/vaulta-mark/blob/dev/PLAN.md
+    about: >-
+      Before proposing a change to crypto, the vault format, or the dependency policy, read PLAN.md
+      and docs/ARCHITECTURE.md — most of it is already decided and documented.

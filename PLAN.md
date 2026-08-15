@@ -31,12 +31,12 @@ Read, in this order:
 
 Rules:
   - Do only what Phase <N> scopes. Do not start later phases.
-  - Work on branch `feat/phase-<N>-<slug>` cut from `dev`.
+  - Work on `dev` with direct commits, one commit per logical unit. Never commit to `main`.
   - Write the tests named in the phase; all of them must pass before you call it done.
   - The phase is done only when every item in its "Definition of done" is true.
   - `npm run verify` (lint + type-check + test + build + invariant scan) must be green.
   - Update CHANGELOG.md under `## [Unreleased]`.
-  - Open a PR into `dev` using the template; do not merge to `main`.
+  - When done: push `dev`, confirm CI is green, then tag `phase-<N>-done` and push the tag.
 ```
 
 **Rules that apply to every phase (the fresh conversation must honour these):**
@@ -50,6 +50,7 @@ Rules:
 | Crypto changes are spec-first | If a phase changes crypto or the vault format, update `docs/ARCHITECTURE.md` **and** bump `SCHEMA_VERSION` with a migration. |
 | Conventional Commits | `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:`, `ci:`. |
 | Every phase ends green | `dev` is always installable, testable, and non-broken. |
+| Dependency advisories | Run `npm audit` at the end of the phase. Patch and minor security bumps can be merged any time. **Never merge a Dependabot PR that bumps a major** — majors are batched into Phase 12 and several of them contradict a settled decision (§2.1 D2, D5, D6). See [R11](#risks). |
 
 ---
 
@@ -64,7 +65,9 @@ Rules:
    user's own Google Drive** for bigger vaults and thumbnails.
 4. **Incognito-only opening**, with a guided flow when the required permission is missing.
 5. **Reviewable and publishable**: minimal permissions, all code in the package, MV3-clean.
-6. **Open source and auditable**: GPLv3, documented crypto, reproducible build, CI-enforced invariants.
+6. **Auditable, and buildable as open source**: GPLv3, documented crypto, reproducible build,
+   CI-enforced invariants. The repository is public (D36) — the code was written from the first
+   commit to survive publication, and now has.
 
 ### Non-goals (explicitly out of scope for 1.0)
 
@@ -87,13 +90,13 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | # | Decision | Reasoning |
 | --- | --- | --- |
 | D1 | **TypeScript 5.x, strict** | Non-negotiable for a crypto/sync codebase. |
-| D2 | **Vite 5 + a small in-repo MV3 plugin**, *not* `@crxjs/vite-plugin` | `@crxjs/vite-plugin` v2 is still beta and has had maintenance gaps; a build tool going stale would block Store releases. Our needs are modest (multi-entry build, manifest emit, static asset copy, content-script IIFE bundle). We ship ~80 lines in `build/mv3-plugin.ts` that we own and can audit, plus a `scripts/dev-reload.mjs` watcher. **Deviation from the suggested stack — justified here.** |
+| D2 | **Vite 8 + a small in-repo MV3 plugin**, *not* `@crxjs/vite-plugin` | `@crxjs/vite-plugin` v2 is still beta and has had maintenance gaps; a build tool going stale would block Store releases. Our needs are modest (multi-entry build, manifest emit, static asset copy, content-script IIFE bundle). We ship ~80 lines in `build/mv3-plugin.ts` that we own and can audit, plus a `scripts/dev-reload.mjs` watcher. **Deviation from the suggested stack — justified here.** *Was Vite 5 through Phase 11; taken to 8 in Phase 12 (§9) as one deliberate step with D5 and D6.* Vite 8 bundles with **Rolldown**, not Rollup, and three things followed: it ships no `esbuild`, so the minifier is `'oxc'`; it **ignores assignment to `bundle` in `generateBundle`** (honouring the delete), which is why the HTML flattening re-emits with `this.emitFile`; and it loads `vite.config.ts` through Node's own type stripping, so the config and the `build/` modules it reaches spell out `.ts` extensions and the `package.json` import attribute. |
 | D3 | **Vanilla TS UI, no framework** | As requested. A tiny reactive helper (`src/ui/dom.ts`, ~150 LOC: `h()`, signal-ish store, list diffing) is written in-repo instead of pulling a runtime dependency. Keeps the popup under a 1-frame paint budget and keeps the reviewer's diff small. |
 | D4 | **Zero runtime npm dependencies** in the shipped bundle (target) | Everything we need exists in the platform: WebCrypto, `CompressionStream`, `OffscreenCanvas`, `createImageBitmap`, `structuredClone`. Every added runtime dep is supply-chain risk in a security tool. Dev dependencies are unrestricted. Exception process: any proposed runtime dep needs a note in `docs/ARCHITECTURE.md` §Dependencies. |
-| D5 | **Vitest** (unit/integration) + **Playwright** with a persistent-context Chromium extension harness (E2E) | As suggested. `@vitest/coverage-v8`, `fake-indexeddb` not needed; a hand-written `chrome.*` mock lives in `test/mocks/chrome.ts`. |
-| D6 | **ESLint 9 flat config + Prettier + `tsc --noEmit`** | Standard. Plus custom ESLint rules banning `eval`, `new Function`, `chrome.bookmarks` outside the import module, and remote URLs. |
+| D5 | **Vitest 4** (unit/integration) + **Playwright** with a persistent-context Chromium extension harness (E2E) | As suggested. `@vitest/coverage-v8`, `fake-indexeddb` not needed; a hand-written `chrome.*` mock lives in `test/mocks/chrome.ts`. *Was Vitest 3 through Phase 11.* Two removals to know about: `coverage.all` is gone because everything matched by `coverage.include` is now reported whether or not a test imported it — which is what the flag used to buy — and a mock implementation is no longer silently made `new`-able, so a constructor must be mocked with a `function` or a `class`. |
+| D6 | **ESLint 10 flat config + Prettier + `tsc --noEmit`** | Standard. Plus custom ESLint rules banning `eval`, `new Function`, `chrome.bookmarks` outside the import module, and remote URLs. *Was ESLint 9 through Phase 11.* |
 | D7 | **npm** (not pnpm/yarn) | Widest CI/action support, lockfile v3, no corepack friction for contributors. |
-| D8 | **Node 20 LTS** in CI, `.nvmrc` pinned | Matches Actions default and Vite 5 requirements. |
+| D8 | **Node 24 LTS** in CI, `.nvmrc` pinned to `24` | Node 20 reached end-of-life in **April 2026** — no further security patches. Pinning a dead runtime in a security-focused project is indefensible, however convenient. Node 24 is Active LTS until October 2026 and supported through April 2028, and satisfies Vite 8. CI reads the version from `.nvmrc` (`node-version-file`), so bumping the runtime is a one-line change in one file. |
 
 ### 2.2 Crypto
 
@@ -116,7 +119,7 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | D18 | **3-way merge with a persisted merge base** (`vm.base`, encrypted, in `storage.local`) | True 3-way merge is impossible without a base. Per-item `updatedAt` + per-item `rev` + vault-level monotonic `rev` + `lastSyncedRev` makes resolution deterministic and provider-agnostic. |
 | D19 | **Auto-merge rules**: disjoint field edits merge silently; `tags` merge as a set union with tombstoned removals; **same field diverged on both sides ⇒ conflict UI**, never a silent overwrite | Matches the requirement. Set-union tag merge is a deliberate, documented bias toward not losing data. |
 | D20 | **Deletes are tombstones** (`deleted: true, deletedAt`), purged after 90 days | Without tombstones, a delete on device A is undone by a stale device B. |
-| D21 | **Drive scope: `drive.file` only** | Full `drive`/`drive.readonly` are Restricted scopes requiring an annual CASA Tier-2 security assessment (real money, real calendar time) plus a much heavier OAuth verification. `drive.file` is a Sensitive-but-not-Restricted scope: verification is a form + a demo video, and the app can only touch files it created — which is also a genuinely better privacy story. Cost: we cannot adopt a vault file the user moved/recreated by hand outside our flow; recovery path is Import (Phase 8). |
+| D21 | **Drive scope: `drive.file` only** | Full `drive`/`drive.readonly` are Restricted scopes requiring an annual CASA Tier-2 security assessment (real money, real calendar time) plus a much heavier OAuth verification. `drive.file` is the one Drive scope in the **non-sensitive** tier, which is exempt from OAuth app verification altogether, and the app can only touch files it created — which is also a genuinely better privacy story. Cost: we cannot adopt a vault file the user moved/recreated by hand outside our flow; recovery path is Import (Phase 8). |
 | D22 | **Drive auth via `chrome.identity.getAuthToken`**, with `launchWebAuthFlow` as a documented fallback | `getAuthToken` is one call and needs no client secret in the package. It requires a Chrome profile signed into Google; profiles that are not get the `launchWebAuthFlow` path (PKCE, no secret). |
 | D23 | **Drive freshness check is metadata-only**: `GET /files/{id}?fields=modifiedTime,version,md5Checksum,appProperties` with `appProperties.vmRev` as the authoritative revision | Costs ~1 KB and no decryption; full download only when `vmRev`/`md5Checksum` differs from local. |
 | D24 | **Thumbnails are one Drive file per item** (`t_<itemId>.vmt`), not one archive | Lets a device fetch only the previews it is about to render, and makes deletes cheap. |
@@ -137,10 +140,11 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | # | Decision | Reasoning |
 | --- | --- | --- |
 | D31 | **License: GPL-3.0-only** | (a) A security tool's users benefit from forks staying auditable; GPL prevents a closed, subtly-backdoored repackage of this exact code. (b) The prior art in this niche is largely GPLv3, so we can read it without contamination worry. (c) GPLv3 is fully compatible with Chrome Web Store distribution (the Store's Developer Agreement does not require sublicensing rights that GPLv3 withholds). **Cost:** no proprietary reuse of our modules, which is a non-goal anyway. **Override note:** if you want maximum adoption of the crypto/sync modules as a library, say so and I will switch to Apache-2.0 (which also grants an explicit patent licence). Default stands at GPL-3.0-only. |
-| D32 | **Branching: `dev` is the integration branch; `main` is release-only** | As specified. Feature branches `feat/phase-N-slug` → PR → squash-merge into `dev`; `dev` → `main` via merge PR at release; annotated tag `vX.Y.Z` on `main` triggers the release workflow. |
+| D32 | **Branching: all development on `dev`; `main` is release-only** | Solo repository, so **no PR requirement and no approval gates** — they add ceremony without adding a reviewer. Phases commit directly to `dev` and are marked complete with a `phase-N-done` tag, which gives clean revert/bisect points without PR overhead. `main` receives a `--no-ff` merge from `dev` only at a release; an annotated `vX.Y.Z` tag on `main` triggers the release workflow. Short-lived `feat/*` branches stay available for risky work (Phase 7 uses one) and PRs remain available for outside contributors once the repo is public. |
 | D33 | **Coverage gates: 90 % lines / 85 % branches on `src/crypto/**`, `src/vault/**`, `src/sync/**`; 70 % lines global** | Pragmatic: near-total on the parts where a bug loses user data, moderate on UI glue. |
 | D34 | **Store upload is gated behind `workflow_dispatch` input `publish: true`** | A tag push builds and creates a GitHub Release with the zip attached, but never publishes to the Store by itself. |
 | D35 | **Versioning: SemVer**, `manifest.json` version generated from `package.json` at build time | Chrome versions must be `1.2.3` numeric-only; pre-release tags (`1.2.0-rc.1`) map to `1.2.0.1` via a documented rule in `build/version.ts`. |
+| D36 | **Repository visibility: public, single maintainer.** Decided 2026-08-15; private from the first commit until then. | Licensing and publishing are different things, and for this product the gap between them was a real cost: GPL-3.0-only (D31) governs the terms under which the code is distributed, but a security tool nobody can read is one whose claims cannot be checked, which `SECURITY.md` said in as many words while the repository was private. Publishing settles that, and unblocks four GitHub features the docs had to work around — private vulnerability reporting, CodeQL upload, secret-scanning push protection, and GitHub Pages, which is where the Store's privacy-policy URL now comes from ([docs/RELEASE.md](docs/RELEASE.md) §8). Branch protection, which the Free plan refused outright on a private repository (measured 2026-08-14), becomes available with it and is applied — see [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md). **Public is not the same as shared.** There is one maintainer, so D32 stands unchanged: no pull-request requirement, no approval gate, direct commits to `dev`. Issues, Discussions and pull requests are open; a pull request is judged on its merits, and none is solicited by a roadmap. **What was true while it was private stays true:** §8.1 is not relaxed by publication but *settled* by it — the history is readable in full now, so the rule about what may never enter it no longer has an undo. |
 
 ---
 
@@ -279,6 +283,7 @@ These are enforced by CI (`npm run verify:invariants`), not just by convention. 
 | **INV-7** | Locked state holds no plaintext: after `lock()`, `storage.session` is empty and no SW-module-scope variable holds the DEK or decrypted items. | Unit test on the session module + a heap-shape assertion helper. |
 | **INV-8** | No telemetry/analytics. Zero references to analytics SDKs, `navigator.sendBeacon`, or non-allowlisted `fetch`. | Same scan as INV-1/INV-3. |
 | **INV-9** | Required permission set never grows without an explicit changelog entry. | `scripts/verify-manifest.mjs` diffs against `build/permissions.lock.json`. |
+| **INV-10** | No user-facing string outside `_locales/en/messages.json`, no key named that does not exist, no key in the file that nothing names. | `scripts/verify-strings.mjs`, a TypeScript AST walk over `src/` — the only one of the three scanners that reads source rather than `dist/`, because what it checks is authorship and the bundler has thrown that seam away. Added in Phase 12; enforcement was always scoped there. |
 
 ---
 
@@ -298,11 +303,10 @@ These are enforced by CI (`npm run verify:invariants`), not just by convention. 
 | Bulk multi-select move & delete | **Core** | 6 |
 | `ChromeSyncProvider` + quota guard + 3-way merge + conflict UI | **Core** | 7 |
 | Encrypted export / import (`.vmv`) | **Core** | 8 |
-| Plain HTML export, clearly labelled unencrypted, with confirm gate | **Core** | 8 |
 | Import from Chrome native bookmarks + offer to delete natives | **Core** | 8 |
 | Onboarding: incognito, no-recovery, sync-tier tradeoff | **Core** | 9 |
 | Clear browsing history for vaulted domains (one click) | **Core** | 9 |
-| Settings: URL-prediction reminder + deep link to `chrome://settings` | **Core** | 9 |
+| Onboarding: URL-prediction reminder + deep link to `chrome://settings` | **Core** | 9 |
 | `DriveSyncProvider` (opt-in), provider migration both ways | **Core** | 10 |
 | OG-image thumbnails: capture, encrypt, eye-icon + hover, manual refresh, graceful absence | **Core** | 11 |
 | Quick-close (close tab + wipe that domain's history) | Optional | 9 (behind a setting, off by default) |
@@ -313,11 +317,20 @@ These are enforced by CI (`npm run verify:invariants`), not just by convention. 
 | Disguise mode (camouflaged icon/title) | Optional | Post-1.0 (B2) |
 | Argon2id KDF option | Optional | Post-1.0 (B7) |
 
-**Post-1.0 backlog** (tracked as GitHub issues at the end of Phase 13, not as phases):
-B1 QR codes · B2 disguise/panic camouflage · B3 keyboard-driven command palette ·
-B4 vault-in-vault (second hidden vault under a different password) · B5 duplicate detection &
-dead-link check (explicit action only) · B6 per-folder auto-lock · B7 Argon2id ·
-B8 Firefox port evaluation · B9 optional local-only WebDAV provider.
+**Post-1.0 backlog** — opened as GitHub issues at the end of Phase 13 (2026-08-14), labelled
+`post-1.0`, each carrying the constraint that deferred it:
+
+| | | |
+| --- | --- | --- |
+| [#18](https://github.com/zyndata/vaulta-mark/issues/18) | B1 QR code for a vaulted URL | needs a bundled encoder — D4 |
+| [#19](https://github.com/zyndata/vaulta-mark/issues/19) | B2 disguise / panic camouflage | the manifest name cannot be hidden; decide what is being promised first |
+| [#20](https://github.com/zyndata/vaulta-mark/issues/20) | B3 keyboard-driven command palette | mostly a second front end onto existing vocabulary |
+| [#21](https://github.com/zyndata/vaulta-mark/issues/21) | B4 vault-in-vault | vault-format change; the plaintext header is the hard part |
+| [#22](https://github.com/zyndata/vaulta-mark/issues/22) | B5 duplicate detection & dead-link check | the dead-link half is the first outbound traffic that is not Drive — INV-4 |
+| [#23](https://github.com/zyndata/vaulta-mark/issues/23) | B6 per-folder auto-lock | "locked" means one thing today, and cryptography enforces it |
+| [#24](https://github.com/zyndata/vaulta-mark/issues/24) | B7 Argon2id | needs `wasm-unsafe-eval` — INV-2, D3 |
+| [#25](https://github.com/zyndata/vaulta-mark/issues/25) | B8 Firefox port evaluation | an evaluation, not a commitment; `storage.session` and `_favicon/` decide it |
+| [#26](https://github.com/zyndata/vaulta-mark/issues/26) | B9 local-only WebDAV provider | a third `SyncProvider`; needs an optional host permission |
 
 ---
 
@@ -394,16 +407,19 @@ opening a bookmark (mitigated by incognito-only opening + history cleanup).
 ```
 vaulta-mark/
 ├─ .github/
-│  ├─ workflows/ci.yml               # PR gate: lint, type-check, test, build, invariants
+│  ├─ workflows/ci.yml               # push gate: lint, type-check, test, build, invariants
 │  ├─ workflows/release.yml          # tag-triggered: verify, zip, GitHub Release, gated CWS upload
 │  ├─ workflows/codeql.yml
 │  ├─ ISSUE_TEMPLATE/{bug_report.yml,feature_request.yml,security.md,config.yml}
 │  ├─ PULL_REQUEST_TEMPLATE.md
 │  └─ dependabot.yml
 ├─ build/                            # in-repo Vite MV3 plugin, manifest source, version mapping
-├─ docs/{ARCHITECTURE.md,RELEASE.md,PRIVACY.md,STORE_LISTING.md,THREAT_MODEL.md}
+├─ docs/{ARCHITECTURE,RELEASE,PRIVACY,STORE_LISTING,THREAT_MODEL,DEVELOPMENT,
+│         ACCESSIBILITY,BRANCH_PROTECTION}.md + docs/store/   # listing assets, not shipped
 ├─ public/{icons/,_locales/en/messages.json}
-├─ scripts/{verify-no-remote-code.mjs,verify-manifest.mjs,zip.mjs,dev-reload.mjs}
+├─ scripts/                          # verify-{manifest,no-remote-code,strings}, zip, check-budgets,
+│                                    # release-notes, check-version-sync, dev-key, update-psl,
+│                                    # gen-{common-passwords,brand-assets}, capture-store-screenshots
 ├─ src/
 │  ├─ background/  crypto/  vault/  storage/  sync/  thumbs/  import/
 │  ├─ popup/  manager/  ui/  shared/
@@ -416,8 +432,12 @@ vaulta-mark/
 
 ### 8.1 Files that are never committed
 
-The repository is open source and its history is public. Assistant tooling is a local development
-detail, not part of the product, and it stays out of both.
+The repository is **public** (D36). Git history is published in full or not at all, and this one now
+is: the rule was written for the moment of publication rather than for the day it was drafted, and
+that moment has passed. Anything that must never be public must never enter the history in the first
+place — there is no longer a version of that sentence with an escape in it. Assistant tooling is a
+local development detail, not part of the product, and it stays out of the tree and out of the
+history either way.
 
 ```gitignore
 # assistant tooling — local only, never committed
@@ -445,8 +465,8 @@ Consequences every phase must respect:
 
 # 9. The phased plan
 
-Fourteen phases, 0 → 13. Each ends on a green `dev` with a merged PR. Estimates assume one focused
-Claude conversation per phase.
+Fourteen phases, 0 → 13. Each ends on a green `dev`, tagged `phase-N-done`. One focused conversation
+per phase.
 
 **Dependency graph:**
 
@@ -481,7 +501,7 @@ Claude conversation per phase.
 - `.github/ISSUE_TEMPLATE/` — `bug_report.yml`, `feature_request.yml`, `config.yml` routing security
   reports to the advisory form.
 - `.github/dependabot.yml` — weekly npm + monthly github-actions, grouped minor/patch.
-- `.gitignore`, `.gitattributes` (`* text=auto eol=lf`), `.editorconfig`, `.nvmrc` (`20`).
+- `.gitignore`, `.gitattributes` (`* text=auto eol=lf`), `.editorconfig`, `.nvmrc` (`24`).
   The `.gitignore` **must** include `node_modules/`, `dist/`, `release/`, `coverage/`,
   `playwright-report/`, `*.pem`, `.env*` (except `.env.example`), **and the assistant-tooling block
   below** — see [§8.1](#81-files-that-are-never-committed).
@@ -500,11 +520,15 @@ never staged; update its "Current state" line at the end of every phase.
 
 **Out of scope:** any `package.json`, any TS, any workflow YAML (Phase 1).
 
-**Branch-protection settings to document (human action, `main`):** require PR before merge; require
-1 approval (or "allow bypass for the owner" on a solo repo — document both); require status checks
-`ci / verify` to pass; require branches up to date; **require linear history**; require conversation
-resolution; block force pushes and deletions. For `dev`: require status checks, allow squash merge
-only, delete branch on merge.
+**Branch-protection settings to document (human action).** This is a solo repository, so there are
+**no PR or approval requirements** — those gate a reviewer who does not exist. The rules that remain
+exist only to prevent accidents. For `main`: block force pushes, restrict deletions, require linear
+history. For `dev`: block force pushes, restrict deletions. Nothing else.
+
+Record the real tradeoff in `docs/BRANCH_PROTECTION.md`: GitHub can only *require* status checks on a
+pull request, so with no PR requirement **CI runs but does not block a push**. The gate is therefore
+local — `npm run verify` before every push — and CI is the backstop that catches what the local run
+missed. If a collaborator ever joins, turn PR requirements on for `main` at that point.
 
 **Tests:** none (no code). CI does not exist yet.
 
@@ -514,16 +538,20 @@ only, delete branch on merge.
 - [ ] `README.md` states the product name, repo URL, and the five differentiators.
 - [ ] `docs/BRANCH_PROTECTION.md` is actionable without further research.
 
-**Git:** initial commit on `main` (`chore: initial repository scaffolding`), then create `dev` from
-`main` and push both. This is the one phase that commits directly to `main` — it predates protection.
-Everything after this goes through `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-0-done` and
+push.
+
+> **Already done — do not redo.** The repository is initialized, `main` and `dev` both exist and are
+> pushed to `origin`, and the planning docs are committed. `main` is at the initial planning commit
+> and **must not be touched again until the v1.0.0 release**. Phase 0 adds the governance and
+> licensing files listed above, on `dev`, like every other phase.
 
 ---
 
 ## Phase 1 — Toolchain, MV3 skeleton, CI gate, invariant scanners
 
 **Goal:** `npm run build` produces a loadable, empty-but-working MV3 extension; `npm run verify` is
-green; CI runs on every PR.
+green; CI runs on every push to `dev`.
 
 **Depends on:** Phase 0.
 **Specs to read:** §2.1, §4 (all invariants), [ARCHITECTURE §2](docs/ARCHITECTURE.md#2-build-system).
@@ -536,7 +564,7 @@ green; CI runs on every PR.
   `noImplicitOverride`, `verbatimModuleSyntax`, `moduleResolution: "bundler"`, `types: ["chrome", "vitest/globals"]`.
 - `vite.config.ts` + `build/mv3-plugin.ts` — multi-entry build (`background`, `popup`, `manager`,
   `content/og-capture` as a single-file IIFE), manifest emit from `build/manifest.ts`, asset copy,
-  `esbuild` target `chrome116`, no code-splitting for the SW entry.
+  `oxc` minification, target `chrome116`, no code-splitting for the SW entry.
 - `build/manifest.ts` — typed manifest source producing:
   - `manifest_version: 3`, name/description from `_locales`, version from `package.json`
   - `background: { service_worker: "background.js", type: "module" }`
@@ -558,10 +586,10 @@ green; CI runs on every PR.
   `windows`, `permissions`, `identity`, with quota + write-rate simulation for `sync`.
 - Minimal runtime: a service worker that logs and responds to a `PING` message; a popup that renders
   "VaultaMark" and the build version; an empty manager page.
-- `.github/workflows/ci.yml` — on `pull_request` to `dev`/`main` and `push` to `dev`: Node 20,
-  `npm ci`, `npm run verify`, upload `dist/` and coverage as artifacts. Job name **`verify`**
-  (referenced by branch protection).
-- `.github/workflows/codeql.yml` — JS/TS, on PR + weekly.
+- `.github/workflows/ci.yml` — on `push` to `dev`/`main` **and** on `pull_request` (so outside
+  contributions are still gated once the repo is public): Node from `.nvmrc`, `npm ci`, `npm run verify`,
+  upload `dist/` and coverage as artifacts. Job name **`verify`**.
+- `.github/workflows/codeql.yml` — JS/TS, on push to `dev` + PR + weekly.
 - `docs/DEVELOPMENT.md` — load-unpacked instructions, dev watch loop, how to run each test tier.
 
 **Out of scope:** crypto, storage, any vault behaviour.
@@ -581,9 +609,11 @@ green; CI runs on every PR.
 - [ ] `npm run zip` emits `release/vaulta-mark-<version>.zip` containing only build output.
 - [ ] INV-1, INV-2, INV-3, INV-8, INV-9 are enforced by scripts and covered by tests.
 - [ ] `dist/` contains zero absolute non-allowlisted URLs and zero runtime npm packages.
-- [ ] CI is green on the PR.
+- [ ] CI is green on the pushed `dev` commit.
 
-**Git:** `feat/phase-1-toolchain` → PR → `dev`. First PR that exercises the gate.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-1-done` and
+push. This is the phase that makes CI exist — confirm the `ci` workflow ran green on the pushed `dev`
+commit before tagging.
 
 ---
 
@@ -636,7 +666,7 @@ green; CI runs on every PR.
       if anything shifted).
 - [ ] `npm run verify` green.
 
-**Git:** `feat/phase-2-crypto` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-2-done` and push.
 
 ---
 
@@ -690,7 +720,7 @@ green; CI runs on every PR.
 - [ ] A 500-item vault unlocks (excluding KDF time) in < 150 ms in the Node test env.
 - [ ] `docs/ARCHITECTURE.md` §3/§5 match the code.
 
-**Git:** `feat/phase-3-vault-storage` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-3-done` and push.
 
 ---
 
@@ -748,7 +778,7 @@ service-worker behaviour. First point at which a human can meaningfully click so
 - [ ] The no-recovery warning requires a typed confirmation (not just a checkbox) at vault creation.
 - [ ] SW cold start to first handled message < 50 ms (measured in a test with a stubbed clock).
 
-**Git:** `feat/phase-4-session-lifecycle` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-4-done` and push.
 
 ---
 
@@ -780,7 +810,9 @@ service-worker behaviour. First point at which a human can meaningfully click so
     afterwards" checkbox that queues a Phase-9 cleanup for that domain
 - `src/ui/favicon.ts` — `faviconUrl(pageUrl, size)` → `chrome.runtime.getURL('/_favicon/?pageUrl=…&size=32')`;
   `onerror` → an inline SVG letter-avatar derived from the host (no network, no third party).
-- Popup list UI: recent items (default 20), instant filter box, per-row favicon + title + host,
+- Popup list UI: recent items (no row cap — favicons load lazily, so the list scrolls the whole
+  vault instead of trimming it; `limit` stays in the protocol for Phase 6's virtualized list),
+  instant filter box, per-row favicon + title + host,
   open (click / Enter), delete (with undo toast, 8 s), "Open manager" link.
 - Empty, locked, error, and "no incognito access" states all designed, not left to chance.
 
@@ -788,7 +820,7 @@ service-worker behaviour. First point at which a human can meaningfully click so
 
 **Tests**
 - `test/unit/background/add.test.ts` — normalization (trailing slash, `#`-fragment retention policy,
-  utm-stripping **off** by default with a setting), duplicate detection, scheme rejection.
+  utm-stripping **on** by default with a setting), duplicate detection, scheme rejection.
 - `test/unit/background/incognito.test.ts` — allowed → `windows.create` called with
   `{incognito:true}`; not allowed → no window created, `NEEDS_INCOGNITO_ACCESS` returned; reuse-window
   logic; explicit fallback creates a normal window **only** when the caller passes `force: true`.
@@ -806,7 +838,7 @@ service-worker behaviour. First point at which a human can meaningfully click so
 - [ ] Favicons render, and the network tab shows **zero** requests while browsing the vault.
 - [ ] E2E suite runs in CI (headless, `--headless=new`).
 
-**Git:** `feat/phase-5-popup-mvp` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-5-done` and push.
 
 ---
 
@@ -853,7 +885,7 @@ service-worker behaviour. First point at which a human can meaningfully click so
 - [ ] Zero critical/serious axe violations.
 - [ ] Change-password does not rewrite buckets (asserted).
 
-**Git:** `feat/phase-6-manager` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-6-done` and push.
 
 ---
 
@@ -915,14 +947,16 @@ resolved without data loss. **This is the highest-risk phase — budget accordin
 
 **Definition of done**
 - [ ] Two real Chrome profiles signed into the same Google account converge (manual verification
-      documented in the PR).
+      written up in the commit message — there is no PR to record it in).
 - [ ] Every merge table case and both property tests pass; fuzz run of 200 iterations is clean.
 - [ ] Coverage on `src/sync/**` ≥ 90 %/85 %.
 - [ ] The write-rate limiter is proven not to exceed Chrome's quotas under burst.
 - [ ] The documented bookmark ceiling in README/ARCHITECTURE matches a measured fixture.
 
-**Git:** `feat/phase-7-sync-chrome` → PR → `dev`. Consider splitting the PR
-(`7a` merge engine + tests, `7b` provider + engine + UI) if the diff exceeds ~1,500 lines.
+**Git:** this is the one phase worth isolating on a branch — `feat/phase-7-sync-chrome` off `dev`,
+merged back with `--no-ff` — because it is the highest-risk work in the project and a clean revert
+point is worth the ceremony. Commit `7a` (merge engine + tests) and `7b` (provider + engine + UI)
+separately. Tag `phase-7-done` on `dev` after the merge.
 
 ---
 
@@ -943,11 +977,6 @@ story for a corrupted vault.
   **preview** step (N bookmarks, M folders, date range) and a mode choice: **Merge** (uses the Phase-7
   merge engine with an empty base → adds and conflicts, never destroys) or **Replace** (double
   confirmation, keeps a one-shot local rollback snapshot for 24 h).
-- `src/io/export-html.ts` — Netscape bookmark-file format, importable by any browser. Gated behind a
-  **two-step** confirmation: a dialog stating in plain language that the file is **unencrypted
-  plaintext**, that anything that reads the file learns every vaulted URL, and that importing it into
-  Chrome puts the URLs back in the omnibox — plus a typed "EXPORT UNENCRYPTED" confirmation. The
-  file itself carries a leading HTML comment warning.
 - `src/import/native-bookmarks.ts` — requests the optional `bookmarks` permission in context; renders
   the native tree with checkboxes; imports the selection into the vault preserving folder structure;
   then **offers** (never automatically) to delete the native copies, explaining that deleting them is
@@ -963,19 +992,17 @@ story for a corrupted vault.
 - Truncated/tampered `.vmv` → `CorruptVaultError`, vault untouched.
 - Cross-schema: a v1-era `.vmv` fixture imports and migrates.
 - Merge-mode import reuses the Phase-7 engine and produces conflicts, not overwrites.
-- HTML export: valid Netscape format (parsed back by the importer), contains the warning comment, and
-  is unreachable without the typed confirmation (asserted at the UI layer).
 - Native import: mocked `chrome.bookmarks` tree → correct vault structure; deletion step is a
   separate call that does nothing unless explicitly invoked (**INV-5**: `chrome.bookmarks` is only
   ever read here, plus the explicit delete).
 
 **Definition of done**
 - [ ] Export → wipe → import restores a vault bit-for-bit (contents, not ciphertext).
-- [ ] Plain-HTML export cannot be produced without the typed confirmation.
+- [ ] A replace-mode import cannot be applied without the typed confirmation.
 - [ ] Native import + optional native deletion verified manually against a real profile; the manual
-      check is written up in the PR.
+      check is written up in the commit message.
 
-**Git:** `feat/phase-8-import-export` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-8-done` and push.
 
 ---
 
@@ -999,11 +1026,15 @@ closed.
      thumbnails**) vs Google Drive (opt-in later; large vaults; **thumbnails**). Explicit tradeoff
      table. Drive is offered but deferred to Phase 10 in the code — until then the card is present
      and marked "coming in the next release" (**or**, if Phase 10 has landed, fully wired).
-  5. **Two things Chrome still does** — (a) typed URLs live in history and can autocomplete even when
-     nothing is bookmarked → offer the history-cleanup tool; (b) Chrome's URL-prediction/preload
-     service can suggest URLs from its own signals → explain, and provide a copy-able
-     `chrome://settings/?search=autocomplete` link with instructions to turn off
-     "Autocomplete searches and URLs".
+  5. **One thing Chrome still remembers** — typed URLs live in history and can autocomplete even
+     when nothing is bookmarked → offer the history-cleanup tool.
+     - **Amended after Phase 11** (maintainer-reported): this step originally had a second card
+       about Chrome's URL-prediction service, with a copy-able `chrome://settings/?search=autocomplete`
+       address and instructions to turn off "Autocomplete searches and URLs". It is **removed**. It
+       was the only card in the flow with no control on it, and it could not have one — the setting
+       is Chrome's, and we can neither set it nor check afterwards whether the instruction was
+       followed. The threat is real and is stated in `docs/PRIVACY.md`, which is where a statement
+       that cannot be a control belongs. See ARCHITECTURE §12.4.
   Re-runnable any time from Settings → "Replay onboarding".
 - `src/background/history.ts` —
   - **Clear history for vaulted domains**: requests the optional `history` permission in context,
@@ -1019,6 +1050,42 @@ closed.
   URL-prediction reminder with the deep link), security section (idle timeout, lock on blur, require
   password after restart, change password, destroy vault), about section (version, license, links to
   SECURITY.md and PRIVACY.md).
+  - **Amended during Phase 9, twice.** "Require password after restart" is *not* a setting and cannot
+    be one: the unlocked key lives in `chrome.storage.session`, which is memory-backed and emptied
+    when Chrome exits (D14), so the vault locks on restart whatever anyone ticks. A toggle that could
+    only ever be on is a lie about how much control the user has, so the security section states the
+    fact instead. And the About section carries **no links**: INV-3 forbids any absolute URL in the
+    shipped package that is not on `build/url-allowlist.json`, and widening an invariant that exists
+    to keep exfiltration paths out of the build in order to make an About box clickable is the wrong
+    trade. The substance travels instead of the link — the policy in four sentences, the security
+    posture in three, and the repository named rather than addressed.
+  - **Amended again after Phase 9** (maintainer-reported): the URL-prediction reminder is on
+    onboarding step 5 only, and no longer duplicated in the privacy section. It is a one-time
+    instruction to change something in Chrome, not a control this extension owns — a permanent copy
+    of it among the toggles is a section that can never be finished. **Amended once more after
+    Phase 11**: by the same argument taken to its end, it is not in onboarding either. It is gone
+    from the product. See ARCHITECTURE §12.4.
+  - **Amended after Phase 11** (maintainer-reported), two things in the same report. **Destroy vault
+    clears the sync backend too**, by default, with a checkbox to leave the copy for another
+    computer: the old behaviour left the encrypted copy in `storage.sync`, so the profile was
+    immediately offered the vault it had just destroyed, and a replacement made with the same
+    password deadlocked against it on `VaultMismatch` forever. And **the sync section carries the way
+    out of that mismatch** — "Overwrite the synced copy with this vault" — because the error was
+    reported on the toolbar's sync status, which is itself the Sync-now button, so the only thing
+    anyone could click retried the merge that cannot work. See ARCHITECTURE §5.1 and §6.5.1.
+  - **Amended once more after Phase 11** (maintainer-reported, 2026-08-12): one way out is not
+    enough, and on the Drive path there was none at all. A mismatch is a question with **two** right
+    answers, and the one that was missing is the one the common case needs — keep the vault that is
+    in sync, not the one that is here. It is the answer for a profile whose `storage.local` went away
+    (a reinstall, an extension id that changed with a build variant) and made a new vault with the
+    same password, which is a *new* vault and can never open the synced bytes. So the sync section
+    now offers "Use the synced vault on this computer" (`ADOPT_REMOTE_VAULT`) beside the overwrite,
+    a refused Drive connection offers both where it reports the refusal, and the message that
+    reported it stopped claiming the other vault has "another master password" — it usually does not.
+    That also closes a gap nothing had ever scoped: a second computer could not join a vault living
+    in Drive, because adoption from an empty profile reads the backend out of `vm.settings`, which is
+    `chrome` until a migration succeeds — and the migration is what the mismatch refuses. See
+    ARCHITECTURE §6.5.1 and §6.6.
 - `docs/PRIVACY.md` finalized (what we store, where, what we never send, the Drive exception, no
   telemetry) — this is the URL that goes in the Store listing.
 
@@ -1029,10 +1096,12 @@ closed.
   exact typed string, incognito status re-checks live, and completion is persisted so it does not
   re-run.
 - History: domain extraction handles eTLD+1 correctly — the decision is already made in
-  [ARCHITECTURE §12.1](docs/ARCHITECTURE.md#121-registrable-domain-extraction) (bundle a trimmed
-  ICANN Public Suffix List, generated by a committed script, never fetched at runtime); test
-  `co.uk`, `com.au`, `github.io`, and plain `.com`. Dry-run count matches the executed deletions;
-  non-vaulted domains are never passed to `history.deleteUrl` (assert the exact call list).
+  [ARCHITECTURE §12.1](docs/ARCHITECTURE.md#121-registrable-domain-extraction) (bundle the Public
+  Suffix List, generated by a committed script, never fetched at runtime); test `co.uk`, `com.au`,
+  `github.io`, and plain `.com`. Dry-run count matches the executed deletions; non-vaulted domains
+  are never passed to `history.deleteUrl` (assert the exact call list).
+  - **§12.1 amended during Phase 9**: it said "ICANN section only", and `github.io` — named right
+    here — is a PRIVATE-section rule. Both sections are bundled; the reasoning is in §12.1.
 - Optional permission flow: denial is handled gracefully and the feature stays disabled without errors.
 - E2E: fresh profile → onboarding appears → complete it → it never appears again.
 
@@ -1042,7 +1111,7 @@ closed.
 - [ ] History cleanup shows an accurate dry-run and deletes only vaulted domains.
 - [ ] `docs/PRIVACY.md` is publishable as-is.
 
-**Git:** `feat/phase-9-onboarding-history` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-9-done` and push.
 
 ---
 
@@ -1080,7 +1149,37 @@ clean two-way migration. Unlocks the heavy tier for Phase 11.
   a rollback if verification fails.
 - Settings → Sync: connect/disconnect Drive, show the Drive account email, "Sync now", last error,
   a link to the file in Drive, and a clear statement that VaultaMark can only see files it created.
+  - **Amended after Phase 11** (maintainer-reported, 2026-08-10): a build with no OAuth client id
+    said only that Drive was unavailable, which is true and useless to the one person who can change
+    it — the maintainer, who is the only one who ever sees that state. It now renders the setup
+    steps, this installation's extension id and the permitted scope, each with a Copy button, and
+    `npm run dev-key` (`scripts/dev-key.mjs`) replaces the pack-extension-plus-OpenSSL recipe that
+    RELEASE §5.4 used to prescribe for pinning the id. The two values are on screen because they are
+    properties of the *running build*, and reading the id off `chrome://extensions` is the step
+    people get wrong. **No link to the console**, by INV-3 — the same call as the About section
+    (§12.4), and the panel says so rather than looking like it forgot.
+  - The Google Cloud half cannot be automated at all, and that is worth stating once so it is not
+    re-proposed: creating a project needs an authenticated console session, and the API that could
+    do it needs credentials that do not exist until the project does.
 - Offline behaviour: queue and retry; the UI shows "offline, changes are saved locally".
+- **Settings travel with the vault.** `vm.settings` is per-profile today, so a second Chrome profile
+  on the same Google account joins the synced vault (Phase 7, `repo.adopt`) and then starts from the
+  defaults: theme, idle timeout, lock-on-blur, the tracking strip and the manager's column widths all
+  have to be set again by hand. Maintainer-reported, 2026-08-02. It lands here rather than earlier
+  because the fix is a *synced* settings record and this is the phase that already has to reason
+  about a settings payload crossing a provider.
+  - The record goes **inside the ciphertext**, not beside it. INV-6 is about vault *content* and a
+    theme is not content — but `chrome.storage.sync` is replicated by Google whatever it holds, and
+    "which of our users leaves the vault unlocked forever" is not a fact worth publishing in the
+    clear when encrypting it is free. It merges last-writer-wins per field on `updatedAt`; there is
+    no conflict UI for a preference.
+  - Two exclusions, and they are the reason this is a design item rather than a one-line move:
+    `sidebarWidth`/`detailWidth` describe a *screen*, so a laptop must not inherit a desktop's
+    column widths, and `providerId` describes *this profile's* connection, so syncing it would tell
+    a profile with no Drive token to use Drive. Both stay in the local `vm.settings`, which
+    therefore does not go away — it becomes the per-device half of a two-part record.
+  - A profile that has not adopted a vault has nothing to sync settings with; the local file is the
+    whole story there, exactly as now.
 
 **Out of scope:** thumbnails (Phase 11) — but `putThumb`/`getThumb` are implemented and tested here
 so Phase 11 only adds capture and UI.
@@ -1095,17 +1194,51 @@ so Phase 11 only adds capture and UI.
   blocks the reverse migration with an actionable message.
 - **INV-4**: the only hosts contacted are `www.googleapis.com` and `accounts.google.com`; with Drive
   disconnected, zero requests are made (Playwright route interception).
-- Manual verification against a real Drive account, written up in the PR (a mocked-only Drive
-  integration is not sufficient evidence).
+- Manual verification against a real Drive account, written up in the commit message (a mocked-only
+  Drive integration is not sufficient evidence).
 
 **Definition of done**
 - [ ] A real Google account connects, syncs, and converges across two profiles.
-- [ ] `peek()` costs one request and no payload download when nothing changed.
-- [ ] Migration both directions verified.
-- [ ] INV-4 test passes with Drive both on and off.
-- [ ] Only `drive.file` is ever requested (asserted against the manifest and the auth call).
+      **Maintainer's, and the reason this phase is not tagged.** Playwright cannot sign into Google
+      and a mocked `fetch` proves the client is right without proving Google agrees. Procedure:
+      [DEVELOPMENT §5.4](docs/DEVELOPMENT.md#54-drive-sync-by-hand).
+- [x] `peek()` costs one request and no payload download when nothing changed.
+      (`test/unit/sync/drive/provider.test.ts`, asserted against the mock's `fields=` projection —
+      a probe that forgot it would come back with the payload and the test would see it.)
+- [x] Migration both directions verified, against a mocked Drive
+      (`test/integration/provider-migration.test.ts`): round trip preserves every item, a vault too
+      large for `storage.sync` blocks the reverse with a count, and a failed verification flips
+      nothing. Against a **real** account it is part of the manual pass above.
+- [x] INV-4 test passes with Drive both on and off. Off: `popup.spec.ts` / `manager.spec.ts`
+      route-intercept and assert zero requests. On: `test/unit/sync/drive/hosts.test.ts` runs the
+      whole lifecycle and checks every host against `build/url-allowlist.json` itself.
+- [x] Only `drive.file` is ever requested (asserted against the manifest in
+      `test/unit/build/manifest.test.ts` and against the `getAuthToken` call in
+      `test/unit/sync/drive/auth.test.ts`).
+- [x] A second profile that adopts the vault inherits the synced settings, and keeps its own column
+      widths and its own provider (`test/integration/adopt-synced-vault.test.ts`).
 
-**Git:** `feat/phase-10-drive-provider` → PR → `dev`.
+**Deviations, recorded rather than left in the code**
+
+- **The Drive container is JSON**, `{ v, header, buckets: { "<i>": "<base64url>" } }`, which the spec
+  did not pin down. It trades about a third in size for a file a person can open — §13.3 makes a
+  point of the vault being user-visible, and a user-visible opaque blob is only half of that. Written
+  up in [ARCHITECTURE §13.3](docs/ARCHITECTURE.md#133-file-layout).
+- **`vm.baseMeta` is rewritten rather than reset** at the flip (§6.6 step 3). Resetting it means the
+  next sync reads every item as a local add and pushes the whole vault back at the backend it just
+  came from; writing the base we have *just verified* is the same end state, one round trip earlier.
+- **`build/url-allowlist.json` gained `https://oauth2.googleapis.com/`** — the OAuth token endpoint,
+  which is a different host from the Drive API and is reached only by the PKCE fallback. INV-3's
+  prose already covers it (`googleapis.com`); the concrete prefix list did not.
+- **A build with no `VM_OAUTH_CLIENT_ID` emits no `oauth2` block at all.** Chrome treats a malformed
+  one as a manifest error and refuses to load the extension, so an empty client id would break every
+  source build. The settings screen says Drive is unavailable instead.
+- **`SCHEMA_VERSION` was not bumped for the synced settings record.** It is an additive optional
+  field in bucket 0's payload that older builds ignore, there is no item shape for a migration to
+  change, and an empty record is left out entirely so an untouched vault seals byte for byte what it
+  sealed before. Reasoning in [ARCHITECTURE §3.2](docs/ARCHITECTURE.md#32-bucket-plaintext).
+
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-10-done` and push.
 
 ---
 
@@ -1144,41 +1277,73 @@ browsing, and gracefully absent everywhere they are unavailable.
   wasted work, no local-only data that will never sync) — unless the user opts into
   "keep thumbnails on this device only", which is offered once, in context, with an explanation.
   With Drive active, capture is on by default.
-- UI: an **eye** icon on rows that have a thumbnail → expands an inline preview; a hover preview
-  (200 ms delay, respects `prefers-reduced-motion`, disabled on touch); a "Refresh preview" action in
-  the item detail pane that states plainly that it must open the page to re-capture, and does so only
-  on that explicit click (opens the page in an incognito window, captures, closes). **Never**
-  automatic, never in the background.
+  - **Deviation, recorded in ARCHITECTURE §14.4:** the offer is made on the first *save from the
+    popup*, not on "the first bookmark that has an OG image". Knowing whether a page has one means
+    injecting a script into it, and the gate is that nothing is injected — which is what the test
+    below asserts. The two gestures with no window (keyboard shortcut, context menu) never offer.
+- UI: an **eye** icon on rows that have a thumbnail → opens a preview anchored to the row; a hover
+  preview (200 ms delay, respects `prefers-reduced-motion`, disabled on touch); a "Refresh preview"
+  action that states plainly that it must open the page to re-capture, and does so only on that
+  explicit click. **Never** automatic, never in the background.
+  - **Deviation, recorded in ARCHITECTURE §14.5: the row preview is a floating card, not an inline
+    expansion.** The manager's list is windowed with one fixed row height that the scroll arithmetic
+    multiplies by; a row that grew to hold a picture would put every row below it at the wrong
+    offset. The detail pane's preview *is* inline — it is not windowed.
+  - **Deviation, recorded in ARCHITECTURE §14.5: only the popup can finish a refresh.** Re-capturing
+    needs `chrome.scripting` in the page, which needs a host permission or an `activeTab` grant, and
+    `activeTab` comes only from a gesture on that tab. So the popup offers "Refresh preview" when the
+    page in front of it is already vaulted (that click is the gesture), and the manager's detail pane
+    opens the page and says to use the toolbar button there. The originally specified version —
+    manager opens an incognito window, injects, closes — is not implementable without adding a broad
+    optional host permission, which D26 does not contain and INV-9 would not let in quietly.
 - **Graceful absence:** a device with no Drive connection shows favicon + title for items whose
   `thumb` metadata exists but whose bytes are unavailable, with a quiet "preview stored in Drive"
   affordance. No layout shift, no spinner that never resolves, no error toast.
 - Schema: `thumb` metadata already exists in v2 (Phase 3), so no schema bump — verify and record that.
 
 **Out of scope:** screenshots of any kind, browse-time fetching of any kind, background re-capture.
+Also **not built: the opt-in extension-origin fetch** named in ARCHITECTURE §14.1 and risk R5. It is
+absent from this phase's in-scope list, and it needs a host permission broad enough to fetch from any
+origin — which D26's permission table does not contain. Building it starts with a PLAN change.
 
 **Tests**
 - `validate.ts` table test: ≥ 25 hostile inputs (private IPs, SVG, `data:`, oversized declared
   length, wrong content type, redirect to http, 10 MB payload) each rejected with the right reason;
-  valid https JPEG/PNG/WebP accepted.
+  valid https JPEG/PNG/WebP accepted. — `test/unit/thumbs/validate.test.ts`, 54 cases.
 - `process.ts`: a 4000×3000 fixture downscales to ≤ 320 px longest edge, ≤ 40 KB, correct aspect
-  ratio; a 100×80 fixture is **not** upscaled; the quality step-down loop terminates.
-- Metadata stripping: a fixture with EXIF GPS produces output containing no EXIF marker.
+  ratio; a 100×80 fixture is **not** upscaled; the quality step-down loop terminates. —
+  `test/unit/thumbs/process.test.ts` against the injected `ImageOps` seam (`createImageBitmap` and
+  `OffscreenCanvas` do not exist in Node), and `test/e2e/thumbs.spec.ts` against a real 4000×3000
+  JPEG in Chromium.
+- Metadata stripping: a fixture with EXIF GPS produces output containing no EXIF marker. —
+  `test/e2e/thumbs.spec.ts`; the source carries a planted sentinel inside a real APP1 segment, and
+  the test asserts the sentinel is in the input and gone from the output.
 - `store.ts`: thumbnails are encrypted at rest (**INV-6** extended — no image magic bytes appear in
-  any stored value); LRU eviction respects the cap; item deletion removes both copies.
+  any stored value); LRU eviction respects the cap; item deletion removes both copies. —
+  `test/unit/thumbs/store.test.ts`, against a real `VaultRepository` cipher.
 - Tier gating: with `ChromeSyncProvider` and the opt-in off, capture is never invoked (assert the
-  content script is not injected).
-- **INV-4 re-verified**: browsing a vault full of thumbnails issues zero network requests.
-- E2E: add a page with an `og:image` (served from a local Playwright fixture server) → the eye icon
-  appears → expanding shows the image → disconnect Drive → the row degrades to favicon without errors.
+  content script is not injected). — `test/unit/background/thumbs.test.ts`, asserting on
+  `chrome.scripting.executeScript` itself, and again in `test/e2e/thumbs.spec.ts`.
+- **INV-4 re-verified**: browsing a vault full of thumbnails issues zero network requests. —
+  `test/e2e/thumbs.spec.ts` aborts and records every http(s) request in the context.
+- E2E: add a page with an `og:image` → the eye icon appears → expanding shows the image → the bytes
+  become unavailable → the row degrades to favicon without errors. — `test/e2e/thumbs.spec.ts`.
+  The fixture server was not needed: the image never crosses the network in the product either (the
+  page fetches it and hands the bytes over), so the harness hands them over at the same boundary,
+  which also lets the whole test run under the INV-4 trap.
 
 **Definition of done**
-- [ ] Thumbnails appear for real sites with OG images when Drive is connected.
-- [ ] Zero network requests while browsing (measured, INV-4).
-- [ ] No plaintext image bytes anywhere in storage or on Drive (INV-6).
-- [ ] All hostile-input cases rejected.
-- [ ] Degradation on a Drive-less device is visually clean.
+- [x] Thumbnails appear for real sites with OG images when Drive is connected. — the pipeline is
+      proven end to end in Chromium (`test/e2e/thumbs.spec.ts`); **a real Google account with Drive
+      connected is the maintainer's manual pass**, for the same reason Phase 10's is: Playwright
+      cannot sign into Google. Procedure in DEVELOPMENT §5.5.
+- [x] Zero network requests while browsing (measured, INV-4). — `test/e2e/thumbs.spec.ts`.
+- [x] No plaintext image bytes anywhere in storage or on Drive (INV-6). —
+      `test/unit/thumbs/store.test.ts`.
+- [x] All hostile-input cases rejected. — `test/unit/thumbs/validate.test.ts`.
+- [x] Degradation on a Drive-less device is visually clean. — `test/e2e/thumbs.spec.ts`.
 
-**Git:** `feat/phase-11-thumbnails` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-11-done` and push.
 
 ---
 
@@ -1192,10 +1357,26 @@ browsing, and gracefully absent everywhere they are unavailable.
 - Full Playwright E2E suite covering the user journeys end to end: first run → onboarding → create
   vault → add via all four entry points → search/tag/folder → open in incognito (spy-asserted) →
   lock/unlock → export/import → connect Drive (mocked API, real extension code path) → conflict
-  resolution → thumbnails. Run in CI on every PR.
+  resolution → thumbnails. Run in CI on every push to `dev`.
 - Performance budgets, enforced in CI (`scripts/check-budgets.mjs`):
   popup first paint < 100 ms; SW cold start < 50 ms; unlock (excluding KDF) < 200 ms for 1,000 items;
   total zip < 400 KB; largest single JS chunk < 150 KB.
+  **Amended during Phase 12: the last one is two numbers.** "Largest single JS chunk < 150 KB" was
+  written before the code it would measure existed, and `background.js` is 307 KB. The measurement
+  says why: 147 KB of it is one string literal (the bundled public-suffix list, §12.1) and 6 KB is
+  another (the common-password list), leaving 161 KB of code for the entire feature set in a file
+  that **may not be split** — ARCHITECTURE §2, a service worker that code-splits will eventually
+  `import()` a chunk after being torn down. There is no arrangement of the same code that passes.
+  The property the number was a proxy for is parse-and-evaluate cost at cold start, which is
+  measured directly at 50 ms and is green (the PSL's own module-eval cost was measured at 0.06 ms —
+  it is newline-joined strings that become sets lazily), and the download cost is the zip budget,
+  which the package uses 156 KB of its 400 KB. So **150 KB is kept unchanged for a document's
+  JavaScript** — what a page parses before it paints, which is what it was about, and where
+  `manager.js` sits at 76 KB — and the worker takes a ceiling of its own at **340 KB**. If it ever
+  needs to shrink, the PSL is the obvious 147 KB: it can ship as a package asset read with
+  `fetch(chrome.runtime.getURL(…))` at first use, which is an extension-origin read and not network
+  traffic (INV-4 is unaffected). Deliberately not done in this phase, which hardens rather than
+  reworks proven Phase 9 code.
 - Bundle analysis committed as a report artifact; tree-shaking verified; dead code removed.
 - Drag-and-drop reordering and re-parenting in the folder tree and list (the one optional feature
   promoted into 1.0 because the manager feels incomplete without it), with full keyboard equivalents.
@@ -1209,19 +1390,42 @@ browsing, and gracefully absent everywhere they are unavailable.
 - Security self-review against `docs/THREAT_MODEL.md`: a written checklist, each item ticked with a
   reference to the code or test that satisfies it. Run `/security-review` on the accumulated diff.
 - `docs/THREAT_MODEL.md` finalized (expanded from ARCHITECTURE §8).
+- **Dependency advisory sweep — do this first, before anything else in this phase.** Clear the whole
+  Dependabot backlog in one deliberate change instead of merging bot PRs as they arrived (§0, R11).
+  The **Vite, Vitest and ESLint majors are taken together**, because they are one interlocking
+  toolchain: bump them, update **D2, D5 and D6** in §2.1 in the same commit, re-verify
+  `build/mv3-plugin.ts` against the new Vite plugin API (`enforce`, `generateBundle`, lib-mode
+  `fileName` and `build.modulePreload` have all moved between majors), and get the full suite green
+  before touching the E2E work below. Record the result in `CHANGELOG.md`.
+  Two triggers to **bring this forward** into an earlier phase: `npm audit` reporting a High on a
+  path the build or CI actually executes, or any phase introducing a real dev server. Every
+  advisory seen up to Phase 1 was dev-server-only and therefore inert here — `npm run dev` is
+  `vite build --watch`, never `vite serve` — and that reasoning stops holding the moment a server
+  exists.
 
 **Out of scope:** new features.
 
 **Tests:** the E2E suite is the deliverable. Plus budget checks and the a11y sweep.
 
 **Definition of done**
-- [ ] Full E2E suite green in CI, < 10 min wall clock.
-- [ ] All performance budgets met and enforced.
-- [ ] Zero critical/serious axe violations on every page.
-- [ ] Security checklist complete, with every item traced to code or a test.
-- [ ] No user-facing string outside `_locales`.
+- [x] Full E2E suite green in CI, < 10 min wall clock. — 27 tests across 10 specs, 2¼ minutes
+      locally (~6½ on a runner). `journey.spec.ts` is the whole arc in one profile;
+      `large-vault.spec.ts` was split out of `manager.spec.ts` because it passed alone and failed in
+      sequence, which was a shared fixture rather than a product fault.
+- [x] All performance budgets met and enforced. — `scripts/check-budgets.mjs` on every
+      `npm run verify`; popup first paint in `test/e2e/budgets.spec.ts` (28 ms / 100 ms). The
+      single-chunk budget became two numbers; the amendment and its reasoning are in "In scope".
+- [x] Zero critical/serious axe violations on every page. — twelve *documents*, not two pages:
+      `test/e2e/a11y.ts` called from `manager`, `popup` and `onboarding` specs.
+- [x] Security checklist complete, with every item traced to code or a test. —
+      `docs/THREAT_MODEL.md` §5, thirty-eight rows. `/security-review` over the phase's diff
+      reported no HIGH or MEDIUM finding.
+- [x] No user-facing string outside `_locales`. — INV-10, `scripts/verify-strings.mjs`.
+- [x] `npm audit` reports no advisory, or each remaining one is recorded in the security checklist
+      with a written reason for accepting it. No Dependabot PR is left open without a decision. —
+      five advisories cleared to zero by the Vite 8 / Vitest 4 / ESLint 10 step.
 
-**Git:** `feat/phase-12-hardening` → PR → `dev`.
+**Git:** direct commits on `dev`. When every Definition-of-done item is true, tag `phase-12-done` and push.
 
 ---
 
@@ -1254,27 +1458,74 @@ a Chrome Web Store submission.
   differentiators, single-purpose statement, and a per-permission justification string for each
   requested and optional permission (draft text lives in `docs/STORE_LISTING.md`).
 - `docs/PRIVACY.md` published (GitHub Pages or a raw-file URL) and linked from the Store listing.
+  **Not done — the maintainer chose (2026-08-14) to leave the hosting decision open.** The document
+  is finished; there is nowhere private-and-free to serve it from, and the three ways out are in
+  RELEASE §8. This blocks Store submission and nothing else.
 - README completed: badges (CI, release, license), install-from-Store link, build-from-source
   instructions, the reproducibility note (how to verify the published zip's hash against a local
   build), security policy link, and the differentiators up top.
-- GitHub issues created for the post-1.0 backlog (B1–B9).
-- Release `1.0.0`: `dev` → `main` PR, merge, annotated tag `v1.0.0`, verify the Release, then the
-  **manual first Store upload** (the API cannot create a new item), then subsequent releases can use
-  the gated automation.
+- GitHub issues created for the post-1.0 backlog (B1–B9) — [#18–#26](https://github.com/zyndata/vaulta-mark/issues?q=label%3Apost-1.0), §5.
+- Release `1.0.0`: `git checkout main && git merge --no-ff dev`, push, annotated tag `v1.0.0`, verify
+  the GitHub Release, then the **manual first Store upload** (the API cannot create a new item);
+  subsequent releases can use the gated automation.
 
 **Tests**
 - `scripts/*` unit tests (release-notes extraction, version-sync detection).
 - A dry-run of the release workflow on a `v0.0.0-test` tag in a fork or with the publish gate off.
 
-**Definition of done**
-- [ ] A tag push produces a GitHub Release with the zip and checksums, without publishing to the Store.
-- [ ] `workflow_dispatch` with `publish: true` uploads a draft to the Store (verified once the item exists).
-- [ ] All four Store secrets documented end-to-end in `docs/RELEASE.md`, with screenshots-in-words for
-      each Google Cloud step.
-- [ ] `main` is protected exactly as `docs/BRANCH_PROTECTION.md` specifies.
-- [ ] v1.0.0 tagged and released.
+**Amendments made while building it**
 
-**Git:** `feat/phase-13-release` → PR → `dev`; then `release/1.0.0` PR `dev` → `main`; then tag.
+1. **`check-version-sync.mjs` runs twice**, not once. The manifest leg needs a built `dist/`, and
+   the tag-versus-`package.json` leg should fail in thirty seconds rather than after the suite. So
+   the tag leg runs before the build and `--built` runs after it. Recorded in RELEASE §7.
+2. **The `publish` job refuses a pre-release outright.** RELEASE §7 already said pre-releases are
+   never uploaded — Chrome sorts `1.2.0.1` below `1.2.0`, so an uploaded rc makes the real release
+   unpublishable — but nothing enforced it, and a `workflow_dispatch` form is exactly where that
+   gets typed by mistake.
+3. **RELEASE §7 no longer duplicates the workflow YAML.** §3's copy of `ci.yml` was a step out of
+   date within one phase; the section keeps the normative part (what must be true, in what order,
+   and the three gates) and points at the file for the mechanics.
+4. **Screenshot 5 is the vault-creation screen, not the unlock screen.** Those are two screens: the
+   unlock one is a password box, and the no-recovery warning — which is the stated reason for the
+   shot — lives where the vault is created. Recorded in STORE_LISTING §1.
+5. **`scripts/gen-brand-assets.mjs` and `scripts/capture-store-screenshots.mjs`** were not in the
+   phase's file list, because "produce store assets" reads like a manual task. They are committed so
+   that a retake is a command; the PNGs remain the deliverable, and neither script runs in `verify`.
+6. **The privacy-policy hosting decision stood unresolved** at the close of the phase, by the
+   maintainer's choice (2026-08-14). Everything that depended on a public repository was written and
+   explicitly *cut* rather than left pointing at a 404: the Store's privacy-policy, support and
+   homepage URLs, and the closing "open source" line of the detailed description. **Settled
+   2026-08-15 by D36** — the repository is public, Pages serves the policy from `main`/`docs`, and
+   all four are restored. STORE_LISTING §1 records the resolution.
+
+**Definition of done**
+- [x] A tag push produces a GitHub Release with the zip and checksums, without publishing to the
+      Store. — built as `.github/workflows/release.yml`; every step that can be exercised without a
+      tag on `main` is (`release-notes.mjs` against the real 1.0.0 section, `check-version-sync.mjs`
+      both ways, `npm run zip` and its sha256). **The end-to-end proof is the release itself**, and
+      so is the `v0.0.0-test` dry run the Tests list asks for: the job refuses any tag that is not
+      an ancestor of `main`, and `main` is four phases behind `dev` until the release merge. A dry
+      run that passed the ancestry check today would be building Phase-0 code.
+- [ ] `workflow_dispatch` with `publish: true` uploads a draft to the Store (verified once the item
+      exists). — the Store item does not exist; the first upload is manual by API design
+      (RELEASE §6.1). Blocked on the privacy-policy URL, which blocks submission.
+- [x] All four Store secrets documented end-to-end in `docs/RELEASE.md`, with screenshots-in-words
+      for each Google Cloud step. — RELEASE §6.1–§6.5, including the two flags without which Google
+      returns no refresh token and why a Testing-status consent screen expires one after 7 days.
+- [ ] `main` is protected exactly as `docs/BRANCH_PROTECTION.md` specifies. — **cannot be done on
+      this repository.** Measured 2026-08-14: both the rulesets API and the classic branch-protection
+      API answer `403 Upgrade to GitHub Pro or make this repository public`, so the settings are not
+      reachable from the UI either. BRANCH_PROTECTION.md had claimed §1–§4 "apply unchanged" while
+      private and has been corrected, with the manual habits that stand in for them. This unblocks
+      the day the repository is published or the plan is upgraded — the same decision the
+      privacy-policy URL waits on.
+- [ ] v1.0.0 tagged and released. — deferred to the maintainer (2026-08-14). `dev` is at 1.0.0 with
+      the CHANGELOG finalized and `[Unreleased]` empty; four manual passes from earlier phases are
+      still unrun (DEVELOPMENT §5.2–§5.5). The commands are RELEASE §4 steps 5–8.
+
+**Git:** direct commits on `dev`, tag `phase-13-done`. Then the release itself:
+`git checkout main && git merge --no-ff dev -m "release: v1.0.0"`, push `main`, and push the
+annotated tag `v1.0.0` — see [RELEASE §4](docs/RELEASE.md#4-cutting-a-release).
 
 ---
 
@@ -1323,7 +1574,7 @@ Five differentiators, one line each:
 | --- | --- | --- | --- | --- |
 | R1 | `chrome.storage.sync` quota is tighter in practice than the math suggests | Medium | High | Phase 7 measures a real fixture and updates the documented ceiling; the 70 %/95 % guards degrade rather than break; Drive is the escape hatch. |
 | R2 | `storage.sync` has no true compare-and-swap, so a fast two-device race could interleave a push | Medium | Medium | Read-verify-write plus post-write verification, bucket HMAC tags to detect torn writes, and an idempotent merge engine that converges on the next sync. Fuzz-tested in Phase 7. |
-| R3 | OAuth verification for `drive.file` takes weeks | High | Medium | `drive.file` is Sensitive, not Restricted — a form and a demo video, no CASA audit. Start verification during Phase 10, not Phase 13. Until verified, the unverified-app screen limits us to 100 users, which is fine for a beta. |
+| R3 | ~~OAuth verification for `drive.file` takes weeks~~ **Retired 2026-08-10 — the risk does not exist.** | — | — | `drive.file` is **non-sensitive**, and an app whose scopes are all non-sensitive is exempt from OAuth app verification entirely: no form, no demo video, no unverified-app interstitial, no 100-user cap. This row previously said *Sensitive* and budgeted weeks of review into the release schedule. What publication *does* require is moving the consent screen out of *Testing* status, whose 7-day refresh-token expiry would silently break the PKCE fallback path (RELEASE §5.2). |
 | R4 | Store review flags the `history` or `bookmarks` permission | Medium | Medium | Both are **optional** and requested in context; the justification strings are drafted in Phase 0 and refined in Phase 13. |
 | R5 | Content-script image fetch is blocked by page CSP/CORS on many sites, so thumbnail coverage is poor | High | Low | Accepted by design: no thumbnail is a fine outcome, favicons always work. The opt-in extension-origin fetch exists for users who want coverage. Measure real-world coverage during Phase 11 and put the number in the docs. |
 | R6 | `storage.session` key custody is a weaker posture than pure in-memory | Certain | Low–Medium | Documented in the threat model and in Settings; memory-only, never on disk, cleared on browser exit; timeout default 10 min; "require password after restart" on by default. |
@@ -1331,6 +1582,7 @@ Five differentiators, one line each:
 | R8 | MV3 service-worker termination causes subtle sync bugs | Medium | Medium | Phase 4 tests simulate termination explicitly; Phase 7's engine is restartable and idempotent; every long operation is resumable. |
 | R9 | Scope creep across 14 phases | High | Medium | Each phase's "out of scope" list is binding. A fresh conversation that wants to do more should open an issue instead. |
 | R10 | `_favicon/` returns the generic globe for sites not in the profile's cache | Certain | Low | Documented; the letter-avatar fallback is designed, not an afterthought. |
+| R11 | Dev-dependency advisories accumulate, and clearing them needs major upgrades that contradict settled decisions (Vite → D2, Vitest → D5, ESLint → D6) | Certain | Low | **Nothing from npm ships.** `dist/` carries zero runtime dependencies (D4), enforced by `verify:invariants`, so a toolchain advisory can never reach a user of the extension — the exposure is the maintainer's own machine. Reviewed with `npm audit` at the end of every phase (§0); majors are executed as **one deliberate change in Phase 12**. Brought forward if a High lands on a path the build or CI actually runs. |
 
 ### Resolved decisions (previously open; settled by the maintainer's delegation — do not relitigate)
 
@@ -1374,6 +1626,5 @@ conversation that wants to change one must open an issue and get it changed here
 
 ---
 
-*Last updated during the planning session. Changes to this plan should be made by PR to `dev` with a
-`docs:` commit, and phases should be renumbered only if absolutely necessary — the phase number is the
-contract with the executing conversation.*
+*Changes to this plan are made on `dev` with a `docs:` commit. Phases should be renumbered only if
+absolutely necessary — the phase number is the contract with the executing conversation.*

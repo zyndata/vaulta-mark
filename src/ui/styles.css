@@ -1,0 +1,727 @@
+/*
+ * Design tokens and the shared components (buttons, fields, meter, notices).
+ *
+ * Light and dark both come from `prefers-color-scheme`; `[data-theme]` on <html> overrides it when
+ * the user picks a theme explicitly (`applyTheme` in dom.ts). Every colour pair here clears 4.5:1
+ * against its background — the accessibility pass is Phase 6, but starting below the bar and fixing
+ * it later means restyling everything twice.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --vm-bg: #ffffff;
+  --vm-surface: #f4f5f7;
+  --vm-border: #d5d8de;
+  --vm-fg: #16181d;
+  --vm-muted: #5c6370;
+  --vm-accent: #2f4bc4;
+  --vm-accent-fg: #ffffff;
+  --vm-danger: #b3261e;
+  --vm-warning: #8a5300;
+  --vm-ok: #1c6b3c;
+
+  --vm-radius: 6px;
+  --vm-gap: 0.75rem;
+  --vm-focus: 2px solid var(--vm-accent);
+
+  /*
+   * How much room a focus ring needs outside the box it belongs to, for the boxes that clip.
+   *
+   * `overflow` on either axis makes an element clip on **both** — the two axes cannot disagree, so
+   * `overflow-y: auto` clips horizontally too — and it clips at the padding edge. An outline is
+   * drawn *outside* the border box, so a `width: 100%` field flush against a scroll container loses
+   * its ring wherever the two edges meet: left and right always, and the top as well when the field
+   * is the first thing in the box.
+   *
+   * The ring itself needs 4px (`--vm-focus`'s 2px, plus 2px of `outline-offset`). This is 6px, and
+   * the extra 2px are the point: at exactly 4px the ring's outer edge lands exactly on the clip
+   * boundary, and the popup is 26.4rem wide — 422.4 px, so every box inside it sits on a fractional
+   * boundary and rounds where it likes. It was measured shaved at 4px.
+   *
+   * Apply it as `margin: calc(-1 * var(--vm-ring-room)); padding: var(--vm-ring-room)` on all four
+   * sides. That pair is layout-neutral by construction — the box grows outward exactly as far as
+   * its own contents move inward — so nothing shifts and only transparent padding overlaps whatever
+   * is next to it.
+   */
+  --vm-ring-room: 6px;
+
+  /*
+   * The three hover tints, defined once so every clickable thing in the extension answers the
+   * pointer the same way.
+   *
+   * They are `color-mix` over the *theme's own* tokens rather than fixed colours, and that is what
+   * makes one definition enough for both themes: a custom property is substituted where it is used,
+   * so `--vm-fg` inside resolves to whatever the element inherited. Mixing towards the foreground
+   * darkens in light mode and lightens in dark mode, which is the direction a hover should go in
+   * each. Mixing towards `transparent` keeps a ghost button's hover legible on any background —
+   * including the manager's toolbar, which is `--vm-surface` already and would swallow a hover
+   * painted with it.
+   */
+  --vm-hover: color-mix(in srgb, var(--vm-fg) 10%, transparent);
+  --vm-hover-accent: color-mix(in srgb, var(--vm-accent) 86%, var(--vm-fg));
+  --vm-hover-danger: color-mix(in srgb, var(--vm-danger) 14%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --vm-bg: #16181d;
+    --vm-surface: #21242b;
+    --vm-border: #383d47;
+    --vm-fg: #e9ecef;
+    --vm-muted: #a7b0be;
+    --vm-accent: #93a9ff;
+    --vm-accent-fg: #10131a;
+    --vm-danger: #ff9f95;
+    --vm-warning: #f0c274;
+    --vm-ok: #7fd6a2;
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --vm-bg: #ffffff;
+  --vm-surface: #f4f5f7;
+  --vm-border: #d5d8de;
+  --vm-fg: #16181d;
+  --vm-muted: #5c6370;
+  --vm-accent: #2f4bc4;
+  --vm-accent-fg: #ffffff;
+  --vm-danger: #b3261e;
+  --vm-warning: #8a5300;
+  --vm-ok: #1c6b3c;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --vm-bg: #16181d;
+  --vm-surface: #21242b;
+  --vm-border: #383d47;
+  --vm-fg: #e9ecef;
+  --vm-muted: #a7b0be;
+  --vm-accent: #93a9ff;
+  --vm-accent-fg: #10131a;
+  --vm-danger: #ff9f95;
+  --vm-warning: #f0c274;
+  --vm-ok: #7fd6a2;
+}
+
+body {
+  margin: 0;
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+
+*:focus-visible {
+  outline: var(--vm-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * Present to assistive technology, absent from the layout.
+ *
+ * Every part of this is load-bearing and each one rules out a simpler-looking version.
+ * `display: none`, `visibility: hidden`, `hidden` and zero width/height all remove the element
+ * from the accessibility tree as well as from the page, which is the opposite of the point.
+ * `clip-path` needs a box with size, hence the 1px and the `overflow: hidden`; the negative margin
+ * keeps that pixel from occupying a line of its own in a flex column. `white-space: nowrap` stops a
+ * sentence wrapping inside a 1px box, which some engines then read a word at a time.
+ */
+.vm-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.vm-wordmark {
+  margin: 0;
+  font-size: 1.0625rem;
+  letter-spacing: 0.01em;
+}
+
+.vm-muted {
+  color: var(--vm-muted);
+}
+
+.vm-small {
+  font-size: 0.8125rem;
+}
+
+/* ------------------------------------------------------------------ fields */
+
+.vm-field {
+  display: block;
+  margin: 0 0 var(--vm-gap);
+}
+
+/*
+ * The UA's `[hidden] { display: none }` loses to *any* author rule, whatever the specificity — the
+ * same trap `.vm-layout` documents in manager.css. Without this, the backup dialog's "Confirm
+ * password" field stayed on screen after being marked hidden, which is exactly the field that must
+ * not be there while the vault's own password is the one being used.
+ */
+.vm-field[hidden] {
+  display: none;
+}
+
+.vm-field > span {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--vm-muted);
+}
+
+.vm-field input[type='password'],
+.vm-field input[type='text'],
+.vm-field select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  font: inherit;
+}
+
+.vm-checkbox {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0 0 var(--vm-gap);
+}
+
+.vm-checkbox input {
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ buttons */
+
+.vm-button {
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--vm-radius);
+  background: var(--vm-accent);
+  color: var(--vm-accent-fg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.vm-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vm-button--quiet {
+  background: transparent;
+  border-color: var(--vm-border);
+  color: var(--vm-fg);
+  font-weight: 400;
+}
+
+.vm-button--danger {
+  background: transparent;
+  border-color: var(--vm-danger);
+  color: var(--vm-danger);
+}
+
+/* A button that sits in a line of text rather than owning a row. */
+.vm-button--inline {
+  width: auto;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8125rem;
+}
+
+/*
+ * Hover, for everything that can be clicked.
+ *
+ * One rule per kind rather than per component: a button that lights up in the toolbar and a button
+ * that does nothing in a dialog are the same control to the person using them, and the one that
+ * does nothing reads as disabled. The exceptions are deliberate and few — a destructive button
+ * warms towards its own red rather than towards the foreground, because the one place a hover
+ * should not feel neutral is the one that erases something.
+ */
+.vm-button:hover:not(:disabled) {
+  background: var(--vm-hover-accent);
+}
+
+.vm-button--quiet:hover:not(:disabled) {
+  background: var(--vm-hover);
+  border-color: var(--vm-fg);
+}
+
+.vm-button--danger:hover:not(:disabled) {
+  background: var(--vm-hover-danger);
+  border-color: var(--vm-danger);
+}
+
+.vm-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/*
+ * A square button whose label is a glyph. Used for the popup's settings cog and the manager's tag
+ * rename, so the two live in the same place and hover the same way.
+ */
+.vm-icon-button {
+  flex: none;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: var(--vm-radius);
+  background: transparent;
+  color: var(--vm-muted);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.vm-icon-button:hover:not(:disabled) {
+  border-color: var(--vm-border);
+  background: var(--vm-hover);
+  color: var(--vm-fg);
+}
+
+.vm-link {
+  color: var(--vm-accent);
+}
+
+.vm-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* A pointer that moves is a pointer someone is following. Nothing here is load-bearing. */
+@media (prefers-reduced-motion: reduce) {
+  .vm-button,
+  .vm-icon-button {
+    transition: none;
+  }
+
+  .vm-button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------ favicons */
+
+.vm-favicon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+}
+
+/* The fallback for a site this profile has never visited, so Chrome's cache has no icon
+   (ARCHITECTURE §10). Colour comes from a hash of the host, applied by favicon.ts. */
+.vm-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* ------------------------------------------------------------------ virtual list */
+
+/* The scroll container owned by `virtual-list.ts`. The canvas inside it carries the full height of
+   the list so the scrollbar tells the truth, and every row is absolutely positioned within it. */
+.vm-vlist {
+  position: relative;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.vm-vlist-canvas {
+  position: relative;
+  width: 100%;
+}
+
+/* ------------------------------------------------------------------ notices */
+
+.vm-notice {
+  margin: 0 0 var(--vm-gap);
+  padding: 0.5rem 0.625rem;
+  border-left: 3px solid var(--vm-border);
+  border-radius: 0 var(--vm-radius) var(--vm-radius) 0;
+  background: var(--vm-surface);
+  font-size: 0.8125rem;
+}
+
+.vm-notice--warning {
+  border-left-color: var(--vm-warning);
+}
+
+.vm-notice--danger {
+  border-left-color: var(--vm-danger);
+  color: var(--vm-danger);
+}
+
+.vm-notice--ok {
+  border-left-color: var(--vm-ok);
+}
+
+.vm-notice p {
+  margin: 0 0 0.35rem;
+}
+
+.vm-notice p:last-child {
+  margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------------ strength meter */
+
+.vm-meter {
+  display: flex;
+  gap: 3px;
+  margin: -0.35rem 0 0.35rem;
+}
+
+.vm-meter span {
+  height: 4px;
+  flex: 1;
+  border-radius: 2px;
+  background: var(--vm-border);
+}
+
+.vm-meter[data-score='0'] span:nth-child(-n + 1),
+.vm-meter[data-score='1'] span:nth-child(-n + 2) {
+  background: var(--vm-danger);
+}
+
+.vm-meter[data-score='2'] span:nth-child(-n + 3) {
+  background: var(--vm-warning);
+}
+
+.vm-meter[data-score='3'] span:nth-child(-n + 4),
+.vm-meter[data-score='4'] span {
+  background: var(--vm-ok);
+}
+
+/* ------------------------------------------------------------------ the undo window */
+
+/*
+ * How long is left to undo, drawn instead of written.
+ *
+ * The toast's own background is the bar, so nothing is added to the layout and the toast does not
+ * change height while it runs: a surface-coloured fill grows left to right over the page's own
+ * background, empty at 0 % of the window and full at 100 % of it, arriving at the far edge exactly
+ * as the offer expires and the toast goes. "Eight seconds" used to be a sentence in the
+ * confirmation dialog, which is the wrong place and the wrong moment — the deadline matters *after*
+ * the delete, and a number read a second earlier is one nobody is still counting from.
+ *
+ * `--vm-undo-ms` is set inline by whichever page built the toast, from the same constant that arms
+ * its `setTimeout`. Two clocks that could drift would be worse than no bar at all.
+ *
+ * `background-size` rather than a `width` on a child element or an animated custom property: it
+ * animates on the compositor, needs no extra DOM, and needs no `@property` registration to be
+ * interpolable.
+ */
+@keyframes vm-undo-window {
+  from {
+    background-size: 0% 100%;
+  }
+
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+/* Doubled deliberately: both pages set `background` on `.vm-toast` in their own sheet, and a
+   shorthand at equal specificity would win by order and blank the gradient out. */
+.vm-toast.vm-toast--timed {
+  background-color: var(--vm-bg);
+  background-image: linear-gradient(var(--vm-surface), var(--vm-surface));
+  background-repeat: no-repeat;
+  animation: vm-undo-window var(--vm-undo-ms, 8000ms) linear forwards;
+}
+
+/*
+ * Reduced motion gets the same information without the sweep: the fill advances in four steps
+ * rather than sliding. Removing it entirely would take away the only thing that says the offer
+ * expires.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .vm-toast.vm-toast--timed {
+    animation-timing-function: steps(4, end);
+  }
+}
+
+/* ------------------------------------------------------------------ status colours */
+
+.vm-danger {
+  color: var(--vm-danger);
+}
+
+.vm-ok {
+  color: var(--vm-ok);
+}
+
+/* ------------------------------------------------------------------ dialogs */
+
+/* Here rather than in manager.css because the popup asks the same questions (`ui/dialog.ts`). */
+.vm-dialog {
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 0;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+}
+
+.vm-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.vm-dialog-form {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.vm-dialog h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.0625rem;
+}
+
+.vm-dialog h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.9375rem;
+}
+
+/* Scrolls, therefore clips, therefore needs the room — on every side, since a dialog body can and
+   does begin with a field. `--vm-ring-room` above says why the pair is layout-neutral. */
+.vm-dialog-body {
+  box-sizing: border-box;
+  max-height: min(60vh, 32rem);
+  overflow-y: auto;
+  margin: calc(-1 * var(--vm-ring-room));
+  padding: var(--vm-ring-room);
+}
+
+.vm-dialog-body p {
+  margin: 0 0 0.5rem;
+}
+
+.vm-dialog-invalid {
+  margin: 0.5rem 0 0;
+}
+
+.vm-dialog-working {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.5rem 0 0;
+}
+
+/* `display: flex` above beats the UA's `[hidden]`, so it has to be spelled out. */
+.vm-dialog-working[hidden] {
+  display: none;
+}
+
+.vm-dialog-working progress {
+  flex: 1 1 auto;
+  max-width: 8rem;
+}
+
+.vm-dialog-actions,
+.vm-choice {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.vm-choice {
+  flex-wrap: wrap;
+}
+
+.vm-choice .vm-button {
+  width: auto;
+}
+
+.vm-settings-section {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--vm-border);
+}
+
+.vm-danger-zone {
+  padding: 0.5rem;
+  border: 1px solid var(--vm-danger);
+  border-radius: var(--vm-radius);
+}
+
+/* ------------------------------------------------------------------ history cleanup (Phase 9) */
+
+/*
+ * The panel that deletes browsing history, shared by onboarding step 5 and Settings → Privacy
+ * (`ui/history-cleanup.ts`). It re-renders itself through four states, so the container carries the
+ * spacing rather than each state having to remember it.
+ */
+.vm-cleanup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.vm-cleanup .vm-button {
+  width: auto;
+}
+
+.vm-cleanup .vm-notice {
+  margin-bottom: 0;
+}
+
+.vm-cleanup-review > ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.vm-cleanup-review summary {
+  cursor: pointer;
+}
+
+/* A stated fact with its explanation, rather than a control. Set apart so it does not read as one. */
+.vm-settings-note {
+  margin-top: 0.5rem;
+  padding-left: 0.625rem;
+  border-left: 2px solid var(--vm-border);
+}
+
+.vm-settings-note h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.9375rem;
+}
+
+.vm-settings-note p {
+  margin: 0 0 0.25rem;
+}
+
+/* ------------------------------------------------------------------ preview pictures */
+
+/*
+ * The picture itself (ARCHITECTURE §14.5).
+ *
+ * `width`/`height` attributes come from the stored `ThumbMeta`, so the box has the right aspect
+ * ratio before the blob decodes and keeps it when the blob never arrives. `max-width: 100%` with
+ * `height: auto` is what lets the same element be 320 px wide in a floating card and column-width in
+ * a detail pane without two sets of numbers.
+ */
+.vm-thumb-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--vm-radius);
+  background: var(--vm-surface);
+}
+
+/*
+ * "Preview stored in Drive" and "no preview available".
+ *
+ * A sentence in the muted colour, not a warning and not an empty box with a broken-image glyph in
+ * it: an item whose picture is on another machine is a perfectly healthy item.
+ */
+.vm-thumb-absent {
+  margin: 0;
+}
+
+.vm-thumb-inline {
+  display: block;
+}
+
+/*
+ * The floating preview (ARCHITECTURE §14.5), opened by a click on a row's eye or by a hover that
+ * outlived its 200 ms delay.
+ *
+ * **Here rather than in `manager.css` because both lists have an eye now** — the same reasoning that
+ * moved the dialog in Phase 8. A preview that looked like one thing in the manager and another in
+ * the popup would be two products, and `ui/thumb.ts` renders exactly one card for both.
+ *
+ * A card positioned against its host rather than a row that grows, and that is the virtual list's
+ * doing: the manager's `.vm-row` is a fixed 44 px and the windowing arithmetic multiplies by it, so
+ * a row that expanded to hold a picture would put every row below it at the wrong offset. The popup
+ * inherits the arrangement because it inherits the card. `ui/thumb.ts` sets `left`/`top`; everything
+ * else about it is here.
+ *
+ * `pointer-events: none` matters — the card appears near the pointer, and one that could take a
+ * `mouseleave` from the row underneath would flicker itself open and closed.
+ */
+.vm-thumb-card {
+  position: absolute;
+  z-index: 5;
+  box-sizing: border-box;
+  max-width: min(22rem, 80%);
+  padding: 0.375rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 25%);
+  pointer-events: none;
+}
+
+/*
+ * The card's text: the page's own title and summary, the way a chat client shows them.
+ *
+ * `figure`/`figcaption` because that is what this is — a picture with the source's own words under
+ * it — and because it gives the text-only card the same element without a second class of layout.
+ * `margin: 0` on the figure is not optional: the UA gives it 1em on all four sides, which inside a
+ * 6px-padded floating card is a visible frame of nothing.
+ *
+ * The description is clamped to three lines rather than truncated at capture: 600 characters is a
+ * paragraph, the popover is at most 22rem wide, and a card taller than the row it is anchored to
+ * ends up off the bottom of the viewport. The full text is still in the vault.
+ */
+.vm-thumb-figure {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.vm-thumb-text {
+  display: grid;
+  gap: 0.125rem;
+  /* `figcaption` inherits the figure's `margin: 0` reset only by accident in some engines. */
+  margin: 0;
+}
+
+.vm-thumb-og-title {
+  font-weight: 600;
+  /* One line. The bookmark's own title is already on the row this card is anchored to; this is the
+     page's version of it, and two wrapped lines of near-duplicate text is noise. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vm-thumb-og-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+/* Nothing above it, so the text is the card rather than a caption for an absence. */
+.vm-thumb-figure--textonly .vm-thumb-text {
+  gap: 0.25rem;
+}

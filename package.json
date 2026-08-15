@@ -1,0 +1,50 @@
+{
+  "name": "vaulta-mark",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito. Optional sync via your own Google Drive.",
+  "license": "GPL-3.0-only",
+  "author": "zyndata",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zyndata/vaulta-mark.git"
+  },
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build",
+    "zip": "node scripts/zip.mjs",
+    "dev-key": "node scripts/dev-key.mjs",
+    "update-psl": "node scripts/update-psl.mjs",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test --pass-with-no-tests",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "tsc --noEmit",
+    "verify:invariants": "node scripts/verify-manifest.mjs && node scripts/verify-no-remote-code.mjs && node scripts/verify-strings.mjs",
+    "check-budgets": "node scripts/check-budgets.mjs",
+    "verify": "npm run lint && npm run type-check && npm run test && npm run build && npm run verify:invariants && npm run check-budgets"
+  },
+  "//dependencies": "Deliberately empty and staying that way (PLAN.md D4) — everything the extension needs is in the platform. A runtime dependency needs a written case and a bundle measurement. Dev dependencies are unrestricted.",
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@types/chrome": "^0.2.2",
+    "@types/node": "^26.2.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.67.0",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  }
+}

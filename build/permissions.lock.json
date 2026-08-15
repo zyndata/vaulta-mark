@@ -1,0 +1,7 @@
+{
+  "$comment": "INV-9. The frozen permission set. scripts/verify-manifest.mjs fails the build when the generated manifest.json disagrees with this file, so growing the extension's permissions is always a reviewed diff with a CHANGELOG entry. See PLAN.md §4 and docs/ARCHITECTURE.md §2.",
+  "permissions": ["storage", "activeTab", "scripting", "contextMenus", "alarms", "favicon"],
+  "optional_permissions": ["identity", "history", "bookmarks", "idle"],
+  "host_permissions": [],
+  "optional_host_permissions": ["https://www.googleapis.com/*"]
+}

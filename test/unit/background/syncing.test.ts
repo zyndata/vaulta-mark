@@ -1,0 +1,498 @@
+/**
+ * The sync surface the UI talks to, driven over the real message router.
+ *
+ * The interesting half of this file is conflict resolution. A conflict is settled by making a
+ * *normal local edit* — the same mutations the manager would produce if a person had typed the
+ * answer — so the assertions are about the vault afterwards rather than about the record: what
+ * "keep theirs" leaves behind is an item that looks exactly like theirs, and what "keep both"
+ * leaves behind is two items.
+ */
+
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { Conflict } from '../../../src/sync/merge.js';
+import type { VaultItem } from '../../../src/vault/types.js';
+import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../../mocks/chrome.js';
+
+const PASSWORD = 'a reasonably long master password';
+
+let mock: ChromeMock;
+
+async function startWorker(): Promise<void> {
+  mock.terminateWorker();
+  vi.resetModules();
+  await import('../../../src/background/index.js');
+}
+
+async function send(message: unknown): Promise<Record<string, unknown>> {
+  return (await mock.sendMessage(message)) as Record<string, unknown>;
+}
+
+/** The unlocked repository this worker is using, for seeding state the wire cannot express. */
+async function repository(): Promise<
+  NonNullable<Awaited<ReturnType<typeof import('../../../src/background/session.js').currentRepository>>>
+> {
+  const session = await import('../../../src/background/session.js');
+  const repo = await session.currentRepository();
+  if (repo === null) throw new Error('the vault is locked');
+  return repo;
+}
+
+/**
+ * Plant a conflict record, as a merge against a divergent remote would have left one.
+ *
+ * Reaching for `sync/base.ts` rather than staging a second device: what is under test here is what
+ * *resolution* does, and the merge that produces a conflict has its own suite.
+ */
+async function plantConflict(id: string, theirs: Partial<VaultItem> & { title: string }): Promise<void> {
+  const repo = await repository();
+  const mine = repo.getItem(id);
+  if (mine === undefined) throw new Error(`no item ${id}`);
+  const base = await import('../../../src/sync/base.js');
+
+  const conflict: Conflict = {
+    id,
+    kind: theirs.deleted === true ? 'edit-delete' : 'field',
+    fields: theirs.deleted === true ? [] : ['title'],
+    mine,
+    theirs: { ...mine, ...theirs } as VaultItem,
+    base: mine,
+    detectedAt: Date.now(),
+    remoteDevice: 'the-other-device',
+  };
+  await base.saveConflicts(repo.cipher(), [conflict]);
+}
+
+async function addBookmark(url: string, title: string): Promise<string> {
+  const response = await send({ type: 'ADD_URL', url, title });
+  return (response['item'] as { id: string }).id;
+}
+
+async function itemsOf(): Promise<VaultItem[]> {
+  return [...(await repository()).getAll()];
+}
+
+beforeAll(() => {
+  // PBKDF2 at 600,000 iterations is half a second; each test creates its own vault, so the file
+  // stays honest about a cold start at the cost of a few seconds.
+  vi.setConfig({ testTimeout: 30_000 });
+});
+
+beforeEach(async () => {
+  mock = installChromeMock();
+  await startWorker();
+  await send({ type: 'CREATE_VAULT', password: PASSWORD });
+});
+
+afterEach(async () => {
+  const { resetSync, syncNow } = await import('../../../src/sync/engine.js');
+  // Drain first, then reset.
+  //
+  // Writing to `chrome.storage.sync` fires this worker's own `onChanged` listener, which starts a
+  // sync it does not await — so a test that pushes can end with a run still in flight. `syncNow()`
+  // joins one rather than starting a second, and without this the tail of that run lands in the
+  // *next* test's storage mock and leaves it holding a vault it never created.
+  await syncNow();
+  resetSync();
+  mock.terminateWorker();
+  uninstallChromeMock();
+});
+
+/* ------------------------------------------------------------------ Drive */
+
+/**
+ * The Drive surface over the wire.
+ *
+ * What is *not* here is a successful connection: the mocked manifest carries no `oauth2` block, so
+ * `DriveAuth` is unconfigured and every path stops at authorization — which is exactly what a
+ * source build with no Google project does, and is the reason these tests never reach the network.
+ * The migration itself is proved end to end against a mocked Drive in
+ * `test/integration/provider-migration.test.ts`.
+ */
+describe('Drive', () => {
+  it('reports a build with no Google project as unavailable rather than broken', async () => {
+    const state = await send({ type: 'GET_DRIVE_STATE' });
+    expect(state).toEqual({
+      type: 'DRIVE_STATE',
+      configured: false,
+      granted: false,
+      connected: false,
+      email: null,
+      fileLink: null,
+    });
+  });
+
+  it('answers while the vault is locked', async () => {
+    await send({ type: 'LOCK' });
+    expect((await send({ type: 'GET_DRIVE_STATE' }))['type']).toBe('DRIVE_STATE');
+  });
+
+  it('refuses to connect before the optional permission has been granted', async () => {
+    const result = await send({ type: 'CONNECT_DRIVE' });
+    expect(result).toMatchObject({ type: 'MIGRATION', ok: false, reason: 'auth' });
+    // Nothing flipped: `chrome.permissions.request` needs a page and a user gesture, so a worker
+    // that tried anyway would fail somewhere far less legible than here.
+    expect((await send({ type: 'GET_SYNC_STATUS' }))['providerId']).toBe('chrome');
+  });
+
+  it('refuses to connect when the build has no OAuth client, and changes nothing', async () => {
+    mock.grantedPermissions.add('identity');
+    const result = await send({ type: 'CONNECT_DRIVE' });
+    expect(result).toMatchObject({ ok: false, reason: 'auth', providerId: 'chrome' });
+    expect((await send({ type: 'GET_SYNC_STATUS' }))['providerId']).toBe('chrome');
+  });
+
+  it('completes a disconnect even though revoking the grant cannot succeed here', async () => {
+    // The vault is already on Chrome sync, so the migration is a no-op that still has to verify —
+    // and the Drive teardown afterwards is best-effort by design: a revoke that fails must not
+    // report a completed disconnect as a failure.
+    await addBookmark('https://example.com/one', 'One');
+    const result = await send({ type: 'DISCONNECT_DRIVE' });
+    expect(result).toMatchObject({ type: 'MIGRATION', ok: true, providerId: 'chrome' });
+  });
+
+  it('narrates the migration to open pages instead of leaving one sentence on screen', async () => {
+    /*
+     * `migrateProvider` has reported its phase since Phase 10 and nothing was subscribed until
+     * Phase 12, so settings said "Asking Google for permission…" through the authorization, the
+     * upload of an entire vault, a verifying read-back and the switch. The assertion is on the
+     * *sequence*, because that is the part that was missing: one phase is what the bug looked like.
+     */
+    const seen = mock.observeMessages();
+    await addBookmark('https://example.com/one', 'One');
+    await send({ type: 'DISCONNECT_DRIVE' });
+
+    const phases = seen
+      .filter(
+        (message): message is { type: string; phase: string } =>
+          typeof message === 'object' &&
+          message !== null &&
+          (message as { type?: unknown }).type === 'MIGRATION_PROGRESS',
+      )
+      .map((message) => message.phase);
+
+    // `authorizing` is emitted in both directions — it wraps the *target* backend's `init()`, so
+    // on a disconnect it is Chrome sync being prepared and nothing is asked of Google. Settings
+    // says "Getting ready…" rather than "Asking Google for permission…" on this path for exactly
+    // that reason. `done` is last, and is the one phase settings deliberately does not render:
+    // the outcome sentence replaces it.
+    expect(phases).toEqual(['authorizing', 'uploading', 'verifying', 'switching', 'done']);
+  });
+});
+
+/* ------------------------------------------------------------------ status */
+
+describe('sync status', () => {
+  it('answers with a provider, a quota and no conflicts on a fresh vault', async () => {
+    const status = await send({ type: 'GET_SYNC_STATUS' });
+    expect(status['type']).toBe('SYNC_STATUS');
+    expect(status['providerId']).toBe('chrome');
+    expect(status['conflicts']).toBe(0);
+    expect(status['quotaBytes']).toBe(102_400);
+    expect(status['lastSyncedAt']).toBeNull();
+  });
+
+  it('answers while the vault is locked, without a key and without failing', async () => {
+    await send({ type: 'LOCK' });
+    const status = await send({ type: 'GET_SYNC_STATUS' });
+    expect(status['phase']).toBe('locked');
+    expect(status['conflicts']).toBe(0);
+  });
+
+  it('pushes on demand and records when it last succeeded', async () => {
+    await addBookmark('https://example.com/one', 'One');
+    const status = await send({ type: 'SYNC_NOW' });
+
+    expect(status['error']).toBeNull();
+    expect(status['lastSyncedAt']).toEqual(expect.any(Number));
+    expect(Object.keys(mock.storage.sync.snapshot())).toContain('vm.s.meta');
+  });
+
+  it('puts no readable vault content into storage.sync (INV-6)', async () => {
+    await addBookmark('https://very-private.example/path', 'Secret bookmark title');
+    await send({ type: 'SYNC_NOW' });
+
+    const synced = JSON.stringify(mock.storage.sync.snapshot());
+    expect(synced).not.toContain('Secret bookmark title');
+    expect(synced).not.toContain('very-private.example');
+  });
+});
+
+/* ------------------------------------------------------------------ the mismatch escape */
+
+/**
+ * `VAULT_MISMATCH` is the one sync error with nothing behind it to retry, and until this landed it
+ * was also the one with nothing to click: the toolbar's status *is* the Sync-now button, so the only
+ * control on screen re-ran the merge that cannot work and appeared to do nothing at all.
+ *
+ * Reached most easily by the route the maintainer found it on — destroy a vault while deliberately
+ * leaving its synced copy, then make a new one. Two different keys, one sync area.
+ */
+describe('replacing a mismatched synced vault', () => {
+  const OTHER_PASSWORD = 'a completely different master password';
+
+  async function strandAForeignVault(): Promise<void> {
+    await addBookmark('https://example.com/one', 'One');
+    await send({ type: 'SYNC_NOW' });
+    await send({ type: 'DESTROY_VAULT', deleteRemote: false });
+    await send({ type: 'CREATE_VAULT', password: OTHER_PASSWORD });
+    await addBookmark('https://example.com/two', 'Two');
+  }
+
+  it('is what a mismatch actually looks like, before it is fixed', async () => {
+    await strandAForeignVault();
+    expect((await send({ type: 'SYNC_NOW' }))['error']).toBe('VAULT_MISMATCH');
+  }, 60_000);
+
+  it('deletes the other vault and pushes this one, so syncing works again', async () => {
+    await strandAForeignVault();
+    expect((await send({ type: 'SYNC_NOW' }))['error']).toBe('VAULT_MISMATCH');
+
+    const replaced = await send({ type: 'REPLACE_REMOTE_VAULT' });
+    expect(replaced).toMatchObject({ type: 'SYNC_STATUS', error: null });
+    expect(replaced['lastSyncedAt']).toEqual(expect.any(Number));
+
+    // And it stays fixed: a second run finds a remote it wrote and agrees there is nothing to do.
+    expect((await send({ type: 'SYNC_NOW' }))['error']).toBeNull();
+  }, 60_000);
+
+  it('refuses while the vault is locked, rather than emptying the sync area', async () => {
+    await strandAForeignVault();
+    const before = mock.storage.sync.snapshot();
+    await send({ type: 'LOCK' });
+
+    expect(await send({ type: 'REPLACE_REMOTE_VAULT' })).toEqual({
+      type: 'ERROR',
+      code: 'VAULT_LOCKED',
+    });
+    expect(mock.storage.sync.snapshot()).toEqual(before);
+  }, 60_000);
+});
+
+/* ------------------------------------------------------------------ the other answer */
+
+/**
+ * The same dead end, settled the other way round: keep the vault that is in the sync area.
+ *
+ * This is the answer for the situation `strandAForeignVault` actually models — a profile whose vault
+ * went away with its `storage.local` and was made again with the same password, which is a *new*
+ * vault and can never open the bytes on the other side. Until this landed the only offer was to
+ * overwrite them, which is the wrong way round when the copy over there is the one with the
+ * bookmarks in it.
+ */
+describe('adopting a mismatched synced vault', () => {
+  const OTHER_PASSWORD = 'a completely different master password';
+
+  /** A synced vault holding "One", and a local vault holding "Two" that cannot open it. */
+  async function strandAForeignVault(): Promise<void> {
+    await addBookmark('https://example.com/one', 'One');
+    await send({ type: 'SYNC_NOW' });
+    await send({ type: 'DESTROY_VAULT', deleteRemote: false });
+    await send({ type: 'CREATE_VAULT', password: OTHER_PASSWORD });
+    await addBookmark('https://example.com/two', 'Two');
+  }
+
+  it('replaces this profile’s vault with the synced one', async () => {
+    await strandAForeignVault();
+    expect((await send({ type: 'SYNC_NOW' }))['error']).toBe('VAULT_MISMATCH');
+
+    const status = await send({
+      type: 'ADOPT_REMOTE_VAULT',
+      password: PASSWORD,
+      from: 'chrome',
+    });
+    expect(status).toMatchObject({ type: 'SYNC_STATUS', error: null });
+
+    // The vault that was here is gone, and the one that was in sync is open under the password that
+    // belongs to it — which is the whole point: the two never shared a key.
+    expect((await itemsOf()).map((item) => item.title)).toEqual(['One']);
+  }, 60_000);
+
+  it('records the base, so joining does not push the vault straight back', async () => {
+    await strandAForeignVault();
+    await send({ type: 'ADOPT_REMOTE_VAULT', password: PASSWORD, from: 'chrome' });
+
+    const before = JSON.stringify(mock.storage.sync.snapshot());
+    expect((await send({ type: 'SYNC_NOW' }))['error']).toBeNull();
+    expect(JSON.stringify(mock.storage.sync.snapshot())).toBe(before);
+  }, 60_000);
+
+  it('changes nothing at all when the password is wrong', async () => {
+    await strandAForeignVault();
+    const before = mock.storage.sync.snapshot();
+
+    expect(await send({ type: 'ADOPT_REMOTE_VAULT', password: 'not that one', from: 'chrome' })).toEqual(
+      { type: 'ERROR', code: 'WRONG_PASSWORD' },
+    );
+
+    // Not a half-adopted profile: the vault that was here is still here, still unlocked, and the
+    // synced copy is untouched. The old key never left `storage.session`, which is what makes a typo
+    // free rather than fatal.
+    expect((await itemsOf()).map((item) => item.title)).toEqual(['Two']);
+    expect(mock.storage.sync.snapshot()).toEqual(before);
+  }, 60_000);
+
+  it('refuses while the vault is locked, rather than erasing it for a stranger', async () => {
+    await strandAForeignVault();
+    await send({ type: 'LOCK' });
+
+    // Whoever is at the keyboard does not hold this vault's password, and knowing some *other*
+    // vault's must not be a way to delete this one.
+    expect(await send({ type: 'ADOPT_REMOTE_VAULT', password: PASSWORD, from: 'chrome' })).toEqual({
+      type: 'ERROR',
+      code: 'VAULT_LOCKED',
+    });
+
+    await send({ type: 'UNLOCK', password: OTHER_PASSWORD });
+    expect((await itemsOf()).map((item) => item.title)).toEqual(['Two']);
+  }, 60_000);
+
+  it('says so when there is nothing in the sync area to join', async () => {
+    await addBookmark('https://example.com/two', 'Two');
+    expect(await send({ type: 'ADOPT_REMOTE_VAULT', password: PASSWORD, from: 'chrome' })).toEqual({
+      type: 'ERROR',
+      code: 'VAULT_STATE',
+    });
+  }, 60_000);
+});
+
+/* ------------------------------------------------------------------ conflicts */
+
+describe('listing conflicts', () => {
+  it('is empty when nothing is disputed', async () => {
+    expect(await send({ type: 'LIST_CONFLICTS' })).toEqual({ type: 'CONFLICTS', conflicts: [] });
+  });
+
+  it('sends both versions, the fields that disagree, and whether both can be kept', async () => {
+    const id = await addBookmark('https://example.com/one', 'Mine');
+    await plantConflict(id, { title: 'Theirs' });
+
+    const response = await send({ type: 'LIST_CONFLICTS' });
+    const [conflict] = response['conflicts'] as Record<string, unknown>[];
+    expect(conflict?.['id']).toBe(id);
+    expect(conflict?.['fields']).toEqual(['title']);
+    expect((conflict?.['mine'] as { title: string }).title).toBe('Mine');
+    expect((conflict?.['theirs'] as { title: string }).title).toBe('Theirs');
+    expect(conflict?.['canKeepBoth']).toBe(true);
+  });
+
+  it('does not offer "keep both" when one side is a deletion', async () => {
+    const id = await addBookmark('https://example.com/one', 'Mine');
+    await plantConflict(id, { title: 'Mine', deleted: true, deletedAt: Date.now() });
+
+    const response = await send({ type: 'LIST_CONFLICTS' });
+    const [conflict] = response['conflicts'] as Record<string, unknown>[];
+    expect(conflict?.['canKeepBoth']).toBe(false);
+    expect((conflict?.['theirs'] as { deleted: boolean }).deleted).toBe(true);
+  });
+
+  it('reports the conflict count in the status, so the banner needs no second request', async () => {
+    const id = await addBookmark('https://example.com/one', 'Mine');
+    await plantConflict(id, { title: 'Theirs' });
+    const status = await send({ type: 'GET_SYNC_STATUS' });
+    expect(status['conflicts']).toBe(1);
+    expect(status['phase']).toBe('conflict');
+  });
+});
+
+describe('resolving a conflict', () => {
+  it('keeps this device’s version, and changes nothing about the item', async () => {
+    const id = await addBookmark('https://example.com/one', 'Mine');
+    await plantConflict(id, { title: 'Theirs' });
+
+    expect(await send({ type: 'RESOLVE_CONFLICTS', ids: [id], resolution: 'mine' })).toEqual({
+      type: 'COUNT',
+      count: 1,
+    });
+    expect((await itemsOf()).map((item) => item.title)).toEqual(['Mine']);
+    expect(await send({ type: 'LIST_CONFLICTS' })).toEqual({ type: 'CONFLICTS', conflicts: [] });
+  });
+
+  it('adopts the other version in full', async () => {
+    const id = await addBookmark('https://example.com/one', 'Mine');
+    await plantConflict(id, {
+      title: 'Theirs',
+      url: 'https://example.com/theirs',
+      note: 'their note',
+      tags: ['theirs'],
+    });
+
+    await send({ type: 'RESOLVE_CONFLICTS', ids: [id], resolution: 'theirs' });
+
+    const [item] = await itemsOf();
+    expect(item?.title).toBe('Theirs');
+    expect(item?.type === 'bookmark' && item.url).toBe('https://example.com/theirs');
+    expect(item?.type === 'bookmark' && item.note).toBe('their note');
+    expect(item?.type === 'bookmark' && item.tags).toEqual(['theirs']);
+  });
+
+  it('applies their deletion when theirs is a tombstone', async () => {
+    const id = await addBookmark('https://example.com/one', 'Mine');
+    await plantConflict(id, { title: 'Mine', deleted: true, deletedAt: Date.now() });
+
+    await send({ type: 'RESOLVE_CONFLICTS', ids: [id], resolution: 'theirs' });
+    expect(await itemsOf()).toEqual([]);
+  });
+
+  it('keeps both, as two items, and discards nothing', async () => {
+    const id = await addBookmark('https://example.com/one', 'Mine');
+    await plantConflict(id, { title: 'Theirs' });
+
+    await send({ type: 'RESOLVE_CONFLICTS', ids: [id], resolution: 'both' });
+
+    const titles = (await itemsOf()).map((item) => item.title).sort();
+    expect(titles).toHaveLength(2);
+    expect(titles).toContain('Mine');
+    // `chrome.i18n.getMessage` in the mock answers with the key, which is what makes the suffix
+    // visible here at all — and asserting on the key rather than on English is the point.
+    expect(titles.find((title) => title !== 'Mine')).toBe('Theirs conflictCopySuffix');
+  });
+
+  it('settles a whole batch in one request', async () => {
+    const first = await addBookmark('https://example.com/one', 'One');
+    const second = await addBookmark('https://example.com/two', 'Two');
+    const repo = await repository();
+    const base = await import('../../../src/sync/base.js');
+    await base.saveConflicts(
+      repo.cipher(),
+      [first, second].map((id) => ({
+        id,
+        kind: 'field' as const,
+        fields: ['title'],
+        mine: repo.getItem(id)!,
+        theirs: { ...repo.getItem(id)!, title: 'Theirs' },
+        base: repo.getItem(id)!,
+        detectedAt: Date.now(),
+      })),
+    );
+
+    expect(
+      await send({ type: 'RESOLVE_CONFLICTS', ids: [first, second], resolution: 'theirs' }),
+    ).toEqual({ type: 'COUNT', count: 2 });
+    expect((await itemsOf()).map((item) => item.title)).toEqual(['Theirs', 'Theirs']);
+  });
+
+  it('refuses an id that is not in conflict rather than reporting success', async () => {
+    const response = await send({
+      type: 'RESOLVE_CONFLICTS',
+      ids: ['not-a-conflict'],
+      resolution: 'mine',
+    });
+    expect(response).toEqual({ type: 'ERROR', code: 'ITEM_NOT_FOUND' });
+  });
+
+  it('rejects a resolution that is not one of the three', async () => {
+    expect(
+      await mock.sendMessage({ type: 'RESOLVE_CONFLICTS', ids: ['a'], resolution: 'whatever' }),
+    ).toBeUndefined();
+    expect(await mock.sendMessage({ type: 'RESOLVE_CONFLICTS', ids: [], resolution: 'mine' })).toBeUndefined();
+  });
+
+  it('needs an unlocked vault', async () => {
+    await send({ type: 'LOCK' });
+    expect(await send({ type: 'LIST_CONFLICTS' })).toEqual({
+      type: 'ERROR',
+      code: 'VAULT_LOCKED',
+    });
+  });
+});

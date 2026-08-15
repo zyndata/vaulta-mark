@@ -1,0 +1,17 @@
+# GitHub Pages configuration.
+#
+# Pages serves this folder from `main` (Settings -> Pages -> Deploy from a branch -> main / docs)
+# for exactly one reason: the Chrome Web Store requires a publicly reachable privacy-policy URL, and
+# `docs/PRIVACY.md` is the document it points at. See RELEASE §8. Everything else served here is a
+# side effect of the folder choice, not a second website.
+#
+# The non-obvious part: **Jekyll copies a markdown file through unchanged unless it carries YAML
+# front matter**, in which case it renders it to HTML. A file served as raw `.md` is a download
+# prompt in some browsers and is not what a Store reviewer should be sent to. So `PRIVACY.md` and
+# `index.md` carry front matter and become real pages at `/PRIVACY` and `/`; every other file in
+# this folder is developer documentation, is read on github.com where it renders anyway, and is
+# deliberately left static.
+
+title: VaultaMark
+description: Encrypted bookmarks that never touch your omnibox.
+theme: jekyll-theme-primer

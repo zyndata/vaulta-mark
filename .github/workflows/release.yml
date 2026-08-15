@@ -1,0 +1,164 @@
+name: release
+
+# A tag push builds and publishes a GitHub Release. It never reaches the Chrome Web Store: that
+# takes a deliberate workflow_dispatch with `publish: true`, and then a human approving the
+# `chrome-web-store` environment. Three gates, described in docs/RELEASE.md §7.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (e.g. v1.2.3)'
+        required: true
+      publish:
+        description: 'Upload to the Chrome Web Store'
+        type: boolean
+        default: false
+      auto_publish:
+        description: 'Also submit for review (otherwise upload as a draft)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Two runs of the same release would race on one GitHub Release and one Store item. Never cancel
+# in progress: a half-finished upload is worse than a queued one.
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          # Full history, which also brings every branch ref — `origin/main` has to exist locally
+          # for the ancestry check below to mean anything.
+          fetch-depth: 0
+
+      # `main` is what is reviewed, merged and shipped (RELEASE §1). A tag on `dev` would build
+      # green and release code that never passed through a release merge.
+      - name: Tag must be on main
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::${{ inputs.tag || github.ref_name }} is not an ancestor of main." \
+                 "Releases are tagged on main after a --no-ff merge from dev (RELEASE §4)."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      # Before the suite, not after: a mistyped tag should cost thirty seconds rather than the
+      # full run. The manifest leg of the same check runs again after the build, below.
+      - name: Version must match the tag
+        run: node scripts/check-version-sync.mjs "${{ inputs.tag || github.ref_name }}"
+
+      # The notes are extracted here too, for the same reason — an unfinalized CHANGELOG section
+      # is a mistake to catch before the build, not after the Release exists.
+      - name: Release notes
+        # Redirect and then `cat`, rather than piping through `tee`: the default shell is `bash -e`
+        # without `pipefail`, so a pipeline would report tee's exit code and swallow the refusal.
+        run: |
+          mkdir -p release
+          node scripts/release-notes.mjs "${{ inputs.tag || github.ref_name }}" > release/NOTES.md
+          cat release/NOTES.md
+
+      - run: npm run lint
+      - run: npm run type-check
+      # Already runs with coverage; the thresholds gate here as they do in ci.
+      - run: npm run test
+      - run: npm run build
+      - run: npm run verify:invariants
+      - run: node scripts/check-budgets.mjs --report release/bundle-report.md
+
+      - name: The built manifest must match too
+        run: node scripts/check-version-sync.mjs "${{ inputs.tag || github.ref_name }}" --built
+
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - run: npm run zip
+
+      # The zip writer is deterministic (fixed timestamps, sorted entries), so this hash is one a
+      # user can reproduce from the tagged source — README "Install" says exactly how far that
+      # promise goes.
+      - name: Checksums
+        run: |
+          cd release
+          sha256sum *.zip > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          body_path: release/NOTES.md
+          files: |
+            release/*.zip
+            release/SHA256SUMS
+          draft: false
+          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: release/
+          retention-days: 90
+
+  publish:
+    needs: build
+    # Never on a bare tag push: `inputs` is empty there, so this is false without having to say so.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+    runs-on: ubuntu-latest
+    # Configured with required reviewers, so a publish waits for a human (RELEASE §6.5).
+    environment: chrome-web-store
+    steps:
+      # A pre-release is a GitHub artifact only. Chrome sorts `1.2.0.1` *below* `1.2.0`, so an
+      # uploaded rc would make the real 1.2.0 unpublishable — see ARCHITECTURE §2. Refuse it here
+      # rather than trusting whoever filled in the dispatch form.
+      - name: Pre-releases are never published
+        if: ${{ contains(inputs.tag, '-') }}
+        run: |
+          echo "::error::${{ inputs.tag }} is a pre-release. Chrome sorts its mapped version below" \
+               "the final one, so uploading it would block the real release (ARCHITECTURE §2)."
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: release/
+
+      - run: npm install -g chrome-webstore-upload-cli@3
+
+      # Uploads a draft unless `auto_publish` was also ticked. Leave it off until several releases
+      # have gone through cleanly — the Store has no rollback (RELEASE §10).
+      - name: Upload to the Chrome Web Store
+        env:
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          chrome-webstore-upload upload \
+            --source release/vaulta-mark-*.zip \
+            ${{ inputs.auto_publish && '--auto-publish' || '' }}

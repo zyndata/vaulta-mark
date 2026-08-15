@@ -1,0 +1,8 @@
+{
+  "$comment": "INV-3. The only absolute URL prefixes allowed to appear anywhere in dist/. Everything else is a bug or an exfiltration path. Adding an entry here is a deliberate, reviewable act — see PLAN.md §4. www.googleapis.com is the Drive API; accounts.google.com is the OAuth consent and revocation endpoints; oauth2.googleapis.com is the OAuth token endpoint, reached only by the PKCE fallback for profiles that are not signed into Chrome (docs/ARCHITECTURE.md §13.2).",
+  "allowed": [
+    "https://www.googleapis.com/",
+    "https://accounts.google.com/",
+    "https://oauth2.googleapis.com/"
+  ]
+}

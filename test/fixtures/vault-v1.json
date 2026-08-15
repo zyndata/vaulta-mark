@@ -1,0 +1,77 @@
+{
+  "_comment": [
+    "A schema-v1 vault payload, as `migrate.ts` would receive it after decryption.",
+    "v1 never shipped: it is reserved as 'pre-tags/notes/thumbs, integer ordering' so the",
+    "migration machinery has a real fixture instead of being dead code (ARCHITECTURE §3.3).",
+    "Nothing here is a real bookmark of anyone's — see PLAN.md §8.1 on vault fixtures."
+  ],
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "0f2b6a54-4f1d-4a0c-9d4a-0a1b2c3d4e01",
+      "type": "folder",
+      "parentId": "root",
+      "title": "Reading",
+      "createdAt": 1700000000000,
+      "updatedAt": 1700000000000,
+      "order": 1,
+      "rev": 1
+    },
+    {
+      "id": "0f2b6a54-4f1d-4a0c-9d4a-0a1b2c3d4e02",
+      "type": "folder",
+      "parentId": "root",
+      "title": "Work",
+      "createdAt": 1700000001000,
+      "updatedAt": 1700000001000,
+      "order": 2,
+      "rev": 1
+    },
+    {
+      "id": "0f2b6a54-4f1d-4a0c-9d4a-0a1b2c3d4e03",
+      "type": "bookmark",
+      "parentId": "root",
+      "title": "Example Domain",
+      "url": "https://example.com/",
+      "createdAt": 1700000002000,
+      "updatedAt": 1700000002000,
+      "order": 0,
+      "rev": 1
+    },
+    {
+      "id": "0f2b6a54-4f1d-4a0c-9d4a-0a1b2c3d4e04",
+      "type": "bookmark",
+      "parentId": "0f2b6a54-4f1d-4a0c-9d4a-0a1b2c3d4e01",
+      "title": "Padding oracles, revisited",
+      "url": "https://example.org/papers/padding",
+      "createdAt": 1700000003000,
+      "updatedAt": 1700000004000,
+      "order": 20,
+      "rev": 2
+    },
+    {
+      "id": "0f2b6a54-4f1d-4a0c-9d4a-0a1b2c3d4e05",
+      "type": "bookmark",
+      "parentId": "0f2b6a54-4f1d-4a0c-9d4a-0a1b2c3d4e01",
+      "title": "A note on key separation",
+      "url": "https://example.org/papers/hkdf",
+      "createdAt": 1700000005000,
+      "updatedAt": 1700000005000,
+      "order": 10,
+      "rev": 1
+    },
+    {
+      "id": "0f2b6a54-4f1d-4a0c-9d4a-0a1b2c3d4e06",
+      "type": "bookmark",
+      "parentId": "0f2b6a54-4f1d-4a0c-9d4a-0a1b2c3d4e02",
+      "title": "Quarterly planning",
+      "url": "https://example.net/planning?q=2026",
+      "createdAt": 1700000006000,
+      "updatedAt": 1700000007000,
+      "order": 5,
+      "rev": 3,
+      "deleted": true,
+      "deletedAt": 1700000007000
+    }
+  ]
+}
