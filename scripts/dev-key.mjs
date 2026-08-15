@@ -18,22 +18,32 @@
  * authorise with no indication that an *id* is the reason. So an existing `VM_MANIFEST_KEY` is
  * never overwritten without `--force`, and `--force` prints what it is about to invalidate.
  *
- * Writes two gitignored files and touches nothing else:
+ * Writes two files and touches nothing else:
  *
- *   .env.local        `VM_MANIFEST_KEY=…`, with every other line left exactly as it was
- *   dev-unpacked.pem  the private half — not needed to load unpacked, only to pack a .crx
+ *   .env.local                      `VM_MANIFEST_KEY=…`, every other line left exactly as it was
+ *   ~/.vaulta-mark/dev-unpacked.pem the private half — not needed to load unpacked, only to pack
+ *                                   a .crx
+ *
+ * The private half is deliberately written **outside the repository**, not beside `.env.local`.
+ * `.gitignore` covers `*.pem` and always did, but a gitignore entry is one `git add -f`, one
+ * careless edit of that file, or one directory-wide backup away from putting a signing key into a
+ * public history — and GitHub's push protection does not reliably flag PEM material. Keeping it in
+ * a different directory removes the class of accident rather than guarding against it. Override the
+ * directory with `VM_DEV_KEY_DIR` if the home directory is not where you want it.
  *
  * Usage:  node scripts/dev-key.mjs [--force]     (or: npm run dev-key)
  */
 
 import { generateKeyPairSync, createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ENV_FILE = join(ROOT, '.env.local');
-const PEM_FILE = join(ROOT, 'dev-unpacked.pem');
+const KEY_DIR = process.env['VM_DEV_KEY_DIR'] || join(homedir(), '.vaulta-mark');
+const PEM_FILE = join(KEY_DIR, 'dev-unpacked.pem');
 const KEY_VAR = 'VM_MANIFEST_KEY';
 
 /**
@@ -99,6 +109,7 @@ function main() {
   const key = publicKey.toString('base64');
   const id = extensionId(publicKey);
 
+  mkdirSync(KEY_DIR, { recursive: true });
   writeFileSync(PEM_FILE, privateKey);
   writeFileSync(ENV_FILE, upsert(contents, KEY_VAR, key));
 
@@ -111,8 +122,9 @@ function main() {
     );
   }
   lines.push(
-    `Wrote  .env.local        ${KEY_VAR}`,
-    `Wrote  dev-unpacked.pem  private half — gitignored, only needed to pack a .crx`,
+    `Wrote  .env.local  ${KEY_VAR}`,
+    `Wrote  ${PEM_FILE}`,
+    `       the private half — kept outside the repository, only needed to pack a .crx`,
     ``,
     `The key reaches the manifest in DEVELOPMENT builds only, because the Store assigns the`,
     `real id and a disagreeing "key" breaks the upload:`,
