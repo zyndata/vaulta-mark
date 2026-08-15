@@ -19,6 +19,14 @@ below.
   release workflow, from a named commit, rather than being uploaded by hand. Check it with
   `gh attestation verify --owner zyndata vaulta-mark-<version>.zip`.
 
+### Changed
+
+- **A build can now be given its own OAuth client id for development** (`VM_OAUTH_CLIENT_ID_DEV`),
+  used only when the manifest pins an unpacked extension id. A Google OAuth client for an extension
+  authorises exactly one extension id, so publishing to the Store created a second id that needed a
+  second client. Nothing about the published extension changes, and a build with the variable unset —
+  which is every source build and every CI run — behaves exactly as before.
+
 ### Fixed
 
 - **The Store description is one sentence shorter**, because the old one was one character too long

@@ -276,6 +276,32 @@ you installs the build.
    type; the client id is public and nothing sensitive ships in the package. It is kept out of the
    repository because it names one particular Google Cloud project, not because it is secret.
 
+**Once the extension is published there are two ids, so there are two clients.** A Chrome-extension
+client authorises **exactly one** Item ID; the field takes one value and editing it *replaces* what
+was there. So the Store-assigned id and the unpacked id from §5.4 each need their own client in the
+same Cloud project — same consent screen, same `drive.file` scope, no verification either way.
+
+Registering the Store id on 2026-08-15 is what surfaced this, by overwriting the development one. The
+symptom is worth recognising because it names nothing that points at the cause:
+`chrome.identity.getAuthToken` is refused, `DriveAuth.#acquire` falls back to PKCE, and the consent
+screen answers **`Error 400: redirect_uri_mismatch`** — the same message a *production* build
+produces, for a different reason. Diagnose by reading `dist/manifest.json`: a missing `key` is the
+build-variant bug (see CLAUDE.md), a `key` that is present alongside the Store's client id is this
+one.
+
+The build picks between them by the same test that decides `key`, since that is the same question —
+`key` is what pins the unpacked id:
+
+| Build | `key` | Client id used |
+| --- | --- | --- |
+| `npm run dev`, `npx vite build --mode development` | ✅ from `VM_MANIFEST_KEY` | `VM_OAUTH_CLIENT_ID_DEV`, falling back to `VM_OAUTH_CLIENT_ID` |
+| `npm run build` | never | `VM_OAUTH_CLIENT_ID`, always |
+
+**`VM_OAUTH_CLIENT_ID` stays the Store's.** It is the one that ships, so it is the one a mistake
+publishes; a development id in a Store package breaks Drive for every user, while the reverse breaks
+it only on this machine. Leaving `VM_OAUTH_CLIENT_ID_DEV` unset is the correct single-client setup
+and is what CI and every source build do.
+
 ### 5.4 Stable extension ID for local development
 
 An unpacked extension's ID is derived from the folder it was loaded from, so it changes when the
@@ -294,7 +320,8 @@ off `chrome://extensions` before registering the OAuth client.
 **Regenerating is destructive in a non-obvious way**, so an existing key is never replaced without
 `--force`. A new key is a new ID, and the OAuth client registered against the old one silently stops
 matching: Drive fails to authorise, and nothing anywhere says that an *ID* is the reason. If you do
-use `--force`, update the client's Item ID (§5.3) to the ID it prints.
+use `--force`, update the **development** client's Item ID (§5.3) to the ID it prints — the one named
+by `VM_OAUTH_CLIENT_ID_DEV`, never the Store's.
 
 <details>
 <summary>What this replaced, and why the old way also worked</summary>
@@ -323,8 +350,8 @@ it. If you have an older checkout with the file in the root, move it and delete 
 
 Loading unpacked does not need the key at all — Chrome derives the ID from the public key in the
 manifest. Keep it only if you might pack a `.crx` with the same ID. If you lose it, you get a new
-development ID and update the OAuth client's Item ID — no user impact, since production IDs come from
-the Store.
+development ID and update the **development** OAuth client's Item ID — no user impact, since
+production IDs come from the Store and are registered on a client of their own (§5.3).
 
 The `client_secret_*.json` that Google Cloud offers for download belongs outside the repository for
 the same reason. It is worth knowing that for a **Chrome Extension** client it contains no secret —
@@ -347,13 +374,16 @@ cp .env.example .env.local
 
 ```dotenv
 VM_OAUTH_CLIENT_ID=000000000000-xxxxxxxxxxxx.apps.googleusercontent.com
+VM_OAUTH_CLIENT_ID_DEV=000000000000-yyyyyyyyyyyy.apps.googleusercontent.com
 VM_MANIFEST_KEY=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 ```
 
 Then rebuild. `dist/manifest.json` should carry an `oauth2` block with your client id, and — after a
-`npm run dev` — a `key`.
+`npm run dev` — a `key`. The middle line belongs there only once the extension is published and the
+Store id took the first client's Item ID (§5.3); until then it is unset and a development build uses
+the one above.
 
-**Both are optional.** With the file absent, `npm run build` produces a package that installs, runs
+**All three are optional.** With the file absent, `npm run build` produces a package that installs, runs
 and syncs through Chrome sync exactly as it should; the `oauth2` block is omitted **entirely** rather
 than emitted empty (Chrome treats a malformed one as a manifest error and refuses to load the
 extension at all), `DriveAuth.configured` is `false`, and Settings → Sync says the build has no

@@ -162,4 +162,35 @@ describe('the OAuth client id and the development key', () => {
     // `npm run build` must drop it however the environment is set.
     expect(runGenerateBundle({}, { env, mode: 'production' }).manifest['key']).toBeUndefined();
   });
+
+  /*
+   * A Chrome-extension OAuth client authorises exactly one Item ID, so the Store id and a stable
+   * unpacked id need two clients — and picking between them is the same question as `key`: a build
+   * that pins the unpacked id must present the client registered against it. Registering the Store
+   * id on 2026-08-15 is what surfaced this; it *replaced* the development id, and the failure is
+   * `Error 400: redirect_uri_mismatch` out of the PKCE fallback, which names none of the above.
+   */
+  it('prefers the development client id in a development build, and never in a production one', () => {
+    const env = {
+      clientId: 'store.apps.googleusercontent.com',
+      clientIdDev: 'unpacked.apps.googleusercontent.com',
+    };
+    expect(runGenerateBundle({}, { env, mode: 'development' }).manifest['oauth2']).toMatchObject({
+      client_id: 'unpacked.apps.googleusercontent.com',
+    });
+    // The Store package must carry the client registered against the Store-assigned id, whatever a
+    // laptop's `.env.local` says — this is the one of the two that a wrong answer publishes.
+    expect(runGenerateBundle({}, { env, mode: 'production' }).manifest['oauth2']).toMatchObject({
+      client_id: 'store.apps.googleusercontent.com',
+    });
+  });
+
+  it('falls back to the one client id when no development-only one is configured', () => {
+    // The single-client setup every source build and every CI run has, and the setup this repository
+    // itself had until a Store id existed to disagree with.
+    const env = { clientId: 'abc.apps.googleusercontent.com' };
+    expect(runGenerateBundle({}, { env, mode: 'development' }).manifest['oauth2']).toMatchObject({
+      client_id: 'abc.apps.googleusercontent.com',
+    });
+  });
 });
