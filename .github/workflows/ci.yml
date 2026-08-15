@@ -38,17 +38,17 @@ jobs:
       # The shipped-size budgets (PLAN §9 Phase 12), plus the bundle report kept as an artifact so
       # a size jump between two builds can be attributed rather than guessed at.
       - run: node scripts/check-budgets.mjs --report release/bundle-report.md
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bundle-report
           path: release/bundle-report.md
           retention-days: 90
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
           retention-days: 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage/
@@ -68,7 +68,7 @@ jobs:
       # The extension harness loads a built dist/, so the build is not optional here.
       - run: npm run build
       - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
