@@ -143,50 +143,22 @@ for `main` at that moment. Nothing else about the model has to change.
 `.github/workflows/ci.yml`. It runs on pushes to `dev`/`main` (your own work) **and** on pull
 requests (outside contributions, once the repo is public).
 
-```yaml
-name: ci
-on:
-  push:         { branches: [dev, main] }
-  pull_request: { branches: [dev, main] }
-permissions: { contents: read }
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+Two jobs. **`verify`** is the gate on a pull request and a backstop on a direct push: `npm ci`, then
+lint, type-check, test (with coverage — the thresholds gate here), build, `verify:invariants`
+against the real `dist/`, and `check-budgets.mjs`. It keeps the bundle report for 90 days and
+`dist/` + `coverage/` for 7. **`e2e`** then rebuilds and runs Playwright against the built
+extension, keeping the HTML report only when something failed.
 
-jobs:
-  verify:                      # the gate for PRs; advisory (but watch it) for direct pushes
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version-file: '.nvmrc', cache: npm }
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run type-check
-      - run: npm run test                     # runs with coverage; thresholds gate here
-      - run: npm run build
-      - run: npm run verify:invariants     # INV-1, 2, 3, 8, 9 against real dist/
-      - run: node scripts/check-budgets.mjs --report release/bundle-report.md   # Phase 12
-      - uses: actions/upload-artifact@v4
-        with: { name: dist, path: dist/, retention-days: 7 }
-      - uses: actions/upload-artifact@v4
-        with: { name: coverage, path: coverage/, retention-days: 7 }
+The workflow itself is the authority on the steps — this section deliberately does not reproduce it,
+because a copy of YAML in prose goes stale within a phase and reads as if it were current. Two
+things about it that are decisions rather than boilerplate:
 
-  e2e:
-    runs-on: ubuntu-latest
-    needs: verify
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version-file: '.nvmrc', cache: npm }
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run build
-      - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with: { name: playwright-report, path: playwright-report/ }
-```
+- **Every `uses:` is pinned to a commit hash**, with the version tag as a trailing comment. A tag is
+  mutable, so a pin by name trusts whoever owns the action repository not to move it. Dependabot
+  updates SHA pins and rewrites the comment, so this costs nothing after the first pass.
+- **`persist-credentials: false` on every checkout.** Otherwise the workflow token is written into
+  `.git/config` and stays readable by every later step, including anything `npm` executes. No job
+  here needs authenticated git after the checkout.
 
 **Coverage gates** (enforced by `vitest.config.ts`, not by a separate step):
 
@@ -304,9 +276,9 @@ npm run dev-key
 ```
 
 That is the whole step. It generates an RSA key pair, writes `VM_MANIFEST_KEY` into `.env.local`
-leaving every other line alone, drops the private half in `dev-unpacked.pem`, and prints the
-extension ID the key produces — so there is no need to load the extension and read the ID off
-`chrome://extensions` before registering the OAuth client.
+leaving every other line alone, drops the private half in `~/.vaulta-mark/dev-unpacked.pem`, and
+prints the extension ID the key produces — so there is no need to load the extension and read the ID
+off `chrome://extensions` before registering the OAuth client.
 
 **Regenerating is destructive in a non-obvious way**, so an existing key is never replaced without
 `--force`. A new key is a new ID, and the OAuth client registered against the old one silently stops
@@ -331,11 +303,23 @@ for **development builds only** — `build/mv3-plugin.ts` passes it through when
 `key` that disagrees with it breaks the upload. That also means `npm run build` does **not** give you
 a stable unpacked ID; use `npm run dev`, or `npx vite build --mode development` for a one-shot.
 
-`dev-unpacked.pem` is a signing key. It never goes in the repository (`.gitignore` covers `*.pem`),
-and loading unpacked does not need it at all — Chrome derives the ID from the public key in the
+`dev-unpacked.pem` is a signing key, and since 2026-08-15 it is written to **`~/.vaulta-mark/`**
+rather than the repository root (`VM_DEV_KEY_DIR` overrides the directory). `.gitignore` covers
+`*.pem` and always did — but an ignore entry is one `git add -f`, one careless edit of that file or
+one directory-wide backup away from a signing key in a public history, and push protection does not
+reliably flag PEM material. Somewhere else entirely removes the accident instead of guarding against
+it. If you have an older checkout with the file in the root, move it and delete nothing else.
+
+Loading unpacked does not need the key at all — Chrome derives the ID from the public key in the
 manifest. Keep it only if you might pack a `.crx` with the same ID. If you lose it, you get a new
 development ID and update the OAuth client's Item ID — no user impact, since production IDs come from
 the Store.
+
+The `client_secret_*.json` that Google Cloud offers for download belongs outside the repository for
+the same reason. It is worth knowing that for a **Chrome Extension** client it contains no secret —
+an `"installed"` root with neither `client_secret` nor `redirect_uris`, which is how you recognise
+the type — and its one useful value, the client id, is already in `.env.local` and already public in
+the shipped manifest. Nothing needs the file after that.
 
 **The running extension shows all of this on screen.** A build with no `VM_OAUTH_CLIENT_ID` renders
 the steps below, its own extension ID, and the scope string in **Settings → Sync → Google Drive**,
@@ -446,7 +430,18 @@ after 7 days — **publish the consent screen** to avoid a mysteriously breaking
 
 ### 6.5 Store the secrets
 
-**Settings → Secrets and variables → Actions → New repository secret:**
+Create the environment **first**, then put the secrets inside it. The order matters and the reason is
+not obvious: a workflow that names an environment which does not exist does not fail — GitHub creates
+it implicitly on the first run, **with no protection rules**. So the documented human-approval gate
+would silently not fire, and nothing would say so. Measured 2026-08-15: the workflow had referenced
+`chrome-web-store` since Phase 13 and the repository had only a `github-pages` environment.
+
+1. **Settings → Environments → New environment** → `chrome-web-store`.
+2. Enable **Required reviewers** and add yourself. Leave the deployment branch rule at *All
+   branches* — the workflow already refuses a tag that is not an ancestor of `main`.
+3. **Add the four secrets on that environment**, not as repository secrets. A repository secret is
+   readable by every workflow run; an environment secret exists only for a run that passed the
+   review gate above.
 
 | Secret | Source | Notes |
 | --- | --- | --- |
@@ -455,10 +450,11 @@ after 7 days — **publish the consent screen** to avoid a mysteriously breaking
 | `CWS_CLIENT_SECRET` | §6.3 | |
 | `CWS_REFRESH_TOKEN` | §6.4 | The one that actually matters — treat as a publishing credential |
 
-Put them in a GitHub **Environment** named `chrome-web-store` with **required reviewers = the repo
-owner**. The release workflow's publish job references that environment, which means a publish cannot
-proceed without a human approving the deployment — a second gate on top of the `workflow_dispatch`
-input.
+4. **Read the protection rules back** rather than trusting the form —
+   `gh api repos/zyndata/vaulta-mark/environments --jq '.environments[].name'` should list it, and
+   `gh api repos/zyndata/vaulta-mark/environments/chrome-web-store --jq '.protection_rules'` should
+   show a `required_reviewers` entry. This repository has been bitten by a settings API that
+   answers 200 and changes nothing (BRANCH_PROTECTION §7): believe the readback, not the response.
 
 **If `CWS_REFRESH_TOKEN` leaks**, an attacker can publish an update to your extension to every user.
 Revoke it immediately at <https://myaccount.google.com/permissions>, then regenerate via §6.4.
@@ -491,14 +487,28 @@ refusals happen before the expensive work:
 6. **`check-version-sync.mjs --built`** — now the manifest leg too, which needs a `dist/` to read.
 7. `npx playwright install --with-deps chromium`, then `npm run test:e2e`.
 8. `npm run zip`, then `sha256sum *.zip > SHA256SUMS`.
-9. `softprops/action-gh-release@v2` with the zip, the checksums and the extracted notes;
-   `prerelease` when the tag carries a `-`.
-10. The whole `release/` directory is kept as an artifact, which is what the `publish` job consumes.
+9. **`actions/attest-build-provenance`** over the zip. The checksum already says two files are the
+   same file; the attestation says where the file *came from* — it binds the digest to this run,
+   this commit and this builder, and needs `id-token: write` + `attestations: write` on the job.
+   The two claims answer different questions, so both are published.
+10. `softprops/action-gh-release` with the zip, the checksums and the extracted notes; `prerelease`
+    when the tag carries a `-`. It is third-party and runs with `contents: write`, which is the
+    sharpest reason every `uses:` in this workflow is pinned to a commit hash (§3).
+11. The whole `release/` directory is kept as an artifact, which is what the `publish` job consumes.
 
 **The `publish` job** runs only on a `workflow_dispatch` with `publish: true`, in the
 `chrome-web-store` environment, and refuses a pre-release tag outright before touching anything.
-`chrome-webstore-upload-cli@3` reads the four secrets from the environment and uploads a draft
-unless `auto_publish` was also ticked.
+`chrome-webstore-upload-cli` reads the four secrets from the environment and uploads a draft unless
+`auto_publish` was also ticked. It is installed at an **exact** version with `--ignore-scripts`, not
+at `@3`: this is the one job where the Store credentials are in `process.env`, so a floating range
+would put every future patch of that package and of its whole dependency tree on the credential
+path. Bump the pin deliberately, after reading what changed.
+
+**Nothing in a `run:` block is interpolated.** `inputs.tag` is free text from the dispatch form, and
+`${{ … }}` is substituted before the shell parses the script — so `v1.0.0"; curl …` would be shell
+code. The tag reaches the scripts through a job-level `env: TAG:` instead, where the shell treats it
+as a value. `auto_publish` is chosen with a shell `if` for the same reason rather than expanded into
+the command line.
 
 <details>
 <summary>Two shell details that are load-bearing, and were wrong in the Phase-0 sketch</summary>
@@ -531,6 +541,18 @@ uploaded to the Store — see [ARCHITECTURE §2](ARCHITECTURE.md#version-mapping
 builds the tagged source with the same Node version should get a functionally identical bundle;
 byte-identity is not promised (the minifier and timestamps do not guarantee it), and the README says so
 plainly rather than claiming a reproducible build we have not engineered.
+
+**Provenance.** Because byte-identity is not promised, the checksum alone cannot tell a user that
+*we* built what they downloaded — only that their copy matches the one we published. The build
+provenance attestation closes that half:
+
+```bash
+gh attestation verify --owner zyndata vaulta-mark-1.0.0.zip
+```
+
+It reports the workflow, the commit and the run that produced the file, verified against GitHub's
+transparency log. It does **not** prove the source is trustworthy — only that this artifact came out
+of this repository's release workflow rather than being uploaded by hand.
 
 ---
 

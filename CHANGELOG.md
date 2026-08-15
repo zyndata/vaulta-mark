@@ -12,6 +12,23 @@ below.
 
 ## [Unreleased]
 
+### Added
+
+- **Releases now carry a provenance attestation** beside the checksum. The checksum says your
+  download matches what was published; the attestation says the file came out of this repository's
+  release workflow, from a named commit, rather than being uploaded by hand. Check it with
+  `gh attestation verify --owner zyndata vaulta-mark-<version>.zip`.
+
+### Security
+
+- **The release pipeline no longer trusts a mutable name.** Every GitHub Action the three workflows
+  use is pinned to a full commit hash rather than a version tag, the Chrome Web Store upload tool is
+  installed at an exact version with install hooks disabled, and the tag typed into the release form
+  reaches the shell as data rather than as script. The workflow token is no longer left in the
+  checkout for later steps to read. None of this changes the extension you install; it narrows what
+  would have to go wrong elsewhere for a release to be built from something other than the tagged
+  source.
+
 ## [1.0.0] - 2026-08-15
 
 The first release. Everything below is new, because there was nothing before it.

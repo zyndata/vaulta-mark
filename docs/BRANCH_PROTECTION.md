@@ -133,6 +133,16 @@ That is a deliberate trade, and it is fine only because the replacement gate is 
 Tags are the immutable record of what was built and what was released. A moved `v1.0.0` tag means the
 published SHA-256 in the release notes no longer proves anything.
 
+**Not enabled, and the trigger for enabling it is a person, not a date: *Restrict creations* on
+`v*`.** The ruleset above stops a tag being moved or deleted; it does not stop one being *created*.
+For a solo repository that is no protection at all — the only account with push access is the one
+the rule would restrict. It becomes the control that matters the day a second contributor gains
+push access, because pushing a `v*` tag is what starts the release workflow, and that workflow is
+the path to the Chrome Web Store. **When you add a collaborator, come back and tick *Restrict
+creations* with a bypass for yourself**, in the same sitting as granting the access. It is recorded
+here rather than left to be rediscovered, because the moment it becomes necessary is precisely the
+moment nobody is thinking about tag rulesets.
+
 ## 5. Repository settings to turn on
 
 **Settings → Code security** (some are under **Settings → General → Features**):
@@ -148,15 +158,26 @@ eligible for a feature does not switch it on.
 | **Dependabot version updates** | ✅ | Configured by [`.github/dependabot.yml`](../.github/dependabot.yml) — weekly npm, monthly actions. |
 | **Secret scanning** | ✅ | Free on public repositories; on the private Free plan it needed Advanced Security. The Chrome Web Store credentials in [RELEASE §6](RELEASE.md#6-chrome-web-store-setup-and-the-four-secrets) are exactly the kind of thing that gets pasted into a commit by accident. |
 | **Secret scanning push protection** | ✅ | Blocks the paste *before* it enters the history. That mattered more when publication was still ahead; now that the history is public, it is the difference between a close call and a rotation. |
-| **Secret scanning — non-provider patterns** | ❌ **unavailable** | Generic private keys and connection strings, as opposed to recognised vendor tokens — worth wanting here, since `dev-unpacked.pem` and `.env.local` sit in the working directory of every build. Part of the paid **Secret Protection** product, and not available on this repository. Measured 2026-08-15, twice: `PATCH /repos/…` **accepts the field and returns it still `disabled`** — a silent no-op, not a `403` — and **Settings → Advanced Security** ends at *Push protection*, with no such control on the page. The API's silence is the trap: it reads as success. |
+| **CodeQL / code scanning** | ✅ | Free on public repositories, and the upload step that failed on every push while private now works — which is why [`codeql.yml`](../.github/workflows/codeql.yml) analyses each push and pull request again rather than only running weekly. |
+| **Discussions** | ✅ | The issue-template config routes questions there. |
+| **Wiki, Projects** | ❌ | Unused; documentation lives in the repository. |
+| **Secret scanning — non-provider patterns** | ❌ **unavailable** | Generic private keys and connection strings, as opposed to recognised vendor tokens. Part of the paid **Secret Protection** product, and not available on this repository. Measured 2026-08-15, twice: `PATCH /repos/…` **accepts the field and returns it still `disabled`** — a silent no-op, not a `403` — and **Settings → Advanced Security** ends at *Push protection*, with no such control on the page. The API's silence is the trap: it reads as success. |
 | **Secret scanning — validity checks** | ❌ **unavailable** | Whether a leaked token is still live, which is the first question after a leak. Same product, same silent no-op, absent from the same page. |
 
 Those last two are the third instance of this file's own lesson, and the first where the API lied
 rather than refused: a `403` is a fact, while a `200` that changes nothing is a claim. **Read the
-setting back after writing it, and believe the readback over the response.**
-| **CodeQL / code scanning** | ✅ | Free on public repositories, and the upload step that failed on every push while private now works — which is why [`codeql.yml`](../.github/workflows/codeql.yml) analyses each push and pull request again rather than only running weekly. |
-| **Discussions** | ✅ | The issue-template config routes questions there. |
-| **Wiki, Projects** | ❌ | Unused; documentation lives in the repository. |
+setting back after writing it, and believe the readback over the response.** They are also the
+reason `dev-unpacked.pem` no longer lives in the working tree at all
+([RELEASE §5.4](RELEASE.md#54-stable-extension-id-for-local-development)): the scanner that would
+have caught a PEM on its way into a commit is the one this plan does not include, so the file was
+moved somewhere a commit cannot reach rather than trusted to a `.gitignore` line.
+
+**Settings → Environments:**
+
+| Environment | Protection | Why |
+| --- | --- | --- |
+| `github-pages` | GitHub-managed | Created by the Pages deployment; serves the privacy policy. |
+| `chrome-web-store` | **Required reviewers = the owner** | The gate the release workflow's `publish` job waits on, and where the four `CWS_*` secrets live so they exist only for an approved run. See [RELEASE §6.5](RELEASE.md#65-store-the-secrets) — including *why it must be created before the first dispatch*: a workflow naming an environment that does not exist does not fail, it creates one **with no rules**, and the documented human gate silently never fires. |
 
 **Settings → Actions → General:**
 
