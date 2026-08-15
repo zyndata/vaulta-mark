@@ -51,6 +51,16 @@ jobs:
       attestations: write
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
+      # The extension's Drive OAuth client. A *repository variable*, not a secret: this value ships
+      # inside the manifest of every package, so hiding it would only make the logs harder to read
+      # while protecting nothing. It is kept out of the tree because it names one particular Google
+      # Cloud project (RELEASE §5.3), which is a different reason.
+      #
+      # Without it `build/manifest.ts` omits the `oauth2` block entirely and the package has no
+      # Drive at all — silently, because that omission is *correct* for a source build and is what
+      # every contributor's build does. The guard after `npm run build` is what stops that from
+      # being a release.
+      VM_OAUTH_CLIENT_ID: ${{ vars.VM_OAUTH_CLIENT_ID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -98,6 +108,28 @@ jobs:
       # Already runs with coverage; the thresholds gate here as they do in ci.
       - run: npm run test
       - run: npm run build
+
+      # A released package with no `oauth2` block installs and runs, and Google Drive is simply
+      # absent from it — no error, no empty state that explains itself, just a feature the listing
+      # promises and the build does not have. The omission is not a bug in the build: it is the
+      # correct behaviour for anyone building from source without a Google project, which is why
+      # nothing downstream objects to it. So the refusal belongs here, on the one path where the
+      # artifact is going to be handed to users.
+      #
+      # Checked by reading the built manifest rather than by testing whether the variable was set,
+      # because what matters is what is in the package.
+      - name: The released package must be able to reach Drive
+        run: |
+          node -e '
+            const m = require("./dist/manifest.json");
+            const id = m.oauth2?.client_id;
+            if (id) { console.log("oauth2.client_id present:", id); process.exit(0); }
+            console.log("::error::The built manifest has no oauth2 block, so Google Drive is " +
+              "absent from this package. Set the VM_OAUTH_CLIENT_ID repository variable to the " +
+              "Store extension OAuth client (RELEASE section 5.3).");
+            process.exit(1);
+          '
+
       - run: npm run verify:invariants
       - run: node scripts/check-budgets.mjs --report release/bundle-report.md
 

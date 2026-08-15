@@ -275,6 +275,16 @@ you installs the build.
    `build/manifest.ts`, which reads it from there. There is **no client secret** for this client
    type; the client id is public and nothing sensitive ships in the package. It is kept out of the
    repository because it names one particular Google Cloud project, not because it is secret.
+5. Put the **same value** in **Settings → Secrets and variables → Actions → Variables → New
+   repository variable**, named `VM_OAUTH_CLIENT_ID`. A *variable*, not a secret, precisely because
+   it is public — masking it in logs would cost readability and protect nothing. `release.yml`
+   passes it to the build; without it the workflow's package has no `oauth2` block and therefore no
+   Drive. See "The build must be able to reach Drive" in §7.
+
+   Note the precedence, which is the opposite of what you might expect and was measured rather than
+   assumed: `loadEnv` applies `process.env` **after** the files, so an exported shell variable
+   **overrides** `.env.local`. That is what makes the CI variable work; it also means a stray
+   `export VM_OAUTH_CLIENT_ID=` in a shell silently wins over the file.
 
 **Once the extension is published there are two ids, so there are two clients.** A Chrome-extension
 client authorises **exactly one** Item ID; the field takes one value and editing it *replaces* what
@@ -523,8 +533,8 @@ refusals happen before the expensive work:
 4. **`release-notes.mjs`** — the CHANGELOG section must exist and be non-empty. Extracted *before*
    the build, because an unfinalized changelog is a mistake to catch before six minutes of tests
    rather than after the Release exists.
-5. `npm run lint`, `type-check`, `test` (coverage thresholds gate here), `build`,
-   `verify:invariants`, `check-budgets`.
+5. `npm run lint`, `type-check`, `test` (coverage thresholds gate here), `build`, **the Drive
+   check below**, `verify:invariants`, `check-budgets`.
 6. **`check-version-sync.mjs --built`** — now the manifest leg too, which needs a `dist/` to read.
 7. `npx playwright install --with-deps chromium`, then `npm run test:e2e`.
 8. `npm run zip`, then `sha256sum *.zip > SHA256SUMS`.
@@ -544,6 +554,18 @@ refusals happen before the expensive work:
 at `@3`: this is the one job where the Store credentials are in `process.env`, so a floating range
 would put every future patch of that package and of its whole dependency tree on the credential
 path. Bump the pin deliberately, after reading what changed.
+
+**The build must be able to reach Drive.** `build/manifest.ts` emits the `oauth2` block only when
+`VM_OAUTH_CLIENT_ID` is set, and omitting it is *correct* for a build from source with no Google
+project — which is what every contributor and, until 2026-08-15, this workflow did. The result
+installs, runs, and simply has no Google Drive: no error, no empty state that explains itself, just
+a feature the Store listing promises and the package does not have. Nothing downstream objected,
+because nothing downstream could tell that build apart from a legitimate source build.
+
+So the workflow reads `vars.VM_OAUTH_CLIENT_ID` (§5.3 step 5) and then **refuses to continue if the
+built manifest has no `oauth2.client_id`** — checked by reading `dist/manifest.json` rather than by
+testing whether the variable was set, because what matters is what ended up in the package. Both
+branches were exercised against a real build before the step was believed.
 
 **Nothing in a `run:` block is interpolated.** `inputs.tag` is free text from the dispatch form, and
 `${{ … }}` is substituted before the shell parses the script — so `v1.0.0"; curl …` would be shell
