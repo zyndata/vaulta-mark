@@ -38,7 +38,7 @@ them: `npm run verify` locally before every push, CI as the backstop, and a `pha
 
 | Branch | Rules |
 | --- | --- |
-| `main` | Release-only. Receives a `--no-ff` merge from `dev` at release time and nothing else (except hotfix branches, §9). Never commit to it directly. Force pushes and deletions blocked; linear history required. |
+| `main` | Release-only. Receives a `--no-ff` merge from `dev` at release time and nothing else (except hotfix branches, §9). Never commit to it directly. Force pushes and deletions blocked — **not** linear history, which would reject that very merge (§2). |
 | `dev` | Where all development happens. Direct commits, one per logical unit. Always green, always installable. Force pushes and deletions blocked. |
 | `feat/*` | **Optional**, for work risky enough to want a clean revert point — Phase 7 (the sync merge engine) is the one phase that uses one. Merged back with `--no-ff`, then deleted. |
 | PRs | Not required for the maintainer, but fully available: the repository is public, so outside contributions arrive as PRs targeting `dev` and CI gates them automatically. |
@@ -93,7 +93,7 @@ remain are the ones that prevent accidents — losing a branch, rewriting publis
 | --- | --- |
 | Block force pushes | ✅ |
 | Restrict deletions | ✅ |
-| Require linear history | ✅ — with `--no-ff` release merges this stays true and keeps `git log --first-parent` readable |
+| Require linear history | ❌ — it would reject the `--no-ff` release merge in §4 step 5. See [BRANCH_PROTECTION §1](BRANCH_PROTECTION.md#1-ruleset-for-main); this table claimed ✅ until 2026-08-15 and the reasoning behind it was wrong |
 | Require signed commits | Optional; worth it for a crypto tool if you already have signing set up |
 | Require a pull request | ❌ |
 | Require status checks | ❌ — see the note below |

@@ -74,7 +74,7 @@ Rules to enable:
 | --- | --- | --- |
 | **Restrict deletions** | ✅ | `main` is what gets tagged, built, and shipped. It should not be deletable. |
 | **Block force pushes** | ✅ | Published history stays published. A release tag must keep pointing at real, reachable code. |
-| **Require linear history** | ✅ | Release merges use `--no-ff` from `dev`, which stays linear in the first-parent sense and keeps `git log --first-parent main` readable as a release list. |
+| **Require linear history** | ❌ | **This was listed as ✅ from Phase 0 to 2026-08-15, and it was wrong.** The stated reason — that a `--no-ff` merge "stays linear in the first-parent sense" — describes `git log --first-parent`, not the setting. GitHub's *Require linear history* rejects any push introducing a commit with **more than one parent**, and a `--no-ff` release merge is exactly that. Turning it on would block [§4 step 5](RELEASE.md#4-cutting-a-release) — every future release — and the error would arrive on release day, on `main`, with the tag already written. It was never applied, because it was never applicable; the claim went untested for the whole build for the same reason §1–§4 did. |
 | **Require signed commits** | Optional | Worth it for a crypto tool *if you already have commit signing set up.* Turning it on without a working key just blocks you at an inconvenient moment. |
 | **Require a pull request before merging** | ❌ | No second reviewer exists. Turn this on the day a collaborator joins. |
 | **Require status checks to pass** | ❌ | Only enforceable on pull requests — see [§3](#3-the-tradeoff-you-are-accepting). |
@@ -148,6 +148,8 @@ eligible for a feature does not switch it on.
 | **Dependabot version updates** | ✅ | Configured by [`.github/dependabot.yml`](../.github/dependabot.yml) — weekly npm, monthly actions. |
 | **Secret scanning** | ✅ | Free on public repositories; on the private Free plan it needed Advanced Security. The Chrome Web Store credentials in [RELEASE §6](RELEASE.md#6-chrome-web-store-setup-and-the-four-secrets) are exactly the kind of thing that gets pasted into a commit by accident. |
 | **Secret scanning push protection** | ✅ | Blocks the paste *before* it enters the history. That mattered more when publication was still ahead; now that the history is public, it is the difference between a close call and a rotation. |
+| **Secret scanning — non-provider patterns** | ⚠️ | Generic private keys and connection strings, as opposed to recognised vendor tokens. Worth having here: `dev-unpacked.pem` and `.env.local` sit in the working directory of every build. `PATCH /repos/…` **accepts the field and leaves it `disabled`** — a silent no-op, not an error — so it has to be set in **Settings → Code security**, and read back afterwards rather than assumed. |
+| **Secret scanning — validity checks** | ⚠️ | Same silent no-op through the API, same screen. Tells you whether a leaked token is still live, which is the first question after a leak. |
 | **CodeQL / code scanning** | ✅ | Free on public repositories, and the upload step that failed on every push while private now works — which is why [`codeql.yml`](../.github/workflows/codeql.yml) analyses each push and pull request again rather than only running weekly. |
 | **Discussions** | ✅ | The issue-template config routes questions there. |
 | **Wiki, Projects** | ❌ | Unused; documentation lives in the repository. |
@@ -186,6 +188,18 @@ If a force push succeeds, the ruleset is either **Disabled**, targeting the wron
 in its bypass list. Check enforcement status first — a ruleset saved in **Evaluate** mode reports
 what it *would* have done and blocks nothing.
 
+Without pushing anything, this asks GitHub which rules it will actually evaluate for a ref — which is
+a stronger answer than reading your own ruleset definitions back, since it resolves patterns, bypass
+lists and enforcement mode the way a real push will:
+
+```bash
+gh api repos/zyndata/vaulta-mark/rules/branches/main
+gh api repos/zyndata/vaulta-mark/rules/branches/dev
+```
+
+Both must list `deletion` and `non_fast_forward`. An empty array means nothing is protecting that
+branch, whatever the Rulesets page appears to say.
+
 ## 7. Publication — what was audited, 2026-08-15
 
 Publishing is one click and is **irreversible in practice**: the entire history, every branch, and
@@ -214,7 +228,10 @@ Applied immediately after the flip, in this order:
    removed while private because the upload step failed on every single push, and a permanently red
    check is worse than no check. On a public repository the upload works, and analysing each change
    as it lands is the entire point — weekly alone lets a bad commit sit for six days.
-4. **§1–§4's rulesets**, which had been unapplicable for the whole build.
+4. **§1–§4's rulesets**, which had been unapplicable for the whole build — three of them, `main`,
+   `dev` and `release-tags`, each with an **empty bypass list**, because a rule you can bypass does
+   not stop your own accident. Applying them is also what caught the *Require linear history* error
+   in §1: a setting nobody could turn on was a setting nobody had checked.
 5. **Pages** — Settings → Pages → Deploy from a branch → `main` / `docs`, which is what finally
    answers the Store's privacy-policy URL ([RELEASE §8](RELEASE.md#8-store-listing-checklist)). It
    serves from `main`, so it is empty until a release merge lands there.
