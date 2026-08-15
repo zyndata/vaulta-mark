@@ -148,8 +148,12 @@ eligible for a feature does not switch it on.
 | **Dependabot version updates** | ✅ | Configured by [`.github/dependabot.yml`](../.github/dependabot.yml) — weekly npm, monthly actions. |
 | **Secret scanning** | ✅ | Free on public repositories; on the private Free plan it needed Advanced Security. The Chrome Web Store credentials in [RELEASE §6](RELEASE.md#6-chrome-web-store-setup-and-the-four-secrets) are exactly the kind of thing that gets pasted into a commit by accident. |
 | **Secret scanning push protection** | ✅ | Blocks the paste *before* it enters the history. That mattered more when publication was still ahead; now that the history is public, it is the difference between a close call and a rotation. |
-| **Secret scanning — non-provider patterns** | ⚠️ | Generic private keys and connection strings, as opposed to recognised vendor tokens. Worth having here: `dev-unpacked.pem` and `.env.local` sit in the working directory of every build. `PATCH /repos/…` **accepts the field and leaves it `disabled`** — a silent no-op, not an error — so it has to be set in **Settings → Code security**, and read back afterwards rather than assumed. |
-| **Secret scanning — validity checks** | ⚠️ | Same silent no-op through the API, same screen. Tells you whether a leaked token is still live, which is the first question after a leak. |
+| **Secret scanning — non-provider patterns** | ❌ **unavailable** | Generic private keys and connection strings, as opposed to recognised vendor tokens — worth wanting here, since `dev-unpacked.pem` and `.env.local` sit in the working directory of every build. Part of the paid **Secret Protection** product, and not available on this repository. Measured 2026-08-15, twice: `PATCH /repos/…` **accepts the field and returns it still `disabled`** — a silent no-op, not a `403` — and **Settings → Advanced Security** ends at *Push protection*, with no such control on the page. The API's silence is the trap: it reads as success. |
+| **Secret scanning — validity checks** | ❌ **unavailable** | Whether a leaked token is still live, which is the first question after a leak. Same product, same silent no-op, absent from the same page. |
+
+Those last two are the third instance of this file's own lesson, and the first where the API lied
+rather than refused: a `403` is a fact, while a `200` that changes nothing is a claim. **Read the
+setting back after writing it, and believe the readback over the response.**
 | **CodeQL / code scanning** | ✅ | Free on public repositories, and the upload step that failed on every push while private now works — which is why [`codeql.yml`](../.github/workflows/codeql.yml) analyses each push and pull request again rather than only running weekly. |
 | **Discussions** | ✅ | The issue-template config routes questions there. |
 | **Wiki, Projects** | ❌ | Unused; documentation lives in the repository. |
@@ -222,7 +226,9 @@ Applied immediately after the flip, in this order:
 
 1. **Private vulnerability reporting** (§5) — `SECURITY.md` and the issue chooser had been pointing
    at a form that could not exist until this was on.
-2. **Secret scanning, push protection, CodeQL** — all newly available, all off by default.
+2. **Secret scanning, push protection, CodeQL** — all newly available, all off by default. Their
+   two sub-toggles are *not* available on this plan; §5 records how that was established, because
+   the API reports success for both.
 3. **The `push` and `pull_request` triggers in
    [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml)**, restored. They had been
    removed while private because the upload step failed on every single push, and a permanently red
