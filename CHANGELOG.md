@@ -14,6 +14,9 @@ below.
 
 ### Added
 
+- **Ticking a folder in *Import from this browser* now ticks what is inside it.** Importing a folder
+  has always brought its contents along — the picker simply never showed it, so the only way to find
+  out what a tick meant was to import it and count. Half-ticked folders show as mixed.
 - **Releases now carry a provenance attestation** beside the checksum. The checksum says your
   download matches what was published; the attestation says the file came out of this repository's
   release workflow, from a named commit, rather than being uploaded by hand. Check it with

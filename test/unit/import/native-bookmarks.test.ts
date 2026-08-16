@@ -19,6 +19,7 @@ import {
   importNative,
   readNativeTree,
   requestBookmarksPermission,
+  topmostSelection,
   type NativeNode,
 } from '../../../src/import/native-bookmarks.js';
 import type { Bytes } from '../../../src/crypto/codec.js';
@@ -154,6 +155,35 @@ describe('expandSelection', () => {
   it('is idempotent', () => {
     const once = expandSelection(tree, ['11']);
     expect([...expandSelection(tree, once)].sort()).toEqual([...once].sort());
+  });
+});
+
+describe('topmostSelection', () => {
+  let tree: NativeNode[];
+
+  beforeEach(async () => {
+    tree = await readNativeTree();
+  });
+
+  it('drops the descendants of a selected folder, which removeTree takes anyway', () => {
+    // What the picker now produces when the "Work" folder is ticked: the folder and its contents.
+    expect(topmostSelection(tree, expandSelection(tree, ['11']))).toEqual(['1']);
+  });
+
+  it('keeps siblings that are selected separately', () => {
+    expect(topmostSelection(tree, ['10', '11'])).toEqual(['10', '11']);
+  });
+
+  it('keeps a bookmark whose folder is not selected', () => {
+    expect(topmostSelection(tree, ['110'])).toEqual(['110']);
+  });
+
+  it('walks in tree order rather than selection order', () => {
+    expect(topmostSelection(tree, ['20', '10'])).toEqual(['10', '20']);
+  });
+
+  it('ignores ids that are not in the tree', () => {
+    expect(topmostSelection(tree, ['nope'])).toEqual([]);
   });
 });
 

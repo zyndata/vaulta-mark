@@ -28,7 +28,7 @@ import { append, h, msg, render } from '../ui/dom.js';
 import { confirmReplaceImport } from '../ui/export-gate.js';
 import { errorText } from '../ui/strings.js';
 import { MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
-import { requestBookmarksPermission } from '../import/native-bookmarks.js';
+import { requestBookmarksPermission, topmostSelection } from '../import/native-bookmarks.js';
 
 export interface IoScreenDeps {
   /** The page's live region — outcomes that outlive this screen are announced there. */
@@ -566,8 +566,7 @@ async function paintNative(deps: Io, slot: HTMLElement): Promise<void> {
   }
 
   const checked = new Set<string>();
-  const list = h('div', { class: 'vm-native-tree', role: 'group', 'aria-label': msg('ioNativeHeading') });
-  render(list, ...response.nodes.map((node) => nativeRow(node, checked, 0)));
+  const list = nativeTree(response.nodes, checked);
 
   render(
     slot,
@@ -579,7 +578,7 @@ async function paintNative(deps: Io, slot: HTMLElement): Promise<void> {
         void runNativeImport(deps, slot, checked);
       }),
       button('ioNativeDeleteButton', () => {
-        void runNativeDelete(deps, slot, checked);
+        void runNativeDelete(deps, slot, response.nodes, checked);
       }, true),
     ),
     h('p', { class: 'vm-hint vm-small vm-muted' }, msg('ioNativeDeleteHint')),
@@ -587,51 +586,113 @@ async function paintNative(deps: Io, slot: HTMLElement): Promise<void> {
 }
 
 /**
- * One node of the tree, as a checkbox and its children.
+ * The tree of checkboxes, with a folder's box speaking for the folder's contents.
  *
- * A plain nested `<div role="group">` of checkboxes rather than an ARIA tree widget: a tree grid
- * brings a keyboard model of its own (arrow-key navigation, expand/collapse semantics) that would
- * have to be implemented and got right, and what this actually is — a list of things with boxes
- * beside them — is already navigable by Tab and readable by every screen reader.
+ * Ticking a folder has always imported everything inside it — `expandSelection` in
+ * `import/native-bookmarks.ts` closes the selection downward, and has since Phase 8. What it did not
+ * do was *say* so: the children's boxes stayed empty, so the only way to find out whether a folder
+ * meant "this folder" or "this folder and its 40 bookmarks" was to import it and count. The boxes now
+ * show what the import will do, which is all that changed — no selection means anything different
+ * than it did before.
+ *
+ * A folder with some of its contents ticked is **indeterminate and not itself checked**, and the two
+ * halves of that matter separately. Indeterminate is the honest picture; not-checked is load-bearing,
+ * because a folder in the set is a folder whose whole subtree comes along, and a half-ticked one
+ * would quietly bring back the rows the user had just unticked. Its ancestors are imported anyway —
+ * `expandSelection` closes upward too, so a bookmark never lands flattened at the top level.
+ *
+ * Still a plain nested `<div role="group">` of checkboxes rather than an ARIA tree widget: a tree
+ * brings a keyboard model of its own (arrow-key navigation, expand and collapse) that would have to
+ * be implemented and got right, and what this actually is — a list of things with boxes beside them —
+ * is already navigable by Tab and readable by every screen reader. A half-ticked folder is announced
+ * as "mixed" by the checkbox itself, which is the whole reason `indeterminate` exists.
+ *
+ * Exported for the test that drives the tri-state bookkeeping. The alternative was an E2E, and there
+ * cannot be one: the picker only exists once the optional `bookmarks` permission is granted, and
+ * `chrome.permissions.request` answers with a browser-level prompt no automated context can accept
+ * (DEVELOPMENT §5.2).
  */
-function nativeRow(node: NativeNodeView, checked: Set<string>, depth: number): HTMLElement {
-  const id = `vm-native-${node.id}`;
-  const box = h('input', {
-    type: 'checkbox',
-    id,
-    onchange: (event: Event) => {
-      const on = (event.currentTarget as HTMLInputElement).checked;
-      if (on) checked.add(node.id);
-      else checked.delete(node.id);
-    },
+export function nativeTree(nodes: readonly NativeNodeView[], checked: Set<string>): HTMLElement {
+  const boxes = new Map<string, HTMLInputElement>();
+  const parentOf = new Map<string, string>();
+  const childrenOf = new Map<string, readonly string[]>();
+
+  /** Tick or untick this node and everything under it. */
+  const cascade = (id: string, on: boolean): void => {
+    const box = boxes.get(id);
+    if (box !== undefined) {
+      box.checked = on;
+      box.indeterminate = false;
+    }
+    if (on) checked.add(id);
+    else checked.delete(id);
+    for (const child of childrenOf.get(id) ?? []) cascade(child, on);
+  };
+
+  /** Re-read this node's children and say what its own box should look like, then its parent's. */
+  const reconcile = (id: string): void => {
+    const box = boxes.get(id);
+    const children = childrenOf.get(id) ?? [];
+    if (box === undefined || children.length === 0) return;
+    const all = children.every((child) => boxes.get(child)?.checked === true);
+    const some = children.some(
+      (child) => boxes.get(child)?.checked === true || boxes.get(child)?.indeterminate === true,
+    );
+    box.checked = all;
+    box.indeterminate = !all && some;
+    if (all) checked.add(id);
+    else checked.delete(id);
+    const parent = parentOf.get(id);
+    if (parent !== undefined) reconcile(parent);
+  };
+
+  const rowsOf = (list: readonly NativeNodeView[], parentId: string | null, depth: number): HTMLElement[] =>
+    list.map((node) => {
+      if (parentId !== null) parentOf.set(node.id, parentId);
+      childrenOf.set(node.id, (node.children ?? []).map((child) => child.id));
+
+      const id = `vm-native-${node.id}`;
+      const box = h('input', {
+        type: 'checkbox',
+        id,
+        onchange: (event: Event) => {
+          cascade(node.id, (event.currentTarget as HTMLInputElement).checked);
+          const parent = parentOf.get(node.id);
+          if (parent !== undefined) reconcile(parent);
+        },
+      });
+      boxes.set(node.id, box);
+
+      const row = h(
+        'div',
+        { class: 'vm-native-row', style: `--vm-native-depth: ${String(depth)}` },
+        h(
+          'div',
+          { class: 'vm-checkbox' },
+          box,
+          h(
+            'label',
+            { for: id },
+            // Text, never markup: a bookmark title came from a web page and is hostile by default.
+            node.title === '' ? msg('ioNativeUntitled') : node.title,
+          ),
+        ),
+        node.url === undefined
+          ? null
+          : h('span', { class: 'vm-native-url vm-small vm-muted' }, node.url),
+      );
+
+      if (node.children === undefined || node.children.length === 0) return row;
+      return h('div', null, row, ...rowsOf(node.children, node.id, depth + 1));
+    });
+
+  const tree = h('div', {
+    class: 'vm-native-tree',
+    role: 'group',
+    'aria-label': msg('ioNativeHeading'),
   });
-
-  const row = h(
-    'div',
-    { class: 'vm-native-row', style: `--vm-native-depth: ${String(depth)}` },
-    h(
-      'div',
-      { class: 'vm-checkbox' },
-      box,
-      h(
-        'label',
-        { for: id },
-        // Text, never markup: a bookmark title came from a web page and is hostile by default.
-        node.title === '' ? msg('ioNativeUntitled') : node.title,
-      ),
-    ),
-    node.url === undefined
-      ? null
-      : h('span', { class: 'vm-native-url vm-small vm-muted' }, node.url),
-  );
-
-  if (node.children === undefined || node.children.length === 0) return row;
-  return h(
-    'div',
-    null,
-    row,
-    ...node.children.map((child) => nativeRow(child, checked, depth + 1)),
-  );
+  render(tree, ...rowsOf(nodes, null, 0));
+  return tree;
 }
 
 async function runNativeImport(
@@ -673,12 +734,17 @@ async function runNativeImport(
 async function runNativeDelete(
   deps: Io,
   slot: HTMLElement,
+  nodes: readonly NativeNodeView[],
   checked: ReadonlySet<string>,
 ): Promise<void> {
   if (checked.size === 0) {
     deps.say(msg('ioNativeNothingSelected'), 'danger');
     return;
   }
+  // Whole subtrees, named once each: `deleteNative` calls `removeTree`, so asking it for a folder
+  // *and* the children that folder took with it is asking it to delete things that are already gone
+  // — and it counts every one of those as a failure it could not explain.
+  const ids = topmostSelection(nodes, checked);
   const confirmed = await confirmDialog({
     heading: msg('ioNativeDeleteHeading', [String(checked.size)]),
     body: [
@@ -691,9 +757,7 @@ async function runNativeDelete(
   });
   if (!confirmed) return;
 
-  const response = await deps.busy(async () =>
-    await send({ type: 'DELETE_NATIVE', ids: [...checked] }),
-  );
+  const response = await deps.busy(async () => await send({ type: 'DELETE_NATIVE', ids }));
   if (response.type === 'ERROR') {
     deps.say(errorText(response.code), 'danger');
     return;
