@@ -47,7 +47,8 @@ import { relativeTime, syncQuotaBar } from './sync.js';
 
 export interface SettingsDeps {
   readonly settings: VaultSettings;
-  readonly patch: (patch: Partial<VaultSettings>) => Promise<void>;
+  /** Store a change, answering with whether it was stored. A refusal puts its control back. */
+  readonly patch: (patch: Partial<VaultSettings>) => Promise<boolean>;
   /** The page's live region. Used for outcomes that outlive this screen, like a bulk clean-up. */
   readonly say: (text: string) => void;
   readonly onBack: () => void;
@@ -140,9 +141,9 @@ function privacy(deps: SettingsDeps, historyGranted: boolean): HTMLElement[] {
         // `history` is the worst kind of privacy setting.
         if (checked && !(await requestHistoryPermission())) {
           deps.say(msg('historyRefused'));
-          return;
+          return false;
         }
-        await deps.patch({ clearHistoryOnLock: checked });
+        return await deps.patch({ clearHistoryOnLock: checked });
       },
     ),
     toggle(
@@ -153,9 +154,9 @@ function privacy(deps: SettingsDeps, historyGranted: boolean): HTMLElement[] {
       async (checked) => {
         if (checked && !(await requestHistoryPermission())) {
           deps.say(msg('historyRefused'));
-          return;
+          return false;
         }
-        await deps.patch({ quickClose: checked });
+        return await deps.patch({ quickClose: checked });
       },
     ),
   ];
@@ -232,24 +233,48 @@ function sync(
       ? msg('syncNever')
       : msg('syncLastSynced', [relativeTime(status.lastSyncedAt)]),
   );
-  const now = h(
-    'button',
-    {
-      type: 'button',
-      class: 'vm-button vm-button--quiet',
-      onclick: () => {
-        void (async () => {
-          const next = await send({ type: 'SYNC_NOW' });
-          if (next.type === 'ERROR') deps.say(errorText(next.code));
-          else if (next.error !== null) deps.say(syncErrorText(next.error));
-          else if (next.lastSyncedAt !== null) {
-            line.textContent = msg('syncLastSynced', [relativeTime(next.lastSyncedAt)]);
-          }
-        })();
-      },
-    },
-    msg('syncNowButton'),
-  );
+  /**
+   * Sync now — and, until this pass, the only button on this screen that answered a press with
+   * nothing at all.
+   *
+   * A sync takes as long as a network round trip and the worker reports its outcome once, at the
+   * end. Everything else here already says it is working (the migration narrates its phases, the
+   * password button disables itself, destroy arms and reports), while this one sat still and then
+   * silently rewrote a line four lines above it — which is invisible when the answer is the same
+   * sentence it was already showing.
+   *
+   * So: the label says it is working, the button refuses a second press while it is, and the
+   * outcome is said out loud whichever way it went. The line still updates, because "when" is worth
+   * having after the confirmation has cleared.
+   */
+  const now = h('button', { type: 'button', class: 'vm-button vm-button--quiet' }, msg('syncNowButton'));
+  now.addEventListener('click', () => {
+    void (async () => {
+      now.disabled = true;
+      now.textContent = msg('syncBusy');
+      let next;
+      try {
+        next = await send({ type: 'SYNC_NOW' });
+      } finally {
+        now.disabled = false;
+        now.textContent = msg('syncNowButton');
+      }
+
+      if (next.type === 'ERROR') {
+        deps.say(errorText(next.code));
+        return;
+      }
+      if (next.error !== null) {
+        deps.say(syncErrorText(next.error));
+        return;
+      }
+      line.textContent =
+        next.lastSyncedAt === null
+          ? msg('syncNever')
+          : msg('syncLastSynced', [relativeTime(next.lastSyncedAt)]);
+      deps.say(msg('syncNowDone'));
+    })();
+  });
 
   return [
     h(
@@ -827,10 +852,11 @@ function browsing(deps: SettingsDeps): HTMLElement[] {
       'settingsStripTrackingHint',
       deps.settings.stripTrackingParams,
       async (checked) => {
-        await deps.patch({ stripTrackingParams: checked });
+        if (!(await deps.patch({ stripTrackingParams: checked }))) return false;
         // Only on the way on: switching it off cannot put back parameters that are already gone,
         // so there is nothing to offer.
         if (checked) await offerCleanup(deps);
+        return true;
       },
     ),
     // Where the one-time offer in the popup ends up living, and the only way back once it has been
@@ -873,19 +899,42 @@ async function offerCleanup(deps: SettingsDeps): Promise<void> {
   });
 }
 
+/**
+ * A switch, and the guarantee that it shows what actually happened.
+ *
+ * A checkbox flips itself the moment it is clicked, which reads as a setting that has been changed —
+ * and two of the ones here are gated on an optional permission the user can refuse, while all of
+ * them are stored by a message that can fail. Both left the box on and the setting off: the tick was
+ * a claim about state that nothing had established.
+ *
+ * So the handler answers whether it stuck, and `false` puts the box back. The box is also
+ * disabled while the answer is outstanding — `history` opens a browser-level prompt, and clicking
+ * three more times behind it asks three more times.
+ */
 function toggle(
   id: string,
   labelKey: string,
   hintKey: string,
   checked: boolean,
-  onChange: (checked: boolean) => Promise<void>,
+  onChange: (checked: boolean) => Promise<boolean>,
 ): HTMLElement {
   const input = h('input', {
     type: 'checkbox',
     id,
     checked,
     onchange: (event: Event) => {
-      void onChange((event.currentTarget as HTMLInputElement).checked);
+      const box = event.currentTarget as HTMLInputElement;
+      const wanted = box.checked;
+      void (async () => {
+        box.disabled = true;
+        let stored;
+        try {
+          stored = await onChange(wanted);
+        } finally {
+          box.disabled = false;
+        }
+        if (!stored) box.checked = !wanted;
+      })();
     },
   });
   return h(

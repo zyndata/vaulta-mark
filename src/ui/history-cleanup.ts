@@ -81,27 +81,40 @@ function paintPermission(root: HTMLElement, deps: HistoryCleanupDeps): void {
 
 /** Granted, and nothing checked yet — or checked and then acted on, which lands back here. */
 function paintIdle(root: HTMLElement, deps: HistoryCleanupDeps, done: string | null): void {
+  const check = button('historyCheckButton', () => {
+    void (async () => {
+      // The dry run searches history once per vaulted domain, which on a vault of any size is
+      // seconds rather than milliseconds. Without this the button answered a press by doing
+      // nothing visible for that whole time and then replacing itself.
+      check.disabled = true;
+      check.textContent = msg('historyChecking');
+      let preview;
+      try {
+        preview = await deps.preview();
+      } finally {
+        check.disabled = false;
+        check.textContent = msg('historyCheckButton');
+      }
+      if (preview === null) {
+        render(root, h('p', { class: 'vm-notice vm-notice--danger', role: 'alert' }, msg('historyCheckFailed')));
+        return;
+      }
+      // The permission can have been revoked between mount and this click, from
+      // `chrome://extensions`. The worker's answer is the authority, not what we were told at
+      // mount.
+      if (!preview.granted) {
+        paintPermission(root, { ...deps, granted: false });
+        return;
+      }
+      paintPreview(root, deps, preview);
+    })();
+  });
+
   render(
     root,
     done === null ? null : h('p', { class: 'vm-notice vm-notice--ok', role: 'status' }, done),
     h('p', { class: 'vm-small vm-muted' }, msg('historyCheckHint')),
-    button('historyCheckButton', () => {
-      void (async () => {
-        const preview = await deps.preview();
-        if (preview === null) {
-          render(root, h('p', { class: 'vm-notice vm-notice--danger', role: 'alert' }, msg('historyCheckFailed')));
-          return;
-        }
-        // The permission can have been revoked between mount and this click, from
-        // `chrome://extensions`. The worker's answer is the authority, not what we were told at
-        // mount.
-        if (!preview.granted) {
-          paintPermission(root, { ...deps, granted: false });
-          return;
-        }
-        paintPreview(root, deps, preview);
-      })();
-    }),
+    check,
   );
 }
 
@@ -190,6 +203,9 @@ async function confirmAndClear(
   });
   if (!confirmed) return;
 
+  // Deleting is a `deleteUrl` per entry, so a few hundred of them is a few seconds during which the
+  // panel would otherwise still be offering the button that started it.
+  render(root, h('p', { class: 'vm-notice', role: 'status' }, msg('historyClearing')));
   const removed = await deps.clear();
   if (removed === null) {
     render(root, h('p', { class: 'vm-notice vm-notice--danger', role: 'alert' }, msg('historyCheckFailed')));
@@ -202,6 +218,10 @@ async function confirmAndClear(
   );
 }
 
-function button(labelKey: string, onClick: () => void, className = 'vm-button vm-button--quiet'): HTMLElement {
+function button(
+  labelKey: string,
+  onClick: () => void,
+  className = 'vm-button vm-button--quiet',
+): HTMLButtonElement {
   return h('button', { type: 'button', class: className, onclick: onClick }, msg(labelKey));
 }

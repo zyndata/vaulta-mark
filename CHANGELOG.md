@@ -14,6 +14,12 @@ below.
 
 ### Added
 
+- **The manager warns when a vaulted page is still in Chrome's history.** A bookmark whose page you
+  visited before you vaulted it is still in the address bar's suggestions — vaulting it never
+  removed the visit. Rows for those pages now carry a warning marker beside the preview eye, and
+  selecting one offers *Delete this page from history* in the detail pane. That button is about the
+  **one page**, unlike Settings → Privacy, which works site by site; both need the optional history
+  permission, and without it nothing is shown, because nothing can be known.
 - **Ticking a folder in *Import from this browser* now ticks what is inside it.** Importing a folder
   has always brought its contents along — the picker simply never showed it, so the only way to find
   out what a tick meant was to import it and count. Half-ticked folders show as mixed.
@@ -24,6 +30,13 @@ below.
 
 ### Changed
 
+- **Buttons that take a moment now say so.** *Sync now* (in Settings and in the toolbar) reports that
+  it is working and then that it finished, rather than doing nothing visible for a network round trip
+  and silently rewriting a line elsewhere on the screen. The history dry run and the history deletion
+  do the same. A privacy switch that was refused a permission — or whose setting could not be
+  stored — now goes back to where it was instead of showing a setting the vault does not have.
+- **The destroy-vault button stands clear of the text above it**, like the button in every other
+  settings section.
 - **A build can now be given its own OAuth client id for development** (`VM_OAUTH_CLIENT_ID_DEV`),
   used only when the manifest pins an unpacked extension id. A Google OAuth client for an extension
   authorises exactly one extension id, so publishing to the Store created a second id that needed a

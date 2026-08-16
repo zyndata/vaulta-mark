@@ -1700,6 +1700,56 @@ incognito access is on are both facts a user can change in another window.
 
 ---
 
+### 12.6 One bookmark at a time
+
+§12.2 is a promise about *sites*, made on a settings screen. It answers the question someone asks
+once, deliberately, when they think about their history. It does not answer the question the manager
+raises every time it is opened: **is this bookmark, the one I am looking at, still in the address
+bar's suggestions?** Vaulting a page is what people believe stops that, and it does not — the visit
+is still in `chrome.history`, autocompleting on its own.
+
+So the same fact is offered a second way, at the granularity of a bookmark:
+
+- **A warning marker on the row**, beside the eye and drawn on the same terms — always in the row,
+  always the same width, visible only when it has something to say. A `span` with a `title` and
+  hidden from assistive technology, because a listbox may contain nothing but options (§5.1).
+- **A sentence and a button in the detail pane**, which is where the row's marker can be acted on
+  and what a screen reader reaches instead of it.
+
+Both are drawn from `HISTORY_PRESENCE`, which is **one scan for the whole vault**: `scanHistory` over
+the vault's registrable domains, exactly as the dry run does, and then two set lookups per bookmark.
+A query per row would be a `history.search` IPC per row — five thousand of them on a large vault, to
+draw an icon. The answer on the wire is a list of **ids and nothing else**: the page drew those rows,
+so it already knows their titles and addresses, and the reply carries no vault content of its own.
+
+It is asked when the manager opens, on `VAULT_CHANGED` (a bookmark that was just added is the
+likeliest thing in the vault to be in history — it is usually the page the tab was sitting on), and
+on the way back to the list from any other screen. Never on the path of a keystroke, a scroll or a
+selection. Without the `history` permission the answer is `granted: false` and the manager draws no
+warnings at all, which is indistinguishable from "nothing is in history" on purpose: a warning drawn
+on a guess is worse than no warning.
+
+**`FORGET_ITEM_HISTORY` is scoped to the page, not to the site**, and that is the whole difference
+between it and §12.2. It is offered under one bookmark's title, in the pane showing that one
+bookmark; deleting a domain's worth of unrelated history from there would be an ambush. The domain
+search is only how the candidates are found — `search` over-matches, so every result is re-checked
+first for the domain (`urlBelongsTo`) and then for the page (`isSamePage`).
+
+Matching a stored URL to a history entry is `src/history/match.ts`, and the rule is asymmetric on
+purpose:
+
+1. Compare origin, path and query, all normalized, ignoring the fragment.
+2. **Only when the bookmark itself carries no query**, also accept an entry that differs from it by
+   having one.
+
+Clause 2 exists because `stripTrackingParams` is on by default, so the vault routinely holds
+`example.com/post` for a page whose history entry is `example.com/post?utm_source=x`. It cannot fire
+in the other direction — `youtube.com/watch?v=a` and `?v=b` are two videos, and a rule that ignored
+the query would offer to forget one and delete both. The bookmark is the thing being asked about, so
+it is the bookmark's lack of a query that widens the match, never the entry's.
+
+---
+
 ## 13. Drive integration
 
 ### 13.1 Scope choice

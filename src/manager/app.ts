@@ -53,6 +53,7 @@ import {
   initialState,
   refreshAll,
   refreshDetail,
+  refreshHistoryPresence,
   refreshView,
   reorderParent,
   rowsOf,
@@ -127,6 +128,20 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   let syncState: SyncStatusResponse | null = null;
 
   /**
+   * A run this window asked for, from press to answer.
+   *
+   * The flag exists so the button can say it is working: the worker's only `SYNC_CHANGED` for a run
+   * is the one at the end of it, so between the click and the answer there was nothing on screen to
+   * distinguish "syncing" from "ignored the click". It also stops a second press starting a second
+   * run — the engine guards itself, but a disabled button is the honest way to say so.
+   *
+   * Declared up here beside the status it qualifies, and not down with `runSync`, because
+   * `paintSync()` runs while this function is still being evaluated: a `let` further down is in its
+   * temporal dead zone at that point, and reading it throws before the manager has drawn anything.
+   */
+  let syncing = false;
+
+  /**
    * The nudge left behind by "skip for now" on onboarding's incognito step.
    *
    * `null` unless the flow was skipped *and* the toggle is still off. Half the promise of the product
@@ -182,6 +197,11 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   let screen: Screen = 'list';
 
   function showScreen(next: Screen): void {
+    // Coming back to the list from anywhere else: the screen being left may well be why the answer
+    // changed — the settings screen holds the site-wide cleanup, and import/export adds bookmarks
+    // for pages that have been visited. Cheaper and more reliable than every screen remembering to
+    // report what it did.
+    if (next === 'list' && screen !== 'list') void refreshHistory();
     screen = next;
     layout.hidden = next !== 'list';
     conflictSlot.hidden = next !== 'conflicts';
@@ -522,6 +542,10 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
         deleteFolder: (item) => {
           void deleteFolder(item);
         },
+        inHistory: state.detail !== null && state.inHistory.has(state.detail.id),
+        forgetHistory: (item) => {
+          void forgetHistory(item);
+        },
       }),
     );
   }
@@ -532,6 +556,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     preview.close();
     const rows = rowsOf(state);
     list.setRows(rows, state.view?.terms ?? []);
+    list.setInHistory(state.inHistory);
     list.setSelection(state.selection, state.cursor);
 
     paintCount();
@@ -674,6 +699,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       syncSlot,
       syncStatusButton({
         status: syncState,
+        busy: syncing,
         onSyncNow: () => {
           void runSync();
         },
@@ -703,14 +729,30 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   }
 
   async function runSync(): Promise<void> {
-    const response = await send({ type: 'SYNC_NOW' });
+    if (syncing) return;
+    syncing = true;
+    paintSync();
+    let response;
+    try {
+      response = await send({ type: 'SYNC_NOW' });
+    } finally {
+      syncing = false;
+    }
     if (response.type === 'ERROR') {
+      paintSync();
       warn(response.code);
       return;
     }
     syncState = response;
     paintSync();
-    if (response.error !== null) say(syncErrorText(response.error), 'danger');
+    if (response.error !== null) {
+      say(syncErrorText(response.error), 'danger');
+      return;
+    }
+    // Said out loud rather than left to the label. Two syncs a few seconds apart both leave it
+    // reading "Last synced just now", so the label alone cannot tell the second press from a
+    // press that did nothing.
+    say(msg('syncNowDone'));
   }
 
   /**
@@ -819,10 +861,15 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
       say,
       patch: async (patch) => {
         const response = await send({ type: 'SET_SETTINGS', settings: patch });
-        if (response.type !== 'ERROR') {
-          settings = response.settings;
-          applyTheme(settings.theme, document.documentElement);
+        // A refused write used to be swallowed here, which left the control showing a setting the
+        // vault does not have. The screen puts the control back; this is where the reason is said.
+        if (response.type === 'ERROR') {
+          warn(response.code);
+          return false;
         }
+        settings = response.settings;
+        applyTheme(settings.theme, document.documentElement);
+        return true;
       },
       onBack: () => {
         showScreen('list');
@@ -853,6 +900,36 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     await refreshDetail(state);
     paintSidebar();
     paintList();
+    paintDetail();
+  }
+
+  /**
+   * Re-ask which bookmarks are still in Chrome's history, and repaint what shows it.
+   *
+   * Not awaited by anything that draws: the answer costs a history search per vaulted domain, and a
+   * list that waited for it would stall behind a browser API on every reload. The warnings appear a
+   * moment after the rows do, which is the right order — the rows are the vault's answer and this is
+   * the browser's.
+   *
+   * Guarded against overlap rather than debounced. Two runs would give the same answer, and the
+   * second would spend a second's worth of `history.search` arriving at it.
+   */
+  let askingHistory = false;
+
+  async function refreshHistory(): Promise<void> {
+    if (askingHistory) return;
+    askingHistory = true;
+    const before = state.inHistory;
+    try {
+      await refreshHistoryPresence(state);
+    } finally {
+      askingHistory = false;
+    }
+    // Nothing moved, nothing is repainted. Rebuilding the window costs a row's worth of DOM per
+    // visible row, and doing it out of the blue is how a click in flight loses the element it
+    // started on.
+    if (sameIds(before, state.inHistory)) return;
+    list.setInHistory(state.inHistory);
     paintDetail();
   }
 
@@ -1161,6 +1238,46 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   async function refreshPreview(item: ItemDetail): Promise<void> {
     await openItem(item.id);
     say(msg('thumbRefreshOpened'));
+  }
+
+  /**
+   * "Delete this page from Chrome's history", from the detail pane (§12.6).
+   *
+   * Confirmed first, and the confirmation names the page rather than counting entries: the count is
+   * a second history scan away, and a dialog that had to run one before it could open would be a
+   * dialog that appears a second after the button was pressed. What it does say is the part that
+   * cannot be undone.
+   *
+   * The warning is cleared from this one row on the way out rather than by re-scanning the whole
+   * vault: the worker has just deleted those entries and said how many, which is a better answer
+   * than a second search would give and does not cost another second.
+   */
+  async function forgetHistory(item: ItemDetail): Promise<void> {
+    const confirmed = await confirmDialog({
+      heading: msg('detailForgetHistoryHeading', [item.title]),
+      body: [dialogText('detailForgetHistoryBody'), dialogText('detailForgetHistoryNoUndo')],
+      confirmLabel: msg('detailForgetHistory'),
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    const response = await send({ type: 'FORGET_ITEM_HISTORY', id: item.id });
+    if (response.type === 'ERROR') {
+      warn(response.code);
+      return;
+    }
+    const remaining = new Set(state.inHistory);
+    remaining.delete(item.id);
+    state.inHistory = remaining;
+    list.setInHistory(state.inHistory);
+    paintDetail();
+    say(
+      response.count === 0
+        ? msg('detailForgotNothing')
+        : response.count === 1
+          ? msg('detailForgotOne')
+          : msg('detailForgot', [String(response.count)]),
+    );
   }
 
   async function openItem(id: string): Promise<void> {
@@ -1535,6 +1652,10 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
     }
     if (message.type === 'VAULT_CHANGED') {
       void reloadAll();
+      // A bookmark that was just added is the likeliest thing in the vault to be in history — it is
+      // usually the page the tab was sitting on — so this is exactly when the warning has to appear
+      // without the window being reopened.
+      void refreshHistory();
       return;
     }
     if (message.type === 'SYNC_CHANGED') {
@@ -1558,6 +1679,7 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   applyTheme(settings.theme, document.documentElement);
   void reloadAll();
   void refreshSync();
+  void refreshHistory();
   void refreshIncognitoNudge();
 }
 
@@ -1570,6 +1692,14 @@ const SORT_LABEL_KEYS: Record<SortKey, string> = {
   opens: 'sortOpens',
   manual: 'sortManual',
 };
+
+function sameIds(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const id of a) {
+    if (!b.has(id)) return false;
+  }
+  return true;
+}
 
 function splitTags(value: string): string[] {
   return value

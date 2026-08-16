@@ -518,6 +518,27 @@ export interface ClearVaultedHistoryRequest {
   readonly type: 'CLEAR_VAULTED_HISTORY';
 }
 
+/**
+ * Which vaulted bookmarks still have a visit in Chrome's history (§12.6).
+ *
+ * One scan for the whole vault, because the alternative is a query per row. Asked by the manager
+ * when it loads and after anything that could change the answer; never on the path of a keystroke.
+ */
+export interface HistoryPresenceRequest {
+  readonly type: 'HISTORY_PRESENCE';
+}
+
+/**
+ * Delete the history entries for one bookmark's page — not for its site.
+ *
+ * The narrow counterpart of `CLEAR_VAULTED_HISTORY`, offered in the detail pane under the title of
+ * the bookmark it is about. The page-matching rule lives in `history/match.ts`.
+ */
+export interface ForgetItemHistoryRequest {
+  readonly type: 'FORGET_ITEM_HISTORY';
+  readonly id: string;
+}
+
 export type Request =
   | PingRequest
   | GetStateRequest
@@ -571,7 +592,9 @@ export type Request =
   | GetOnboardingRequest
   | SetOnboardingRequest
   | PreviewHistoryCleanupRequest
-  | ClearVaultedHistoryRequest;
+  | ClearVaultedHistoryRequest
+  | HistoryPresenceRequest
+  | ForgetItemHistoryRequest;
 
 /** A partial settings update. Absent fields keep their stored value. */
 export type SettingsPatch = Partial<VaultSettings>;
@@ -1104,6 +1127,20 @@ export interface HistoryPreviewResponse {
 }
 
 /**
+ * Which bookmarks Chrome's history still holds a visit to (§12.6).
+ *
+ * Ids and nothing else. The page already knows the titles and addresses of the rows it is showing —
+ * it drew them — so the answer to "which of these is still in history" needs to carry no vault
+ * content of its own, and deliberately does not.
+ */
+export interface HistoryPresenceResponse {
+  readonly type: 'HISTORY_PRESENCE';
+  /** False when the optional `history` permission has not been granted; `ids` is then empty. */
+  readonly granted: boolean;
+  readonly ids: readonly string[];
+}
+
+/**
  * The wire form of a thrown error.
  *
  * No message string: user-facing text lives in `_locales` and is chosen by the UI from the code.
@@ -1204,6 +1241,8 @@ export interface ResponseMap {
   readonly SET_ONBOARDING: OnboardingResponse;
   readonly PREVIEW_HISTORY_CLEANUP: HistoryPreviewResponse;
   readonly CLEAR_VAULTED_HISTORY: CountResponse;
+  readonly HISTORY_PRESENCE: HistoryPresenceResponse;
+  readonly FORGET_ITEM_HISTORY: CountResponse;
 }
 
 export type ResponseFor<R extends Request> = ResponseMap[R['type']] | ErrorResponse;
@@ -1391,6 +1430,7 @@ export function parseRequest(raw: unknown): Request | null {
     case 'GET_ONBOARDING':
     case 'PREVIEW_HISTORY_CLEANUP':
     case 'CLEAR_VAULTED_HISTORY':
+    case 'HISTORY_PRESENCE':
     case 'REPLACE_REMOTE_VAULT':
       return { type };
     case 'DESTROY_VAULT':
@@ -1470,6 +1510,7 @@ export function parseRequest(raw: unknown): Request | null {
     }
     case 'GET_ITEM':
     case 'GET_THUMB':
+    case 'FORGET_ITEM_HISTORY':
     case 'REFRESH_THUMB': {
       const id = raw['id'];
       return isNonEmptyString(id) ? { type, id } : null;
@@ -1739,6 +1780,7 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'NATIVE_DELETE',
   'ONBOARDING',
   'HISTORY_PREVIEW',
+  'HISTORY_PRESENCE',
   'DRIVE_STATE',
   'DIAGNOSTICS',
   'MIGRATION',

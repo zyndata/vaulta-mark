@@ -192,6 +192,148 @@ describe('running the cleanup', () => {
   });
 });
 
+describe('which bookmarks are still in history', () => {
+  /** The ids of the seeded bookmarks, by URL — the answer is a list of ids and nothing else. */
+  async function idsByUrl(): Promise<Map<string, string>> {
+    const items = (await send({ type: 'LIST_ITEMS' }))['items'] as {
+      id: string;
+      url?: string;
+    }[];
+    return new Map(items.filter((item) => item.url !== undefined).map((item) => [item.url ?? '', item.id]));
+  }
+
+  async function presence(): Promise<Record<string, unknown>> {
+    return await send({ type: 'HISTORY_PRESENCE' });
+  }
+
+  it('names the visited ones and no others', async () => {
+    seedHistory();
+    const ids = await idsByUrl();
+    const answer = await presence();
+
+    expect(answer['type']).toBe('HISTORY_PRESENCE');
+    expect(answer['granted']).toBe(true);
+    // All three seeded bookmarks have an entry for their own page.
+    expect([...(answer['ids'] as string[])].sort()).toEqual([...ids.values()].sort());
+  });
+
+  it('is about the page, not the site', async () => {
+    // One page of `example.com` is in history; the bookmark for another page of it is not.
+    mock.historyEntries.push({ url: 'https://example.com/other-page' });
+    const ids = await idsByUrl();
+    const answer = await presence();
+
+    expect(answer['ids']).toEqual([]);
+    expect(ids.has('https://example.com/recipes')).toBe(true);
+  });
+
+  it('counts a visit whose address carries tracking parameters the vault stripped', async () => {
+    // The default is to strip them, so the stored address and the visited one differ by exactly
+    // this. A rule that compared the two strings would say this page had never been opened.
+    mock.historyEntries.push({ url: 'https://example.com/recipes?utm_source=newsletter' });
+    const ids = await idsByUrl();
+
+    expect((await presence())['ids']).toEqual([ids.get('https://example.com/recipes')]);
+  });
+
+  it('does not confuse two pages that differ only in their query', async () => {
+    await send({ type: 'ADD_URL', url: 'https://www.youtube.com/watch?v=first', title: 'First' });
+    mock.historyEntries.push({ url: 'https://www.youtube.com/watch?v=second' });
+
+    expect((await presence())['ids']).toEqual([]);
+  });
+
+  it('answers granted: false rather than throwing when the permission is absent', async () => {
+    seedHistory();
+    mock.grantedPermissions.delete('history');
+
+    expect(await presence()).toEqual({ type: 'HISTORY_PRESENCE', granted: false, ids: [] });
+    expect(mock.historySearches).toEqual([]);
+  });
+
+  it('needs an unlocked vault', async () => {
+    await send({ type: 'LOCK' });
+    expect(await presence()).toEqual({ type: 'ERROR', code: 'VAULT_LOCKED' });
+  });
+});
+
+describe('forgetting one bookmark', () => {
+  async function idOf(url: string): Promise<string> {
+    const items = (await send({ type: 'LIST_ITEMS' }))['items'] as { id: string; url?: string }[];
+    const found = items.find((item) => item.url === url);
+    expect(found).toBeDefined();
+    return found?.id ?? '';
+  }
+
+  it('deletes that page and leaves the rest of the site alone', async () => {
+    seedHistory();
+    const id = await idOf('https://example.com/recipes');
+
+    expect(await send({ type: 'FORGET_ITEM_HISTORY', id })).toEqual({ type: 'COUNT', count: 1 });
+    expect(mock.deletedHistory).toEqual(['https://example.com/recipes']);
+    // The whole point of it being narrower than the cleanup: the other page of the same site, and
+    // every other site, are exactly where they were.
+    expect(mock.historyEntries.map((entry) => entry.url)).toContain('https://example.com/other-page');
+    expect(mock.historyEntries).toHaveLength(8);
+  });
+
+  it('takes the other spellings of the same page with it', async () => {
+    mock.historyEntries.push(
+      { url: 'https://example.com/recipes' },
+      { url: 'https://example.com/recipes?utm_campaign=spring' },
+      { url: 'https://example.com/recipes/' },
+      { url: 'https://example.com/recipes#method' },
+      { url: 'https://example.com/recipes-archive' },
+    );
+    const id = await idOf('https://example.com/recipes');
+
+    const answer = await send({ type: 'FORGET_ITEM_HISTORY', id });
+    expect(answer).toEqual({ type: 'COUNT', count: 4 });
+    // `recipes-archive` is a different page whose address happens to start with this one's.
+    expect(mock.historyEntries.map((entry) => entry.url)).toEqual([
+      'https://example.com/recipes-archive',
+    ]);
+  });
+
+  it('searches only the domain of the bookmark it was asked about', async () => {
+    seedHistory();
+    await send({ type: 'FORGET_ITEM_HISTORY', id: await idOf('https://example.com/recipes') });
+    expect(mock.historySearches).toEqual(['example.com']);
+  });
+
+  it('answers zero for a page that has never been visited', async () => {
+    seedHistory();
+    await send({ type: 'ADD_URL', url: 'https://example.com/unvisited', title: 'Unvisited' });
+
+    expect(await send({ type: 'FORGET_ITEM_HISTORY', id: await idOf('https://example.com/unvisited') })).toEqual({
+      type: 'COUNT',
+      count: 0,
+    });
+    expect(mock.deletedHistory).toEqual([]);
+  });
+
+  it('refuses without the permission, and deletes nothing', async () => {
+    seedHistory();
+    const id = await idOf('https://example.com/recipes');
+    mock.grantedPermissions.delete('history');
+
+    expect(await send({ type: 'FORGET_ITEM_HISTORY', id })).toEqual({
+      type: 'ERROR',
+      code: 'HISTORY_PERMISSION',
+    });
+    expect(mock.deletedHistory).toEqual([]);
+  });
+
+  it('does nothing for an id the vault does not hold', async () => {
+    seedHistory();
+    expect(await send({ type: 'FORGET_ITEM_HISTORY', id: 'not-an-item' })).toEqual({
+      type: 'COUNT',
+      count: 0,
+    });
+    expect(mock.deletedHistory).toEqual([]);
+  });
+});
+
 describe('on lock', () => {
   it('leaves history alone by default', async () => {
     seedHistory();

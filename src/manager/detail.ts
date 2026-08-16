@@ -41,6 +41,15 @@ export interface DetailDeps {
   readonly open: (id: string) => void;
   readonly renameFolder: (item: ItemDetail) => void;
   readonly deleteFolder: (item: ItemDetail) => void;
+  /**
+   * Chrome's history still holds a visit to this page (§12.6).
+   *
+   * Not part of `ItemDetail`: it is a fact about the browser rather than about the bookmark, it
+   * needs an optional permission to be known at all, and it changes without the vault changing.
+   */
+  readonly inHistory: boolean;
+  /** Delete this one page's history entries. Confirms and reports; the pane only offers it. */
+  readonly forgetHistory: (item: ItemDetail) => void;
 }
 
 export function detailPane(deps: DetailDeps): HTMLElement {
@@ -162,6 +171,7 @@ export function detailPane(deps: DetailDeps): HTMLElement {
             msg('detailOpen'),
           ),
         ),
+    isFolder || !deps.inHistory ? null : historySection(item, deps),
     isFolder ? null : previewSection(item, deps),
     isFolder
       ? null
@@ -176,6 +186,37 @@ export function detailPane(deps: DetailDeps): HTMLElement {
   );
 
   return aside;
+}
+
+/**
+ * "This page is still in Chrome's history", and the one button that fixes it (§12.6).
+ *
+ * Present only when there is something to delete, which is what makes it worth reading: a section
+ * that was always there saying "nothing to do" would be a section people stop seeing. The warning
+ * triangle on the row is the same fact from across the window, and this is the only place it can be
+ * acted on — a row is an `option` in a listbox and may hold nothing that can be clicked.
+ *
+ * The scope is **this page**, and the copy says so, because the settings screen's cleanup is the
+ * one that works site by site and the difference between the two is the whole reason both exist.
+ */
+function historySection(item: ItemDetail, deps: DetailDeps): HTMLElement {
+  return h(
+    'section',
+    { class: 'vm-detail-history' },
+    h('p', { class: 'vm-notice vm-notice--warning' }, msg('detailInHistory')),
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('detailInHistoryHint')),
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'vm-button vm-button--quiet vm-button--inline',
+        onclick: () => {
+          deps.forgetHistory(item);
+        },
+      },
+      msg('detailForgetHistory'),
+    ),
+  );
 }
 
 /**

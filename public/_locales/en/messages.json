@@ -782,6 +782,10 @@
     "message": "Show preview",
     "description": "Tooltip on the eye marker of a row whose bookmark has a preview picture."
   },
+  "listInHistory": {
+    "message": "This page is still in Chrome's browsing history. Select it to remove that.",
+    "description": "Tooltip on the warning marker of a row whose page still has entries in Chrome's history."
+  },
   "listKeyboardHint": {
     "message": "j and k move, Enter opens, e edits, p previews, Delete removes, Esc clears.",
     "description": "Keyboard hint under the manager's list."
@@ -943,6 +947,54 @@
   "detailAtTopLevel": {
     "message": "At the top level",
     "description": "Shown instead of detailInFolder when the item has no parent folder."
+  },
+  "detailInHistory": {
+    "message": "This page is still in Chrome's browsing history.",
+    "description": "Shown in the detail pane when the selected bookmark's page has history entries. The same fact as the warning triangle on its row."
+  },
+  "detailInHistoryHint": {
+    "message": "Vaulting a page does not remove where you have already been, and the address bar suggests pages from history on its own. Removing it here affects this one page — Settings → Privacy has the same tool for whole sites.",
+    "description": "Explains what the history warning in the detail pane means and how it differs from the site-wide cleanup in settings."
+  },
+  "detailForgetHistory": {
+    "message": "Delete this page from history",
+    "description": "Button in the detail pane that removes the selected bookmark's own history entries."
+  },
+  "detailForgetHistoryHeading": {
+    "message": "Delete “$TITLE$” from Chrome's history?",
+    "description": "Heading of the confirmation for deleting one page's history entries.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Weapon tier list"
+      }
+    }
+  },
+  "detailForgetHistoryBody": {
+    "message": "Every visit to this page is removed from Chrome's browsing history. The bookmark itself stays in your vault, and other pages on the same site are not touched.",
+    "description": "Body of the confirmation for deleting one page's history entries."
+  },
+  "detailForgetHistoryNoUndo": {
+    "message": "This is real browsing history and Chrome offers no undo.",
+    "description": "Second line of the confirmation for deleting one page's history entries."
+  },
+  "detailForgot": {
+    "message": "Removed $COUNT$ history entries for this page.",
+    "description": "Confirmation after deleting one page's history entries.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "detailForgotOne": {
+    "message": "Removed 1 history entry for this page.",
+    "description": "Confirmation after deleting one page's history entries, when there was exactly one."
+  },
+  "detailForgotNothing": {
+    "message": "There was nothing left to remove for this page.",
+    "description": "Confirmation after deleting one page's history entries, when the entries had already gone."
   },
   "detailStats": {
     "message": "Added $ADDED$ · opened $COUNT$ times",
@@ -1442,6 +1494,10 @@
   "syncNowButton": {
     "message": "Sync now",
     "description": "Button that runs a sync immediately."
+  },
+  "syncNowDone": {
+    "message": "Sync finished.",
+    "description": "Said after a sync the user asked for finished without an error. The 'last synced' line alone cannot report a second sync a moment after the first."
   },
   "syncBusy": {
     "message": "Syncing…",
@@ -2304,6 +2360,14 @@
   "historyCheckButton": {
     "message": "Check what would be removed",
     "description": "Runs the dry run."
+  },
+  "historyChecking": {
+    "message": "Checking…",
+    "description": "Label of the dry-run button while the dry run is running. It searches history once per vaulted site."
+  },
+  "historyClearing": {
+    "message": "Removing history entries…",
+    "description": "Shown in place of the panel while the entries are being deleted."
   },
   "historyCheckAgainButton": {
     "message": "Check again",

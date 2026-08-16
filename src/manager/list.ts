@@ -76,6 +76,16 @@ export class BookmarkList {
   readonly #list: VirtualList<ListRow>;
   readonly #deps: ListDeps;
   #selection: ReadonlySet<string> = new Set();
+  /**
+   * The rows whose page Chrome's history still holds (§12.6).
+   *
+   * A set held here rather than a flag on `ListRow`, for the reason every other per-row boolean is
+   * on `ListRow` and this one is not: it is not a property of the bookmark at all. It is a fact
+   * about the browser that changes without the vault changing, and answering it costs a scan of
+   * history — so it arrives on its own schedule and is applied like the selection is, rather than
+   * being folded into the reply to every keystroke in the search box.
+   */
+  #inHistory: ReadonlySet<string> = new Set();
   #terms: readonly string[] = [];
   #cursor = -1;
   /**
@@ -139,6 +149,12 @@ export class BookmarkList {
       // tells a screen reader which option the cursor is on.
       if (row !== undefined) this.element.setAttribute('aria-activedescendant', row.id);
     } else this.element.removeAttribute('aria-activedescendant');
+  }
+
+  /** Which rows are still in Chrome's history. Repaints the window; changes no data. */
+  setInHistory(ids: ReadonlySet<string>): void {
+    this.#inHistory = ids;
+    this.#list.refresh();
   }
 
   focus(): void {
@@ -258,6 +274,22 @@ export class BookmarkList {
         ),
       ),
       tagChips(row.tags),
+      /*
+       * The history warning, beside the eye and drawn on the same terms: always in the row, always
+       * the same width, visible only when it has something to say — a marker that exists only
+       * sometimes makes every column after it move as the list scrolls.
+       *
+       * A `span` with a `title` and hidden from assistive technology, again like the eye, because a
+       * listbox may contain nothing but options. What it announces instead is a sentence and a
+       * button in the detail pane, which is also the only place it can be acted on.
+       */
+      this.#inHistory.has(row.id)
+        ? h(
+            'span',
+            { class: 'vm-row-history is-present', title: msg('listInHistory'), 'aria-hidden': 'true' },
+            '⚠',
+          )
+        : h('span', { class: 'vm-row-history' }),
       row.hasPreview ? this.#eye(row, element) : h('span', { class: 'vm-row-eye' }),
       row.hasNote
         ? h('span', { class: 'vm-row-note', title: msg('listHasNote') }, '📝')

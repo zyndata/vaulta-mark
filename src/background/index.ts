@@ -302,6 +302,10 @@ export async function handleRequest(request: Request): Promise<Response> {
         return await history.previewCleanup();
       case 'CLEAR_VAULTED_HISTORY':
         return await history.runCleanup();
+      case 'HISTORY_PRESENCE':
+        return await history.historyPresence();
+      case 'FORGET_ITEM_HISTORY':
+        return await history.forgetItemHistory(request.id);
     }
   } catch (error) {
     // Nothing here may reach a log: a request carries a master password, and the errors that come
