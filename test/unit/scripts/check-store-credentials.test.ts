@@ -70,7 +70,8 @@ describe('checkStoreCredentials', () => {
 
   it('names the one missing variable rather than all four', async () => {
     const { fetch } = fetchStub(OK_TOKEN);
-    const { CWS_REFRESH_TOKEN: _omitted, ...rest } = ENV;
+    const rest: Partial<typeof ENV> = { ...ENV };
+    delete rest.CWS_REFRESH_TOKEN;
     const text = await refusalFrom(checkStoreCredentials(rest, { fetch }));
 
     expect(text).toContain('Missing: CWS_REFRESH_TOKEN.');
@@ -91,7 +92,9 @@ describe('checkStoreCredentials', () => {
 
     // A refresh-token grant, then a bearer read of that item. The API version header is not
     // optional: without it the Store answers on a different, older contract.
-    expect(String(calls[0]?.init?.body)).toContain('grant_type=refresh_token');
+    const grant = calls[0]?.init?.body;
+    expect(grant).toBeInstanceOf(URLSearchParams);
+    expect((grant as URLSearchParams).toString()).toContain('grant_type=refresh_token');
     expect(calls[1]?.url).toContain(ENV.CWS_EXTENSION_ID);
     expect(calls[1]?.init?.headers).toMatchObject({
       authorization: 'Bearer ya29.an-access-token',
