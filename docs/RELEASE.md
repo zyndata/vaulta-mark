@@ -501,7 +501,14 @@ would silently not fire, and nothing would say so. Measured 2026-08-15: the work
 | `CWS_CLIENT_SECRET` | §6.3 | |
 | `CWS_REFRESH_TOKEN` | §6.4 | The one that actually matters — treat as a publishing credential |
 
-4. **Read the protection rules back** rather than trusting the form —
+4. **Check that the four work together**, before a release ever needs them: Actions → *release* →
+   *Run workflow* → tick **check_credentials**, leave the tag empty. It authenticates exactly as a
+   publish does and then *reads* the Store item — no upload, no change, safe during a review. Until
+   this existed the first real test of these secrets was the first upload, which is the worst
+   moment to learn that a refresh token was minted while the consent screen was still in Testing.
+   The job declares the `chrome-web-store` environment, so it waits for the same approval a publish
+   does; that is deliberate, since the secrets are only reachable through that gate.
+5. **Read the protection rules back** rather than trusting the form —
    `gh api repos/zyndata/vaulta-mark/environments --jq '.environments[].name'` should list it, and
    `gh api repos/zyndata/vaulta-mark/environments/chrome-web-store --jq '.protection_rules'` should
    show a `required_reviewers` entry. This repository has been bitten by a settings API that
@@ -520,8 +527,18 @@ deliberately no longer a copy of the YAML: §3 held a copy of `ci.yml` that was 
 date within one phase, and a spec that disagrees with the thing it specifies is worse than a pointer.
 
 **Triggers.** A tag matching `v*.*.*` (or `v*.*.*-*`), or a `workflow_dispatch` taking `tag`,
-`publish` and `auto_publish`. Concurrency is grouped per tag and **never** cancels in progress: a
-half-finished Store upload is worse than a queued one.
+`publish`, `auto_publish` and `check_credentials`. Concurrency is grouped per tag and **never**
+cancels in progress: a half-finished Store upload is worse than a queued one.
+
+**The `check-credentials` job** runs only on a dispatch with `check_credentials` ticked, and then
+`build` does not run at all — so `publish`, which needs it, cannot either. It runs
+`scripts/check-store-credentials.mjs`: refresh token → access token → `GET items/{id}`. A read, so
+it changes nothing and is safe during a review, and it uses nothing but Node's own `fetch` — a
+credentials check that first installs a dependency tree has a second thing that can fail and would
+report it as a credentials problem. Its refusals name the specific cause, because `invalid_grant`
+and `invalid_client` send you to opposite halves of §6 and an HTTP status alone sends you to
+neither. Because `check_credentials` needs no tag, `tag` is **not** a required input; the `build`
+job refuses an empty one itself, which puts the rule where the reader is rather than in the form.
 
 **The `build` job, in order.** Each of the first three is placed where it is so that the cheap
 refusals happen before the expensive work:

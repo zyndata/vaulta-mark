@@ -11,14 +11,21 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to publish (e.g. v1.2.3)'
-        required: true
+        # Not `required`, because `check_credentials` needs no tag and a form that demands one
+        # invites a throwaway value being typed into the field a release reads. The build job
+        # refuses an empty tag itself, which is a better place for the rule than the UI.
+        description: 'Tag to publish (e.g. v1.2.3) — leave empty for a credentials check'
+        required: false
       publish:
         description: 'Upload to the Chrome Web Store'
         type: boolean
         default: false
       auto_publish:
         description: 'Also submit for review (otherwise upload as a draft)'
+        type: boolean
+        default: false
+      check_credentials:
+        description: 'Only check the Store credentials — builds nothing, uploads nothing'
         type: boolean
         default: false
 
@@ -41,7 +48,39 @@ concurrency:
 # treat it as data.
 
 jobs:
+  # Reads the Store item and stops. It performs the same two-step authentication a publish does —
+  # refresh token to access token, then an authenticated request — so it exercises all four secrets
+  # together, which nothing else did: until this existed, the first real test of them would have
+  # been the first upload. It cannot upload or modify anything, so it is safe to run at any time,
+  # including during a review.
+  #
+  # It declares the environment, so it waits on the same human approval a publish does. That is not
+  # friction to be tidied away: the secrets are only reachable through that gate, and a check that
+  # bypassed it would be checking something other than what a publish uses.
+  check-credentials:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.check_credentials }}
+    runs-on: ubuntu-latest
+    environment: chrome-web-store
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      # No `npm ci`: the script uses nothing but Node's own fetch, which is the reason it is a
+      # script rather than a CLI invocation. A credentials check that first installs a dependency
+      # tree has a second thing that can fail and would report it as a credentials problem.
+      - name: Check the Chrome Web Store credentials
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: node scripts/check-store-credentials.mjs
+
   build:
+    if: ${{ !inputs.check_credentials }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -62,6 +101,18 @@ jobs:
       # being a release.
       VM_OAUTH_CLIENT_ID: ${{ vars.VM_OAUTH_CLIENT_ID }}
     steps:
+      # `tag` is not a required input, so that a credentials check does not have to invent one.
+      # The rule still has to exist somewhere, and here is better than the form: without this, an
+      # empty tag falls back to `github.ref`, the checkout succeeds on whatever branch was
+      # dispatched from, and the failure surfaces two steps later as "dev is not an ancestor of
+      # main" — true, and not what went wrong.
+      - name: A release needs a tag
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.tag }}
+        run: |
+          echo "::error::No tag given. Fill in the tag to release, or tick check_credentials to" \
+               "run the credentials check instead, which needs no tag."
+          exit 1
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.tag || github.ref }}
