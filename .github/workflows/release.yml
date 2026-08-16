@@ -215,15 +215,39 @@ jobs:
         with:
           subject-path: release/*.zip
 
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
-          body_path: release/NOTES.md
-          files: |
-            release/*.zip
-            release/SHA256SUMS
-          draft: false
-          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
+      # GitHub's own `gh`, preinstalled on the runner, rather than a third-party action.
+      #
+      # `softprops/action-gh-release` was refused outright: this repository's Actions policy allows
+      # GitHub-owned actions only, and the refusal happens at **startup**, before any job's `if` is
+      # evaluated — so the first dispatch of this workflow failed without running anything, and
+      # release.yml had in fact never been runnable since Phase 13 wrote it. Nothing could have
+      # caught that except dispatching it, which is why the credentials check exists one job up.
+      #
+      # Loosening the policy for one action was the other way out and is the weaker one. This is
+      # the step that runs with `contents: write`, and the 2026-08-15 audit named exactly that —
+      # a third-party action holding write access to the repository — as the sharpest reason for
+      # the SHA pins above. Removing it is better than pinning it.
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ contains(inputs.tag || github.ref_name, '-') }}
+        run: |
+          files=(release/*.zip release/SHA256SUMS)
+          notes=(--notes-file release/NOTES.md)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # A re-run — an e2e flake, most likely. The release already exists, so the assets have
+            # to *replace* rather than be added, or the upload fails on a name collision. This is
+            # the one behaviour the third-party action gave for free.
+            echo "Release $TAG exists; updating it."
+            gh release upload "$TAG" "${files[@]}" --clobber
+            gh release edit "$TAG" "${notes[@]}"
+          else
+            # --verify-tag: refuse to invent a tag. A dispatch takes free text, and a typo would
+            # otherwise publish a release pointing at a tag that never existed.
+            args=(--title "$TAG" --verify-tag "${notes[@]}")
+            if [ "$PRERELEASE" = "true" ]; then args+=(--prerelease); fi
+            gh release create "$TAG" "${files[@]}" "${args[@]}"
+          fi
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

@@ -156,6 +156,11 @@ things about it that are decisions rather than boilerplate:
 - **Every `uses:` is pinned to a commit hash**, with the version tag as a trailing comment. A tag is
   mutable, so a pin by name trusts whoever owns the action repository not to move it. Dependabot
   updates SHA pins and rewrites the comment, so this costs nothing after the first pass.
+- **Every action is GitHub's own**, and that is enforced by the repository rather than by habit:
+  Settings → Actions → General is set to allow GitHub-owned actions only, with no pattern
+  exceptions. Anything else is refused at workflow **startup**, before any job's `if` is evaluated —
+  which is how the one third-party action here was found, on the first dispatch that ever reached
+  this workflow. It was replaced with `gh` rather than allowlisted; see §7 step 10.
 - **`persist-credentials: false` on every checkout.** Otherwise the workflow token is written into
   `.git/config` and stays readable by every later step, including anything `npm` executes. No job
   here needs authenticated git after the checkout.
@@ -559,9 +564,10 @@ refusals happen before the expensive work:
    same file; the attestation says where the file *came from* — it binds the digest to this run,
    this commit and this builder, and needs `id-token: write` + `attestations: write` on the job.
    The two claims answer different questions, so both are published.
-10. `softprops/action-gh-release` with the zip, the checksums and the extracted notes; `prerelease`
-    when the tag carries a `-`. It is third-party and runs with `contents: write`, which is the
-    sharpest reason every `uses:` in this workflow is pinned to a commit hash (§3).
+10. **`gh release create`** with the zip, the checksums and the extracted notes; `--prerelease` when
+    the tag carries a `-`, and `--verify-tag` so a mistyped dispatch cannot publish a release
+    pointing at a tag that never existed. On a re-run — an e2e flake, most likely — the release
+    already exists, so it uploads with `--clobber` and edits the notes instead.
 11. The whole `release/` directory is kept as an artifact, which is what the `publish` job consumes.
 
 **The `publish` job** runs only on a `workflow_dispatch` with `publish: true`, in the

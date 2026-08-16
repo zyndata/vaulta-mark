@@ -185,6 +185,16 @@ moved somewhere a commit cannot reach rather than trusted to a `.gitignore` line
 | --- | --- |
 | Workflow permissions | **Read repository contents** (read-only `GITHUB_TOKEN`) |
 | Allow GitHub Actions to create and approve pull requests | ❌ |
+| Allowed actions | **GitHub-owned only** — `allowed_actions: selected`, `github_owned_allowed: true`, no patterns, verified creators **not** allowed |
+
+That last row is stricter than it looks and is worth keeping. Anything outside `actions/*` and
+`github/*` is refused at workflow **startup**, before any job's `if` is evaluated — so a blocked
+action fails the whole run even when the job referencing it would have been skipped. It caught
+`softprops/action-gh-release` in `release.yml` on 2026-08-16, on the first dispatch that workflow
+ever received, meaning it had not been runnable since Phase 13 wrote it. The fix was to drop the
+action for `gh` rather than add a pattern exception: that step runs with `contents: write`, which
+§2's audit named as the sharpest third-party risk in the repository. **Prefer removing an action
+over allowlisting one.**
 
 The release workflow requests `contents: write` explicitly in its own file, which is the correct
 granularity — the default token stays read-only.
