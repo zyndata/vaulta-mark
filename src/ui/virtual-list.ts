@@ -61,6 +61,7 @@ export class VirtualList<T> {
   readonly #canvas: HTMLElement;
   readonly #options: VirtualListOptions<T>;
   readonly #onScroll: () => void;
+  readonly #resize: ResizeObserver | null;
 
   #items: readonly T[] = [];
   #range: VisibleRange = { start: 0, end: 0 };
@@ -94,6 +95,33 @@ export class VirtualList<T> {
       this.#renderWindow();
     };
     this.element.addEventListener('scroll', this.#onScroll, { passive: true });
+
+    /*
+     * How tall the window is is measured, and a measurement taken at the wrong moment is wrong
+     * until something moves. Two ways that happened, both reported:
+     *
+     * - **The list was rendered while it was off screen.** The manager's four screens are mutually
+     *   exclusive, so the three-column layout is `hidden` — `display: none` — while import/export is
+     *   up. An import repaints the list from behind that, `clientHeight` answers 0, and the floor
+     *   below renders a single row's worth. *Back to bookmarks* changes no scroll position and fires
+     *   no event, so the list sat there showing seven rows of thirty-one with a scrollbar that knew
+     *   better, until a scroll woke it.
+     * - **The window was resized.** Same shape: more room, no event, no rows to fill it.
+     *
+     * Observing the container answers both, and answers them wherever else the same thing happens —
+     * a splitter drag, a zoom, a screen that appears — rather than making every caller remember.
+     * `#renderWindow` returns immediately when the range is unchanged, so the callback is cheap.
+     *
+     * Absent in jsdom, hence the guard: the unit suite passes `viewportHeight` instead, and there
+     * is nothing to observe in a document that lays nothing out.
+     */
+    this.#resize =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => {
+            this.#renderWindow();
+          });
+    this.#resize?.observe(this.element);
   }
 
   get length(): number {
@@ -148,6 +176,7 @@ export class VirtualList<T> {
 
   destroy(): void {
     this.element.removeEventListener('scroll', this.#onScroll);
+    this.#resize?.disconnect();
     this.#discardRows();
   }
 

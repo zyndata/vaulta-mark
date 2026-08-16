@@ -29,6 +29,10 @@ below.
 
 ### Fixed
 
+- **The bookmark list no longer comes back half-empty.** Returning from *Import & export* — or from
+  anywhere else that replaces the list — could leave a handful of rows on screen above a scrollbar
+  that knew there were more, until you scrolled and the rest appeared. The list measures the room it
+  has whenever that room changes, which also fixes the same gap after resizing the window.
 - **The Store description is one sentence shorter**, because the old one was one character too long
   for Chrome to accept: 133 against a hard limit of 132. It reads "…Optional sync via your Google
   Drive" now rather than "your **own** Google Drive". Nothing about the extension changed; the
