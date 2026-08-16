@@ -1,10 +1,43 @@
 import { defineConfig } from 'vitest/config';
 
+/**
+ * Which wall-clock budget tier this run is held to — see `test/helpers/budget.ts`.
+ *
+ * Two tests assert a stopwatch reading: the worker's cold start and a 500-item unlock. Both are
+ * real budgets from ARCHITECTURE §7.2 and both were measured to fail intermittently under the full
+ * ~95-file parallel run on a development machine — including at commits predating the code they
+ * gate — while `CI=1 npm run verify` stayed green. A gate that is red for a reason other than the
+ * code teaches you to re-run it, which is the same failure the note at the top of `codeql.yml`
+ * describes; a budget nobody believes is not a budget.
+ *
+ * So the tight number applies when the run is *targeted* — a file or a name filter on the command
+ * line, which is what you type when you are actually measuring — and the relaxed CI number applies
+ * to the whole-suite run, where the measurement is of the scheduler as much as of the code.
+ *
+ * Detection is by CLI filter rather than by worker count, because the count is identical either way
+ * and `VITEST_POOL_ID` / `VITEST_WORKER_ID` describe *one file's* placement, not the size of the
+ * run — a budget file that happens to land first sees `0` in a 95-file run. The one sharp edge:
+ * a flag written as `--reporter basic` leaves a bare `basic` here and reads as a filter. Prefer
+ * `--reporter=basic`, or set `VM_BUDGET_TIER` explicitly.
+ */
+function budgetTier(): 'tight' | 'relaxed' {
+  const explicit = process.env['VM_BUDGET_TIER'];
+  if (explicit === 'tight' || explicit === 'relaxed') return explicit;
+  if (process.env['CI'] !== undefined) return 'relaxed';
+
+  const subcommands = new Set(['run', 'watch', 'dev', 'related', 'bench', 'list', 'init']);
+  const targeted = process.argv
+    .slice(2)
+    .some((arg) => !arg.startsWith('-') && !subcommands.has(arg));
+  return targeted ? 'tight' : 'relaxed';
+}
+
 export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
     include: ['test/unit/**/*.test.ts', 'test/integration/**/*.test.ts'],
+    env: { VM_BUDGET_TIER: budgetTier() },
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'lcov'],

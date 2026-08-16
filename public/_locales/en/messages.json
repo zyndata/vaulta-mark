@@ -4,8 +4,8 @@
     "description": "The extension name, as shown in Chrome and on the Web Store."
   },
   "extDescription": {
-    "message": "Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito. Optional sync via your own Google Drive.",
-    "description": "Store and toolbar description. Chrome truncates at 132 characters."
+    "message": "Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito. Optional sync via your Google Drive.",
+    "description": "Store and toolbar description. The Web Store *rejects* an upload over 132 characters — it does not truncate. Checked by scripts/verify-manifest.mjs."
   },
   "actionTitle": {
     "message": "VaultaMark — encrypted bookmarks",

@@ -29,7 +29,11 @@ export default defineConfig(({ mode }) => {
     plugins: [
       mv3({
         version: pkg.version,
-        env: { clientId: env['VM_OAUTH_CLIENT_ID'], key: env['VM_MANIFEST_KEY'] },
+        env: {
+          clientId: env['VM_OAUTH_CLIENT_ID'],
+          clientIdDev: env['VM_OAUTH_CLIENT_ID_DEV'],
+          key: env['VM_MANIFEST_KEY'],
+        },
       }),
     ],
 

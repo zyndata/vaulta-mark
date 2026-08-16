@@ -126,6 +126,24 @@ file — the default environment is Node, because everything except `src/ui/**` 
 (D33). Ratchet up, never down. `src/popup/**` and `src/manager/**` are excluded: they run on import
 and wire listeners to a live `chrome` and a live document, so they are covered by the E2E suite.
 
+**Two tests hold a stopwatch** — the worker's cold start and a 500-item unlock, both budgets from
+[ARCHITECTURE §7.2](ARCHITECTURE.md). A stopwatch measures the machine as much as the code, so each
+has a tight number (the spec's, and the one a user feels) and a relaxed one at 3×. Which applies is
+decided once in `vitest.config.ts` and read through
+[`test/helpers/budget.ts`](../test/helpers/budget.ts):
+
+| Run | Tier |
+| --- | --- |
+| `npm run test`, `npm run verify`, anything on CI | relaxed |
+| a file or name filter on the command line — `npx vitest run test/unit/background/message-router.test.ts` | tight |
+| `VM_BUDGET_TIER=tight` / `=relaxed` | as told |
+
+The reason is that the whole-suite run puts ninety-odd files on four cores, and both budgets were
+measured failing that way *at commits predating the code they gate*. A gate that goes red for a
+reason other than the code trains you to re-run it, and then it is not a gate. The cost is real and
+named in the helper's header: nothing holds the tight line unattended, so **run those two files by
+name after touching the worker's import graph or the unlock path.**
+
 ---
 
 ## 5. The E2E suite

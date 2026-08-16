@@ -1595,7 +1595,11 @@ conversation that wants to change one must open an issue and get it changed here
 2. **Short description (≤ 132 chars)** — the working draft, refined only for length/clarity in
    Phase 13:
    > *Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito.
-   > Optional sync via your own Google Drive.* (131 chars)
+   > Optional sync via your Google Drive.* (129 chars, measured)
+
+   The draft read *your **own** Google Drive* and was recorded here as 131 characters. It was 133,
+   and the Store rejected the 1.0.0 upload for it — 132 is a hard limit, not a truncation point.
+   `scripts/verify-manifest.mjs` measures the built locale now.
 3. **Google Cloud + Chrome Web Store accounts** — the maintainer creates both under `zyndata`, at the
    start of Phase 10 (Cloud project + OAuth consent screen; verification takes weeks, so it starts
    early) and before Phase 13 (Store developer account, $5). Phases 0–9 are unblocked. Every step is

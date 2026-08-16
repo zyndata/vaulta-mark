@@ -28,10 +28,21 @@ import {
   type VaultHeader,
   type VaultItem,
 } from '../../src/vault/types.js';
+import { budgetMs } from '../helpers/budget.js';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../mocks/chrome.js';
 
 const PASSWORD = 'a reasonably long master password';
 const NOW = 1_750_000_000_000;
+
+/**
+ * The unlock budget from ARCHITECTURE §7.2, KDF excluded, in milliseconds.
+ *
+ * 150 ms is the spec's figure and the one a user feels. It is tripled on any run that cannot
+ * measure it honestly — a CI runner, or a laptop running the whole suite in parallel. The tier is
+ * decided in `test/helpers/budget.ts`; the best-of-five sampling below is the other half of the
+ * same problem and is not a substitute for it.
+ */
+const UNLOCK_BUDGET_MS = budgetMs(150, 450);
 
 /**
  * Plaintext that must never appear in storage. Chosen to be unmistakable: if a scan finds
@@ -149,7 +160,7 @@ describe('vault lifecycle', () => {
       best = Math.min(best, totalMs - kdfMs);
     }
 
-    expect(best).toBeLessThan(150);
+    expect(best).toBeLessThan(UNLOCK_BUDGET_MS);
   }, 60_000);
 
   it('keeps folders, tags, notes and ordering across a lock', async () => {

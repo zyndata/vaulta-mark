@@ -74,7 +74,7 @@ Rules to enable:
 | --- | --- | --- |
 | **Restrict deletions** | ✅ | `main` is what gets tagged, built, and shipped. It should not be deletable. |
 | **Block force pushes** | ✅ | Published history stays published. A release tag must keep pointing at real, reachable code. |
-| **Require linear history** | ✅ | Release merges use `--no-ff` from `dev`, which stays linear in the first-parent sense and keeps `git log --first-parent main` readable as a release list. |
+| **Require linear history** | ❌ | **This was listed as ✅ from Phase 0 to 2026-08-15, and it was wrong.** The stated reason — that a `--no-ff` merge "stays linear in the first-parent sense" — describes `git log --first-parent`, not the setting. GitHub's *Require linear history* rejects any push introducing a commit with **more than one parent**, and a `--no-ff` release merge is exactly that. Turning it on would block [§4 step 5](RELEASE.md#4-cutting-a-release) — every future release — and the error would arrive on release day, on `main`, with the tag already written. It was never applied, because it was never applicable; the claim went untested for the whole build for the same reason §1–§4 did. |
 | **Require signed commits** | Optional | Worth it for a crypto tool *if you already have commit signing set up.* Turning it on without a working key just blocks you at an inconvenient moment. |
 | **Require a pull request before merging** | ❌ | No second reviewer exists. Turn this on the day a collaborator joins. |
 | **Require status checks to pass** | ❌ | Only enforceable on pull requests — see [§3](#3-the-tradeoff-you-are-accepting). |
@@ -133,6 +133,16 @@ That is a deliberate trade, and it is fine only because the replacement gate is 
 Tags are the immutable record of what was built and what was released. A moved `v1.0.0` tag means the
 published SHA-256 in the release notes no longer proves anything.
 
+**Not enabled, and the trigger for enabling it is a person, not a date: *Restrict creations* on
+`v*`.** The ruleset above stops a tag being moved or deleted; it does not stop one being *created*.
+For a solo repository that is no protection at all — the only account with push access is the one
+the rule would restrict. It becomes the control that matters the day a second contributor gains
+push access, because pushing a `v*` tag is what starts the release workflow, and that workflow is
+the path to the Chrome Web Store. **When you add a collaborator, come back and tick *Restrict
+creations* with a bypass for yourself**, in the same sitting as granting the access. It is recorded
+here rather than left to be rediscovered, because the moment it becomes necessary is precisely the
+moment nobody is thinking about tag rulesets.
+
 ## 5. Repository settings to turn on
 
 **Settings → Code security** (some are under **Settings → General → Features**):
@@ -151,6 +161,23 @@ eligible for a feature does not switch it on.
 | **CodeQL / code scanning** | ✅ | Free on public repositories, and the upload step that failed on every push while private now works — which is why [`codeql.yml`](../.github/workflows/codeql.yml) analyses each push and pull request again rather than only running weekly. |
 | **Discussions** | ✅ | The issue-template config routes questions there. |
 | **Wiki, Projects** | ❌ | Unused; documentation lives in the repository. |
+| **Secret scanning — non-provider patterns** | ❌ **unavailable** | Generic private keys and connection strings, as opposed to recognised vendor tokens. Part of the paid **Secret Protection** product, and not available on this repository. Measured 2026-08-15, twice: `PATCH /repos/…` **accepts the field and returns it still `disabled`** — a silent no-op, not a `403` — and **Settings → Advanced Security** ends at *Push protection*, with no such control on the page. The API's silence is the trap: it reads as success. |
+| **Secret scanning — validity checks** | ❌ **unavailable** | Whether a leaked token is still live, which is the first question after a leak. Same product, same silent no-op, absent from the same page. |
+
+Those last two are the third instance of this file's own lesson, and the first where the API lied
+rather than refused: a `403` is a fact, while a `200` that changes nothing is a claim. **Read the
+setting back after writing it, and believe the readback over the response.** They are also the
+reason `dev-unpacked.pem` no longer lives in the working tree at all
+([RELEASE §5.4](RELEASE.md#54-stable-extension-id-for-local-development)): the scanner that would
+have caught a PEM on its way into a commit is the one this plan does not include, so the file was
+moved somewhere a commit cannot reach rather than trusted to a `.gitignore` line.
+
+**Settings → Environments:**
+
+| Environment | Protection | Why |
+| --- | --- | --- |
+| `github-pages` | GitHub-managed | Created by the Pages deployment; serves the privacy policy. |
+| `chrome-web-store` | **Required reviewers = the owner** | The gate the release workflow's `publish` job waits on, and where the four `CWS_*` secrets live so they exist only for an approved run. See [RELEASE §6.5](RELEASE.md#65-store-the-secrets) — including *why it must be created before the first dispatch*: a workflow naming an environment that does not exist does not fail, it creates one **with no rules**, and the documented human gate silently never fires. |
 
 **Settings → Actions → General:**
 
@@ -158,6 +185,16 @@ eligible for a feature does not switch it on.
 | --- | --- |
 | Workflow permissions | **Read repository contents** (read-only `GITHUB_TOKEN`) |
 | Allow GitHub Actions to create and approve pull requests | ❌ |
+| Allowed actions | **GitHub-owned only** — `allowed_actions: selected`, `github_owned_allowed: true`, no patterns, verified creators **not** allowed |
+
+That last row is stricter than it looks and is worth keeping. Anything outside `actions/*` and
+`github/*` is refused at workflow **startup**, before any job's `if` is evaluated — so a blocked
+action fails the whole run even when the job referencing it would have been skipped. It caught
+`softprops/action-gh-release` in `release.yml` on 2026-08-16, on the first dispatch that workflow
+ever received, meaning it had not been runnable since Phase 13 wrote it. The fix was to drop the
+action for `gh` rather than add a pattern exception: that step runs with `contents: write`, which
+§2's audit named as the sharpest third-party risk in the repository. **Prefer removing an action
+over allowlisting one.**
 
 The release workflow requests `contents: write` explicitly in its own file, which is the correct
 granularity — the default token stays read-only.
@@ -186,6 +223,18 @@ If a force push succeeds, the ruleset is either **Disabled**, targeting the wron
 in its bypass list. Check enforcement status first — a ruleset saved in **Evaluate** mode reports
 what it *would* have done and blocks nothing.
 
+Without pushing anything, this asks GitHub which rules it will actually evaluate for a ref — which is
+a stronger answer than reading your own ruleset definitions back, since it resolves patterns, bypass
+lists and enforcement mode the way a real push will:
+
+```bash
+gh api repos/zyndata/vaulta-mark/rules/branches/main
+gh api repos/zyndata/vaulta-mark/rules/branches/dev
+```
+
+Both must list `deletion` and `non_fast_forward`. An empty array means nothing is protecting that
+branch, whatever the Rulesets page appears to say.
+
 ## 7. Publication — what was audited, 2026-08-15
 
 Publishing is one click and is **irreversible in practice**: the entire history, every branch, and
@@ -208,13 +257,18 @@ Applied immediately after the flip, in this order:
 
 1. **Private vulnerability reporting** (§5) — `SECURITY.md` and the issue chooser had been pointing
    at a form that could not exist until this was on.
-2. **Secret scanning, push protection, CodeQL** — all newly available, all off by default.
+2. **Secret scanning, push protection, CodeQL** — all newly available, all off by default. Their
+   two sub-toggles are *not* available on this plan; §5 records how that was established, because
+   the API reports success for both.
 3. **The `push` and `pull_request` triggers in
    [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml)**, restored. They had been
    removed while private because the upload step failed on every single push, and a permanently red
    check is worse than no check. On a public repository the upload works, and analysing each change
    as it lands is the entire point — weekly alone lets a bad commit sit for six days.
-4. **§1–§4's rulesets**, which had been unapplicable for the whole build.
+4. **§1–§4's rulesets**, which had been unapplicable for the whole build — three of them, `main`,
+   `dev` and `release-tags`, each with an **empty bypass list**, because a rule you can bypass does
+   not stop your own accident. Applying them is also what caught the *Require linear history* error
+   in §1: a setting nobody could turn on was a setting nobody had checked.
 5. **Pages** — Settings → Pages → Deploy from a branch → `main` / `docs`, which is what finally
    answers the Store's privacy-policy URL ([RELEASE §8](RELEASE.md#8-store-listing-checklist)). It
    serves from `main`, so it is empty until a release merge lands there.

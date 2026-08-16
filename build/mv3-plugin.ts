@@ -50,6 +50,15 @@ export interface Mv3PluginOptions {
    */
   env?: {
     readonly clientId?: string | undefined;
+    /**
+     * The client id for the *unpacked* extension id, when that is a different one.
+     *
+     * A Chrome-extension OAuth client is registered against exactly one Item ID, so the Store id and
+     * a development id need two clients — and the id that must ship in the Store package is the one
+     * that would break every local Drive test if it were the only one configured. Optional: with it
+     * unset a development build falls back to `clientId`, which is the correct single-client setup.
+     */
+    readonly clientIdDev?: string | undefined;
     readonly key?: string | undefined;
   };
 }
@@ -78,10 +87,14 @@ export function mv3(options: Mv3PluginOptions): Plugin {
         fileName: 'manifest.json',
         source: `${JSON.stringify(
           buildManifest(options.version, {
-            // Both from the environment (RELEASE §5), because neither belongs in the repository:
-            // the client id is public but is per-Google-project, and the key pins a *development*
+            // All from the environment (RELEASE §5), because none of it belongs in the repository:
+            // the client ids are public but are per-Google-project, and the key pins a *development*
             // extension id and must never reach a Store build — hence the mode check.
-            clientId: options.env?.clientId,
+            //
+            // The client id is chosen by the same check, because the id it authorises is chosen by
+            // the same check: `key` pins the unpacked id, its absence hands the id to the Store, and
+            // an OAuth client answers to one Item ID. Falling back keeps a one-client setup working.
+            clientId: (development ? options.env?.clientIdDev : undefined) ?? options.env?.clientId,
             ...(development ? { key: options.env?.key } : {}),
           }),
           null,

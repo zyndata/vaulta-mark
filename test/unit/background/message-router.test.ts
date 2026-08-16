@@ -8,6 +8,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { AUTOLOCK_ALARM, HOUSEKEEPING_ALARM } from '../../../src/background/autolock.js';
 import { VaultRepository } from '../../../src/storage/repo.js';
 import { DEFAULT_SETTINGS, ROOT_ID } from '../../../src/vault/types.js';
+import { budgetMs } from '../../helpers/budget.js';
 import {
   installChromeMock,
   uninstallChromeMock,
@@ -20,11 +21,12 @@ const PASSWORD = 'correct horse battery staple';
 /**
  * The cold-start budget from ARCHITECTURE §7.2, in milliseconds.
  *
- * CI runners are roughly 3× slower than a development machine, and the number that matters is the
- * one on the user's hardware — so the budget is the spec's 50 ms locally and tripled in CI rather
- * than being relaxed to the point where it would stop catching a regression.
+ * The spec's 50 ms is the number that matters, because it is the one on the user's hardware. It is
+ * tripled rather than dropped whenever this run cannot measure it honestly — a CI runner is about
+ * 3× slower, and so, in effect, is a laptop running ninety-five test files at once. Which of the
+ * two applies is decided in one place: see `test/helpers/budget.ts`.
  */
-const COLD_START_BUDGET_MS = process.env['CI'] === undefined ? 50 : 150;
+const COLD_START_BUDGET_MS = budgetMs(50, 150);
 
 type WorkerModule = typeof import('../../../src/background/index.js');
 

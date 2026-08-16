@@ -41,9 +41,9 @@ retake is a command rather than an afternoon:
 | Screenshots | 1280 × 800 PNG, five of them | `docs/store/screenshot-{1..5}-*.png` |
 | Small promo tile | 440 × 280 PNG | `docs/store/promo-440x280.png` |
 | Marquee promo tile | 1400 × 560 PNG — only needed if the listing is ever considered for featuring | not produced; optional |
-| Short description | ≤ 132 characters | §2 below (131) |
+| Short description | ≤ 132 characters | §2 below (129) |
 | Detailed description | Leads with the differentiators; states the no-recovery warning; explains both sync tiers | §3 below |
-| Category | Productivity | fixed |
+| Category | **Privacy & Security** | chosen 2026-08-15 — see below |
 | Language | English (United States) | fixed |
 | Privacy policy URL | <https://zyndata.github.io/vaulta-mark/PRIVACY> | Pages, from `main`/`docs` — [PRIVACY.md](PRIVACY.md) |
 | Single-purpose statement | one sentence | §4 below |
@@ -51,6 +51,19 @@ retake is a command rather than an afternoon:
 | Data-usage disclosures | "No data collected" across the board | §6 below |
 | Support URL | <https://github.com/zyndata/vaulta-mark/issues> | restored 2026-08-15 |
 | Homepage URL | <https://github.com/zyndata/vaulta-mark> | restored 2026-08-15 |
+
+### The category
+
+**Privacy & Security**, decided at the dashboard on 2026-08-15. Phase 0 wrote *Productivity* and
+carried it to Phase 13 unexamined; it was never a decision, only the obvious label for "a bookmark
+manager". The listing that was actually written argues from the other side — the short description
+leads with *password-encrypted*, four of the six differentiators are privacy properties, and §4's
+single purpose is a vault. A browsing category is where a person decides what a thing is *for*, and
+this one is for keeping bookmarks out of somebody else's reach.
+
+It also costs nothing to be wrong about: the category is editable on a published listing without a
+new package. PLAN §9 Phase 0 still names `Productivity` in its description of what that phase was
+asked to draft, which is left as written — it is a record of the task, not of the listing.
 
 ### The icon
 
@@ -90,64 +103,69 @@ Light mode for 1–4 and dark for 5, so both themes appear in the strip.
 ## 2. Short description (≤ 132 characters)
 
 > Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito.
-> Optional sync via your own Google Drive.
+> Optional sync via your Google Drive.
 
-**131 characters.** Settled in [PLAN.md §11](../PLAN.md#11-risks--open-questions); Phase 13 may adjust
-only for length or clarity.
+**129 characters**, and this is also the manifest's `extDescription` — the same string is the Store's
+short description and the toolbar tooltip's subtitle, so there is one place to change it:
+`public/_locales/en/messages.json`.
 
-## 3. Detailed description (draft)
+The wording settled in [PLAN.md §11](../PLAN.md#11-risks--open-questions) said *your **own** Google
+Drive* and was recorded as 131 characters. It was 133, nobody counted it, and the 1.0.0 upload was
+**rejected** for it: the limit is a hard 132 and the Store refuses the package rather than truncating
+the text. Dropping "own" is the smallest edit that keeps the claim ("your Google Drive" is still not
+ours) and leaves three characters of margin. `scripts/verify-manifest.mjs` measures it now, so the
+next one fails locally instead of at the upload form.
 
-> **Bookmarks Chrome doesn't know about.**
->
-> VaultaMark keeps your bookmarks in a password-encrypted vault stored completely outside Chrome's
-> bookmark and history systems. Chrome never learns those URLs are bookmarked — so they can never
-> surface in address-bar autocomplete while someone is watching you type.
->
-> **What makes it different**
->
-> • **Synced through your own Google Drive.** Optional and opt-in, using the narrow `drive.file`
->   scope — the extension can only see the file it created. There is no VaultaMark server, because
->   there is no VaultaMark company.
-> • **Stored entirely outside Chrome's bookmarks.** This is the whole point. Vaulted URLs cannot
->   autocomplete in the address bar.
-> • **Link previews, captured once.** The page's preview image is saved when you bookmark it, then
->   encrypted. Browsing your vault afterwards makes zero network requests.
-> • **Every vaulted link opens in an incognito window.** No history, no cache, no trace.
-> • **One-click history cleanup** for domains you have vaulted — closing the "but I visited it once"
->   leak that bookmark-only tools miss.
-> • **Zero config by default.** Chrome sync works immediately, with no sign-in and no extra
->   permissions. Connect Drive when you want more room and previews.
->
-> **How the encryption works**
->
-> Your master password is stretched with PBKDF2-HMAC-SHA256 (600,000 iterations) into a key that
-> unwraps a random 256-bit vault key. Every title, URL, folder name, tag, note, and thumbnail is
-> encrypted with AES-256-GCM before it is stored anywhere. The password is never stored and never
-> transmitted, and there is no recovery mechanism for anyone to be compelled to use.
->
-> **⚠️ There is no password recovery**
->
-> None. Not by the developer, not by Google, not by anyone. No recovery key exists, and no backdoor
-> exists. If you forget your master password, your vault is permanently unreadable — that is the
-> design, and it is the reason nobody can be compelled to hand over your bookmarks. Use the built-in
-> encrypted export as your backup.
->
-> **Privacy**
->
-> No telemetry. No analytics. No error reporting. No accounts. No network requests at all, except to
-> your own Google Drive when you have connected it. This is enforced by automated checks that fail
-> the build, not just promised in a listing.
->
-> **Two sync tiers**
->
-> Chrome sync (default): no setup, roughly 600 bookmarks, no thumbnails.
-> Google Drive (opt-in): effectively unlimited, with encrypted preview thumbnails.
->
-> Open source, GPL-3.0-only: <https://github.com/zyndata/vaulta-mark>
+## 3. Detailed description (as submitted, 2026-08-16)
+
+**The field renders plain text.** Markdown is not a formatting choice here, it is a bug: `**bold**`
+and backticks show up literally, so the structure has to come from capitalised headings, blank lines
+and plain hyphens. Paste this verbatim — 2,254 characters of 16,000.
+
+```text
+Bookmarks Chrome doesn't know about.
+
+VaultaMark keeps your bookmarks in a password-encrypted vault stored completely outside Chrome's bookmark and history systems. Chrome never learns those URLs are bookmarked, so they can never surface in address-bar autocomplete while someone is watching you type.
+
+WHAT MAKES IT DIFFERENT
+
+- Stored outside Chrome's bookmarks. This is the whole point: vaulted URLs cannot autocomplete in the address bar.
+- Every vaulted link opens in an incognito window. No history, no cache, no trace.
+- One-click history cleanup for domains you have vaulted, closing the "but I visited it once" leak that bookmark-only tools miss.
+- Link previews captured once, when you save the page, then encrypted. Browsing your vault afterwards makes zero network requests.
+- Optional sync through your own Google Drive, using the narrow drive.file scope, so the extension can only see the file it created. There is no VaultaMark server, because there is no VaultaMark company.
+- Zero config by default. Chrome sync works immediately, with no sign-in and no extra permissions.
+
+HOW THE ENCRYPTION WORKS
+
+Your master password is stretched with PBKDF2-HMAC-SHA256 (600,000 iterations) into a key that unwraps a random 256-bit vault key. Every title, URL, folder name, tag, note and thumbnail is encrypted with AES-256-GCM before it is stored anywhere. The password is never stored and never transmitted.
+
+THERE IS NO PASSWORD RECOVERY
+
+None. Not by the developer, not by Google, not by anyone. No recovery key exists and no backdoor exists. If you forget your master password, your vault is permanently unreadable. That is the design, and it is the reason nobody can be compelled to hand over your bookmarks. Use the built-in encrypted export as your backup.
+
+PRIVACY
+
+No telemetry. No analytics. No error reporting. No accounts. No network requests at all, except to your own Google Drive when you have connected it. This is enforced by automated checks that fail the build, not just promised in a listing.
+
+TWO SYNC TIERS
+
+Chrome sync (default): no setup, roughly 600 bookmarks, no thumbnails.
+Google Drive (opt-in): effectively unlimited, with encrypted preview thumbnails.
+
+Open source, GPL-3.0-only: https://github.com/zyndata/vaulta-mark
+```
 
 **The closing line is restored** (2026-08-15), verbatim as it was drafted and held back while the
-repository was private. Nothing else in the description changed — which was the point of writing it
-out and cutting it rather than leaving it to be composed on submission day.
+repository was private. Two things changed on submission day, both of them shortening: em dashes
+became commas and periods, and **the Drive paragraph, which the draft carried twice** — once in the
+feature list and again under "Two sync tiers" — is stated once in each place with the duplication
+gone. No claim was added. Everything the table below verifies survives word for word, which is why
+the table still applies to the text above it.
+
+What the draft was competing with is worth recording, because it is the failure mode of leaving copy
+to submission day: the field had been filled **by hand** with 368 characters that nobody had
+proofread, opening "VaultaMark is *a* extension".
 
 **Checked against the shipped 1.0.0 build**, claim by claim:
 
@@ -251,8 +269,8 @@ The first upload is manual: the Store API can only *update* an item, never creat
 ([RELEASE §6.1](RELEASE.md#61-developer-account-and-the-first-upload)). Everything after this is the
 gated `workflow_dispatch`.
 
-1. **Settle the privacy-policy URL.** Nothing below can be finished without it, and it is the one
-   item on this page with no answer yet.
+1. **Check the privacy-policy URL resolves** — <https://zyndata.github.io/vaulta-mark/PRIVACY>, 200
+   and `text/html`. It serves from `main`, so it is only live once the release merge has landed.
 2. Register the developer account ($5, one-time) and complete the publisher profile.
 3. `npm run build` — the **production** build, not `--mode development`. The Store assigns the
    extension id and a manifest `key` that disagrees with it breaks the upload, which is exactly why
@@ -262,9 +280,34 @@ gated `workflow_dispatch`.
 5. Paste §2, §3, §4 and the §5 justifications. Upload the five screenshots, the 128 × 128 store
    icon and the 440 × 280 promo tile from `docs/store/`.
 6. Answer §6 (nothing collected, three certifications) and §7 (no remote code).
-7. Category **Productivity**, language **English (United States)**.
+7. Category **Privacy & Security**, language **English (United States)**.
 8. Submit, then **register the extension id against the Drive OAuth client's Item ID**
    ([RELEASE §5.3](RELEASE.md#53-create-the-extension-oauth-client)) — the id changes from the
    development one, and Drive fails with `redirect_uri_mismatch` until it is updated.
 9. After review clears, `git tag`-driven releases take over and §8's answers are worth rereading
    only if a review question comes back.
+
+## 10. Test instructions (Access → Test instructions)
+
+Nothing scoped this field until submission day, and it is the one place where "there is no account"
+stops being a feature and becomes a problem: the reviewer installs the extension and is met by a
+password gate with **no test credentials to type**, because none exist anywhere in the product. Left
+blank, that is a review question at best. The field is capped at 500 characters; this is 493.
+
+```text
+No account or test credentials needed.
+
+1. Click the toolbar icon and create a vault with any password of 10+ characters. There is no recovery, so use a throwaway one.
+2. On any http/https page, click "Add this page" in the popup, or use the right-click entry.
+3. Click the saved item to open it in incognito. Enable "Allow in Incognito" for the extension first; the popup guides you if not.
+
+Everything stays local and encrypted. No network request unless Drive sync is connected in Settings.
+```
+
+The `10+ characters` is `MIN_PASSWORD_LENGTH` in `src/crypto/password.ts` — the only hard rule at
+creation, since the strength meter warns but never refuses. **If that constant moves, this text is
+wrong and nothing will catch it**, which is the cost of copy living in a dashboard.
+
+Step 3 exists because it is the step a reviewer will otherwise report as broken: without *Allow in
+Incognito* the extension explains rather than opening, and an explanation screen looks like a
+failure to someone who does not know it is a Chrome-level toggle we cannot set ourselves.

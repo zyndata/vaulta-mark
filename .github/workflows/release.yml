@@ -11,14 +11,21 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to publish (e.g. v1.2.3)'
-        required: true
+        # Not `required`, because `check_credentials` needs no tag and a form that demands one
+        # invites a throwaway value being typed into the field a release reads. The build job
+        # refuses an empty tag itself, which is a better place for the rule than the UI.
+        description: 'Tag to publish (e.g. v1.2.3) — leave empty for a credentials check'
+        required: false
       publish:
         description: 'Upload to the Chrome Web Store'
         type: boolean
         default: false
       auto_publish:
         description: 'Also submit for review (otherwise upload as a draft)'
+        type: boolean
+        default: false
+      check_credentials:
+        description: 'Only check the Store credentials — builds nothing, uploads nothing'
         type: boolean
         default: false
 
@@ -31,30 +38,102 @@ concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
+# Every `uses:` is pinned to a full commit SHA with the tag as a trailing comment — a tag is
+# mutable, and this is the workflow whose publish job holds a standing credential over the Store
+# listing. Dependabot maintains SHA pins and rewrites the comment.
+#
+# `${{ … }}` never appears inside a `run:` block here. `inputs.tag` is free text typed into the
+# dispatch form, and expression interpolation happens *before* the shell sees the script, so a
+# value like `v1.0.0"; curl …` would become shell code. Passing it through `env:` makes the shell
+# treat it as data.
+
 jobs:
+  # Reads the Store item and stops. It performs the same two-step authentication a publish does —
+  # refresh token to access token, then an authenticated request — so it exercises all four secrets
+  # together, which nothing else did: until this existed, the first real test of them would have
+  # been the first upload. It cannot upload or modify anything, so it is safe to run at any time,
+  # including during a review.
+  #
+  # It declares the environment, so it waits on the same human approval a publish does. That is not
+  # friction to be tidied away: the secrets are only reachable through that gate, and a check that
+  # bypassed it would be checking something other than what a publish uses.
+  check-credentials:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.check_credentials }}
+    runs-on: ubuntu-latest
+    environment: chrome-web-store
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      # No `npm ci`: the script uses nothing but Node's own fetch, which is the reason it is a
+      # script rather than a CLI invocation. A credentials check that first installs a dependency
+      # tree has a second thing that can fail and would report it as a credentials problem.
+      - name: Check the Chrome Web Store credentials
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: node scripts/check-store-credentials.mjs
+
   build:
+    if: ${{ !inputs.check_credentials }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # For the provenance attestation below: `id-token` mints the OIDC token that proves which
+      # workflow run signed, `attestations` writes the result.
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      # The extension's Drive OAuth client. A *repository variable*, not a secret: this value ships
+      # inside the manifest of every package, so hiding it would only make the logs harder to read
+      # while protecting nothing. It is kept out of the tree because it names one particular Google
+      # Cloud project (RELEASE §5.3), which is a different reason.
+      #
+      # Without it `build/manifest.ts` omits the `oauth2` block entirely and the package has no
+      # Drive at all — silently, because that omission is *correct* for a source build and is what
+      # every contributor's build does. The guard after `npm run build` is what stops that from
+      # being a release.
+      VM_OAUTH_CLIENT_ID: ${{ vars.VM_OAUTH_CLIENT_ID }}
     steps:
-      - uses: actions/checkout@v4
+      # `tag` is not a required input, so that a credentials check does not have to invent one.
+      # The rule still has to exist somewhere, and here is better than the form: without this, an
+      # empty tag falls back to `github.ref`, the checkout succeeds on whatever branch was
+      # dispatched from, and the failure surfaces two steps later as "dev is not an ancestor of
+      # main" — true, and not what went wrong.
+      - name: A release needs a tag
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.tag }}
+        run: |
+          echo "::error::No tag given. Fill in the tag to release, or tick check_credentials to" \
+               "run the credentials check instead, which needs no tag."
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.tag || github.ref }}
           # Full history, which also brings every branch ref — `origin/main` has to exist locally
           # for the ancestry check below to mean anything.
           fetch-depth: 0
+          # Nothing here talks to git over the network after the checkout, and the release upload
+          # authenticates through the action's own token rather than `.git/config`.
+          persist-credentials: false
 
       # `main` is what is reviewed, merged and shipped (RELEASE §1). A tag on `dev` would build
       # green and release code that never passed through a release merge.
       - name: Tag must be on main
         run: |
           if ! git merge-base --is-ancestor HEAD origin/main; then
-            echo "::error::${{ inputs.tag || github.ref_name }} is not an ancestor of main." \
+            echo "::error::$TAG is not an ancestor of main." \
                  "Releases are tagged on main after a --no-ff merge from dev (RELEASE §4)."
             exit 1
           fi
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -63,7 +142,7 @@ jobs:
       # Before the suite, not after: a mistyped tag should cost thirty seconds rather than the
       # full run. The manifest leg of the same check runs again after the build, below.
       - name: Version must match the tag
-        run: node scripts/check-version-sync.mjs "${{ inputs.tag || github.ref_name }}"
+        run: node scripts/check-version-sync.mjs "$TAG"
 
       # The notes are extracted here too, for the same reason — an unfinalized CHANGELOG section
       # is a mistake to catch before the build, not after the Release exists.
@@ -72,7 +151,7 @@ jobs:
         # without `pipefail`, so a pipeline would report tee's exit code and swallow the refusal.
         run: |
           mkdir -p release
-          node scripts/release-notes.mjs "${{ inputs.tag || github.ref_name }}" > release/NOTES.md
+          node scripts/release-notes.mjs "$TAG" > release/NOTES.md
           cat release/NOTES.md
 
       - run: npm run lint
@@ -80,15 +159,37 @@ jobs:
       # Already runs with coverage; the thresholds gate here as they do in ci.
       - run: npm run test
       - run: npm run build
+
+      # A released package with no `oauth2` block installs and runs, and Google Drive is simply
+      # absent from it — no error, no empty state that explains itself, just a feature the listing
+      # promises and the build does not have. The omission is not a bug in the build: it is the
+      # correct behaviour for anyone building from source without a Google project, which is why
+      # nothing downstream objects to it. So the refusal belongs here, on the one path where the
+      # artifact is going to be handed to users.
+      #
+      # Checked by reading the built manifest rather than by testing whether the variable was set,
+      # because what matters is what is in the package.
+      - name: The released package must be able to reach Drive
+        run: |
+          node -e '
+            const m = require("./dist/manifest.json");
+            const id = m.oauth2?.client_id;
+            if (id) { console.log("oauth2.client_id present:", id); process.exit(0); }
+            console.log("::error::The built manifest has no oauth2 block, so Google Drive is " +
+              "absent from this package. Set the VM_OAUTH_CLIENT_ID repository variable to the " +
+              "Store extension OAuth client (RELEASE section 5.3).");
+            process.exit(1);
+          '
+
       - run: npm run verify:invariants
       - run: node scripts/check-budgets.mjs --report release/bundle-report.md
 
       - name: The built manifest must match too
-        run: node scripts/check-version-sync.mjs "${{ inputs.tag || github.ref_name }}" --built
+        run: node scripts/check-version-sync.mjs "$TAG" --built
 
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: playwright-report
@@ -106,17 +207,49 @@ jobs:
           sha256sum *.zip > SHA256SUMS
           cat SHA256SUMS
 
-      - uses: softprops/action-gh-release@v2
+      # The checksum says two files are the same file. This says *where the file came from*: the
+      # attestation binds the zip's digest to this workflow run, this commit and this builder, and
+      # a user checks it with `gh attestation verify --owner zyndata release/vaulta-mark-1.0.0.zip`.
+      # Free on public repositories, and the two claims answer different questions — keep both.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
-          body_path: release/NOTES.md
-          files: |
-            release/*.zip
-            release/SHA256SUMS
-          draft: false
-          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
+          subject-path: release/*.zip
 
-      - uses: actions/upload-artifact@v4
+      # GitHub's own `gh`, preinstalled on the runner, rather than a third-party action.
+      #
+      # `softprops/action-gh-release` was refused outright: this repository's Actions policy allows
+      # GitHub-owned actions only, and the refusal happens at **startup**, before any job's `if` is
+      # evaluated — so the first dispatch of this workflow failed without running anything, and
+      # release.yml had in fact never been runnable since Phase 13 wrote it. Nothing could have
+      # caught that except dispatching it, which is why the credentials check exists one job up.
+      #
+      # Loosening the policy for one action was the other way out and is the weaker one. This is
+      # the step that runs with `contents: write`, and the 2026-08-15 audit named exactly that —
+      # a third-party action holding write access to the repository — as the sharpest reason for
+      # the SHA pins above. Removing it is better than pinning it.
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ contains(inputs.tag || github.ref_name, '-') }}
+        run: |
+          files=(release/*.zip release/SHA256SUMS)
+          notes=(--notes-file release/NOTES.md)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # A re-run — an e2e flake, most likely. The release already exists, so the assets have
+            # to *replace* rather than be added, or the upload fails on a name collision. This is
+            # the one behaviour the third-party action gave for free.
+            echo "Release $TAG exists; updating it."
+            gh release upload "$TAG" "${files[@]}" --clobber
+            gh release edit "$TAG" "${notes[@]}"
+          else
+            # --verify-tag: refuse to invent a tag. A dispatch takes free text, and a typo would
+            # otherwise publish a release pointing at a tag that never existed.
+            args=(--title "$TAG" --verify-tag "${notes[@]}")
+            if [ "$PRERELEASE" = "true" ]; then args+=(--prerelease); fi
+            gh release create "$TAG" "${files[@]}" "${args[@]}"
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: package
           path: release/
@@ -127,8 +260,13 @@ jobs:
     # Never on a bare tag push: `inputs` is empty there, so this is false without having to say so.
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
     runs-on: ubuntu-latest
-    # Configured with required reviewers, so a publish waits for a human (RELEASE §6.5).
+    # Configured with required reviewers, so a publish waits for a human (RELEASE §6.5). The four
+    # CWS_* secrets are *environment* secrets on it, not repository secrets, so they exist only
+    # for a run that passed the review gate.
     environment: chrome-web-store
+    env:
+      TAG: ${{ inputs.tag }}
+      AUTO_PUBLISH: ${{ inputs.auto_publish }}
     steps:
       # A pre-release is a GitHub artifact only. Chrome sorts `1.2.0.1` *below* `1.2.0`, so an
       # uploaded rc would make the real 1.2.0 unpublishable — see ARCHITECTURE §2. Refuse it here
@@ -136,19 +274,23 @@ jobs:
       - name: Pre-releases are never published
         if: ${{ contains(inputs.tag, '-') }}
         run: |
-          echo "::error::${{ inputs.tag }} is a pre-release. Chrome sorts its mapped version below" \
+          echo "::error::$TAG is a pre-release. Chrome sorts its mapped version below" \
                "the final one, so uploading it would block the real release (ARCHITECTURE §2)."
           exit 1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: package
           path: release/
 
-      - run: npm install -g chrome-webstore-upload-cli@3
+      # Exact version, not `@3`: this runs in the one job whose environment holds the Store
+      # credentials, so a compromised patch release of the CLI or of anything it depends on would
+      # execute with them in `process.env`. `--ignore-scripts` denies that tree an install hook.
+      # The pin is bumped deliberately, after reading what changed.
+      - run: npm install -g --ignore-scripts chrome-webstore-upload-cli@3.5.0
 
       # Uploads a draft unless `auto_publish` was also ticked. Leave it off until several releases
       # have gone through cleanly — the Store has no rollback (RELEASE §10).
@@ -159,6 +301,8 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
           REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
         run: |
-          chrome-webstore-upload upload \
-            --source release/vaulta-mark-*.zip \
-            ${{ inputs.auto_publish && '--auto-publish' || '' }}
+          if [ "$AUTO_PUBLISH" = "true" ]; then
+            chrome-webstore-upload upload --source release/vaulta-mark-*.zip --auto-publish
+          else
+            chrome-webstore-upload upload --source release/vaulta-mark-*.zip
+          fi

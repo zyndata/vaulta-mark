@@ -11,6 +11,14 @@ const lock = JSON.parse(
   ),
 ) as Record<string, unknown>;
 
+// The source locale, which is copied verbatim into `dist/_locales/` — the file the Store reads.
+const messages = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL('../../../public/_locales/en/messages.json', import.meta.url)),
+    'utf8',
+  ),
+) as Record<string, unknown>;
+
 const good = (): Record<string, unknown> =>
   JSON.parse(JSON.stringify(buildManifest('1.0.0'))) as Record<string, unknown>;
 
@@ -85,5 +93,39 @@ describe('manifest scanner (INV-2, INV-9)', () => {
         '\n',
       ),
     ).toMatch(/background must be/);
+  });
+});
+
+describe('Chrome Web Store field limits', () => {
+  it('accepts the strings this repository actually ships', () => {
+    expect(checkManifest(good(), lock, messages)).toEqual([]);
+  });
+
+  // The 1.0.0 upload was refused for a 133-character description, after the zip had transferred.
+  it('rejects a description one character over the limit', () => {
+    const over = { ...messages, extDescription: { message: 'x'.repeat(133) } };
+    expect(checkManifest(good(), lock, over).join('\n')).toMatch(
+      /description is 133 characters, over the Chrome Web Store's limit of 132/,
+    );
+    const at = { ...messages, extDescription: { message: 'x'.repeat(132) } };
+    expect(checkManifest(good(), lock, at)).toEqual([]);
+  });
+
+  it('rejects a name over the limit', () => {
+    const over = { ...messages, extName: { message: 'x'.repeat(46) } };
+    expect(checkManifest(good(), lock, over).join('\n')).toMatch(/name is 46 characters/);
+  });
+
+  it('rejects a placeholder the locale does not define', () => {
+    const missing = { ...messages };
+    delete missing['extDescription'];
+    expect(checkManifest(good(), lock, missing).join('\n')).toMatch(
+      /description is "__MSG_extDescription__", which _locales\/en\/messages\.json does not resolve/,
+    );
+  });
+
+  it('measures a literal too, in case the manifest ever stops using placeholders', () => {
+    const manifest = { ...good(), description: 'x'.repeat(133) };
+    expect(checkManifest(manifest, lock, messages).join('\n')).toMatch(/description is 133/);
   });
 });
