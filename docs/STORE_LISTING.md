@@ -116,59 +116,56 @@ the text. Dropping "own" is the smallest edit that keeps the claim ("your Google
 ours) and leaves three characters of margin. `scripts/verify-manifest.mjs` measures it now, so the
 next one fails locally instead of at the upload form.
 
-## 3. Detailed description (draft)
+## 3. Detailed description (as submitted, 2026-08-16)
 
-> **Bookmarks Chrome doesn't know about.**
->
-> VaultaMark keeps your bookmarks in a password-encrypted vault stored completely outside Chrome's
-> bookmark and history systems. Chrome never learns those URLs are bookmarked — so they can never
-> surface in address-bar autocomplete while someone is watching you type.
->
-> **What makes it different**
->
-> • **Synced through your own Google Drive.** Optional and opt-in, using the narrow `drive.file`
->   scope — the extension can only see the file it created. There is no VaultaMark server, because
->   there is no VaultaMark company.
-> • **Stored entirely outside Chrome's bookmarks.** This is the whole point. Vaulted URLs cannot
->   autocomplete in the address bar.
-> • **Link previews, captured once.** The page's preview image is saved when you bookmark it, then
->   encrypted. Browsing your vault afterwards makes zero network requests.
-> • **Every vaulted link opens in an incognito window.** No history, no cache, no trace.
-> • **One-click history cleanup** for domains you have vaulted — closing the "but I visited it once"
->   leak that bookmark-only tools miss.
-> • **Zero config by default.** Chrome sync works immediately, with no sign-in and no extra
->   permissions. Connect Drive when you want more room and previews.
->
-> **How the encryption works**
->
-> Your master password is stretched with PBKDF2-HMAC-SHA256 (600,000 iterations) into a key that
-> unwraps a random 256-bit vault key. Every title, URL, folder name, tag, note, and thumbnail is
-> encrypted with AES-256-GCM before it is stored anywhere. The password is never stored and never
-> transmitted, and there is no recovery mechanism for anyone to be compelled to use.
->
-> **⚠️ There is no password recovery**
->
-> None. Not by the developer, not by Google, not by anyone. No recovery key exists, and no backdoor
-> exists. If you forget your master password, your vault is permanently unreadable — that is the
-> design, and it is the reason nobody can be compelled to hand over your bookmarks. Use the built-in
-> encrypted export as your backup.
->
-> **Privacy**
->
-> No telemetry. No analytics. No error reporting. No accounts. No network requests at all, except to
-> your own Google Drive when you have connected it. This is enforced by automated checks that fail
-> the build, not just promised in a listing.
->
-> **Two sync tiers**
->
-> Chrome sync (default): no setup, roughly 600 bookmarks, no thumbnails.
-> Google Drive (opt-in): effectively unlimited, with encrypted preview thumbnails.
->
-> Open source, GPL-3.0-only: <https://github.com/zyndata/vaulta-mark>
+**The field renders plain text.** Markdown is not a formatting choice here, it is a bug: `**bold**`
+and backticks show up literally, so the structure has to come from capitalised headings, blank lines
+and plain hyphens. Paste this verbatim — 2,254 characters of 16,000.
+
+```text
+Bookmarks Chrome doesn't know about.
+
+VaultaMark keeps your bookmarks in a password-encrypted vault stored completely outside Chrome's bookmark and history systems. Chrome never learns those URLs are bookmarked, so they can never surface in address-bar autocomplete while someone is watching you type.
+
+WHAT MAKES IT DIFFERENT
+
+- Stored outside Chrome's bookmarks. This is the whole point: vaulted URLs cannot autocomplete in the address bar.
+- Every vaulted link opens in an incognito window. No history, no cache, no trace.
+- One-click history cleanup for domains you have vaulted, closing the "but I visited it once" leak that bookmark-only tools miss.
+- Link previews captured once, when you save the page, then encrypted. Browsing your vault afterwards makes zero network requests.
+- Optional sync through your own Google Drive, using the narrow drive.file scope, so the extension can only see the file it created. There is no VaultaMark server, because there is no VaultaMark company.
+- Zero config by default. Chrome sync works immediately, with no sign-in and no extra permissions.
+
+HOW THE ENCRYPTION WORKS
+
+Your master password is stretched with PBKDF2-HMAC-SHA256 (600,000 iterations) into a key that unwraps a random 256-bit vault key. Every title, URL, folder name, tag, note and thumbnail is encrypted with AES-256-GCM before it is stored anywhere. The password is never stored and never transmitted.
+
+THERE IS NO PASSWORD RECOVERY
+
+None. Not by the developer, not by Google, not by anyone. No recovery key exists and no backdoor exists. If you forget your master password, your vault is permanently unreadable. That is the design, and it is the reason nobody can be compelled to hand over your bookmarks. Use the built-in encrypted export as your backup.
+
+PRIVACY
+
+No telemetry. No analytics. No error reporting. No accounts. No network requests at all, except to your own Google Drive when you have connected it. This is enforced by automated checks that fail the build, not just promised in a listing.
+
+TWO SYNC TIERS
+
+Chrome sync (default): no setup, roughly 600 bookmarks, no thumbnails.
+Google Drive (opt-in): effectively unlimited, with encrypted preview thumbnails.
+
+Open source, GPL-3.0-only: https://github.com/zyndata/vaulta-mark
+```
 
 **The closing line is restored** (2026-08-15), verbatim as it was drafted and held back while the
-repository was private. Nothing else in the description changed — which was the point of writing it
-out and cutting it rather than leaving it to be composed on submission day.
+repository was private. Two things changed on submission day, both of them shortening: em dashes
+became commas and periods, and **the Drive paragraph, which the draft carried twice** — once in the
+feature list and again under "Two sync tiers" — is stated once in each place with the duplication
+gone. No claim was added. Everything the table below verifies survives word for word, which is why
+the table still applies to the text above it.
+
+What the draft was competing with is worth recording, because it is the failure mode of leaving copy
+to submission day: the field had been filled **by hand** with 368 characters that nobody had
+proofread, opening "VaultaMark is *a* extension".
 
 **Checked against the shipped 1.0.0 build**, claim by claim:
 
@@ -289,3 +286,28 @@ gated `workflow_dispatch`.
    development one, and Drive fails with `redirect_uri_mismatch` until it is updated.
 9. After review clears, `git tag`-driven releases take over and §8's answers are worth rereading
    only if a review question comes back.
+
+## 10. Test instructions (Access → Test instructions)
+
+Nothing scoped this field until submission day, and it is the one place where "there is no account"
+stops being a feature and becomes a problem: the reviewer installs the extension and is met by a
+password gate with **no test credentials to type**, because none exist anywhere in the product. Left
+blank, that is a review question at best. The field is capped at 500 characters; this is 493.
+
+```text
+No account or test credentials needed.
+
+1. Click the toolbar icon and create a vault with any password of 10+ characters. There is no recovery, so use a throwaway one.
+2. On any http/https page, click "Add this page" in the popup, or use the right-click entry.
+3. Click the saved item to open it in incognito. Enable "Allow in Incognito" for the extension first; the popup guides you if not.
+
+Everything stays local and encrypted. No network request unless Drive sync is connected in Settings.
+```
+
+The `10+ characters` is `MIN_PASSWORD_LENGTH` in `src/crypto/password.ts` — the only hard rule at
+creation, since the strength meter warns but never refuses. **If that constant moves, this text is
+wrong and nothing will catch it**, which is the cost of copy living in a dashboard.
+
+Step 3 exists because it is the step a reviewer will otherwise report as broken: without *Allow in
+Incognito* the extension explains rather than opening, and an explanation screen looks like a
+failure to someone who does not know it is a Chrome-level toggle we cannot set ourselves.
