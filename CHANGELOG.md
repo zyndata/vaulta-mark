@@ -35,6 +35,14 @@ below.
 
 ### Changed
 
+- **The popup's settings screen is now the quick ones, with a door to the rest.** It keeps auto-lock —
+  the setting people change in the moment, on their way past — and a new *All settings in the
+  manager* button at the bottom opens the manager on its settings screen, where the other seven
+  sections already lived. *Opening and saving* (reuse the incognito window, strip tracking
+  parameters) moved out of the popup for the same reason it was worth moving: both are decided once,
+  and switching tracking-parameter stripping on offers to rewrite every bookmark you have, which is
+  not a question to answer in a 422-pixel column. Nothing was removed from the product; both switches
+  are in the manager, worded exactly as before.
 - **Buttons that take a moment now say so.** *Sync now* (in Settings and in the toolbar) reports that
   it is working and then that it finished, rather than doing nothing visible for a network round trip
   and silently rewriting a line elsewhere on the screen. The history dry run and the history deletion

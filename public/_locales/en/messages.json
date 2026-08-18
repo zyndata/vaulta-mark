@@ -1202,6 +1202,14 @@
     "message": "‹ Back",
     "description": "Returns the popup from the settings screen to the bookmark list."
   },
+  "settingsAllInManager": {
+    "message": "All settings in the manager",
+    "description": "Button at the bottom of the popup's settings screen. Opens the manager on its own settings screen, which holds the sections the popup does not."
+  },
+  "settingsAllInManagerHint": {
+    "message": "Appearance, sync, privacy, password, backups.",
+    "description": "Hint under the popup's 'All settings in the manager' button, naming what is not on the popup's screen. Kept to one line at the popup's fixed width — it is a signpost, not a sentence."
+  },
   "settingsBackToBookmarks": {
     "message": "Back to bookmarks",
     "description": "Button that leaves the manager's settings screen."

@@ -304,6 +304,32 @@ test('has no critical or serious accessibility violations', async () => {
 });
 
 /**
+ * `manager.html#settings` — the popup's "All settings in the manager" button.
+ *
+ * The popup's own settings screen keeps auto-lock and hands the other seven sections over, so this
+ * hash is the whole of that handover: it has to land on the settings screen rather than the list, and
+ * it has to be *spent*. The manager's screens are not addressable — Back changes the screen without
+ * touching the URL — so a hash left in the address bar would describe a screen the user has left, and
+ * would put it back on reload.
+ */
+test('#settings opens the manager on its settings screen and then spends the hash', async () => {
+  const page = await openPage('manager.html#settings');
+  await expect(page.getByRole('button', { name: 'Back to bookmarks' })).toBeVisible();
+  expect(new URL(page.url()).hash).toBe('');
+
+  // And the list underneath finished loading regardless: settings replaces the layout rather than
+  // standing in for it, so Back has somewhere to go.
+  await page.getByRole('button', { name: 'Back to bookmarks' }).click();
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+
+  // A reload with the hash gone is the plain manager, which is the point of spending it.
+  await page.reload();
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back to bookmarks' })).toHaveCount(0);
+  await page.close();
+});
+
+/**
  * The incognito prompt is its own document at its own address, and the one page here that a user
  * reaches while something is *wrong* — which is exactly when a missing label costs most.
  */

@@ -74,7 +74,20 @@ const STATUS_MS = 6_000;
 /** A dragged or arrowed column width settles before it is written to settings. */
 const WIDTH_SAVE_MS = 300;
 
-export function mountManager(root: HTMLElement, initial: StateResponse): void {
+export interface ManagerOptions {
+  /**
+   * Which screen to open on, when something outside the manager asked for one.
+   *
+   * Only settings, and only from the popup: everything else about the manager starts on the list.
+   */
+  readonly screen?: 'settings';
+}
+
+export function mountManager(
+  root: HTMLElement,
+  initial: StateResponse,
+  options: ManagerOptions = {},
+): void {
   const state: ManagerState = initialState();
   let settings: VaultSettings = initial.settings;
   // The sort order is a stored preference, so the manager opens the way it was left.
@@ -1681,6 +1694,11 @@ export function mountManager(root: HTMLElement, initial: StateResponse): void {
   void refreshSync();
   void refreshHistory();
   void refreshIncognitoNudge();
+
+  // Last, and not awaited by any of the above: the settings screen is built from its own questions
+  // to the worker and replaces the layout rather than depending on it, so the list can go on loading
+  // underneath. Back leaves the manager on a list that is already there.
+  if (options.screen === 'settings') void openSettings();
 }
 
 /** Spelled out rather than derived from the key, so a renamed sort key breaks the build. */
