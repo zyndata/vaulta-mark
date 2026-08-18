@@ -1507,12 +1507,16 @@ a Chrome Web Store submission.
       so is the `v0.0.0-test` dry run the Tests list asks for: the job refuses any tag that is not
       an ancestor of `main`, and `main` is four phases behind `dev` until the release merge. A dry
       run that passed the ancestry check today would be building Phase-0 code.
-- [ ] `workflow_dispatch` with `publish: true` uploads a draft to the Store (verified once the item
-      exists). — the item exists now (`nfcfgnaefnkpmoiagnamdacpohifncpl`, uploaded by hand
-      2026-08-15, published 2026-08-16), so the API's create-versus-update limitation no longer
-      blocks anything and this is verified by the first automated upload, which is 1.1.0. The
-      credentials themselves were exercised against the live item on 2026-08-16 by the
-      `check_credentials` dispatch (RELEASE §6.5).
+- [x] `workflow_dispatch` with `publish: true` uploads a draft to the Store (verified once the item
+      exists). — **verified 2026-08-18**, uploading `vaulta-mark-1.1.0.zip` as a draft against item
+      `nfcfgnaefnkpmoiagnamdacpohifncpl`. It could not be verified before, because the API can only
+      *update* an item and the item did not exist until it was uploaded by hand on 2026-08-15.
+      The first dispatch **failed**, and usefully: the `publish` job had no `actions/checkout`, so
+      `setup-node`'s `node-version-file: .nvmrc` found an empty workspace and the job died before
+      the upload. It had never been runnable since this phase wrote it. That is the second finding
+      of that exact shape in `release.yml` — the first was `softprops/action-gh-release` being
+      refused at startup — and both say the same thing: **a release path is proven by dispatching
+      it, never by a green build.** The human gate was observed working across both runs.
 - [x] All four Store secrets documented end-to-end in `docs/RELEASE.md`, with screenshots-in-words
       for each Google Cloud step. — RELEASE §6.1–§6.5, including the two flags without which Google
       returns no refresh token and why a Testing-status consent screen expires one after 7 days.
