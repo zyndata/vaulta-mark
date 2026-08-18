@@ -438,6 +438,11 @@ variable finding its way into a shipped artifact.
    after that can use the automation.
 4. Note the **extension ID** from the dashboard URL — that is `EXTENSION_ID`.
 
+> **Done.** The item is `nfcfgnaefnkpmoiagnamdacpohifncpl`, uploaded by hand on 2026-08-15 and
+> published on 2026-08-16 — so step 3's one-time exception is spent, and **1.1.0 onward goes up
+> through the `publish` job in §7**. The credentials were exercised against the live item before
+> the first automated upload, which is what `check_credentials` is for (§6.5).
+
 ### 6.2 Enable the Chrome Web Store API
 
 In the same Google Cloud project as §5:

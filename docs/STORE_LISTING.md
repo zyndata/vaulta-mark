@@ -41,7 +41,7 @@ retake is a command rather than an afternoon:
 | Screenshots | 1280 × 800 PNG, five of them | `docs/store/screenshot-{1..5}-*.png` |
 | Small promo tile | 440 × 280 PNG | `docs/store/promo-440x280.png` |
 | Marquee promo tile | 1400 × 560 PNG — only needed if the listing is ever considered for featuring | not produced; optional |
-| Short description | ≤ 132 characters | §2 below (129) — **rewritten 2026-08-18, awaiting a package upload** |
+| Short description | ≤ 132 characters | §2 below (129) — rewritten 2026-08-18, reaches the listing with the 1.1.0 package |
 | Detailed description | Leads with the differentiators; states the no-recovery warning; explains both sync tiers | §3 below — one bullet edited 2026-08-18, editable in the dashboard without a package |
 | Category | **Privacy & Security** | chosen 2026-08-15 — see below |
 | Language | English (United States) | fixed |
@@ -86,6 +86,12 @@ part a person recognises in a toolbar.
 | 3 | `screenshot-3-search.png` | `tag:crypto` narrowing the vault, reaching into folders. Light. |
 | 4 | `screenshot-4-sync.png` | Settings: both tiers, Drive disconnected, the quota bar. Light. |
 | 5 | `screenshot-5-no-recovery.png` | Setup step 2 — the no-recovery warning, and the phrase you have to type. Dark. |
+
+**Retaken for 1.1.0: shots 1 and 3, and only those two.** Folder rows in the sidebar gained the
+pencil that tag rows have had since Phase 6, so the two shots showing the sidebar were out of date
+and the other three came back byte-identical from the same script. That is worth knowing about the
+capture: it is deterministic, so a rerun that changes a file is telling you the UI changed, and a
+rerun that changes nothing is not a wasted afternoon.
 
 **Everything in them is invented.** Real, well-known destinations, so the favicons and domains look
 like a person's vault rather than a lorem-ipsum one, with titles, folders, tags and notes written
