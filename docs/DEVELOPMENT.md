@@ -230,19 +230,21 @@ feature deletes real browsing history. The logic is covered against a mocked `ch
 2. Vault the first pages. Open the manager → **Settings** → *Privacy*.
 3. It must explain the permission and offer the button, not reach for it. Press it and **decline
    once**: the panel says so and the history settings stay off.
-4. Accept, then press *Check what would be removed*. Read the count, expand *Review the list*, and
-   check the sites against `chrome://history` yourself. The unvaulted look-alike must **not** be
-   listed.
-5. Confirm the deletion. The reported number should match the dry run. Check `chrome://history`: the
-   vaulted sites are gone and the look-alike is still there.
-6. Type one of the removed addresses into the omnibox. It should no longer be suggested — that is
+4. Accept, then press *Check what would be removed*. Read the count and the sites under *Review the
+   list* (it opens itself for a short list) and check them against `chrome://history` yourself. The
+   unvaulted look-alike must **not** be listed.
+5. Press *Remove* on **one** site and confirm. Only that site's entries go; the rest of the list
+   stays on screen with the count above it reduced, and `chrome://history` agrees.
+6. Press *Remove all* and confirm. The reported number should match what is left in the list. Check
+   `chrome://history`: the vaulted sites are gone and the look-alike is still there.
+7. Type one of the removed addresses into the omnibox. It should no longer be suggested — that is
    the whole point, and the only way to see it is to look.
-7. Switch *Clear vaulted sites on lock* on, visit a vaulted site again, lock the vault, and check
+8. Switch *Clear vaulted sites on lock* on, visit a vaulted site again, lock the vault, and check
    `chrome://history`.
-8. Switch *Quick-close* on, open any page, press **Ctrl+Shift+X**. The tab closes and that site's
+9. Switch *Quick-close* on, open any page, press **Ctrl+Shift+X**. The tab closes and that site's
    history goes — including for a site that is not in the vault, which is what the setting says it
    does.
-9. Take the permission back on `chrome://extensions` and confirm the panel returns to step 3.
+10. Take the permission back on `chrome://extensions` and confirm the panel returns to step 3.
 
 ### 5.4 Drive sync, by hand
 

@@ -1,10 +1,14 @@
 /**
  * The manager page's entry point: which of the three screens this tab is.
  *
- * Almost always it is the vault manager (`app.ts`). Two exceptions, both here because they ask the
- * user to paste an address into the address bar and a popup closes the moment they click there:
+ * Almost always it is the vault manager (`app.ts`). Two exceptions, both here because they send the
+ * user off to a `chrome://` tab and wait for them to come back, which a popup does not survive:
  * `#incognito=<itemId>` is the guided prompt for "Allow in Incognito is off" (ARCHITECTURE §9), and
  * `?onboarding=1` is the first-run flow, opened once by `chrome.runtime.onInstalled`.
+ *
+ * `#settings` is not a third screen but an instruction to the manager about which of its own screens
+ * to open on — the popup's "All settings in the manager" button, which holds only the quick section
+ * and hands the other seven over.
  *
  * Nothing expensive happens at import time. The page paints its loading line, asks the worker one
  * question, and builds whichever screen the answer calls for.
@@ -21,6 +25,7 @@ import { mountOnboarding } from './onboarding/screen.js';
 import { resumeStep } from './onboarding/steps.js';
 
 const INCOGNITO_HASH = /^#incognito(?:=(.*))?$/u;
+const SETTINGS_HASH = '#settings';
 
 localize(document);
 
@@ -59,7 +64,18 @@ void (async () => {
     return;
   }
 
-  mountManager(root, state);
+  /*
+   * Consumed rather than kept.
+   *
+   * The manager's screens are not addressable — `showScreen` is a variable in `app.ts`, and Back
+   * changes it without touching the URL — so a hash left in the address bar would be a location that
+   * stops being true the moment someone presses "Back to bookmarks", and would come back on reload.
+   * It is a one-shot instruction from the popup, so it is spent here.
+   */
+  const settingsFirst = location.hash === SETTINGS_HASH;
+  if (settingsFirst) history.replaceState(null, '', location.pathname + location.search);
+
+  mountManager(root, state, settingsFirst ? { screen: 'settings' } : {});
 })();
 
 /**
@@ -110,7 +126,11 @@ async function showIncognitoPrompt(encoded: string | undefined): Promise<void> {
   render(
     root,
     incognitoPrompt({
-      settingsUrl: access.settingsUrl,
+      // The address comes from the worker — only it knows the extension id — and the tab is opened
+      // here, because `src/ui/**` renders and does not reach for `chrome.*`.
+      onOpenSettings: () => {
+        void chrome.tabs.create({ url: access.settingsUrl });
+      },
       onRecheck: async () => {
         const rechecked = await send({ type: 'INCOGNITO_ACCESS', recheck: true });
         return rechecked.type !== 'ERROR' && rechecked.allowed;

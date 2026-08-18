@@ -44,6 +44,14 @@ export interface ManagerState {
   tree: TreeResponse | null;
   view: ViewResponse | null;
   detail: ItemDetail | null;
+  /**
+   * Bookmarks Chrome's history still holds a visit to (§12.6).
+   *
+   * Empty while the optional `history` permission is ungranted, which is indistinguishable from
+   * "nothing is in history" on purpose: without the permission there is nothing we could truthfully
+   * say, and a warning drawn on a guess is worse than no warning.
+   */
+  inHistory: ReadonlySet<string>;
   /** The last thing that went wrong, for the status line. */
   error: ErrorCode | null;
 }
@@ -58,6 +66,7 @@ export function initialState(): ManagerState {
     tree: null,
     view: null,
     detail: null,
+    inHistory: new Set(),
     error: null,
   };
 }
@@ -165,6 +174,20 @@ export async function refreshView(state: ManagerState): Promise<void> {
     if (!present.has(id)) state.selection.delete(id);
   }
   if (state.cursor >= response.items.length) state.cursor = response.items.length - 1;
+}
+
+/**
+ * Ask which bookmarks are still in Chrome's history.
+ *
+ * Deliberately **not** part of `refreshAll`. It costs a search per vaulted domain, so it is asked
+ * when the manager opens and after the things that can change the answer — never on the path of a
+ * keystroke, a scroll or a selection. A failure leaves the previous answer alone rather than
+ * clearing it: a temporary refusal is not evidence that nothing is in history.
+ */
+export async function refreshHistoryPresence(state: ManagerState): Promise<void> {
+  const response = await send({ type: 'HISTORY_PRESENCE' });
+  if (response.type === 'ERROR') return;
+  state.inHistory = new Set(response.ids);
 }
 
 /** Load the detail pane for the single selected row, or clear it. */

@@ -227,6 +227,8 @@ export async function handleRequest(request: Request): Promise<Response> {
         };
       case 'RENAME_TAG':
         return { type: 'COUNT', count: await organize.renameTag(request.from, request.to) };
+      case 'DELETE_TAG':
+        return { type: 'COUNT', count: await organize.deleteTag(request.tag) };
       case 'COUNT_TRACKING_PARAMS':
         return { type: 'COUNT', count: await organize.countTracked() };
       case 'STRIP_TRACKING_PARAMS':
@@ -301,7 +303,11 @@ export async function handleRequest(request: Request): Promise<Response> {
       case 'PREVIEW_HISTORY_CLEANUP':
         return await history.previewCleanup();
       case 'CLEAR_VAULTED_HISTORY':
-        return await history.runCleanup();
+        return await history.runCleanup(request.domains);
+      case 'HISTORY_PRESENCE':
+        return await history.historyPresence();
+      case 'FORGET_ITEM_HISTORY':
+        return await history.forgetItemHistory(request.id);
     }
   } catch (error) {
     // Nothing here may reach a log: a request carries a master password, and the errors that come
@@ -463,8 +469,8 @@ function onStart(): void {
  * to close it unread. A reinstall does count as an install, and that is the right answer: the
  * profile has no vault and no record of the flow ever running.
  *
- * `manager.html`, not the popup, because the flow asks the user to paste an address into the address
- * bar (step 3) — and a popup closes the moment they click there (ARCHITECTURE §9).
+ * `manager.html`, not the popup, because the flow sends the user to a `chrome://` tab in step 3 and
+ * waits for them to come back — and a popup is gone the moment focus leaves it (ARCHITECTURE §9).
  */
 chrome.runtime.onInstalled.addListener((details) => {
   onStart();

@@ -383,6 +383,19 @@ body.vm-manager {
 
 /* `.vm-icon-button` is in src/ui/styles.css — the popup's settings cog is the same control. */
 
+/*
+ * The pencil in a folder row, matching the one in a tag row.
+ *
+ * Tighter than the tag list's copy because it sits *inside* the row's own padding rather than beside
+ * it, and `align-self: center` because the row is a flex line whose other children are text: without
+ * it the button stretches to the line's height and its hover state draws a tall box around a glyph.
+ */
+.vm-tree-edit {
+  align-self: center;
+  padding: 0 0.25rem;
+  line-height: 1.4;
+}
+
 /* ------------------------------------------------------------------ crumbs and actions */
 
 .vm-crumbs {
@@ -585,6 +598,26 @@ body.vm-manager {
   opacity: 1;
 }
 
+/*
+ * "This page is still in Chrome's history" (ARCHITECTURE §12.6), laid out exactly like the eye and
+ * for the same reason: a column that is only there sometimes shifts every column after it as the
+ * list scrolls.
+ *
+ * It is not a button and does nothing on click — the action is in the detail pane, because a
+ * listbox may hold no interactive descendants and because deleting browsing history is not
+ * something a stray click on a row should reach.
+ */
+.vm-row-history {
+  flex: none;
+  width: 1.1em;
+  text-align: center;
+}
+
+.vm-row-history.is-present {
+  color: var(--vm-warning);
+  cursor: help;
+}
+
 /* ------------------------------------------------------------------ chips */
 
 .vm-chips {
@@ -760,6 +793,38 @@ body.vm-manager {
   background: var(--vm-surface);
   font-size: 0.875rem;
   user-select: all;
+}
+
+/*
+ * One command per line: what it does on the left, what it is bound to on the right.
+ *
+ * The key sits in a `kbd` styled like the `code` above, because it is the same kind of thing — a
+ * literal string the reader has to match against something outside this window.
+ */
+.vm-shortcut-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vm-shortcut-list li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.vm-shortcut-list kbd {
+  flex: none;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------------ sync */
@@ -1180,9 +1245,18 @@ body.vm-manager {
   border-color: var(--vm-danger);
 }
 
+/*
+ * The card is the red box, so the zone inside it is not a box at all — `display: contents`, the same
+ * answer as `.vm-mismatch` below and for the same reason.
+ *
+ * It is also what spaces the destroy button. Every other section's controls are direct children of
+ * the section's grid and are separated by its `gap`; these five were children of a plain wrapper
+ * with no spacing of its own, so the button sat flat against the sentence above it while the button
+ * in every neighbouring section stood clear of one. With `contents` they join the section's grid and
+ * take the same gap, rather than having a margin invented for them here.
+ */
 .vm-settings-page .vm-danger-zone {
-  padding: 0;
-  border: 0;
+  display: contents;
 }
 
 /*
@@ -1389,6 +1463,28 @@ body.vm-manager {
 }
 
 /* ------------------------------------------------------------------ detail pane preview */
+
+/*
+ * "This page is still in Chrome's history" and the button that fixes it (§12.6).
+ *
+ * Laid out like the preview section below it — its own band, separated by a rule — because it is a
+ * statement about the world rather than another control on the item: it appears and disappears as
+ * the browser changes, and crowding it against *Open in incognito* would read as one more thing you
+ * can do to a bookmark.
+ */
+.vm-detail-history {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+  margin-top: var(--vm-gap);
+  padding-top: var(--vm-gap);
+  border-top: 1px solid var(--vm-border);
+}
+
+.vm-detail-history .vm-notice {
+  margin: 0;
+}
 
 .vm-detail-preview {
   display: flex;

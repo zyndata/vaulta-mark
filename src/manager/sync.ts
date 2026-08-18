@@ -24,6 +24,17 @@ import { syncErrorText } from '../ui/strings.js';
 export interface SyncStatusDeps {
   readonly status: SyncStatusResponse | null;
   readonly onSyncNow: () => void;
+  /**
+   * A run this window asked for is in flight.
+   *
+   * Needed on top of the phase, because the phase arrives by broadcast and the worker broadcasts
+   * exactly once per attempt — at the end of it (`onStatus` in `sync/engine.ts`). So a press of this
+   * button changed nothing on screen at all until the sync was already over: no busy label, no
+   * disabled state, and when the answer finally came the relative time it printed was often the same
+   * sentence it had been showing before ("Last synced just now", twice). Pressing something and
+   * getting nothing back is how people conclude a button is broken and press it again.
+   */
+  readonly busy?: boolean;
 }
 
 const BUSY_PHASES = new Set(['peeking', 'pulling', 'merging', 'pushing']);
@@ -37,7 +48,7 @@ const BUSY_PHASES = new Set(['peeking', 'pulling', 'merging', 'pushing']);
  */
 export function syncStatusButton(deps: SyncStatusDeps): HTMLElement {
   const status = deps.status;
-  const busy = status !== null && BUSY_PHASES.has(status.phase);
+  const busy = deps.busy === true || (status !== null && BUSY_PHASES.has(status.phase));
   const failure = busy ? null : (status?.error ?? null);
 
   const label = busy

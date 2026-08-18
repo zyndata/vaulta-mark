@@ -229,7 +229,7 @@ test('a fresh profile, from first run to a restored backup, without touching the
    * surfaces, one screen; waiting for a new page here would wait forever.
    */
   await row(page, 'Mushroom risotto').dblclick();
-  await expect(page.getByText(`chrome://extensions/?id=${extensionId}`)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open that page' })).toBeVisible();
   expect(
     await sw.evaluate(() => (globalThis as unknown as { __vmWindows?: unknown[] }).__vmWindows ?? []),
   ).toEqual([]);

@@ -263,6 +263,15 @@ describe('parseRequest', () => {
     });
     expect(parseRequest({ type: 'RENAME_TAG', from: 'a', to: '' })).toBeNull();
 
+    // DELETE_TAG names one tag, and an empty one would be a request to walk the vault removing
+    // nothing — refused here rather than treated as a no-op three layers down.
+    expect(parseRequest({ type: 'DELETE_TAG', tag: 'reading' })).toEqual({
+      type: 'DELETE_TAG',
+      tag: 'reading',
+    });
+    expect(parseRequest({ type: 'DELETE_TAG', tag: '' })).toBeNull();
+    expect(parseRequest({ type: 'DELETE_TAG' })).toBeNull();
+
     expect(
       parseRequest({ type: 'CHANGE_PASSWORD', currentPassword: 'a', newPassword: 'b' }),
     ).toEqual({ type: 'CHANGE_PASSWORD', currentPassword: 'a', newPassword: 'b' });

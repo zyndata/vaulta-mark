@@ -29,8 +29,13 @@ import {
   hasHistoryPermission,
   scanHistory,
 } from '../history/cleanup.js';
-import { registrableDomain } from '../history/domain.js';
-import type { CountResponse, HistoryPreviewResponse } from '../shared/messages.js';
+import { registrableDomain, registrableDomainOf } from '../history/domain.js';
+import { isSamePage, pageIndex } from '../history/match.js';
+import type {
+  CountResponse,
+  HistoryPreviewResponse,
+  HistoryPresenceResponse,
+} from '../shared/messages.js';
 import type { VaultRepository } from '../storage/repo.js';
 import { isBookmark, type VaultSettings } from '../vault/types.js';
 import { clearHistoryQueue, readHistoryQueue } from './incognito.js';
@@ -85,14 +90,86 @@ export async function previewCleanup(): Promise<HistoryPreviewResponse> {
  * worker may have been torn down and rebuilt since, and a stale list would either miss what has been
  * visited since or try to delete what has already gone. Both scans run the same code, so the numbers
  * only differ when the history actually differs.
+ *
+ * @param only the review list's per-site *Remove*, as a subset of the vault's domains. It narrows
+ *   and can never widen: the scope is the **intersection** with {@link vaultDomains}, so a page
+ *   that asked for a domain the vault does not hold deletes nothing. A page cannot be the thing
+ *   that decides whose history goes.
  */
-export async function runCleanup(): Promise<CountResponse> {
+export async function runCleanup(only?: readonly string[]): Promise<CountResponse> {
   const repo = await requireVault();
   await session.touch();
   if (!(await hasHistoryPermission())) throw new HistoryPermissionError('clearing history');
 
-  const scan = await scanHistory(vaultDomains(repo));
+  const vaulted = vaultDomains(repo);
+  const wanted = only === undefined ? vaulted : vaulted.filter((domain) => only.includes(domain));
+  if (wanted.length === 0) return { type: 'COUNT', count: 0 };
+
+  const scan = await scanHistory(wanted);
   return { type: 'COUNT', count: await deleteHistory(scan.urls) };
+}
+
+/* ------------------------------------------------------------------ one bookmark at a time */
+
+/**
+ * Which vaulted bookmarks are still in Chrome's history (§12.6).
+ *
+ * The cleanup answers "what would go" as a list of sites; this answers the same question as a list
+ * of *bookmarks*, which is what the manager can point at. A row that carries the warning is a page
+ * whose address the omnibox can still suggest, which is the one thing vaulting it was supposed to
+ * stop — and until now nothing said so anywhere the user was looking.
+ *
+ * One scan for the whole vault rather than one query per bookmark: `chrome.history.search` is an
+ * IPC round trip, and a query per row would be five thousand of them on a large vault to draw an
+ * icon. It is the same scan the dry run does, and the matching afterwards is two set lookups per
+ * bookmark (`history/match.ts`).
+ *
+ * Ungranted is a state rather than an error, like {@link previewCleanup}: the manager simply draws
+ * no warnings, because without the permission there is nothing it could truthfully draw.
+ */
+export async function historyPresence(): Promise<HistoryPresenceResponse> {
+  const repo = await requireVault();
+  await session.touch();
+  if (!(await hasHistoryPermission())) {
+    return { type: 'HISTORY_PRESENCE', granted: false, ids: [] };
+  }
+
+  const bookmarks = repo.getAll().filter(isBookmark);
+  const scan = await scanHistory(domainsOf(bookmarks.map((item) => item.url)));
+  const index = pageIndex(scan.urls);
+  return {
+    type: 'HISTORY_PRESENCE',
+    granted: true,
+    ids: bookmarks.filter((item) => index.has(item.url)).map((item) => item.id),
+  };
+}
+
+/**
+ * Delete the history entries for **one** bookmark's page.
+ *
+ * Scoped to the page rather than to the site, which is the whole difference between this and the
+ * cleanup beside it: this is offered under one bookmark's title, in the pane that shows that one
+ * bookmark, so deleting a domain's worth of unrelated history from there would be an ambush. The
+ * per-page rule and why it is not a string comparison are in `history/match.ts`.
+ *
+ * The domain search is only how the candidates are *found* — `search` over-matches and everything it
+ * returns is re-checked, first that it belongs to the domain (`scanHistory`) and then that it is
+ * this page (`isSamePage`).
+ */
+export async function forgetItemHistory(id: string): Promise<CountResponse> {
+  const repo = await requireVault();
+  await session.touch();
+  if (!(await hasHistoryPermission())) throw new HistoryPermissionError('clearing history');
+
+  const item = repo.getAll().find((candidate) => candidate.id === id);
+  if (item === undefined || !isBookmark(item)) return { type: 'COUNT', count: 0 };
+
+  const domain = registrableDomainOf(item.url);
+  if (domain === null) return { type: 'COUNT', count: 0 };
+
+  const scan = await scanHistory([domain]);
+  const mine = scan.urls.filter((url) => isSamePage(item.url, url));
+  return { type: 'COUNT', count: await deleteHistory(mine) };
 }
 
 /* ------------------------------------------------------------------ the lock path */

@@ -240,8 +240,9 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
       return;
     }
     if (response.status === 'needs-incognito-access') {
-      // The guided prompt lives on the manager page: the user has to click into the address bar to
-      // paste `chrome://extensions/…`, and a popup closes the moment they do (§9).
+      // The guided prompt lives on the manager page: it sends the user to a `chrome://` tab and
+      // waits for them to come back, and it carries a fallback with a history checkbox under it —
+      // neither of which survives in a popup that closes the moment focus leaves it (§9).
       await chrome.tabs.create({
         url: chrome.runtime.getURL(`manager.html#incognito=${encodeURIComponent(item.id)}`),
       });

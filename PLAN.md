@@ -1458,9 +1458,10 @@ a Chrome Web Store submission.
   differentiators, single-purpose statement, and a per-permission justification string for each
   requested and optional permission (draft text lives in `docs/STORE_LISTING.md`).
 - `docs/PRIVACY.md` published (GitHub Pages or a raw-file URL) and linked from the Store listing.
-  **Not done — the maintainer chose (2026-08-14) to leave the hosting decision open.** The document
-  is finished; there is nowhere private-and-free to serve it from, and the three ways out are in
-  RELEASE §8. This blocks Store submission and nothing else.
+  **Done 2026-08-15**, by D36: the repository is public and Pages serves the document from
+  `main`/`docs` at <https://zyndata.github.io/vaulta-mark/PRIVACY>. It had stood open since
+  2026-08-14 by the maintainer's choice, blocking Store submission and nothing else, with the three
+  ways out written up in RELEASE §8; publishing the repository took the first of them.
 - README completed: badges (CI, release, license), install-from-Store link, build-from-source
   instructions, the reproducibility note (how to verify the published zip's hash against a local
   build), security policy link, and the differentiators up top.
@@ -1507,21 +1508,27 @@ a Chrome Web Store submission.
       an ancestor of `main`, and `main` is four phases behind `dev` until the release merge. A dry
       run that passed the ancestry check today would be building Phase-0 code.
 - [ ] `workflow_dispatch` with `publish: true` uploads a draft to the Store (verified once the item
-      exists). — the Store item does not exist; the first upload is manual by API design
-      (RELEASE §6.1). Blocked on the privacy-policy URL, which blocks submission.
+      exists). — the item exists now (`nfcfgnaefnkpmoiagnamdacpohifncpl`, uploaded by hand
+      2026-08-15, published 2026-08-16), so the API's create-versus-update limitation no longer
+      blocks anything and this is verified by the first automated upload, which is 1.1.0. The
+      credentials themselves were exercised against the live item on 2026-08-16 by the
+      `check_credentials` dispatch (RELEASE §6.5).
 - [x] All four Store secrets documented end-to-end in `docs/RELEASE.md`, with screenshots-in-words
       for each Google Cloud step. — RELEASE §6.1–§6.5, including the two flags without which Google
       returns no refresh token and why a Testing-status consent screen expires one after 7 days.
-- [ ] `main` is protected exactly as `docs/BRANCH_PROTECTION.md` specifies. — **cannot be done on
-      this repository.** Measured 2026-08-14: both the rulesets API and the classic branch-protection
-      API answer `403 Upgrade to GitHub Pro or make this repository public`, so the settings are not
-      reachable from the UI either. BRANCH_PROTECTION.md had claimed §1–§4 "apply unchanged" while
-      private and has been corrected, with the manual habits that stand in for them. This unblocks
-      the day the repository is published or the plan is upgraded — the same decision the
-      privacy-policy URL waits on.
-- [ ] v1.0.0 tagged and released. — deferred to the maintainer (2026-08-14). `dev` is at 1.0.0 with
-      the CHANGELOG finalized and `[Unreleased]` empty; four manual passes from earlier phases are
-      still unrun (DEVELOPMENT §5.2–§5.5). The commands are RELEASE §4 steps 5–8.
+- [x] `main` is protected exactly as `docs/BRANCH_PROTECTION.md` specifies. — **done 2026-08-15**,
+      by the same decision that settled the privacy-policy URL. It genuinely could not be done
+      before: measured 2026-08-14, both the rulesets API and the classic branch-protection API
+      answered `403 Upgrade to GitHub Pro or make this repository public`, and the settings were not
+      reachable from the UI either. Rulesets for `main`, `dev` and `release-tags` are applied with
+      empty bypass lists. Applying them caught a Phase-0 error: "Require linear history" was
+      documented ✅ and would have rejected the `--no-ff` release merge — a claim nobody could test
+      while nobody could turn it on.
+- [x] v1.0.0 tagged and released. — **done 2026-08-16.** `main` at `7ce1712`, annotated tag
+      `v1.0.0`, `release.yml` green on its first real run, and a GitHub Release carrying
+      `vaulta-mark-1.0.0.zip` (170,440 B) and `SHA256SUMS`. Published to the Chrome Web Store the
+      same day. Four manual passes from earlier phases remain unrun (DEVELOPMENT §5.2–§5.5); they
+      were never gates on the tag.
 
 **Git:** direct commits on `dev`, tag `phase-13-done`. Then the release itself:
 `git checkout main && git merge --no-ff dev -m "release: v1.0.0"`, push `main`, and push the
@@ -1592,14 +1599,23 @@ conversation that wants to change one must open an issue and get it changed here
 1. **License — GPL-3.0-only.** Final. Copyleft keeps forks of a security tool auditable, matches the
    prior art in this niche, and is compatible with Chrome Web Store distribution. The cost (no
    proprietary reuse of the crypto/sync modules) is a non-goal.
-2. **Short description (≤ 132 chars)** — the working draft, refined only for length/clarity in
-   Phase 13:
-   > *Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito.
-   > Optional sync via your Google Drive.* (129 chars, measured)
+2. **Short description (≤ 132 chars)** — the working draft, refined for length/clarity in Phase 13
+   and **repositioned on 2026-08-18**:
+   > *Bookmarks Chrome doesn't know about. No omnibox autocomplete, opens in incognito, encrypted,
+   > optional sync via your Google Drive.* (129 chars, measured)
 
    The draft read *your **own** Google Drive* and was recorded here as 131 characters. It was 133,
    and the Store rejected the 1.0.0 upload for it — 132 is a hard limit, not a truncation point.
    `scripts/verify-manifest.mjs` measures the built locale now.
+
+   The 2026-08-18 rewrite is a **reordering, not a new claim**: a competitive survey found the
+   "encrypted bookmark vault" niche already held by free, open-source extensions with the same
+   cryptography, so *password-encrypted* — the old opening — was the one thing the text had in
+   common with its competition, spent in its scarcest characters. Every fact survives, "encrypted"
+   included; only the order changed. Full reasoning in
+   [STORE_LISTING §2](docs/STORE_LISTING.md#2-short-description--132-characters). **What is settled
+   here is the length limit and the set of claims, not the word order** — a future rewrite that
+   keeps both needs no change to this list.
 3. **Google Cloud + Chrome Web Store accounts** — the maintainer creates both under `zyndata`, at the
    start of Phase 10 (Cloud project + OAuth consent screen; verification takes weeks, so it starts
    early) and before Phase 13 (Store developer account, $5). Phases 0–9 are unblocked. Every step is

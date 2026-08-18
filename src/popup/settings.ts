@@ -11,14 +11,22 @@
  * list keeps its full height, the settings get the full width, and — the part that decided it —
  * there is now somewhere for the version number to live that is not stealing a line from the list.
  *
- * Everything here also exists in the manager's settings screen. That is deliberate: the popup is
- * where someone already is when they want to change how it behaves, and "open the manager to turn
- * off a toggle" is a trip nobody should have to make.
+ * **This screen is deliberately not the manager's.** It used to mirror it as far as it went, on the
+ * grounds that "open the manager to turn off a toggle" is a trip nobody should have to make. That
+ * held while the popup was the only door: it is where someone already is when they want to change
+ * how the thing behaves. It stopped holding once the manager's screen grew to eight sections, and it
+ * is what `settingsAllInManager` below now answers — the trip is one click, so the popup can keep
+ * the one section that is genuinely *quick* and hand the rest over.
+ *
+ * What is quick, precisely: auto-lock is the setting people change in the moment they are thinking
+ * about it — stepping away from the machine, or being locked out once too often. Everything else is
+ * decided once. Opening and saving used to be here and is not any more for exactly that reason, and
+ * because switching tracking-parameter stripping on offers to rewrite every bookmark in the vault,
+ * which is a manager-sized question asked in a 26.4rem column.
  */
 
-import { send, type ErrorCode, type StateResponse } from '../shared/messages.js';
+import type { StateResponse } from '../shared/messages.js';
 import { h, msg } from '../ui/dom.js';
-import { offerTrackingCleanup } from '../ui/tracking.js';
 import {
   IDLE_TIMEOUT_CHOICES,
   IDLE_TIMEOUT_NEVER,
@@ -28,19 +36,14 @@ import {
 export interface SettingsScreenDeps {
   readonly state: StateResponse;
   readonly patchSettings: (patch: Partial<VaultSettings>) => Promise<void>;
-  readonly errorText: (code: ErrorCode) => string;
   /** Back to the vault. The screen does not decide what it returns to. */
   readonly onBack: () => void;
+  /** Everything this screen does not hold, in the manager. Opens a tab; the popup closes behind it. */
+  readonly onAllSettings: () => void;
 }
 
 export function settingsScreen(deps: SettingsScreenDeps): HTMLElement {
   const settings = deps.state.settings;
-  const notice = h('p', { class: 'vm-notice', role: 'status', hidden: true });
-
-  function say(text: string): void {
-    notice.textContent = text;
-    notice.hidden = false;
-  }
 
   const idleSelect = h(
     'select',
@@ -77,7 +80,6 @@ export function settingsScreen(deps: SettingsScreenDeps): HTMLElement {
       ),
       h('h2', { class: 'vm-screen-title' }, msg('settingsHeading')),
     ),
-    notice,
 
     section(
       'settingsSectionLock',
@@ -92,27 +94,22 @@ export function settingsScreen(deps: SettingsScreenDeps): HTMLElement {
       ),
     ),
 
-    section(
-      'settingsSectionBrowsing',
-      toggle(
-        'vm-reuse-incognito',
-        'settingsReuseWindow',
-        'settingsReuseWindowHint',
-        settings.reuseIncognitoWindow,
-        (checked) => deps.patchSettings({ reuseIncognitoWindow: checked }),
-      ),
-      toggle(
-        'vm-strip-tracking',
-        'settingsStripTracking',
-        'settingsStripTrackingHint',
-        settings.stripTrackingParams,
-        async (checked) => {
-          await deps.patchSettings({ stripTrackingParams: checked });
-          // Only on the way on. Switching it *off* leaves what is saved alone by definition —
-          // there is nothing to put back, and the parameters it removed are gone.
-          if (checked) await offerCleanup(deps, say);
+    // The door to the rest, named rather than implied: the hint is what stops someone hunting this
+    // screen for a setting that was never here. It reads as a section without being one — a heading
+    // over a single button would claim there is a category of settings called "the other ones".
+    h(
+      'div',
+      { class: 'vm-settings-more' },
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'vm-button vm-button--quiet',
+          onclick: deps.onAllSettings,
         },
+        msg('settingsAllInManager'),
       ),
+      h('p', { class: 'vm-hint vm-small vm-muted' }, msg('settingsAllInManagerHint')),
     ),
 
     // Last, quiet, and out of the list's way — which is the whole reason this screen exists.
@@ -170,25 +167,4 @@ function toggle(
     h('div', { class: 'vm-checkbox' }, input, h('label', { for: id }, msg(labelKey))),
     h('p', { class: 'vm-hint vm-small vm-muted' }, msg(hintKey)),
   );
-}
-
-/** Wire `ui/tracking.ts` to the two messages, and report a failure rather than swallowing it. */
-async function offerCleanup(deps: SettingsScreenDeps, say: (text: string) => void): Promise<void> {
-  await offerTrackingCleanup({
-    count: async () => {
-      const response = await send({ type: 'COUNT_TRACKING_PARAMS' });
-      // A failed count is not worth a dialog of its own: nothing has been changed, and the offer is
-      // made again the next time the setting is switched on.
-      return response.type === 'ERROR' ? 0 : response.count;
-    },
-    strip: async () => {
-      const response = await send({ type: 'STRIP_TRACKING_PARAMS' });
-      if (response.type === 'ERROR') {
-        say(deps.errorText(response.code));
-        return 0;
-      }
-      return response.count;
-    },
-    say,
-  });
 }

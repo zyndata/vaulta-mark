@@ -8,8 +8,10 @@
  * title and host — which is where the space goes, because a bookmark list is a column of truncated
  * strings and the truncation is what makes one hard to scan.
  *
- * **The height is fixed and taken from the settings screen**, which is the tallest of them and which
- * measures a couple of pixels *over* Chrome's cap — so it sets the height and the cap rounds it. A
+ * **The height is fixed at Chrome's own cap.** It was measured from the settings screen, which was
+ * then the tallest and came out a couple of pixels *over* the cap, so the cap rounded it. That screen
+ * has since given its second section to the manager and no longer reaches the floor — the number
+ * stays, because 600 is where Chrome stops either way and because the reason below has not changed. A
  * popup sized to its contents is a window that jumps every time you press something: going to
  * settings grew it, coming back shrank it, and deleting the last bookmark shrank it again, moving
  * the footer under the pointer each time. So the popup is one size, the list takes whatever room the
@@ -291,11 +293,12 @@ body.vm-popup {
 /*
  * A screen, not a disclosure — see the note at the top of settings.ts.
  *
- * The vertical rhythm here is tight on purpose, and it is the popup's height that decides how tight:
- * this screen is the tallest one and Chrome will not give a popup more than 600 px. Loosening any of
- * these margins puts the version line under the fold, which is a scrollbar for one line of text —
- * and a scrollbar narrows the column, rewraps three paragraphs of hint text and makes the screen
- * taller still.
+ * The vertical rhythm here is tight, and used to be tight *because it had to be*: with the opening
+ * and saving section still on it the screen measured 589 px of the 600 Chrome allows, and loosening
+ * any of these margins put the version line under the fold — a scrollbar for one line of text, which
+ * narrows the column, rewraps three paragraphs of hint text and makes the screen taller still. There
+ * is room now. The rhythm is kept because it matches the vault screen next door, not because the
+ * fold is a couple of pixels away; there is slack for a section, and not much more than one.
  */
 .vm-screen-head {
   display: flex;
@@ -322,10 +325,31 @@ body.vm-popup {
   color: var(--vm-muted);
 }
 
-/* `auto` above it, so on the screens where the settings do not fill the popup the version still
-   sits on the floor rather than halfway up. */
+/*
+ * The way out of this screen and into the manager's.
+ *
+ * A rule above it rather than a heading: it is not a category of settings, it is the door to the
+ * rest of them. The hint below the button names what is behind it, so nobody reads this screen as
+ * the whole of the product's settings and concludes a toggle was removed.
+ */
+.vm-settings-more {
+  /* The floor, not "after the last section": this is the way out of the screen, and a way out sits
+     where the footer sits on the screen next door. It carries the `auto` the version line used to,
+     which is why that rule below it is a plain zero — two auto margins in one column split the free
+     space between them and would leave the button floating in the middle of it. */
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--vm-border);
+}
+
+.vm-settings-more .vm-hint {
+  margin: 0.4rem 0 0;
+  text-align: center;
+}
+
+/* Directly under the button above, which is what holds the pair down on the floor. */
 .vm-version-line {
-  margin: auto 0 0;
+  margin: 0.75rem 0 0;
   padding-top: 0.5rem;
   border-top: 1px solid var(--vm-border);
   text-align: center;

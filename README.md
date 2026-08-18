@@ -5,6 +5,7 @@
 [![ci](https://github.com/zyndata/vaulta-mark/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/zyndata/vaulta-mark/actions/workflows/ci.yml)
 [![release](https://img.shields.io/github/v/release/zyndata/vaulta-mark?sort=semver)](https://github.com/zyndata/vaulta-mark/releases)
 [![license: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/nfcfgnaefnkpmoiagnamdacpohifncpl?label=chrome%20web%20store)](https://chromewebstore.google.com/detail/nfcfgnaefnkpmoiagnamdacpohifncpl)
 
 VaultaMark is a Manifest V3 Chrome extension that keeps your bookmarks in a password-encrypted vault
 stored **completely outside** Chrome's bookmark and history systems. Chrome never learns those URLs
@@ -13,11 +14,12 @@ window. Nothing leaves your machine unless you explicitly connect your own Googl
 
 **Repository:** <https://github.com/zyndata/vaulta-mark>
 
-**Status: 1.0.0, feature-complete, source published.** Every phase in [PLAN.md](PLAN.md) is built and
-tested, and the source is public under GPL-3.0-only ([PLAN.md §2.5, D36](PLAN.md#25-project--process))
-— for a tool that asks you to trust it with an unrecoverable password, being readable is part of the
-product. What remains is the Chrome Web Store submission itself. The privacy policy is served at
-<https://zyndata.github.io/vaulta-mark/PRIVACY>.
+**Status: published.** VaultaMark is [in the Chrome Web Store][store], every phase in
+[PLAN.md](PLAN.md) is built and tested, and the source is public under GPL-3.0-only
+([PLAN.md §2.5, D36](PLAN.md#25-project--process)) — for a tool that asks you to trust it with an
+unrecoverable password, being readable is part of the product. Every release is built from a tag by
+a GitHub Actions workflow, so the package in the Store and the source in this repository are the
+same thing twice. The privacy policy is served at <https://zyndata.github.io/vaulta-mark/PRIVACY>.
 
 ---
 
@@ -50,11 +52,10 @@ regenerated from a real build by `node scripts/capture-store-screenshots.mjs`.
 
 ## Install
 
-**From the Chrome Web Store:** not yet. The listing is written and its assets are built
-([docs/STORE_LISTING.md](docs/STORE_LISTING.md)); submission is waiting on a publicly hosted privacy
-policy, which needs a decision about publishing this repository. The link lands here when it exists.
+**[Install from the Chrome Web Store][store]** — the ordinary way, and the one that keeps
+itself updated. What the listing says is drafted in [docs/STORE_LISTING.md](docs/STORE_LISTING.md).
 
-**From source**, which is what works today:
+**From source**, if you would rather run something you built yourself:
 
 ```bash
 npm ci
@@ -234,3 +235,5 @@ issue for a security problem — a public report starts the clock for every user
 VaultaMark is a security tool. Copyleft keeps every fork auditable, which is the point: you can read
 what encrypts your bookmarks, build it yourself, and check that the extension you installed is the
 one this source produces ([docs/RELEASE.md](docs/RELEASE.md)).
+
+[store]: https://chromewebstore.google.com/detail/nfcfgnaefnkpmoiagnamdacpohifncpl

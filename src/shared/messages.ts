@@ -215,6 +215,18 @@ export interface RenameTagRequest {
 }
 
 /**
+ * Take a tag off every bookmark that carries it.
+ *
+ * The tag itself is not an object in the vault — it exists exactly as long as something is tagged
+ * with it (`allTags` counts occurrences), so deleting one is a bulk untag and nothing else. No
+ * bookmark is deleted, which is what the confirmation says.
+ */
+export interface DeleteTagRequest {
+  readonly type: 'DELETE_TAG';
+  readonly tag: string;
+}
+
+/**
  * How many saved bookmarks carry a tracking parameter.
  *
  * Asked when the strip-tracking setting is switched on, so the offer to clean what is already in
@@ -513,9 +525,38 @@ export interface PreviewHistoryCleanupRequest {
   readonly type: 'PREVIEW_HISTORY_CLEANUP';
 }
 
-/** Do it. Deletes only URLs whose registrable domain is one the vault holds. */
+/**
+ * Do it. Deletes only URLs whose registrable domain is one the vault holds.
+ *
+ * `domains` narrows the run to a subset of them — the review list offers a *Remove* beside each
+ * site, because "everything or nothing" is not a review. It is a filter and never a widening: the
+ * worker intersects it with the vault's own domains, so a request naming a site the vault does not
+ * hold deletes nothing. Absent means every vaulted domain.
+ */
 export interface ClearVaultedHistoryRequest {
   readonly type: 'CLEAR_VAULTED_HISTORY';
+  readonly domains?: readonly string[];
+}
+
+/**
+ * Which vaulted bookmarks still have a visit in Chrome's history (§12.6).
+ *
+ * One scan for the whole vault, because the alternative is a query per row. Asked by the manager
+ * when it loads and after anything that could change the answer; never on the path of a keystroke.
+ */
+export interface HistoryPresenceRequest {
+  readonly type: 'HISTORY_PRESENCE';
+}
+
+/**
+ * Delete the history entries for one bookmark's page — not for its site.
+ *
+ * The narrow counterpart of `CLEAR_VAULTED_HISTORY`, offered in the detail pane under the title of
+ * the bookmark it is about. The page-matching rule lives in `history/match.ts`.
+ */
+export interface ForgetItemHistoryRequest {
+  readonly type: 'FORGET_ITEM_HISTORY';
+  readonly id: string;
 }
 
 export type Request =
@@ -546,6 +587,7 @@ export type Request =
   | DeleteFolderRequest
   | TagItemsRequest
   | RenameTagRequest
+  | DeleteTagRequest
   | CountTrackingParamsRequest
   | StripTrackingParamsRequest
   | ChangePasswordRequest
@@ -571,7 +613,9 @@ export type Request =
   | GetOnboardingRequest
   | SetOnboardingRequest
   | PreviewHistoryCleanupRequest
-  | ClearVaultedHistoryRequest;
+  | ClearVaultedHistoryRequest
+  | HistoryPresenceRequest
+  | ForgetItemHistoryRequest;
 
 /** A partial settings update. Absent fields keep their stored value. */
 export type SettingsPatch = Partial<VaultSettings>;
@@ -1104,6 +1148,20 @@ export interface HistoryPreviewResponse {
 }
 
 /**
+ * Which bookmarks Chrome's history still holds a visit to (§12.6).
+ *
+ * Ids and nothing else. The page already knows the titles and addresses of the rows it is showing —
+ * it drew them — so the answer to "which of these is still in history" needs to carry no vault
+ * content of its own, and deliberately does not.
+ */
+export interface HistoryPresenceResponse {
+  readonly type: 'HISTORY_PRESENCE';
+  /** False when the optional `history` permission has not been granted; `ids` is then empty. */
+  readonly granted: boolean;
+  readonly ids: readonly string[];
+}
+
+/**
  * The wire form of a thrown error.
  *
  * No message string: user-facing text lives in `_locales` and is chosen by the UI from the code.
@@ -1178,6 +1236,7 @@ export interface ResponseMap {
   readonly DELETE_FOLDER: OkResponse;
   readonly TAG_ITEMS: CountResponse;
   readonly RENAME_TAG: CountResponse;
+  readonly DELETE_TAG: CountResponse;
   readonly COUNT_TRACKING_PARAMS: CountResponse;
   readonly STRIP_TRACKING_PARAMS: CountResponse;
   readonly CHANGE_PASSWORD: OkResponse;
@@ -1204,6 +1263,8 @@ export interface ResponseMap {
   readonly SET_ONBOARDING: OnboardingResponse;
   readonly PREVIEW_HISTORY_CLEANUP: HistoryPreviewResponse;
   readonly CLEAR_VAULTED_HISTORY: CountResponse;
+  readonly HISTORY_PRESENCE: HistoryPresenceResponse;
+  readonly FORGET_ITEM_HISTORY: CountResponse;
 }
 
 export type ResponseFor<R extends Request> = ResponseMap[R['type']] | ErrorResponse;
@@ -1390,9 +1451,15 @@ export function parseRequest(raw: unknown): Request | null {
     case 'GET_DIAGNOSTICS':
     case 'GET_ONBOARDING':
     case 'PREVIEW_HISTORY_CLEANUP':
-    case 'CLEAR_VAULTED_HISTORY':
+    case 'HISTORY_PRESENCE':
     case 'REPLACE_REMOTE_VAULT':
       return { type };
+    case 'CLEAR_VAULTED_HISTORY': {
+      const domains = raw['domains'];
+      if (domains === undefined) return { type };
+      const parsed = parseIdList(domains);
+      return parsed === null ? null : { type, domains: parsed };
+    }
     case 'DESTROY_VAULT':
     case 'DISCONNECT_DRIVE': {
       const deleteRemote = raw['deleteRemote'];
@@ -1470,6 +1537,7 @@ export function parseRequest(raw: unknown): Request | null {
     }
     case 'GET_ITEM':
     case 'GET_THUMB':
+    case 'FORGET_ITEM_HISTORY':
     case 'REFRESH_THUMB': {
       const id = raw['id'];
       return isNonEmptyString(id) ? { type, id } : null;
@@ -1525,6 +1593,11 @@ export function parseRequest(raw: unknown): Request | null {
       const to = raw['to'];
       if (!isNonEmptyString(from) || !isNonEmptyString(to)) return null;
       return { type, from, to };
+    }
+    case 'DELETE_TAG': {
+      const tag = raw['tag'];
+      if (!isNonEmptyString(tag)) return null;
+      return { type, tag };
     }
     case 'CHANGE_PASSWORD': {
       const currentPassword = raw['currentPassword'];
@@ -1739,6 +1812,7 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'NATIVE_DELETE',
   'ONBOARDING',
   'HISTORY_PREVIEW',
+  'HISTORY_PRESENCE',
   'DRIVE_STATE',
   'DIAGNOSTICS',
   'MIGRATION',

@@ -225,10 +225,18 @@ async function refresh(): Promise<void> {
       settingsScreen({
         state: response,
         patchSettings,
-        errorText,
         onBack: () => {
           unlockedScreen = 'vault';
           void refresh();
+        },
+        onAllSettings: () => {
+          void (async () => {
+            // Same shape as the footer's "Open the manager", and for the same reason: a popup that
+            // opened a tab and stayed behind would be a window nobody comes back to. The hash is the
+            // instruction to land on the settings screen rather than the bookmark list.
+            await chrome.tabs.create({ url: chrome.runtime.getURL('manager.html#settings') });
+            window.close();
+          })();
         },
       }),
     );

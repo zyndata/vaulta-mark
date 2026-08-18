@@ -1,21 +1,19 @@
 /**
  * A value the user has to copy and carry somewhere this extension cannot reach, with a Copy button.
  *
- * Three screens need this exact widget, for the same underlying reason twice over:
+ * Its remaining callers are the Drive setup steps in Settings — this build's extension id and the
+ * OAuth scope, both of which have to be pasted into the Google Cloud console. That is a place no
+ * extension can reach and one INV-3 forbids us from even linking to, so showing the value and making
+ * it one click to copy is the whole of what can be offered.
  *
- * - the incognito prompt in the manager and the one in onboarding step 3, showing a `chrome://`
- *   address — Chrome forbids an extension from navigating to one and offers no API for the setting
- *   behind it;
- * - the Drive setup steps in Settings, showing this build's extension id and the OAuth scope, which
- *   have to be pasted into the Google Cloud console — a place no extension can reach either, and
- *   one INV-3 forbids us from even linking to.
+ * **It used to carry `chrome://` addresses too, and no longer does** (2026-08-17). The incognito
+ * prompt and onboarding step 3 showed `chrome://extensions/?id=…` to paste, on the belief that an
+ * extension cannot navigate there. `chrome.tabs.create` can; only an `<a href>` is refused and
+ * `window.open` fails silently. Both screens are buttons now — see `ui/incognito-prompt.ts`. The
+ * widget stays because the console values are a genuinely different case: there is no API that opens
+ * somebody's Google Cloud project.
  *
- * What is left in all three cases is the same: show the value, make it one click to copy, and say
- * plainly that we cannot do it for you.
- *
- * Rendered as text in a `<code>` rather than as a link. For a `chrome://` address an `<a href>` is
- * a link Chrome refuses to follow from an extension page, and a dead link is a worse instruction
- * than a string the user can see and copy; for the console, INV-3 settles it.
+ * Rendered as text in a `<code>` rather than as a link, which for those values is INV-3's doing.
  */
 
 import { h, msg } from './dom.js';

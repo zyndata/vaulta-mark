@@ -12,8 +12,45 @@ below.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-18
+
 ### Added
 
+- **VaultaMark is in the Chrome Web Store.** 1.0.0 was published there on 2026-08-16, so installing
+  no longer means building from source and loading an unpacked folder:
+  <https://chromewebstore.google.com/detail/nfcfgnaefnkpmoiagnamdacpohifncpl>. Building it yourself
+  still works and is still how the checksum in each release is meant to be checked — what changed is
+  that it is no longer the only way in.
+- **The manager warns when a vaulted page is still in Chrome's history.** A bookmark whose page you
+  visited before you vaulted it is still in the address bar's suggestions — vaulting it never
+  removed the visit. Rows for those pages now carry a warning marker beside the preview eye, and
+  selecting one offers *Delete this page from history* in the detail pane. That button is about the
+  **one page**, unlike Settings → Privacy, which works site by site; both need the optional history
+  permission, and without it nothing is shown, because nothing can be known.
+- **The history cleanup can now remove one site at a time.** *Review the list* in the setup guide and
+  in Settings → Privacy gives every site its own *Remove*, and the button underneath reads *Remove
+  all* rather than *Remove them* — the list is there so you can disagree with part of it, and until
+  now the only answers were everything or nothing. Removing one site leaves the rest of the review on
+  screen, and sites that are not in your vault stay untouchable either way.
+- **The incognito setup step opens the page it talks about.** Turning on *Allow in Incognito* used to
+  mean copying `chrome://extensions/?id=…` out of VaultaMark and pasting it into the address bar,
+  because the extension believed it was not allowed to open that page. It is: the guided prompt and
+  the setup flow now have an *Open that page* button. The toggle is still yours to flip — no
+  extension can set it — and *Re-check* still asks Chrome rather than assuming.
+- **Settings now lists the keyboard shortcuts and what they are bound to.** Chrome, not VaultaMark,
+  owns those bindings — and it silently leaves a suggested combination unbound when another extension
+  claimed it first, which is usually the explanation for a shortcut that appears to do nothing. The
+  new *Keyboard shortcuts* section shows each command with its current combination, or *Not set*, and
+  has a button that opens Chrome's own page for changing them.
+- **A folder in the sidebar now has the same pencil a tag has.** It opens a panel that renames the
+  folder or deletes it — the delete asks what happens to the contents, exactly as it always has.
+  Renaming a folder previously meant finding it as a row in the main list first.
+- **The tag panel can now delete a tag.** *Delete the tag* sits beside *Rename*, and asks once more,
+  naming how many bookmarks it comes off. It deletes the tag and nothing else: every bookmark that
+  carried it stays where it is, with its other tags intact.
+- **Ticking a folder in *Import from this browser* now ticks what is inside it.** Importing a folder
+  has always brought its contents along — the picker simply never showed it, so the only way to find
+  out what a tick meant was to import it and count. Half-ticked folders show as mixed.
 - **Releases now carry a provenance attestation** beside the checksum. The checksum says your
   download matches what was published; the attestation says the file came out of this repository's
   release workflow, from a named commit, rather than being uploaded by hand. Check it with
@@ -21,6 +58,35 @@ below.
 
 ### Changed
 
+- **The Store listing no longer opens by calling itself encrypted.** The extension's description —
+  the line under its name in the Chrome Web Store and on `chrome://extensions` — now reads
+  *Bookmarks Chrome doesn't know about. No omnibox autocomplete, opens in incognito, encrypted,
+  optional sync via your Google Drive.* Every claim the old wording made is still there, encryption
+  included; what changed is which one comes first. Encrypted bookmark storage is what several other
+  extensions also offer, and it was taking the opening words away from the three things that are
+  particular to this one: nothing reaches the address bar, every link opens in incognito, and sync
+  goes to your own Google Drive rather than to anybody's server.
+- **The popup's settings screen is now the quick ones, with a door to the rest.** It keeps auto-lock —
+  the setting people change in the moment, on their way past — and a new *All settings in the
+  manager* button at the bottom opens the manager on its settings screen, where the other seven
+  sections already lived. *Opening and saving* (reuse the incognito window, strip tracking
+  parameters) moved out of the popup for the same reason it was worth moving: both are decided once,
+  and switching tracking-parameter stripping on offers to rewrite every bookmark you have, which is
+  not a question to answer in a 422-pixel column. Nothing was removed from the product; both switches
+  are in the manager, worded exactly as before.
+- **The incognito fallback no longer promises a cleanup "in a later version".** Ticking *Clear this
+  site from my history afterwards* has actually cleared it, when the vault locks, since the history
+  tools landed — the sentence under the checkbox simply never caught up.
+- **Escape leaves Settings, *Import & export* and the conflict screen**, exactly as their *Back to
+  bookmarks* button does. With a dialog open the key still belongs to the dialog and closes only
+  that.
+- **Buttons that take a moment now say so.** *Sync now* (in Settings and in the toolbar) reports that
+  it is working and then that it finished, rather than doing nothing visible for a network round trip
+  and silently rewriting a line elsewhere on the screen. The history dry run and the history deletion
+  do the same. A privacy switch that was refused a permission — or whose setting could not be
+  stored — now goes back to where it was instead of showing a setting the vault does not have.
+- **The destroy-vault button stands clear of the text above it**, like the button in every other
+  settings section.
 - **A build can now be given its own OAuth client id for development** (`VM_OAUTH_CLIENT_ID_DEV`),
   used only when the manifest pins an unpacked extension id. A Google OAuth client for an extension
   authorises exactly one extension id, so publishing to the Store created a second id that needed a
@@ -29,6 +95,10 @@ below.
 
 ### Fixed
 
+- **The bookmark list no longer comes back half-empty.** Returning from *Import & export* — or from
+  anywhere else that replaces the list — could leave a handful of rows on screen above a scrollbar
+  that knew there were more, until you scrolled and the rest appeared. The list measures the room it
+  has whenever that room changes, which also fixes the same gap after resizing the window.
 - **The Store description is one sentence shorter**, because the old one was one character too long
   for Chrome to accept: 133 against a hard limit of 132. It reads "…Optional sync via your Google
   Drive" now rather than "your **own** Google Drive". Nothing about the extension changed; the
@@ -767,5 +837,6 @@ The first release. Everything below is new, because there was nothing before it.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
-[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.0.0...dev
+[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.1.0...dev
+[1.1.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.1.0
 [1.0.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.0.0

@@ -304,6 +304,32 @@ test('has no critical or serious accessibility violations', async () => {
 });
 
 /**
+ * `manager.html#settings` — the popup's "All settings in the manager" button.
+ *
+ * The popup's own settings screen keeps auto-lock and hands the other seven sections over, so this
+ * hash is the whole of that handover: it has to land on the settings screen rather than the list, and
+ * it has to be *spent*. The manager's screens are not addressable — Back changes the screen without
+ * touching the URL — so a hash left in the address bar would describe a screen the user has left, and
+ * would put it back on reload.
+ */
+test('#settings opens the manager on its settings screen and then spends the hash', async () => {
+  const page = await openPage('manager.html#settings');
+  await expect(page.getByRole('button', { name: 'Back to bookmarks' })).toBeVisible();
+  expect(new URL(page.url()).hash).toBe('');
+
+  // And the list underneath finished loading regardless: settings replaces the layout rather than
+  // standing in for it, so Back has somewhere to go.
+  await page.getByRole('button', { name: 'Back to bookmarks' }).click();
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+
+  // A reload with the hash gone is the plain manager, which is the point of spending it.
+  await page.reload();
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back to bookmarks' })).toHaveCount(0);
+  await page.close();
+});
+
+/**
  * The incognito prompt is its own document at its own address, and the one page here that a user
  * reaches while something is *wrong* — which is exactly when a missing label costs most.
  */
@@ -311,6 +337,14 @@ test('the incognito prompt has no critical or serious accessibility violations',
   const page = await openPage('manager.html#incognito=nothing-in-particular');
   await expect(page.getByRole('heading', { level: 2 })).toBeVisible();
   await expectNoA11yViolations(page, 'the guided incognito prompt');
+
+  // Step 1 opens the page it names. An `<a href="chrome://…">` would be refused, which is why this
+  // is a button — and why the assertion is that a real tab appears at that address.
+  const opened = context.waitForEvent('page');
+  await page.getByRole('button', { name: 'Open that page' }).click();
+  const settings = await opened;
+  expect(settings.url()).toBe(`chrome://extensions/?id=${extensionId}`);
+  await settings.close();
   await page.close();
 });
 
@@ -573,7 +607,7 @@ test('a tag filter and Untagged are alternatives, not layers', async () => {
   await expect(page.locator('.vm-sidebar .is-current')).toHaveCount(1);
 
   // ---------------------------------------------------------------- an empty rename is refused
-  await page.getByRole('button', { name: 'Rename the tag scoped' }).click();
+  await page.getByRole('button', { name: /tag scoped/ }).click();
   await page.getByLabel('New name').fill('   ');
   await page.getByRole('button', { name: 'Rename', exact: true }).click();
   // Still open, and saying why — it used to swallow the submit and look broken.
@@ -582,6 +616,142 @@ test('a tag filter and Untagged are alternatives, not layers', async () => {
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('button', { name: /Show bookmarks tagged scoped/ })).toBeVisible();
 
+  await page.close();
+});
+
+/**
+ * The pencil beside a tag now opens a panel with two answers in it, and this is the second one.
+ *
+ * A tag is not an object in the vault — it exists exactly as long as something is tagged with it —
+ * so "delete the tag" is a bulk untag, and the thing worth asserting is that it deletes no bookmark.
+ */
+test('the tag panel can take a tag off everything without deleting a bookmark', async () => {
+  const page = await openPage('manager.html');
+  await vault(page, 'https://tag-e2e.invalid/one', 'Tagged one');
+  await vault(page, 'https://tag-e2e.invalid/two', 'Tagged two');
+  await page.reload();
+
+  await row(page, 'Tagged one').click();
+  await row(page, 'Tagged two').click({ modifiers: ['Control'] });
+  await page.getByRole('button', { name: 'Tag…' }).click();
+  await page.getByLabel('Add these tags').fill('doomed');
+  await page.getByRole('button', { name: 'Apply' }).click();
+  await expect(page.getByRole('button', { name: /Show bookmarks tagged doomed/ })).toBeVisible();
+
+  await page.getByRole('button', { name: /tag doomed/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete the tag' }).click();
+  // A second, separate press: the panel closes and the confirmation names how much it touches.
+  await expect(page.getByRole('dialog')).toContainText('2 bookmarks');
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete the tag' }).click();
+
+  await expect(page.getByRole('button', { name: /Show bookmarks tagged doomed/ })).toHaveCount(0);
+  await expect(row(page, 'Tagged one')).toBeVisible();
+  await expect(row(page, 'Tagged two')).toBeVisible();
+  await page.close();
+});
+
+/**
+ * The same pencil, on a folder in the tree.
+ *
+ * Renaming a folder used to mean finding it as a *row in the list* first, which is a trip that only
+ * makes sense to whoever built it. Delete hands to the question that was always asked about a
+ * folder's contents, so that path is covered by the keyboard-Delete test below and only the door is
+ * asserted here.
+ */
+test('the pencil beside a folder renames it from the tree', async () => {
+  const page = await openPage('manager.html');
+  await page.getByRole('button', { name: 'New folder' }).click();
+  await page.getByLabel('Folder name').fill('Misnamed');
+  await page.getByRole('button', { name: 'Create folder' }).click();
+
+  const folder = page.locator('.vm-tree-item:has(> .vm-tree-row > .vm-tree-title:text-is("Misnamed"))');
+  await expect(folder).toBeVisible();
+  await folder.locator('.vm-tree-edit').click();
+  await page.getByLabel('Folder name').fill('Renamed from the tree');
+  await page.getByRole('button', { name: 'Rename', exact: true }).click();
+
+  const renamed = page.locator(
+    '.vm-tree-item:has(> .vm-tree-row > .vm-tree-title:text-is("Renamed from the tree"))',
+  );
+  await expect(renamed).toBeVisible();
+  await expect(folder).toHaveCount(0);
+
+  /*
+   * The keyboard's way to the same panel.
+   *
+   * The pencil is deliberately not a tab stop — the tree is one stop, not one per folder — so F2 on
+   * the focused folder is what stands in for it. Tabbing off a folder therefore leaves the tree
+   * outright; with the button's default tabindex it would stop at that folder's own pencil, and
+   * crossing a vault of thirty folders would take thirty presses. (Where it lands next is the tag
+   * list, which is a plain list of buttons and is a stop per tag by design.)
+   */
+  await renamed.focus();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('.vm-tree :focus')).toHaveCount(0);
+
+  await renamed.focus();
+  await page.keyboard.press('F2');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByLabel('Folder name')).toHaveValue('Renamed from the tree');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.close();
+});
+
+/**
+ * Escape leaves a full-window screen, the way its Back button does.
+ *
+ * Also asserts the case that decides the implementation: with a modal open, Escape belongs to the
+ * modal and must not close the screen behind it as well.
+ */
+test('Escape leaves settings and import & export, but not from under a dialog', async () => {
+  const page = await openPage('manager.html');
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByRole('button', { name: 'Back to bookmarks' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Import & export' }).click();
+  await expect(page.getByRole('button', { name: 'Back to bookmarks' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+
+  // One keystroke, one answer: the dialog closes and the list stays where it was.
+  await page.getByRole('button', { name: 'New folder' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+  await page.close();
+});
+
+/**
+ * The keyboard-shortcut section: what the keys are bound to *now*, and the button that changes them.
+ *
+ * The bindings are Chrome's — an extension can suggest one and read back what was granted, and
+ * cannot set one. **`chrome.tabs.create` can open `chrome://extensions/shortcuts`**, which this
+ * asserts against the real browser: an `<a href>` to a `chrome://` address is refused and
+ * `window.open` is dropped in silence, so the tabs API being allowed is the whole reason this is a
+ * button and not an address to copy. If a future Chrome closes that door, this test is where it
+ * shows up rather than in a bug report about a dead button.
+ */
+test('settings lists the keyboard commands and opens Chrome’s page for rebinding them', async () => {
+  const page = await openPage('manager.html');
+  await page.getByRole('button', { name: 'Settings' }).click();
+
+  const shortcuts = page
+    .locator('.vm-settings-section')
+    .filter({ has: page.getByRole('heading', { name: 'Keyboard shortcuts' }) });
+  await expect(shortcuts).toContainText('Add the current tab to the vault');
+  // Never an <a href>: that one really is refused, and a dead link is worse than no link.
+  await expect(shortcuts.locator('a')).toHaveCount(0);
+
+  const opened = context.waitForEvent('page');
+  await shortcuts.getByRole('button', { name: /shortcuts page/ }).click();
+  const tab = await opened;
+  expect(tab.url()).toBe('chrome://extensions/shortcuts');
+  await tab.close();
   await page.close();
 });
 

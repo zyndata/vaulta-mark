@@ -170,6 +170,33 @@ export function expandSelection(
   return out;
 }
 
+/**
+ * The other direction: drop every id whose ancestor is also selected.
+ *
+ * The counterpart of {@link expandSelection}, and needed because {@link deleteNative} removes whole
+ * subtrees. Once the picker started ticking a folder's contents along with the folder — which is what
+ * ticking a folder has always *meant* to the importer, and now says so on screen — a selection that
+ * went to `removeTree` unpruned would delete the folder and then ask Chrome to delete each of its
+ * children again. Every one of those answers with a throw, and the caller counts throws as failures:
+ * "removed 1, 20 could not be removed" for a deletion that removed all twenty-one.
+ */
+export function topmostSelection(
+  nodes: readonly NativeNode[],
+  selected: Iterable<string>,
+): string[] {
+  const wanted = new Set(selected);
+  const out: string[] = [];
+  const walk = (list: readonly NativeNode[]): void => {
+    for (const node of list) {
+      // Taken, and its subtree left alone: `removeTree` takes the children with it.
+      if (wanted.has(node.id)) out.push(node.id);
+      else walk(node.children ?? []);
+    }
+  };
+  walk(nodes);
+  return out;
+}
+
 /* ------------------------------------------------------------------ importing */
 
 export interface NativeImportOptions {

@@ -5,8 +5,8 @@
  * and reports what happened, and the only thing that decides whether Next moves is `canAdvance`.
  *
  * It lives on the manager page rather than in the popup for the same reason the incognito prompt
- * does: step 3 asks the user to paste an address into the address bar, and a popup closes the moment
- * they click there (ARCHITECTURE §9).
+ * does: step 3 sends the user to a `chrome://` tab and waits for them to come back, and a popup is
+ * gone the moment focus leaves it (ARCHITECTURE §9).
  *
  * **Every step re-reads the world instead of remembering it.** Whether a vault exists and whether
  * incognito access is on are both facts a user can change in another window — one by finishing the
@@ -16,7 +16,7 @@
 
 import { hasHistoryPermission } from '../../history/cleanup.js';
 import { send } from '../../shared/messages.js';
-import { copyableValue } from '../../ui/address.js';
+import { incognitoSteps } from '../../ui/incognito-prompt.js';
 import { createVaultForm } from '../../ui/create-form.js';
 import { h, msg, render } from '../../ui/dom.js';
 import { historyCleanupPanel } from '../../ui/history-cleanup.js';
@@ -312,13 +312,11 @@ export function mountOnboarding(root: HTMLElement, options: OnboardingOptions): 
       { class: 'vm-onboarding-step' },
       h('h2', null, msg('incognitoHeading')),
       h('p', null, msg('incognitoWhy')),
-      h(
-        'ol',
-        { class: 'vm-steps' },
-        h('li', null, msg('incognitoStep1'), ' ', copyableValue({ value: settingsUrl })),
-        h('li', null, msg('incognitoStep2')),
-        h('li', null, msg('incognitoStep3')),
-      ),
+      // The same three steps as the guided prompt, from the same function: two screens asking for
+      // the same thing in two sets of words is how one of them ends up out of date.
+      incognitoSteps(() => {
+        void chrome.tabs.create({ url: settingsUrl });
+      }),
       result,
       h('div', { class: 'vm-onboarding-actions' }, recheck, allowed ? null : skip),
       // Only worth saying while it is still off — after that the nudge is not coming.
@@ -419,7 +417,7 @@ export function mountOnboarding(root: HTMLElement, options: OnboardingOptions): 
    * the user before anything is deleted.
    *
    * This step used to carry a second card about Chrome's "Autocomplete searches and URLs" setting —
-   * an address to paste and an instruction to turn it off. It is gone (maintainer-reported, and
+   * an address to copy and an instruction to turn it off. It is gone (maintainer-reported, and
    * ARCHITECTURE §12.4 records the removal): a setup flow that ends by handing someone homework in a
    * settings page we cannot open, verify or undo is a step nobody can complete here, and it was the
    * one card in the flow that had no control on it at all.

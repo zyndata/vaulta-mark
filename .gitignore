@@ -9,6 +9,18 @@ CLAUDE.local.md
 .mcp.json
 
 # ---------------------------------------------------------------------------
+# Point-in-time working documents — local only.
+#
+# An audit or review report describes the tree on one day. Its findings belong in the documents
+# that own them (THREAT_MODEL, BRANCH_PROTECTION, RELEASE, this file), and once they are moved
+# there the report is a second, ageing copy that contradicts them the first time one is updated.
+# The 2026-08-15 audit was committed in `29c5114` and is untracked again from 2026-08-16; it stays
+# in history because it carries nothing sensitive, and it is not deleted from disk.
+# ---------------------------------------------------------------------------
+AUDIT_AND_ACTION_PLAN.md
+AUDIT*.md
+
+# ---------------------------------------------------------------------------
 # Secrets and signing keys — a leak here is a publishing-credential compromise.
 # ---------------------------------------------------------------------------
 *.pem
@@ -59,9 +71,7 @@ blob-report/
 # ---------------------------------------------------------------------------
 # Editors
 # ---------------------------------------------------------------------------
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.example.json
+.vscode/
 .idea/
 *.swp
 *~

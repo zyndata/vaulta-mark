@@ -4,7 +4,7 @@
     "description": "The extension name, as shown in Chrome and on the Web Store."
   },
   "extDescription": {
-    "message": "Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito. Optional sync via your Google Drive.",
+    "message": "Bookmarks Chrome doesn't know about. No omnibox autocomplete, opens in incognito, encrypted, optional sync via your Google Drive.",
     "description": "Store and toolbar description. The Web Store *rejects* an upload over 132 characters — it does not truncate. Checked by scripts/verify-manifest.mjs."
   },
   "actionTitle": {
@@ -482,15 +482,19 @@
     "description": "Explanation at the top of the guided incognito prompt."
   },
   "incognitoStep1": {
-    "message": "Copy this address and paste it into the address bar:",
-    "description": "First step of the guided incognito prompt. Chrome forbids an extension from opening a chrome:// URL, so the user has to paste it."
+    "message": "Open VaultaMark’s own page in Chrome’s extension settings:",
+    "description": "First step of the guided incognito prompt. Followed by the button that opens it."
+  },
+  "incognitoOpenSettings": {
+    "message": "Open that page",
+    "description": "Button in the guided incognito prompt and in onboarding step 3. Opens chrome://extensions/?id=<our id> in a new tab — chrome.tabs.create is allowed to, even though a link to the same address is not."
   },
   "incognitoStep2": {
     "message": "On the page that opens, find the “Allow in Incognito” switch — it is near the bottom of VaultaMark's details, under “Site access”.",
     "description": "Second step of the guided incognito prompt."
   },
   "incognitoStep3": {
-    "message": "Turn it on, come back here, and press Re-check.",
+    "message": "Turn it on, come back to this tab, and press Re-check.",
     "description": "Third step of the guided incognito prompt."
   },
   "copyButton": {
@@ -530,8 +534,8 @@
     "description": "Checkbox that queues a history cleanup for the site being opened."
   },
   "incognitoFallbackClearHistoryHint": {
-    "message": "Queued until the cleanup arrives in a later version, and only for as long as the vault stays unlocked — the queue is never written to disk.",
-    "description": "Explanation under the clear-history checkbox, stating the Phase-9 limitation honestly."
+    "message": "Cleared the next time the vault locks, if you have allowed history access. The list is held in memory only and is never written to disk.",
+    "description": "Explanation under the clear-history checkbox. The queue is drained by cleanOnLock in background/history.ts; before Phase 9 there was nothing to drain it and this string said so, which stopped being true and stayed on screen."
   },
   "incognitoFallbackButton": {
     "message": "Open in a normal window",
@@ -690,6 +694,44 @@
     "message": "Untagged",
     "description": "Sidebar filter showing bookmarks that carry no tags."
   },
+  "navFolderLabel": {
+    "message": "$FOLDER$ ($COUNT$)",
+    "description": "Accessible name of a folder in the sidebar tree. Explicit, because the row also holds a button whose label would otherwise be read as part of the folder's name.",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Recipes"
+      },
+      "count": {
+        "content": "$2",
+        "example": "12"
+      }
+    }
+  },
+  "folderEditHeading": {
+    "message": "Folder “$FOLDER$”",
+    "description": "Heading of the panel behind the pencil in the sidebar tree. It names the object rather than one of the two verbs on the buttons — the panel renames and deletes.",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Recipes"
+      }
+    }
+  },
+  "folderEditAction": {
+    "message": "Rename or delete the folder $FOLDER$",
+    "description": "Accessible name for the pencil button beside a folder in the sidebar tree.",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Recipes"
+      }
+    }
+  },
+  "folderDeleteAction": {
+    "message": "Delete the folder",
+    "description": "The destructive button in the folder panel, beside Rename. What happens to the contents is asked next."
+  },
   "navFolders": {
     "message": "Folders",
     "description": "Heading above the folder tree in the sidebar."
@@ -781,6 +823,10 @@
   "listHasThumb": {
     "message": "Show preview",
     "description": "Tooltip on the eye marker of a row whose bookmark has a preview picture."
+  },
+  "listInHistory": {
+    "message": "This page is still in Chrome's browsing history. Select it to remove that.",
+    "description": "Tooltip on the warning marker of a row whose page still has entries in Chrome's history."
   },
   "listKeyboardHint": {
     "message": "j and k move, Enter opens, e edits, p previews, Delete removes, Esc clears.",
@@ -944,6 +990,54 @@
     "message": "At the top level",
     "description": "Shown instead of detailInFolder when the item has no parent folder."
   },
+  "detailInHistory": {
+    "message": "This page is still in Chrome's browsing history.",
+    "description": "Shown in the detail pane when the selected bookmark's page has history entries. The same fact as the warning triangle on its row."
+  },
+  "detailInHistoryHint": {
+    "message": "Vaulting a page does not remove where you have already been, and the address bar suggests pages from history on its own. Removing it here affects this one page — Settings → Privacy has the same tool for whole sites.",
+    "description": "Explains what the history warning in the detail pane means and how it differs from the site-wide cleanup in settings."
+  },
+  "detailForgetHistory": {
+    "message": "Delete this page from history",
+    "description": "Button in the detail pane that removes the selected bookmark's own history entries."
+  },
+  "detailForgetHistoryHeading": {
+    "message": "Delete “$TITLE$” from Chrome's history?",
+    "description": "Heading of the confirmation for deleting one page's history entries.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Weapon tier list"
+      }
+    }
+  },
+  "detailForgetHistoryBody": {
+    "message": "Every visit to this page is removed from Chrome's browsing history. The bookmark itself stays in your vault, and other pages on the same site are not touched.",
+    "description": "Body of the confirmation for deleting one page's history entries."
+  },
+  "detailForgetHistoryNoUndo": {
+    "message": "This is real browsing history and Chrome offers no undo.",
+    "description": "Second line of the confirmation for deleting one page's history entries."
+  },
+  "detailForgot": {
+    "message": "Removed $COUNT$ history entries for this page.",
+    "description": "Confirmation after deleting one page's history entries.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "detailForgotOne": {
+    "message": "Removed 1 history entry for this page.",
+    "description": "Confirmation after deleting one page's history entries, when there was exactly one."
+  },
+  "detailForgotNothing": {
+    "message": "There was nothing left to remove for this page.",
+    "description": "Confirmation after deleting one page's history entries, when the entries had already gone."
+  },
   "detailStats": {
     "message": "Added $ADDED$ · opened $COUNT$ times",
     "description": "Timestamps and counters in the detail pane.",
@@ -1042,16 +1136,6 @@
     "message": "Apply",
     "description": "Confirm button of the bulk-tag dialog."
   },
-  "tagRenameHeading": {
-    "message": "Rename the tag “$TAG$”",
-    "description": "Heading of the rename-tag dialog.",
-    "placeholders": {
-      "tag": {
-        "content": "$1",
-        "example": "reading"
-      }
-    }
-  },
   "tagRenameLabel": {
     "message": "New name",
     "description": "Label for the new-name field in the rename-tag dialog."
@@ -1088,13 +1172,85 @@
       }
     }
   },
-  "tagRenameAction": {
-    "message": "Rename the tag $TAG$",
-    "description": "Accessible name for the rename button beside a tag in the sidebar.",
+  "tagEditAction": {
+    "message": "Rename or delete the tag $TAG$",
+    "description": "Accessible name for the pencil button beside a tag in the sidebar. It opens a panel that does both.",
     "placeholders": {
       "tag": {
         "content": "$1",
         "example": "reading"
+      }
+    }
+  },
+  "tagEditHeading": {
+    "message": "Tag “$TAG$”",
+    "description": "Heading of the panel behind the pencil beside a tag. Names the object, not one of the two verbs on the buttons.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagDeleteAction": {
+    "message": "Delete the tag",
+    "description": "The destructive button in the tag panel, beside Rename."
+  },
+  "tagDeleteHeading": {
+    "message": "Delete the tag “$TAG$”?",
+    "description": "Heading of the delete-tag confirmation.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagDeleteBodyCount": {
+    "message": "It comes off $COUNT$ bookmarks. Nothing is deleted but the tag itself, and this cannot be undone.",
+    "description": "Body of the delete-tag confirmation. Whole sentences per count, so a translator can reorder them.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      },
+      "count": {
+        "content": "$2",
+        "example": "12"
+      }
+    }
+  },
+  "tagDeleteBodyOne": {
+    "message": "It comes off one bookmark. Nothing is deleted but the tag itself, and this cannot be undone.",
+    "description": "Body of the delete-tag confirmation when exactly one bookmark carries it.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagDeleteBody": {
+    "message": "It comes off every bookmark that carries it. Nothing is deleted but the tag itself, and this cannot be undone.",
+    "description": "Body of the delete-tag confirmation when the count is not known.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagDeleteConfirm": {
+    "message": "Delete the tag",
+    "description": "Confirming button on the delete-tag confirmation. A verb, never “OK”."
+  },
+  "tagDeleted": {
+    "message": "Removed from $COUNT$ bookmarks.",
+    "description": "Confirmation after a tag deletion.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
       }
     }
   },
@@ -1149,6 +1305,14 @@
   "settingsBack": {
     "message": "‹ Back",
     "description": "Returns the popup from the settings screen to the bookmark list."
+  },
+  "settingsAllInManager": {
+    "message": "All settings in the manager",
+    "description": "Button at the bottom of the popup's settings screen. Opens the manager on its own settings screen, which holds the sections the popup does not."
+  },
+  "settingsAllInManagerHint": {
+    "message": "Appearance, sync, privacy, password, backups.",
+    "description": "Hint under the popup's 'All settings in the manager' button, naming what is not on the popup's screen. Kept to one line at the popup's fixed width — it is a signpost, not a sentence."
   },
   "settingsBackToBookmarks": {
     "message": "Back to bookmarks",
@@ -1442,6 +1606,10 @@
   "syncNowButton": {
     "message": "Sync now",
     "description": "Button that runs a sync immediately."
+  },
+  "syncNowDone": {
+    "message": "Sync finished.",
+    "description": "Said after a sync the user asked for finished without an error. The 'last synced' line alone cannot report a second sync a moment after the first."
   },
   "syncBusy": {
     "message": "Syncing…",
@@ -2305,6 +2473,14 @@
     "message": "Check what would be removed",
     "description": "Runs the dry run."
   },
+  "historyChecking": {
+    "message": "Checking…",
+    "description": "Label of the dry-run button while the dry run is running. It searches history once per vaulted site."
+  },
+  "historyClearing": {
+    "message": "Removing history entries…",
+    "description": "Shown in place of the panel while the entries are being deleted."
+  },
   "historyCheckAgainButton": {
     "message": "Check again",
     "description": "Runs the dry run a second time."
@@ -2365,9 +2541,23 @@
     "message": "1 entry",
     "description": "Per-site count in the review list, singular."
   },
+  "historyReviewRemove": {
+    "message": "Remove",
+    "description": "Deletes the history entries of one site in the review list."
+  },
+  "historyReviewRemoveLabel": {
+    "message": "Remove the history entries for $DOMAIN$",
+    "description": "Accessible name of the per-site remove button, which reads 'Remove' on screen.",
+    "placeholders": {
+      "domain": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
   "historyClearButton": {
-    "message": "Remove them",
-    "description": "Carries out the deletion."
+    "message": "Remove all",
+    "description": "Carries out the deletion for every site in the list, as opposed to the per-site button beside each one."
   },
   "historyCancelButton": {
     "message": "Leave it alone",
@@ -2391,6 +2581,30 @@
       }
     }
   },
+  "historyConfirmSite": {
+    "message": "$ENTRIES$ entries from $DOMAIN$ will be deleted from Chrome's browsing history.",
+    "description": "Confirmation dialog body when one site was picked out of the review list.",
+    "placeholders": {
+      "domain": {
+        "content": "$1",
+        "example": "example.com"
+      },
+      "entries": {
+        "content": "$2",
+        "example": "143"
+      }
+    }
+  },
+  "historyConfirmSiteOne": {
+    "message": "One entry from $DOMAIN$ will be deleted from Chrome's browsing history.",
+    "description": "Confirmation dialog body when one site was picked out of the review list and it has a single entry.",
+    "placeholders": {
+      "domain": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
   "historyConfirmCaveat": {
     "message": "This is real browsing history and Chrome offers no undo. Sites that are not in your vault are not touched.",
     "description": "Confirmation dialog caveat."
@@ -2408,6 +2622,22 @@
   "historyClearedOne": {
     "message": "Removed 1 history entry.",
     "description": "Announced after a cleanup, singular."
+  },
+  "settingsSectionShortcuts": {
+    "message": "Keyboard shortcuts",
+    "description": "Heading of the settings section listing the extension's keyboard commands."
+  },
+  "settingsShortcutsHint": {
+    "message": "Chrome owns these bindings, and its own page is where they are changed or cleared. A blank one usually means another extension had that combination first.",
+    "description": "Explanation above the button that opens chrome://extensions/shortcuts."
+  },
+  "settingsShortcutsOpen": {
+    "message": "Open Chrome’s shortcuts page",
+    "description": "Button that opens chrome://extensions/shortcuts in a new tab."
+  },
+  "settingsShortcutUnset": {
+    "message": "Not set",
+    "description": "Shown in place of a key combination for a command that has none."
   },
   "settingsSectionPrivacy": {
     "message": "Privacy",

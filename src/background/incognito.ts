@@ -8,10 +8,10 @@
  * fallback is a normal one, and the fallback is never taken without the user choosing it.
  *
  * The awkward part is that **there is no API to request incognito access.** `"Allow in Incognito"`
- * is a checkbox on `chrome://extensions`, an extension cannot navigate there, and Chrome offers no
- * permission prompt for it. All we can do is detect the state, explain it, hand over the URL to
- * paste, and offer a Re-check button — which is what the guided prompt in `ui/incognito-prompt.ts`
- * does.
+ * is a checkbox on `chrome://extensions`, which we can open but not operate, and Chrome offers no
+ * permission prompt for it. All we can do is detect the state, explain it, **open** that page for
+ * the user (`chrome.tabs.create` reaches a `chrome://` address — corrected 2026-08-17), and offer a
+ * Re-check button — which is what the guided prompt in `ui/incognito-prompt.ts` does.
  *
  * `incognito: "spanning"` in the manifest (D29) is what makes any of this work: one service worker
  * across normal and incognito windows, so the vault the user just unlocked is still unlocked in the
@@ -44,7 +44,7 @@ export function forgetIncognitoAccess(): void {
   cachedAccess = null;
 }
 
-/** `chrome://extensions/?id=<our id>` — the page the user has to open by hand. */
+/** `chrome://extensions/?id=<our id>` — the page the prompt's first step opens in a tab. */
 export function extensionSettingsUrl(): string {
   return `chrome://extensions/?id=${chrome.runtime.id}`;
 }

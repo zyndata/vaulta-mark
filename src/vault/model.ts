@@ -475,6 +475,35 @@ export type FolderDeleteMode =
  * `reparent` moves only the *direct* children — everything deeper travels with its own parent.
  * The moves come first so they still see a live folder to move out of.
  */
+/**
+ * Take a tag off every bookmark that carries it.
+ *
+ * A tag has no existence apart from the bookmarks wearing it, so this is the whole of "delete a
+ * tag": once nothing carries it, `allTags` stops reporting it and it is gone. No bookmark is
+ * deleted and nothing else about one changes — which is what makes it safe enough to offer beside
+ * a rename.
+ *
+ * Its own function rather than `tagMutations(items, everyId, { remove: [tag] })` because the caller
+ * would have to enumerate the vault to build that list, and because the two read differently at the
+ * call site: this one names the tag it is about.
+ */
+export function deleteTagMutations(items: ItemMap, tag: string): Mutation[] {
+  const [target] = normalizeTags([tag]);
+  if (target === undefined) {
+    throw new InvalidMutationError('A tag deletion needs a non-empty name.');
+  }
+
+  const mutations: Mutation[] = [];
+  for (const item of items.values()) {
+    if (isDeleted(item) || !isBookmark(item)) continue;
+    const current = tagsOf(item);
+    if (!current.includes(target)) continue;
+    const next = current.filter((entry) => entry !== target);
+    mutations.push({ kind: 'update', id: item.id, patch: { tags: next.length === 0 ? null : next } });
+  }
+  return mutations;
+}
+
 export function deleteFolderMutations(
   items: ItemMap,
   id: string,

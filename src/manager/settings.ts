@@ -45,9 +45,23 @@ import {
 } from '../vault/types.js';
 import { relativeTime, syncQuotaBar } from './sync.js';
 
+/**
+ * Chrome's own page for rebinding an extension's keys.
+ *
+ * **`chrome.tabs.create` opens it.** Not an `<a href>` and not `window.open` — a link to a
+ * `chrome://` address is refused from an extension page and `window.open` is dropped in silence —
+ * but the tabs API is allowed to create a tab at one, which was measured in Chromium rather than
+ * assumed. This project had believed the opposite since Phase 5 and shipped a copy-this-address
+ * widget on the strength of it; see the note under §9 in ARCHITECTURE.
+ *
+ * INV-3 is not involved: that invariant is about absolute *http(s)* URLs leaving the package.
+ */
+const SHORTCUTS_URL = 'chrome://extensions/shortcuts';
+
 export interface SettingsDeps {
   readonly settings: VaultSettings;
-  readonly patch: (patch: Partial<VaultSettings>) => Promise<void>;
+  /** Store a change, answering with whether it was stored. A refusal puts its control back. */
+  readonly patch: (patch: Partial<VaultSettings>) => Promise<boolean>;
   /** The page's live region. Used for outcomes that outlive this screen, like a bulk clean-up. */
   readonly say: (text: string) => void;
   readonly onBack: () => void;
@@ -73,6 +87,10 @@ export async function settingsScreen(deps: SettingsDeps): Promise<HTMLElement> {
   const status = await send({ type: 'GET_SYNC_STATUS' });
   const drive = await send({ type: 'GET_DRIVE_STATE' });
   const historyGranted = await hasHistoryPermission();
+  // What the keys are actually bound to *now*, which is not what the manifest suggests: a suggested
+  // key Chrome could not grant (another extension had it first) is silently left unbound, and the
+  // only place that shows is here.
+  const commands = await chrome.commands.getAll();
 
   return h(
     'section',
@@ -99,6 +117,7 @@ export async function settingsScreen(deps: SettingsDeps): Promise<HTMLElement> {
         section('settingsSectionAppearance', [appearance(deps)]),
         section('settingsSectionLock', locking(deps)),
         section('settingsSectionBrowsing', browsing(deps)),
+        section('settingsSectionShortcuts', shortcuts(commands)),
         section('settingsSectionPrivacy', privacy(deps, historyGranted)),
       ),
       h(
@@ -140,9 +159,9 @@ function privacy(deps: SettingsDeps, historyGranted: boolean): HTMLElement[] {
         // `history` is the worst kind of privacy setting.
         if (checked && !(await requestHistoryPermission())) {
           deps.say(msg('historyRefused'));
-          return;
+          return false;
         }
-        await deps.patch({ clearHistoryOnLock: checked });
+        return await deps.patch({ clearHistoryOnLock: checked });
       },
     ),
     toggle(
@@ -153,10 +172,60 @@ function privacy(deps: SettingsDeps, historyGranted: boolean): HTMLElement[] {
       async (checked) => {
         if (checked && !(await requestHistoryPermission())) {
           deps.say(msg('historyRefused'));
-          return;
+          return false;
         }
-        await deps.patch({ quickClose: checked });
+        return await deps.patch({ quickClose: checked });
       },
+    ),
+  ];
+}
+
+/* ------------------------------------------------------------------ shortcuts */
+
+/**
+ * What the four commands are bound to, and the address that changes them.
+ *
+ * The bindings themselves are Chrome's: an extension can declare a suggested key and read back what
+ * was granted, and that is the whole of the API — there is no way to *set* one. Chrome's own page
+ * is where that happens, and `chrome.tabs.create` opens it (see `SHORTCUTS_URL`), so this is a
+ * button rather than an address to copy.
+ *
+ * Reading them back matters more than it looks: Chrome grants a suggested key only if nothing else
+ * has claimed it, and a combination it could not grant is left silently unbound. "Not set" beside a
+ * command is usually the explanation for a keystroke that appears to do nothing.
+ */
+function shortcuts(commands: readonly chrome.commands.Command[]): HTMLElement[] {
+  const named = commands.filter((command) => (command.description ?? '') !== '');
+  return [
+    named.length === 0
+      ? h('p', { class: 'vm-small vm-muted' }, msg('settingsShortcutUnset'))
+      : h(
+          'ul',
+          { class: 'vm-shortcut-list' },
+          ...named.map((command) =>
+            h(
+              'li',
+              null,
+              // Chrome's own string, out of the same `_locales` file as everything else here: the
+              // descriptions in `build/manifest.ts` are `__MSG_` references.
+              h('span', null, command.description ?? ''),
+              (command.shortcut ?? '') === ''
+                ? h('span', { class: 'vm-small vm-muted' }, msg('settingsShortcutUnset'))
+                : h('kbd', null, command.shortcut ?? ''),
+            ),
+          ),
+        ),
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('settingsShortcutsHint')),
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'vm-button vm-button--quiet',
+        onclick: () => {
+          void chrome.tabs.create({ url: SHORTCUTS_URL });
+        },
+      },
+      msg('settingsShortcutsOpen'),
     ),
   ];
 }
@@ -232,24 +301,48 @@ function sync(
       ? msg('syncNever')
       : msg('syncLastSynced', [relativeTime(status.lastSyncedAt)]),
   );
-  const now = h(
-    'button',
-    {
-      type: 'button',
-      class: 'vm-button vm-button--quiet',
-      onclick: () => {
-        void (async () => {
-          const next = await send({ type: 'SYNC_NOW' });
-          if (next.type === 'ERROR') deps.say(errorText(next.code));
-          else if (next.error !== null) deps.say(syncErrorText(next.error));
-          else if (next.lastSyncedAt !== null) {
-            line.textContent = msg('syncLastSynced', [relativeTime(next.lastSyncedAt)]);
-          }
-        })();
-      },
-    },
-    msg('syncNowButton'),
-  );
+  /**
+   * Sync now — and, until this pass, the only button on this screen that answered a press with
+   * nothing at all.
+   *
+   * A sync takes as long as a network round trip and the worker reports its outcome once, at the
+   * end. Everything else here already says it is working (the migration narrates its phases, the
+   * password button disables itself, destroy arms and reports), while this one sat still and then
+   * silently rewrote a line four lines above it — which is invisible when the answer is the same
+   * sentence it was already showing.
+   *
+   * So: the label says it is working, the button refuses a second press while it is, and the
+   * outcome is said out loud whichever way it went. The line still updates, because "when" is worth
+   * having after the confirmation has cleared.
+   */
+  const now = h('button', { type: 'button', class: 'vm-button vm-button--quiet' }, msg('syncNowButton'));
+  now.addEventListener('click', () => {
+    void (async () => {
+      now.disabled = true;
+      now.textContent = msg('syncBusy');
+      let next;
+      try {
+        next = await send({ type: 'SYNC_NOW' });
+      } finally {
+        now.disabled = false;
+        now.textContent = msg('syncNowButton');
+      }
+
+      if (next.type === 'ERROR') {
+        deps.say(errorText(next.code));
+        return;
+      }
+      if (next.error !== null) {
+        deps.say(syncErrorText(next.error));
+        return;
+      }
+      line.textContent =
+        next.lastSyncedAt === null
+          ? msg('syncNever')
+          : msg('syncLastSynced', [relativeTime(next.lastSyncedAt)]);
+      deps.say(msg('syncNowDone'));
+    })();
+  });
 
   return [
     h(
@@ -827,10 +920,11 @@ function browsing(deps: SettingsDeps): HTMLElement[] {
       'settingsStripTrackingHint',
       deps.settings.stripTrackingParams,
       async (checked) => {
-        await deps.patch({ stripTrackingParams: checked });
+        if (!(await deps.patch({ stripTrackingParams: checked }))) return false;
         // Only on the way on: switching it off cannot put back parameters that are already gone,
         // so there is nothing to offer.
         if (checked) await offerCleanup(deps);
+        return true;
       },
     ),
     // Where the one-time offer in the popup ends up living, and the only way back once it has been
@@ -873,19 +967,42 @@ async function offerCleanup(deps: SettingsDeps): Promise<void> {
   });
 }
 
+/**
+ * A switch, and the guarantee that it shows what actually happened.
+ *
+ * A checkbox flips itself the moment it is clicked, which reads as a setting that has been changed —
+ * and two of the ones here are gated on an optional permission the user can refuse, while all of
+ * them are stored by a message that can fail. Both left the box on and the setting off: the tick was
+ * a claim about state that nothing had established.
+ *
+ * So the handler answers whether it stuck, and `false` puts the box back. The box is also
+ * disabled while the answer is outstanding — `history` opens a browser-level prompt, and clicking
+ * three more times behind it asks three more times.
+ */
 function toggle(
   id: string,
   labelKey: string,
   hintKey: string,
   checked: boolean,
-  onChange: (checked: boolean) => Promise<void>,
+  onChange: (checked: boolean) => Promise<boolean>,
 ): HTMLElement {
   const input = h('input', {
     type: 'checkbox',
     id,
     checked,
     onchange: (event: Event) => {
-      void onChange((event.currentTarget as HTMLInputElement).checked);
+      const box = event.currentTarget as HTMLInputElement;
+      const wanted = box.checked;
+      void (async () => {
+        box.disabled = true;
+        let stored;
+        try {
+          stored = await onChange(wanted);
+        } finally {
+          box.disabled = false;
+        }
+        if (!stored) box.checked = !wanted;
+      })();
     },
   });
   return h(
