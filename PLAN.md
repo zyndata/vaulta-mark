@@ -1592,14 +1592,23 @@ conversation that wants to change one must open an issue and get it changed here
 1. **License — GPL-3.0-only.** Final. Copyleft keeps forks of a security tool auditable, matches the
    prior art in this niche, and is compatible with Chrome Web Store distribution. The cost (no
    proprietary reuse of the crypto/sync modules) is a non-goal.
-2. **Short description (≤ 132 chars)** — the working draft, refined only for length/clarity in
-   Phase 13:
-   > *Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito.
-   > Optional sync via your Google Drive.* (129 chars, measured)
+2. **Short description (≤ 132 chars)** — the working draft, refined for length/clarity in Phase 13
+   and **repositioned on 2026-08-18**:
+   > *Bookmarks Chrome doesn't know about. No omnibox autocomplete, opens in incognito, encrypted,
+   > optional sync via your Google Drive.* (129 chars, measured)
 
    The draft read *your **own** Google Drive* and was recorded here as 131 characters. It was 133,
    and the Store rejected the 1.0.0 upload for it — 132 is a hard limit, not a truncation point.
    `scripts/verify-manifest.mjs` measures the built locale now.
+
+   The 2026-08-18 rewrite is a **reordering, not a new claim**: a competitive survey found the
+   "encrypted bookmark vault" niche already held by free, open-source extensions with the same
+   cryptography, so *password-encrypted* — the old opening — was the one thing the text had in
+   common with its competition, spent in its scarcest characters. Every fact survives, "encrypted"
+   included; only the order changed. Full reasoning in
+   [STORE_LISTING §2](docs/STORE_LISTING.md#2-short-description--132-characters). **What is settled
+   here is the length limit and the set of claims, not the word order** — a future rewrite that
+   keeps both needs no change to this list.
 3. **Google Cloud + Chrome Web Store accounts** — the maintainer creates both under `zyndata`, at the
    start of Phase 10 (Cloud project + OAuth consent screen; verification takes weeks, so it starts
    early) and before Phase 13 (Store developer account, $5). Phases 0–9 are unblocked. Every step is

@@ -221,6 +221,14 @@ runs the same command. Thresholds are ratcheted upward as modules land; never lo
    CHANGELOG section.
 8. **Publish to the Store** — a *separate, manual* `workflow_dispatch` run with `publish: true`
    (§7). The tag push alone never publishes.
+9. **Reconcile the listing copy with the package.** Open
+   [STORE_LISTING §2](STORE_LISTING.md#2-short-description--132-characters) and look for a *pending
+   upload* marker. The **short description is the manifest's `description`**, so it reaches the Store
+   only in a package — a rewrite committed on `dev` sits unpublished until the release that carries
+   it, and nothing in CI or in the dashboard says so. The dashboard fields it does **not** cover
+   (detailed description, category, screenshots, promo tile, support and homepage URLs) are editable
+   at any time and are worth a glance in the same sitting. Currently pending: the short description,
+   rewritten 2026-08-18.
 
 **Semantic versioning for this project:**
 
@@ -652,8 +660,8 @@ Drafts live in `docs/STORE_LISTING.md` (Phase 0) and are finalized in Phase 13.
 | Screenshots | 1280×800, **1–5**: vault list with favicons, add flow, search/tags, sync settings, the no-recovery warning | ✅ `docs/store/screenshot-{1..5}-*.png` |
 | Small promo tile | 440×280 PNG | ✅ `docs/store/promo-440x280.png` |
 | Marquee promo tile | 1400×560 (optional, only for featuring) | Not produced; optional |
-| Short description | ≤ 132 chars | ✅ 129, measured by `verify:manifest` — STORE_LISTING §2 |
-| Detailed description | Leads with the five differentiators; states the no-recovery warning; explains the two sync tiers | ✅ STORE_LISTING §3 |
+| Short description | ≤ 132 chars | ✅ 129, measured by `verify:manifest` — STORE_LISTING §2. **Rewritten 2026-08-18; ships with the next package** (§4 step 9) |
+| Detailed description | Leads with the five differentiators; states the no-recovery warning; explains the two sync tiers | ✅ STORE_LISTING §3. One bullet amended 2026-08-18 — a dashboard edit, no package needed |
 | Category | Privacy & Security | Chosen on submission day, 2026-08-15 — see STORE_LISTING §1 |
 | Language | English | — |
 | Privacy policy URL | <https://zyndata.github.io/vaulta-mark/PRIVACY> | ✅ Pages, from `main`/`docs` — see below |

@@ -41,8 +41,8 @@ retake is a command rather than an afternoon:
 | Screenshots | 1280 × 800 PNG, five of them | `docs/store/screenshot-{1..5}-*.png` |
 | Small promo tile | 440 × 280 PNG | `docs/store/promo-440x280.png` |
 | Marquee promo tile | 1400 × 560 PNG — only needed if the listing is ever considered for featuring | not produced; optional |
-| Short description | ≤ 132 characters | §2 below (129) |
-| Detailed description | Leads with the differentiators; states the no-recovery warning; explains both sync tiers | §3 below |
+| Short description | ≤ 132 characters | §2 below (129) — **rewritten 2026-08-18, awaiting a package upload** |
+| Detailed description | Leads with the differentiators; states the no-recovery warning; explains both sync tiers | §3 below — one bullet edited 2026-08-18, editable in the dashboard without a package |
 | Category | **Privacy & Security** | chosen 2026-08-15 — see below |
 | Language | English (United States) | fixed |
 | Privacy policy URL | <https://zyndata.github.io/vaulta-mark/PRIVACY> | Pages, from `main`/`docs` — [PRIVACY.md](PRIVACY.md) |
@@ -57,7 +57,7 @@ retake is a command rather than an afternoon:
 **Privacy & Security**, decided at the dashboard on 2026-08-15. Phase 0 wrote *Productivity* and
 carried it to Phase 13 unexamined; it was never a decision, only the obvious label for "a bookmark
 manager". The listing that was actually written argues from the other side — the short description
-leads with *password-encrypted*, four of the six differentiators are privacy properties, and §4's
+is four privacy claims in a row, four of the six differentiators are privacy properties, and §4's
 single purpose is a vault. A browsing category is where a person decides what a thing is *for*, and
 this one is for keeping bookmarks out of somebody else's reach.
 
@@ -102,25 +102,52 @@ Light mode for 1–4 and dark for 5, so both themes appear in the strip.
 
 ## 2. Short description (≤ 132 characters)
 
-> Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito.
-> Optional sync via your Google Drive.
+> Bookmarks Chrome doesn't know about. No omnibox autocomplete, opens in incognito, encrypted,
+> optional sync via your Google Drive.
 
 **129 characters**, and this is also the manifest's `extDescription` — the same string is the Store's
 short description and the toolbar tooltip's subtitle, so there is one place to change it:
 `public/_locales/en/messages.json`.
 
-The wording settled in [PLAN.md §11](../PLAN.md#11-risks--open-questions) said *your **own** Google
-Drive* and was recorded as 131 characters. It was 133, nobody counted it, and the 1.0.0 upload was
-**rejected** for it: the limit is a hard 132 and the Store refuses the package rather than truncating
-the text. Dropping "own" is the smallest edit that keeps the claim ("your Google Drive" is still not
-ours) and leaves three characters of margin. `scripts/verify-manifest.mjs` measures it now, so the
-next one fails locally instead of at the upload form.
+> **⚠️ Pending upload since 2026-08-18.** This is *not* what the published 1.0.0 listing says, and
+> unlike §3 it **cannot be fixed in the dashboard** — the short description is the manifest's
+> `description`, so it reaches the Store only in a new package. The published text is the previous
+> wording, kept here so the two can be told apart:
+>
+> > *Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito.
+> > Optional sync via your Google Drive.*
+>
+> [RELEASE §4](RELEASE.md#4-cutting-a-release) step 9 is what surfaces this at release time.
 
-## 3. Detailed description (as submitted, 2026-08-16)
+### Why it stopped leading with "password-encrypted" (2026-08-18)
+
+A competitive survey of the Store found the "encrypted bookmark vault" niche already occupied, by
+free and open-source extensions **with the same cryptography** — so the first four words of the old
+text were the one claim eight other listings also make, spent in the scarcest 132 characters the
+listing has. What no competitor was found to combine is the three properties this text now leads
+with: nothing reaches the omnibox (the one competitor with real storage outside `chrome.bookmarks`
+does not sync at all), every open is incognito, and sync goes to the user's own Drive rather than to
+somebody's server.
+
+The edit is a **reordering, not a new claim**. Every fact survives, including "optional" — Drive is
+opt-in and Chrome sync is the default, so a listing that read *synced via your Google Drive* flat
+would be untrue. "Encrypted" survives as the fourth clause rather than the first two words: it is
+still a category signal and a search term, it is just no longer the differentiator. The opening
+sentence is the one the detailed description (§3) and the promo tile already open with, so the three
+now read as one voice.
+
+Length history: the wording settled in [PLAN.md §11](../PLAN.md#11-risks--open-questions) said
+*your **own** Google Drive* and was recorded as 131 characters. It was 133, nobody counted it, and
+the 1.0.0 upload was **rejected** for it — the limit is a hard 132 and the Store refuses the package
+rather than truncating the text. `scripts/verify-manifest.mjs` measures the built locale now, so the
+next one fails in `npm run verify` instead of at the upload form. This rewrite is 129 as well; that
+is a coincidence, not a constraint.
+
+## 3. Detailed description (submitted 2026-08-16; one bullet amended 2026-08-18)
 
 **The field renders plain text.** Markdown is not a formatting choice here, it is a bug: `**bold**`
 and backticks show up literally, so the structure has to come from capitalised headings, blank lines
-and plain hyphens. Paste this verbatim — 2,254 characters of 16,000.
+and plain hyphens. Paste this verbatim — 2,302 characters of 16,000.
 
 ```text
 Bookmarks Chrome doesn't know about.
@@ -129,7 +156,7 @@ VaultaMark keeps your bookmarks in a password-encrypted vault stored completely 
 
 WHAT MAKES IT DIFFERENT
 
-- Stored outside Chrome's bookmarks. This is the whole point: vaulted URLs cannot autocomplete in the address bar.
+- Stored outside Chrome's bookmarks. This is the whole point: vaulted URLs cannot autocomplete in the address bar. They still sync across your devices, encrypted.
 - Every vaulted link opens in an incognito window. No history, no cache, no trace.
 - One-click history cleanup for domains you have vaulted, closing the "but I visited it once" leak that bookmark-only tools miss.
 - Link previews captured once, when you save the page, then encrypted. Browsing your vault afterwards makes zero network requests.
@@ -166,6 +193,17 @@ the table still applies to the text above it.
 What the draft was competing with is worth recording, because it is the failure mode of leaving copy
 to submission day: the field had been filled **by hand** with 368 characters that nobody had
 proofread, opening "VaultaMark is *a* extension".
+
+**One sentence was added on 2026-08-18**, to the first differentiator: *They still sync across your
+devices, encrypted.* Both halves of that were already in the listing — the bullet said the vault
+lives outside `chrome.bookmarks`, and two bullets below say it syncs — but they were never joined,
+and the join is the differentiator. The competitive survey behind §2 found the one competitor with
+real storage outside `chrome.bookmarks` **does not sync at all**, so "outside Chrome, and still
+synced" is the combination nothing else on the Store offers. It is stated as a property of this
+extension and never as a comparison: a listing may not make a claim about a named competitor, and
+this one could not verify such a claim anyway. Nothing else in the text moved, so the verification
+table below still applies word for word. **This field is editable in the dashboard without a package
+upload** — unlike §2, it does not have to wait for a release.
 
 **Checked against the shipped 1.0.0 build**, claim by claim:
 

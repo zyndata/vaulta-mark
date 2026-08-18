@@ -51,6 +51,14 @@ below.
 
 ### Changed
 
+- **The Store listing no longer opens by calling itself encrypted.** The extension's description —
+  the line under its name in the Chrome Web Store and on `chrome://extensions` — now reads
+  *Bookmarks Chrome doesn't know about. No omnibox autocomplete, opens in incognito, encrypted,
+  optional sync via your Google Drive.* Every claim the old wording made is still there, encryption
+  included; what changed is which one comes first. Encrypted bookmark storage is what several other
+  extensions also offer, and it was taking the opening words away from the three things that are
+  particular to this one: nothing reaches the address bar, every link opens in incognito, and sync
+  goes to your own Google Drive rather than to anybody's server.
 - **The popup's settings screen is now the quick ones, with a door to the rest.** It keeps auto-lock —
   the setting people change in the moment, on their way past — and a new *All settings in the
   manager* button at the bottom opens the manager on its settings screen, where the other seven
