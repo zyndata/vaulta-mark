@@ -90,13 +90,22 @@ export async function previewCleanup(): Promise<HistoryPreviewResponse> {
  * worker may have been torn down and rebuilt since, and a stale list would either miss what has been
  * visited since or try to delete what has already gone. Both scans run the same code, so the numbers
  * only differ when the history actually differs.
+ *
+ * @param only the review list's per-site *Remove*, as a subset of the vault's domains. It narrows
+ *   and can never widen: the scope is the **intersection** with {@link vaultDomains}, so a page
+ *   that asked for a domain the vault does not hold deletes nothing. A page cannot be the thing
+ *   that decides whose history goes.
  */
-export async function runCleanup(): Promise<CountResponse> {
+export async function runCleanup(only?: readonly string[]): Promise<CountResponse> {
   const repo = await requireVault();
   await session.touch();
   if (!(await hasHistoryPermission())) throw new HistoryPermissionError('clearing history');
 
-  const scan = await scanHistory(vaultDomains(repo));
+  const vaulted = vaultDomains(repo);
+  const wanted = only === undefined ? vaulted : vaulted.filter((domain) => only.includes(domain));
+  if (wanted.length === 0) return { type: 'COUNT', count: 0 };
+
+  const scan = await scanHistory(wanted);
   return { type: 'COUNT', count: await deleteHistory(scan.urls) };
 }
 

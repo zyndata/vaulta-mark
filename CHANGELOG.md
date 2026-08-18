@@ -20,6 +20,11 @@ below.
   selecting one offers *Delete this page from history* in the detail pane. That button is about the
   **one page**, unlike Settings → Privacy, which works site by site; both need the optional history
   permission, and without it nothing is shown, because nothing can be known.
+- **The history cleanup can now remove one site at a time.** *Review the list* in the setup guide and
+  in Settings → Privacy gives every site its own *Remove*, and the button underneath reads *Remove
+  all* rather than *Remove them* — the list is there so you can disagree with part of it, and until
+  now the only answers were everything or nothing. Removing one site leaves the rest of the review on
+  screen, and sites that are not in your vault stay untouchable either way.
 - **Ticking a folder in *Import from this browser* now ticks what is inside it.** Importing a folder
   has always brought its contents along — the picker simply never showed it, so the only way to find
   out what a tick meant was to import it and count. Half-ticked folders show as mixed.

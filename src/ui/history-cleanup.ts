@@ -29,6 +29,14 @@ export interface CleanupDomain {
   readonly entries: number;
 }
 
+/**
+ * How many sites the review list will open itself for.
+ *
+ * Above this it stays a closed `<details>`: the list is a review, and a review of forty sites that
+ * pushes the buttons under it off the screen is worse than one that waits to be asked for.
+ */
+const INLINE_REVIEW_LIMIT = 8;
+
 export interface CleanupPreview {
   readonly granted: boolean;
   readonly domains: readonly CleanupDomain[];
@@ -41,8 +49,13 @@ export interface HistoryCleanupDeps {
   readonly request: () => Promise<boolean>;
   /** `PREVIEW_HISTORY_CLEANUP`. `null` when the request failed. */
   readonly preview: () => Promise<CleanupPreview | null>;
-  /** `CLEAR_VAULTED_HISTORY`, answering with how many entries went. `null` on failure. */
-  readonly clear: () => Promise<number | null>;
+  /**
+   * `CLEAR_VAULTED_HISTORY`, answering with how many entries went. `null` on failure.
+   *
+   * With no argument it is every vaulted domain; with one it is that subset, which is what the
+   * *Remove* beside each site in the review list sends.
+   */
+  readonly clear: (domains?: readonly string[]) => Promise<number | null>;
   /** Whether the permission is already granted, as of mount. */
   readonly granted: boolean;
 }
@@ -118,7 +131,20 @@ function paintIdle(root: HTMLElement, deps: HistoryCleanupDeps, done: string | n
   );
 }
 
-function paintPreview(root: HTMLElement, deps: HistoryCleanupDeps, preview: CleanupPreview): void {
+/**
+ * The dry run, and the two ways to act on it: all of it, or one site at a time.
+ *
+ * @param done what the last per-site removal did, if there was one. Kept above the remaining list
+ *   rather than sending the panel back to the check button, because clearing one site is usually
+ *   the first of several and re-running the whole dry run between them is seconds of scanning to
+ *   re-learn what is already on screen.
+ */
+function paintPreview(
+  root: HTMLElement,
+  deps: HistoryCleanupDeps,
+  preview: CleanupPreview,
+  done: string | null = null,
+): void {
   if (preview.entries === 0) {
     render(
       root,
@@ -136,6 +162,7 @@ function paintPreview(root: HTMLElement, deps: HistoryCleanupDeps, preview: Clea
 
   render(
     root,
+    done === null ? null : h('p', { class: 'vm-notice vm-notice--ok', role: 'status' }, done),
     h(
       'p',
       { class: 'vm-notice vm-notice--warning', role: 'status' },
@@ -145,10 +172,11 @@ function paintPreview(root: HTMLElement, deps: HistoryCleanupDeps, preview: Clea
     ),
     // A `<details>` rather than the list itself: twenty-seven domains between the sentence and the
     // button would push the button off the screen, and the point of the list is that it is there for
-    // whoever wants it.
+    // whoever wants it. It is open when the list is short enough to be read at a glance, because the
+    // per-site buttons live inside it and a control nobody can see is not an offer.
     h(
       'details',
-      { class: 'vm-cleanup-review' },
+      { class: 'vm-cleanup-review', open: preview.domains.length <= INLINE_REVIEW_LIMIT },
       h('summary', null, msg('historyReview')),
       h(
         'ul',
@@ -165,6 +193,20 @@ function paintPreview(root: HTMLElement, deps: HistoryCleanupDeps, preview: Clea
               entry.entries === 1
                 ? msg('historyReviewOneEntry')
                 : msg('historyReviewEntries', [String(entry.entries)]),
+            ),
+            // One site at a time. The site is named in its own confirmation, so a mis-aimed click
+            // on a row of look-alike domains still has somewhere to be caught.
+            h(
+              'button',
+              {
+                type: 'button',
+                class: 'vm-button vm-button--quiet vm-cleanup-remove',
+                'aria-label': msg('historyReviewRemoveLabel', [entry.domain]),
+                onclick: () => {
+                  void confirmAndClearOne(root, deps, preview, entry);
+                },
+              },
+              msg('historyReviewRemove'),
             ),
           ),
         ),
@@ -203,19 +245,84 @@ async function confirmAndClear(
   });
   if (!confirmed) return;
 
-  // Deleting is a `deleteUrl` per entry, so a few hundred of them is a few seconds during which the
-  // panel would otherwise still be offering the button that started it.
-  render(root, h('p', { class: 'vm-notice', role: 'status' }, msg('historyClearing')));
-  const removed = await deps.clear();
-  if (removed === null) {
-    render(root, h('p', { class: 'vm-notice vm-notice--danger', role: 'alert' }, msg('historyCheckFailed')));
+  const removed = await clearing(root, deps);
+  if (removed === null) return;
+  paintIdle(root, deps, clearedText(removed));
+}
+
+/**
+ * One site from the review list.
+ *
+ * The confirmation names *that* site and quotes *its* count, rather than reusing the whole-vault
+ * wording with a smaller number in it: the two actions differ only in scope, so the scope is the
+ * one thing the dialog has to say out loud.
+ */
+async function confirmAndClearOne(
+  root: HTMLElement,
+  deps: HistoryCleanupDeps,
+  preview: CleanupPreview,
+  entry: CleanupDomain,
+): Promise<void> {
+  const confirmed = await confirmDialog({
+    heading: msg('historyConfirmHeading'),
+    body: [
+      dialogText(entry.entries === 1 ? 'historyConfirmSiteOne' : 'historyConfirmSite', [
+        entry.domain,
+        String(entry.entries),
+      ]),
+      dialogText('historyConfirmCaveat'),
+    ],
+    confirmLabel: msg('historyReviewRemove'),
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  const removed = await clearing(root, deps, [entry.domain]);
+  if (removed === null) return;
+
+  const rest = preview.domains.filter((candidate) => candidate.domain !== entry.domain);
+  const done = clearedText(removed);
+  if (rest.length === 0) {
+    paintIdle(root, deps, done);
     return;
   }
-  paintIdle(
+  paintPreview(
     root,
     deps,
-    removed === 1 ? msg('historyClearedOne') : msg('historyCleared', [String(removed)]),
+    {
+      ...preview,
+      domains: rest,
+      // This dry run's own numbers minus the site that has just gone, rather than a fresh scan: the
+      // sentence above the list describes what *this* check found, and re-scanning between two
+      // removals would spend seconds re-learning what is already on the screen.
+      entries: Math.max(0, preview.entries - entry.entries),
+    },
+    done,
   );
+}
+
+/**
+ * Delete, with the panel saying so while it happens.
+ *
+ * Deleting is a `deleteUrl` per entry, so a few hundred of them is a few seconds during which the
+ * panel would otherwise still be offering the button that started it. Answers `null` when the
+ * deletion failed, having already said so — the callers have nothing to add.
+ */
+async function clearing(
+  root: HTMLElement,
+  deps: HistoryCleanupDeps,
+  domains?: readonly string[],
+): Promise<number | null> {
+  render(root, h('p', { class: 'vm-notice', role: 'status' }, msg('historyClearing')));
+  const removed = await deps.clear(domains);
+  if (removed === null) {
+    render(root, h('p', { class: 'vm-notice vm-notice--danger', role: 'alert' }, msg('historyCheckFailed')));
+  }
+  return removed;
+}
+
+function clearedText(removed: number): string {
+  return removed === 1 ? msg('historyClearedOne') : msg('historyCleared', [String(removed)]);
 }
 
 function button(

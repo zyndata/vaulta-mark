@@ -2429,9 +2429,23 @@
     "message": "1 entry",
     "description": "Per-site count in the review list, singular."
   },
+  "historyReviewRemove": {
+    "message": "Remove",
+    "description": "Deletes the history entries of one site in the review list."
+  },
+  "historyReviewRemoveLabel": {
+    "message": "Remove the history entries for $DOMAIN$",
+    "description": "Accessible name of the per-site remove button, which reads 'Remove' on screen.",
+    "placeholders": {
+      "domain": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
   "historyClearButton": {
-    "message": "Remove them",
-    "description": "Carries out the deletion."
+    "message": "Remove all",
+    "description": "Carries out the deletion for every site in the list, as opposed to the per-site button beside each one."
   },
   "historyCancelButton": {
     "message": "Leave it alone",
@@ -2452,6 +2466,30 @@
       "domains": {
         "content": "$2",
         "example": "27"
+      }
+    }
+  },
+  "historyConfirmSite": {
+    "message": "$ENTRIES$ entries from $DOMAIN$ will be deleted from Chrome's browsing history.",
+    "description": "Confirmation dialog body when one site was picked out of the review list.",
+    "placeholders": {
+      "domain": {
+        "content": "$1",
+        "example": "example.com"
+      },
+      "entries": {
+        "content": "$2",
+        "example": "143"
+      }
+    }
+  },
+  "historyConfirmSiteOne": {
+    "message": "One entry from $DOMAIN$ will be deleted from Chrome's browsing history.",
+    "description": "Confirmation dialog body when one site was picked out of the review list and it has a single entry.",
+    "placeholders": {
+      "domain": {
+        "content": "$1",
+        "example": "example.com"
       }
     }
   },

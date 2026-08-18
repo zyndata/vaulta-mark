@@ -190,6 +190,35 @@ describe('running the cleanup', () => {
     expect(await send({ type: 'CLEAR_VAULTED_HISTORY' })).toEqual({ type: 'COUNT', count: 0 });
     expect(mock.deletedHistory).toEqual([]);
   });
+
+  it('removes one named site and leaves the other vaulted ones alone', async () => {
+    seedHistory();
+
+    expect(await send({ type: 'CLEAR_VAULTED_HISTORY', domains: ['example.com'] })).toEqual({
+      type: 'COUNT',
+      count: 2,
+    });
+    expect([...mock.deletedHistory].sort()).toEqual([
+      'https://example.com/other-page',
+      'https://example.com/recipes',
+    ]);
+    // And the other two vaulted sites were not even searched for: the scope is a filter over the
+    // vault's domains, so a one-site run asks one question.
+    expect([...mock.historySearches]).toEqual(['example.com']);
+  });
+
+  it('deletes nothing for a domain the vault does not hold', async () => {
+    // The scope narrows and can never widen. A page asking for somebody else's site is not a way
+    // to make the worker delete it, even though the worker is the one holding the permission.
+    seedHistory();
+
+    expect(await send({ type: 'CLEAR_VAULTED_HISTORY', domains: ['notexample.community'] })).toEqual(
+      { type: 'COUNT', count: 0 },
+    );
+    expect(mock.deletedHistory).toEqual([]);
+    expect(mock.historySearches).toEqual([]);
+    expect(mock.historyEntries).toHaveLength(9);
+  });
 });
 
 describe('which bookmarks are still in history', () => {

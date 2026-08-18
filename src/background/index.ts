@@ -301,7 +301,7 @@ export async function handleRequest(request: Request): Promise<Response> {
       case 'PREVIEW_HISTORY_CLEANUP':
         return await history.previewCleanup();
       case 'CLEAR_VAULTED_HISTORY':
-        return await history.runCleanup();
+        return await history.runCleanup(request.domains);
       case 'HISTORY_PRESENCE':
         return await history.historyPresence();
       case 'FORGET_ITEM_HISTORY':

@@ -248,6 +248,66 @@ describe('deleting', () => {
     expect(has(panel, 'historyCheckButton')).toBe(true);
   });
 
+  it('removes one site on its own, and keeps the rest of the review on screen', async () => {
+    const d = deps({ clear: vi.fn(() => Promise.resolve(3)) });
+    const panel = await toPreview(d);
+
+    press(panel, 'historyReviewRemove');
+    await settle();
+    pressInDialog('historyReviewRemove');
+    await settle();
+
+    // The first row's site, and only it.
+    expect(d.clear).toHaveBeenCalledWith(['bbc.co.uk']);
+    expect(has(panel, 'historyCleared')).toBe(true);
+    expect(panel.querySelectorAll('details li')).toHaveLength(1);
+    expect(panel.textContent).toContain('example.com');
+    expect(panel.textContent).not.toContain('bbc.co.uk');
+    // Still a dry run to act on, rather than back at the check button.
+    expect(has(panel, 'historyClearButton')).toBe(true);
+  });
+
+  it('goes back to the check button once the last site has been removed', async () => {
+    const single: CleanupPreview = { ...PREVIEW, entries: 2, domains: [{ domain: 'a.test', entries: 2 }] };
+    const d = deps({ preview: vi.fn(() => Promise.resolve(single)), clear: vi.fn(() => Promise.resolve(2)) });
+    const panel = await toPreview(d);
+
+    press(panel, 'historyReviewRemove');
+    await settle();
+    pressInDialog('historyReviewRemove');
+    await settle();
+
+    expect(has(panel, 'historyCleared')).toBe(true);
+    expect(has(panel, 'historyCheckButton')).toBe(true);
+  });
+
+  it('deletes nothing when the per-site confirmation is dismissed', async () => {
+    const d = deps();
+    const panel = await toPreview(d);
+
+    press(panel, 'historyReviewRemove');
+    await settle();
+    pressInDialog('dialogCancel');
+    await settle();
+
+    expect(d.clear).not.toHaveBeenCalled();
+    expect(panel.querySelectorAll('details li')).toHaveLength(2);
+  });
+
+  it('asks for every site when "remove all" is pressed', async () => {
+    // No argument, which is the wire's "every vaulted domain" — not the list the page happens to
+    // be showing, which may be minutes old.
+    const d = deps();
+    const panel = await toPreview(d);
+
+    press(panel, 'historyClearButton');
+    await settle();
+    pressInDialog('historyClearButton');
+    await settle();
+
+    expect(d.clear).toHaveBeenCalledWith(undefined);
+  });
+
   it('says so when the deletion itself fails', async () => {
     const d = deps({ clear: vi.fn(() => Promise.resolve(null)) });
     const panel = await toPreview(d);

@@ -513,9 +513,17 @@ export interface PreviewHistoryCleanupRequest {
   readonly type: 'PREVIEW_HISTORY_CLEANUP';
 }
 
-/** Do it. Deletes only URLs whose registrable domain is one the vault holds. */
+/**
+ * Do it. Deletes only URLs whose registrable domain is one the vault holds.
+ *
+ * `domains` narrows the run to a subset of them — the review list offers a *Remove* beside each
+ * site, because "everything or nothing" is not a review. It is a filter and never a widening: the
+ * worker intersects it with the vault's own domains, so a request naming a site the vault does not
+ * hold deletes nothing. Absent means every vaulted domain.
+ */
 export interface ClearVaultedHistoryRequest {
   readonly type: 'CLEAR_VAULTED_HISTORY';
+  readonly domains?: readonly string[];
 }
 
 /**
@@ -1429,10 +1437,15 @@ export function parseRequest(raw: unknown): Request | null {
     case 'GET_DIAGNOSTICS':
     case 'GET_ONBOARDING':
     case 'PREVIEW_HISTORY_CLEANUP':
-    case 'CLEAR_VAULTED_HISTORY':
     case 'HISTORY_PRESENCE':
     case 'REPLACE_REMOTE_VAULT':
       return { type };
+    case 'CLEAR_VAULTED_HISTORY': {
+      const domains = raw['domains'];
+      if (domains === undefined) return { type };
+      const parsed = parseIdList(domains);
+      return parsed === null ? null : { type, domains: parsed };
+    }
     case 'DESTROY_VAULT':
     case 'DISCONNECT_DRIVE': {
       const deleteRemote = raw['deleteRemote'];

@@ -17,7 +17,7 @@ import type { CleanupPreview } from '../ui/history-cleanup.js';
 export interface HistoryMessages {
   readonly request: () => Promise<boolean>;
   readonly preview: () => Promise<CleanupPreview | null>;
-  readonly clear: () => Promise<number | null>;
+  readonly clear: (domains?: readonly string[]) => Promise<number | null>;
 }
 
 /**
@@ -36,8 +36,13 @@ export function historyDeps(say: (text: string, kind?: 'info' | 'danger') => voi
       }
       return response;
     },
-    clear: async () => {
-      const response = await send({ type: 'CLEAR_VAULTED_HISTORY' });
+    clear: async (domains?: readonly string[]) => {
+      // Spread rather than `domains: domains`: `exactOptionalPropertyTypes` makes an explicit
+      // `undefined` a different thing from an absent field, and absent is what "every site" is.
+      const response = await send({
+        type: 'CLEAR_VAULTED_HISTORY',
+        ...(domains === undefined ? {} : { domains }),
+      });
       if (response.type === 'ERROR') {
         say(errorText(response.code), 'danger');
         return null;

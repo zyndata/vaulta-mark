@@ -1611,6 +1611,16 @@ Non-vaulted domains are never passed to `deleteUrl`, nor to `search`: asking is 
 about somebody else's browsing. `test/unit/background/history.test.ts` asserts both call lists
 exactly.
 
+**One site at a time.** The review list carries a *Remove* beside each site, and the button under it
+reads *Remove all*, because a review whose only answers are everything or nothing is not one — the
+list exists so the user can disagree with part of it. `CLEAR_VAULTED_HISTORY` takes an optional
+`domains`, and it **narrows and can never widen**: the worker intersects it with the vault's own
+domains before anything is searched for, so a page naming a site the vault does not hold deletes
+nothing and asks Chrome nothing. That is the same rule as the paragraph above, held at the one place
+where a scope now crosses the wire. A per-site removal keeps the rest of the dry run on screen with
+that site's count subtracted, rather than re-scanning between two clicks; the numbers are still the
+ones that scan found, and *Remove all* re-scans as it always did.
+
 `maxResults: 0` is Chrome's "no limit" — `QueryOptions::max_count` defaults to 0 meaning unbounded,
 and the extension API only overrides it when `maxResults` is truthy. It reads like a bug and is not:
 Chrome's 100-result default would produce an accurate-looking dry run that then left most of the
