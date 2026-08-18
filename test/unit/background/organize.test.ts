@@ -366,6 +366,23 @@ describe('tags', () => {
     expect((await detail(c))!['tags']).toEqual([]);
   });
 
+  it('deletes a tag off everything, leaving the bookmarks and their other tags', async () => {
+    const a = await addBookmark('https://example.com/a', 'A');
+    const b = await addBookmark('https://example.com/b', 'B');
+    const c = await addBookmark('https://example.com/c', 'C');
+    await send({ type: 'TAG_ITEMS', ids: [a, b], add: ['dev'] });
+    await send({ type: 'TAG_ITEMS', ids: [a], add: ['papers'] });
+
+    expect(await send({ type: 'DELETE_TAG', tag: 'DEV' })).toEqual({ type: 'COUNT', count: 2 });
+    expect((await detail(a))!['tags']).toEqual(['papers']);
+    expect((await detail(b))!['tags']).toEqual([]);
+    // Three bookmarks in, three bookmarks out: this deletes a tag, not what wears it.
+    expect([...(await titles({}))].sort()).toEqual(['A', 'B', 'C']);
+    expect((await detail(c))!['tags']).toEqual([]);
+    // And the tag is gone from the cloud, which is the whole of a tag ceasing to exist.
+    expect((await tree())['tags']).toEqual([{ tag: 'papers', count: 1 }]);
+  });
+
   it('reports the tag cloud with use counts, most used first', async () => {
     const a = await addBookmark('https://example.com/a', 'A');
     const b = await addBookmark('https://example.com/b', 'B');

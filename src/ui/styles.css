@@ -552,6 +552,13 @@ body {
   margin-top: 1rem;
 }
 
+/* A dialog carrying an extra answer (see `extraActions` in ui/dialog.ts) puts it at the far end,
+   with the way out and the way on kept together at the other. `auto` on the first of the pair rather
+   than a wrapper element, so the row stays one flex line whatever it holds. */
+.vm-dialog-actions--split > :nth-last-child(2) {
+  margin-inline-start: auto;
+}
+
 .vm-choice {
   flex-wrap: wrap;
 }
@@ -593,9 +600,31 @@ body {
   margin-bottom: 0;
 }
 
+/*
+ * The review list is a list of controls, not of bullets: every row carries a button that removes
+ * that one site, so the rows are laid out as rows — site on the left, its count beside it, the
+ * button at the far end where the eye can run down a column of them.
+ */
 .vm-cleanup-review > ul {
   margin: 0.5rem 0 0;
-  padding-left: 1.25rem;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.vm-cleanup-review li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+
+/* Sized to the row rather than to the panel: `.vm-button` is full-width by default. */
+.vm-cleanup .vm-cleanup-remove {
+  margin-left: auto;
+  padding: 0.15rem 0.5rem;
+  font-size: inherit;
 }
 
 .vm-cleanup-review summary {

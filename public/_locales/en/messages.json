@@ -690,6 +690,44 @@
     "message": "Untagged",
     "description": "Sidebar filter showing bookmarks that carry no tags."
   },
+  "navFolderLabel": {
+    "message": "$FOLDER$ ($COUNT$)",
+    "description": "Accessible name of a folder in the sidebar tree. Explicit, because the row also holds a button whose label would otherwise be read as part of the folder's name.",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Recipes"
+      },
+      "count": {
+        "content": "$2",
+        "example": "12"
+      }
+    }
+  },
+  "folderEditHeading": {
+    "message": "Folder “$FOLDER$”",
+    "description": "Heading of the panel behind the pencil in the sidebar tree. It names the object rather than one of the two verbs on the buttons — the panel renames and deletes.",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Recipes"
+      }
+    }
+  },
+  "folderEditAction": {
+    "message": "Rename or delete the folder $FOLDER$",
+    "description": "Accessible name for the pencil button beside a folder in the sidebar tree.",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Recipes"
+      }
+    }
+  },
+  "folderDeleteAction": {
+    "message": "Delete the folder",
+    "description": "The destructive button in the folder panel, beside Rename. What happens to the contents is asked next."
+  },
   "navFolders": {
     "message": "Folders",
     "description": "Heading above the folder tree in the sidebar."
@@ -1140,13 +1178,85 @@
       }
     }
   },
-  "tagRenameAction": {
-    "message": "Rename the tag $TAG$",
-    "description": "Accessible name for the rename button beside a tag in the sidebar.",
+  "tagEditAction": {
+    "message": "Rename or delete the tag $TAG$",
+    "description": "Accessible name for the pencil button beside a tag in the sidebar. It opens a panel that does both.",
     "placeholders": {
       "tag": {
         "content": "$1",
         "example": "reading"
+      }
+    }
+  },
+  "tagEditHeading": {
+    "message": "Tag “$TAG$”",
+    "description": "Heading of the panel behind the pencil beside a tag. Names the object, not one of the two verbs on the buttons.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagDeleteAction": {
+    "message": "Delete the tag",
+    "description": "The destructive button in the tag panel, beside Rename."
+  },
+  "tagDeleteHeading": {
+    "message": "Delete the tag “$TAG$”?",
+    "description": "Heading of the delete-tag confirmation.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagDeleteBodyCount": {
+    "message": "It comes off $COUNT$ bookmarks. Nothing is deleted but the tag itself, and this cannot be undone.",
+    "description": "Body of the delete-tag confirmation. Whole sentences per count, so a translator can reorder them.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      },
+      "count": {
+        "content": "$2",
+        "example": "12"
+      }
+    }
+  },
+  "tagDeleteBodyOne": {
+    "message": "It comes off one bookmark. Nothing is deleted but the tag itself, and this cannot be undone.",
+    "description": "Body of the delete-tag confirmation when exactly one bookmark carries it.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagDeleteBody": {
+    "message": "It comes off every bookmark that carries it. Nothing is deleted but the tag itself, and this cannot be undone.",
+    "description": "Body of the delete-tag confirmation when the count is not known.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagDeleteConfirm": {
+    "message": "Delete the tag",
+    "description": "Confirming button on the delete-tag confirmation. A verb, never “OK”."
+  },
+  "tagDeleted": {
+    "message": "Removed from $COUNT$ bookmarks.",
+    "description": "Confirmation after a tag deletion.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
       }
     }
   },

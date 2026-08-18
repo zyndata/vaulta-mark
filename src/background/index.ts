@@ -227,6 +227,8 @@ export async function handleRequest(request: Request): Promise<Response> {
         };
       case 'RENAME_TAG':
         return { type: 'COUNT', count: await organize.renameTag(request.from, request.to) };
+      case 'DELETE_TAG':
+        return { type: 'COUNT', count: await organize.deleteTag(request.tag) };
       case 'COUNT_TRACKING_PARAMS':
         return { type: 'COUNT', count: await organize.countTracked() };
       case 'STRIP_TRACKING_PARAMS':

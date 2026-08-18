@@ -25,6 +25,12 @@ below.
   all* rather than *Remove them* — the list is there so you can disagree with part of it, and until
   now the only answers were everything or nothing. Removing one site leaves the rest of the review on
   screen, and sites that are not in your vault stay untouchable either way.
+- **A folder in the sidebar now has the same pencil a tag has.** It opens a panel that renames the
+  folder or deletes it — the delete asks what happens to the contents, exactly as it always has.
+  Renaming a folder previously meant finding it as a row in the main list first.
+- **The tag panel can now delete a tag.** *Delete the tag* sits beside *Rename*, and asks once more,
+  naming how many bookmarks it comes off. It deletes the tag and nothing else: every bookmark that
+  carried it stays where it is, with its other tags intact.
 - **Ticking a folder in *Import from this browser* now ticks what is inside it.** Importing a folder
   has always brought its contents along — the picker simply never showed it, so the only way to find
   out what a tick meant was to import it and count. Half-ticked folders show as mixed.
@@ -43,6 +49,9 @@ below.
   and switching tracking-parameter stripping on offers to rewrite every bookmark you have, which is
   not a question to answer in a 422-pixel column. Nothing was removed from the product; both switches
   are in the manager, worded exactly as before.
+- **Escape leaves Settings, *Import & export* and the conflict screen**, exactly as their *Back to
+  bookmarks* button does. With a dialog open the key still belongs to the dialog and closes only
+  that.
 - **Buttons that take a moment now say so.** *Sync now* (in Settings and in the toolbar) reports that
   it is working and then that it finished, rather than doing nothing visible for a network round trip
   and silently rewriting a line elsewhere on the screen. The history dry run and the history deletion

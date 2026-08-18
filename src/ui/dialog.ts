@@ -45,6 +45,24 @@ export interface DialogOptions<T> {
   readonly focus?: HTMLElement;
   /** Style the confirming button as destructive. */
   readonly danger?: boolean;
+  /**
+   * Answers other than "confirm" and "back out" — each a button that closes the dialog with its own
+   * value, without going through `onConfirm`.
+   *
+   * There for the panels that edit a name and can also throw the thing away. The alternative was a
+   * pencil that opens a rename box and a second control somewhere else that deletes, which is two
+   * places to learn for one object; the alternative to *that* was `chooseDialog`, which cannot hold
+   * a text field. A dialog with one of these is still a dialog with a default answer — Enter renames
+   * — and the extra button is a deliberate press, which is what a destructive one should be.
+   */
+  readonly extraActions?: readonly DialogAction<T>[];
+}
+
+export interface DialogAction<T> {
+  readonly label: string;
+  /** What `openDialog` resolves with when this button is pressed. */
+  readonly value: T;
+  readonly danger?: boolean;
 }
 
 /**
@@ -99,7 +117,26 @@ export function openDialog<T>(options: DialogOptions<T>): Promise<T | null> {
       dialog.close();
     });
 
-    const buttons: HTMLButtonElement[] = [cancel];
+    // Leftmost, away from the confirming button at the other end: these are the answers that are
+    // neither what the dialog is for nor a way out of it, and a destructive one must not sit under
+    // the pointer on its way to Cancel.
+    const extras = (options.extraActions ?? []).map((action) => {
+      const button = h(
+        'button',
+        {
+          type: 'button',
+          class: `vm-button vm-button--inline${action.danger === true ? ' vm-button--danger' : ' vm-button--quiet'}`,
+        },
+        action.label,
+      );
+      button.addEventListener('click', () => {
+        outcome = action.value;
+        dialog.close();
+      });
+      return button;
+    });
+
+    const buttons: HTMLButtonElement[] = [...extras, cancel];
     let confirm: HTMLButtonElement | undefined;
     if (options.confirmLabel !== undefined) {
       confirm = h(
@@ -112,7 +149,18 @@ export function openDialog<T>(options: DialogOptions<T>): Promise<T | null> {
       );
       buttons.push(confirm);
     }
-    append(form, h('div', { class: 'vm-dialog-actions' }, ...buttons));
+    append(
+      form,
+      h(
+        'div',
+        {
+          // The split rule works on the pair at the end, so it only applies when there is a pair:
+          // with no confirming button the row is one extra and Cancel, which reads fine as it is.
+          class: `vm-dialog-actions${extras.length > 0 && confirm !== undefined ? ' vm-dialog-actions--split' : ''}`,
+        },
+        ...buttons,
+      ),
+    );
 
     /** True while an async `onConfirm` is outstanding. One answer at a time. */
     let deciding = false;
@@ -300,8 +348,14 @@ export function chooseDialog<T>(options: {
  * one, and a dialog that closed on an empty field would have to be reopened by the caller to say
  * so. Emptying the box and pressing Enter says what is wrong and leaves the cursor where it can be
  * fixed.
+ *
+ * `extraActions` widens the answer rather than the option list: with none, `T` infers as `never` and
+ * this returns `string | null` exactly as it always has, and with one the caller gets a union it has
+ * to discriminate — `typeof answer === 'string'` is the rename, anything else is the other button.
+ * A sentinel *string* would have been ambiguous with a folder actually named "delete", which is the
+ * kind of bug that surfaces once, in the field, on somebody's real vault.
  */
-export async function promptText(options: {
+export async function promptText<T = never>(options: {
   readonly heading: string;
   readonly labelKey: string;
   readonly confirmLabel: string;
@@ -309,7 +363,9 @@ export async function promptText(options: {
   readonly hint?: string;
   /** Extra validation beyond "not blank". Returns a message to show, or `null` to accept. */
   readonly validate?: (value: string) => string | null;
-}): Promise<string | null> {
+  /** Answers beside "rename" and "cancel" — see `DialogOptions.extraActions`. */
+  readonly extraActions?: readonly DialogAction<T>[];
+}): Promise<string | T | null> {
   const input = h('input', {
     type: 'text',
     autocomplete: 'off',
@@ -317,11 +373,12 @@ export async function promptText(options: {
     value: options.value ?? '',
   });
   let refusal = msg('dialogNameRequired');
-  return await openDialog<string>({
+  return await openDialog<string | T>({
     heading: options.heading,
     body: [dialogField(options.labelKey, input, options.hint)],
     confirmLabel: options.confirmLabel,
     focus: input,
+    ...(options.extraActions === undefined ? {} : { extraActions: options.extraActions }),
     invalidMessage: () => refusal,
     onConfirm: () => {
       const typed = input.value.trim();

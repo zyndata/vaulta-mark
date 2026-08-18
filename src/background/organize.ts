@@ -37,6 +37,7 @@ import {
   listChildren,
   normalizeUrl,
   pathOf,
+  deleteTagMutations,
   renameTagMutations,
   tagMutations,
   type FolderDeleteMode,
@@ -269,6 +270,12 @@ export async function tagItems(
 export async function renameTag(from: string, to: string): Promise<number> {
   const repo = await requireVault();
   return (await commit(repo, renameTagMutations(repo.items(), from, to))).length;
+}
+
+/** Take a tag off every bookmark that carries it. Returns how many changed. */
+export async function deleteTag(tag: string): Promise<number> {
+  const repo = await requireVault();
+  return (await commit(repo, deleteTagMutations(repo.items(), tag))).length;
 }
 
 /* ------------------------------------------------------------------ tracking parameters */

@@ -383,6 +383,19 @@ body.vm-manager {
 
 /* `.vm-icon-button` is in src/ui/styles.css — the popup's settings cog is the same control. */
 
+/*
+ * The pencil in a folder row, matching the one in a tag row.
+ *
+ * Tighter than the tag list's copy because it sits *inside* the row's own padding rather than beside
+ * it, and `align-self: center` because the row is a flex line whose other children are text: without
+ * it the button stretches to the line's height and its hover state draws a tall box around a glyph.
+ */
+.vm-tree-edit {
+  align-self: center;
+  padding: 0 0.25rem;
+  line-height: 1.4;
+}
+
 /* ------------------------------------------------------------------ crumbs and actions */
 
 .vm-crumbs {
@@ -780,6 +793,38 @@ body.vm-manager {
   background: var(--vm-surface);
   font-size: 0.875rem;
   user-select: all;
+}
+
+/*
+ * One command per line: what it does on the left, what it is bound to on the right.
+ *
+ * The key sits in a `kbd` styled like the `code` above, because it is the same kind of thing — a
+ * literal string the reader has to match against something outside this window.
+ */
+.vm-shortcut-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vm-shortcut-list li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.vm-shortcut-list kbd {
+  flex: none;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+  background: var(--vm-bg);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------------ sync */

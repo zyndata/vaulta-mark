@@ -252,6 +252,51 @@ describe('openDialog', () => {
     });
     expect(button('Delete').className).toContain('vm-button--danger');
   });
+
+  /*
+   * `extraActions` is how one panel holds two answers about the same object — rename it, or delete
+   * it. What matters is that the extra button closes the dialog with *its own* value without going
+   * anywhere near `onConfirm`: the panels using it validate a name in there, and a delete that had
+   * to satisfy the rename's validation would be a delete you could not reach from an empty field.
+   */
+  it('resolves an extra action’s value without consulting onConfirm', async () => {
+    const onConfirm = vi.fn(() => 'renamed');
+    const pending = openDialog<string | { kind: 'delete' }>({
+      heading: 'Heading',
+      body: [],
+      confirmLabel: 'Rename',
+      onConfirm,
+      extraActions: [{ label: 'Delete the folder', value: { kind: 'delete' }, danger: true }],
+    });
+
+    expect(button('Delete the folder').className).toContain('vm-button--danger');
+    button('Delete the folder').click();
+    expect(await pending).toEqual({ kind: 'delete' });
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(document.querySelector('dialog')).toBe(null);
+  });
+
+  it('keeps the extra answer away from the pair at the end, and disables it while deciding', async () => {
+    let settle: (value: string | null) => void = () => undefined;
+    const pending = openDialog<string>({
+      heading: 'Heading',
+      body: [],
+      confirmLabel: 'Rename',
+      onConfirm: () => new Promise<string | null>((resolve) => (settle = resolve)),
+      extraActions: [{ label: 'Delete', value: 'gone' }],
+    });
+
+    const actions = dialog().querySelector('.vm-dialog-actions');
+    expect(actions?.className).toContain('vm-dialog-actions--split');
+    // Leftmost: the answer that is neither what the panel is for nor the way out of it.
+    expect(actions?.firstElementChild?.textContent).toBe('Delete');
+
+    submit();
+    // One answer at a time — an outstanding decision must not be overtaken by the other button.
+    expect(button('Delete').disabled).toBe(true);
+    settle('renamed');
+    expect(await pending).toBe('renamed');
+  });
 });
 
 describe('confirmDialog', () => {
@@ -378,6 +423,23 @@ describe('promptText', () => {
     input.value = 'devops';
     submit();
     expect(await pending).toBe('devops');
+  });
+
+  it('carries an extra action through, and answers with it rather than with a string', async () => {
+    const pending = promptText<{ kind: 'delete' }>({
+      heading: 'Rename',
+      labelKey: 'folderNameLabel',
+      confirmLabel: 'Rename',
+      value: 'Recipes',
+      extraActions: [{ label: 'Delete the folder', value: { kind: 'delete' }, danger: true }],
+    });
+
+    button('Delete the folder').click();
+    const answer = await pending;
+    // The discriminator the call sites use. A sentinel string would have been indistinguishable
+    // from a folder someone actually named "delete".
+    expect(typeof answer === 'string').toBe(false);
+    expect(answer).toEqual({ kind: 'delete' });
   });
 });
 

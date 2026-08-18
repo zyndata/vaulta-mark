@@ -16,6 +16,7 @@ import {
   send,
   type ConflictView,
   type ErrorCode,
+  type FolderNode,
   type ItemDetail,
   type ListRow,
   type StateResponse,
@@ -45,7 +46,7 @@ import { detailPane } from './detail.js';
 import { ioScreen, paintProgress } from './io.js';
 import { BookmarkList } from './list.js';
 import { settingsScreen } from './settings.js';
-import { sidebar } from './sidebar.js';
+import { sidebar, tagQuery } from './sidebar.js';
 import { conflictBanner, conflictScreen, syncStatusButton } from './sync.js';
 import {
   canReorder,
@@ -514,8 +515,11 @@ export function mountManager(
         newFolder: () => {
           void createFolder();
         },
-        renameTag: (tag) => {
-          void renameTag(tag);
+        editTag: (tag) => {
+          void editTag(tag);
+        },
+        editFolder: (folder) => {
+          void editFolder(folder);
         },
         acceptsDrop: (folderId) => acceptsDrop(folderId),
         onDropInFolder: (folderId) => {
@@ -1454,9 +1458,17 @@ export function mountManager(
     await reloadAll();
   }
 
-  async function renameTag(tag: string): Promise<void> {
-    const to = await promptText({
-      heading: msg('tagRenameHeading', [tag]),
+  /**
+   * The panel behind the pencil beside a tag: rename it everywhere, or take it off everything.
+   *
+   * Both answers are about the same object, which is why they are in one panel rather than a pencil
+   * and a second control somewhere else. Deleting is a *second* press — the extra button closes this
+   * panel and the confirmation is asked on its own, because "how many bookmarks does this touch" is
+   * the fact that decides it and it belongs beside the question, not behind it.
+   */
+  async function editTag(tag: string): Promise<void> {
+    const answer = await promptText<{ kind: 'delete' }>({
+      heading: msg('tagEditHeading', [tag]),
       labelKey: 'tagRenameLabel',
       confirmLabel: msg('folderRename'),
       value: tag,
@@ -1468,11 +1480,78 @@ export function mountManager(
         if (normalized === undefined) return msg('dialogNameRequired');
         return normalized === tag ? msg('tagRenameUnchanged') : null;
       },
+      extraActions: [{ label: msg('tagDeleteAction'), value: { kind: 'delete' }, danger: true }],
     });
-    if (to === null) return;
-    const response = await send({ type: 'RENAME_TAG', from: tag, to });
+    if (answer === null) return;
+    if (typeof answer !== 'string') {
+      await deleteTag(tag);
+      return;
+    }
+
+    const response = await send({ type: 'RENAME_TAG', from: tag, to: answer });
     if (response.type === 'ERROR') warn(response.code);
     else say(msg('tagRenamed', [String(response.count)]));
+    await reloadAll();
+  }
+
+  /**
+   * Take a tag off everything that carries it, having said how much that is.
+   *
+   * The count comes from the tree this window already has, so the question can name it; a tag whose
+   * count is unknown (the tree has not loaded) still asks, without the number. Nothing is deleted
+   * but the tag itself, and the sentence says so — a "delete" beside a list of bookmarks reads as
+   * "delete these bookmarks" to anyone who does not stop to read it.
+   */
+  async function deleteTag(tag: string): Promise<void> {
+    const count = state.tree?.tags.find((entry) => entry.tag === tag)?.count;
+    const confirmed = await confirmDialog({
+      heading: msg('tagDeleteHeading', [tag]),
+      body: [
+        dialogText(
+          count === undefined ? 'tagDeleteBody' : count === 1 ? 'tagDeleteBodyOne' : 'tagDeleteBodyCount',
+          count === undefined ? [tag] : [tag, String(count)],
+        ),
+      ],
+      confirmLabel: msg('tagDeleteConfirm'),
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    const response = await send({ type: 'DELETE_TAG', tag });
+    if (response.type === 'ERROR') warn(response.code);
+    else say(msg('tagDeleted', [String(response.count)]));
+    // A tag filter that no longer matches anything would leave the list permanently empty, in the
+    // same way standing inside a deleted folder does.
+    if (state.query === tagQuery(tag)) {
+      state.query = '';
+      search.value = '';
+    }
+    await reloadAll();
+  }
+
+  /**
+   * The same panel for a folder, from the pencil in the tree.
+   *
+   * Delete hands straight to `deleteFolder`, which asks what happens to the contents — so the
+   * folder's two questions are asked in the two places they were already asked, and this only put a
+   * door in front of them that is where people look for one.
+   */
+  async function editFolder(folder: FolderNode): Promise<void> {
+    const answer = await promptText<{ kind: 'delete' }>({
+      heading: msg('folderEditHeading', [folder.title]),
+      labelKey: 'folderNameLabel',
+      confirmLabel: msg('folderRename'),
+      value: folder.title,
+      extraActions: [{ label: msg('folderDeleteAction'), value: { kind: 'delete' }, danger: true }],
+    });
+    if (answer === null) return;
+    if (typeof answer !== 'string') {
+      await deleteFolder(folder);
+      return;
+    }
+
+    const response = await send({ type: 'UPDATE_ITEM', id: folder.id, patch: { title: answer } });
+    if (response.type === 'ERROR') warn(response.code);
     await reloadAll();
   }
 
@@ -1654,6 +1733,27 @@ export function mountManager(
     event.preventDefault();
     search.focus();
     search.select();
+  });
+
+  /*
+   * Escape leaves a full-window screen, exactly as its *Back to bookmarks* button does.
+   *
+   * All three of them — settings, import/export, conflicts — are the same shape: they replace the
+   * layout, they are left by one button in the top corner, and until now the only way back was to
+   * find that button. Escape is what the platform's own modal already answers, and these read as
+   * modes for the same reason.
+   *
+   * Two things it deliberately does not do. It does not fire while a `<dialog>` is open: that press
+   * belongs to the modal on top, which closes on it, and closing the screen underneath at the same
+   * time would answer one keystroke twice. And it is *not* guarded on whether the user is typing —
+   * a half-typed password or a chosen file is not work worth trapping someone in a screen for, and
+   * every one of these screens keeps its state in the vault rather than in the fields.
+   */
+  document.addEventListener('keydown', (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || screen === 'list') return;
+    if (document.querySelector('dialog[open]') !== null) return;
+    event.preventDefault();
+    showScreen('list');
   });
 
   onBroadcast((message) => {

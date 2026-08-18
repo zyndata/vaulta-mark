@@ -93,6 +93,7 @@ The sidebar and the list are **one stop each**, not one per row — that is what
 | **←** | Close a folder, or step out to its parent |
 | **Home** / **End** | First / last visible folder |
 | **Enter** / **Space** | Go to that folder |
+| **F2** | Open that folder's panel — rename it, or delete it |
 | **Delete** | Delete the folder, after asking what happens to its contents |
 | **Alt+↑ / Alt+↓** | **Move the folder one place among its siblings** |
 
@@ -106,8 +107,10 @@ the search box empty. Pressing Alt+arrow anywhere else says so in the status lin
 nothing silently.
 
 **Everywhere else**: dialogs are real `<dialog>` elements, so Escape closes them and focus is
-trapped and restored by the browser. The two column splitters are `role="separator"` with
-`aria-valuenow`, and arrow keys resize them.
+trapped and restored by the browser. **Escape also leaves the three full-window screens** — Settings,
+*Import & export* and the conflict screen — which is what their *Back to bookmarks* button does; with
+a dialog open the key belongs to the dialog and closes only that. The two column splitters are
+`role="separator"` with `aria-valuenow`, and arrow keys resize them.
 
 ### 2.4 Browser-level shortcuts
 
@@ -134,9 +137,12 @@ says the permission set does not grow for a convenience.
 - **"Allow in Incognito" cannot be switched on by anything we ship**, keyboard or otherwise. It is a
   checkbox on `chrome://extensions`, and `chrome://` URLs cannot be opened programmatically. The
   prompt copies the address and instructs; it does not navigate.
-- **The row eye and the folder twisty are not tab stops**, and cannot be: a `listbox` may not
-  contain interactive descendants and neither may a `treeitem`. **p** is the eye's equivalent, and
-  **→ / ←** are the twisty's. Both are the real operation, not a workaround.
+- **The row eye is not a tab stop and cannot be**: a `listbox` may not contain interactive
+  descendants at all, so the eye on a row is a `span`. **p** is its equivalent.
+- **The folder twisty and the folder pencil are not tab stops either**, for a different reason: a
+  `treeitem` *may* hold a button, but the tree is deliberately one tab stop rather than one per
+  folder, and a tabbable control on every row would undo that. **→ / ←** are the twisty's equivalent
+  and **F2** is the pencil's. All three are the real operation, not a workaround.
 - **Screen readers have not been tested by a screen-reader user.** The automated pass proves the
   markup is right; it does not prove the experience is good. That remains open, and saying so is
   more honest than a claim the test suite does not support.

@@ -215,6 +215,18 @@ export interface RenameTagRequest {
 }
 
 /**
+ * Take a tag off every bookmark that carries it.
+ *
+ * The tag itself is not an object in the vault — it exists exactly as long as something is tagged
+ * with it (`allTags` counts occurrences), so deleting one is a bulk untag and nothing else. No
+ * bookmark is deleted, which is what the confirmation says.
+ */
+export interface DeleteTagRequest {
+  readonly type: 'DELETE_TAG';
+  readonly tag: string;
+}
+
+/**
  * How many saved bookmarks carry a tracking parameter.
  *
  * Asked when the strip-tracking setting is switched on, so the offer to clean what is already in
@@ -575,6 +587,7 @@ export type Request =
   | DeleteFolderRequest
   | TagItemsRequest
   | RenameTagRequest
+  | DeleteTagRequest
   | CountTrackingParamsRequest
   | StripTrackingParamsRequest
   | ChangePasswordRequest
@@ -1223,6 +1236,7 @@ export interface ResponseMap {
   readonly DELETE_FOLDER: OkResponse;
   readonly TAG_ITEMS: CountResponse;
   readonly RENAME_TAG: CountResponse;
+  readonly DELETE_TAG: CountResponse;
   readonly COUNT_TRACKING_PARAMS: CountResponse;
   readonly STRIP_TRACKING_PARAMS: CountResponse;
   readonly CHANGE_PASSWORD: OkResponse;
@@ -1579,6 +1593,11 @@ export function parseRequest(raw: unknown): Request | null {
       const to = raw['to'];
       if (!isNonEmptyString(from) || !isNonEmptyString(to)) return null;
       return { type, from, to };
+    }
+    case 'DELETE_TAG': {
+      const tag = raw['tag'];
+      if (!isNonEmptyString(tag)) return null;
+      return { type, tag };
     }
     case 'CHANGE_PASSWORD': {
       const currentPassword = raw['currentPassword'];

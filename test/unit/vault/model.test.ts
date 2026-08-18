@@ -18,6 +18,7 @@ import {
   normalizeUrl,
   pathOf,
   purgeTombstones,
+  deleteTagMutations,
   renameTagMutations,
   restoreItem,
   tagMutations,
@@ -763,6 +764,43 @@ describe('renameTagMutations', () => {
     const { items, ids } = sampleVault();
     const deleted = deleteItem(items, ids.alpha!, ctx({}, 'del')).items;
     expect(renameTagMutations(deleted, 'crypto', 'cryptography')).toEqual([]);
+  });
+});
+
+describe('deleteTagMutations', () => {
+  it('takes the tag off every bookmark that carries it and leaves the rest of them alone', () => {
+    const { items, ids } = sampleVault();
+    const applied = applyMutations(items, deleteTagMutations(items, 'Crypto'), ctx({}, 'del'));
+    // The tag is matched normalized, so the capital in the argument finds the stored `crypto`.
+    expect(tagsOf(applied.items.get(ids.alpha!)!)).toEqual(['papers']);
+    // And nothing but the tags moved: a tag deletion deletes no bookmark.
+    expect(isDeleted(applied.items.get(ids.alpha!)!)).toBe(false);
+    expect(applied.items.get(ids.alpha!)!.title).toBe('Alpha paper');
+  });
+
+  it('clears the field rather than leaving an empty list when it was the only tag', () => {
+    const { items, ids } = sampleVault();
+    const only = applyMutations(
+      items,
+      tagMutations(items, [ids.beta!], { add: ['solo'] }),
+      ctx({}, 'seed'),
+    ).items;
+    const applied = applyMutations(only, deleteTagMutations(only, 'solo'), ctx({}, 'del'));
+    expect(tagsOf(applied.items.get(ids.beta!)!)).toEqual([]);
+    // Cleared, not left as an empty array: an empty list would ride in every bucket and every push.
+    expect((applied.items.get(ids.beta!) as Bookmark).tags).toBeUndefined();
+  });
+
+  it('touches nothing for a tag nobody carries, and skips tombstones', () => {
+    const { items, ids } = sampleVault();
+    expect(deleteTagMutations(items, 'unused')).toEqual([]);
+    const deleted = deleteItem(items, ids.alpha!, ctx({}, 'tomb')).items;
+    expect(deleteTagMutations(deleted, 'crypto')).toEqual([]);
+  });
+
+  it('refuses an empty name rather than walking every bookmark for nothing', () => {
+    const { items } = sampleVault();
+    expect(() => deleteTagMutations(items, '   ')).toThrow(InvalidMutationError);
   });
 });
 

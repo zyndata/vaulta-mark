@@ -1,10 +1,17 @@
 /**
  * The sidebar: where you are in the vault, and the two ways of getting somewhere else.
  *
- * It is **navigation only**. Renaming and deleting a folder happen in the detail pane, where a
- * folder lands once it is selected in the main list, for two reasons: a `tree` whose items each
- * contain a row of buttons is a shape assistive technology handles badly, and there is exactly one
- * place in this UI where an item's properties live, which is easier to learn than two.
+ * It is navigation, plus **one** editing affordance per row: a pencil that opens the panel where
+ * that folder or tag is renamed or thrown away. Through Phase 12 the tree had none, on the grounds
+ * that a folder's properties live in the detail pane and one place is easier to learn than two —
+ * but the tag list has carried a pencil since Phase 6, and a folder tree that could only be renamed
+ * by first finding the folder *as a row in the list* is a trip that only makes sense to whoever
+ * built it. So both rows now carry the same glyph and open the same shape of panel.
+ *
+ * That costs one thing, and it is paid for below: a `treeitem` takes its accessible name from all of
+ * its descendant text, so a button inside the row would otherwise append its label to the folder's
+ * name. Every treeitem therefore carries an explicit `aria-label` (`navFolderLabel`), which is also
+ * why the count keeps being announced.
  *
  * The folder tree is a real ARIA tree — `aria-expanded`, `aria-level`, `aria-selected`, and a
  * roving tabindex so it is one tab stop rather than one per folder. The tag list is a plain list of
@@ -29,7 +36,10 @@ export interface SidebarDeps {
   readonly goTo: (scope: Scope) => void;
   readonly searchFor: (query: string) => void;
   readonly newFolder: () => void;
-  readonly renameTag: (tag: string) => void;
+  /** The pencil beside a tag: rename it everywhere, or take it off everything. */
+  readonly editTag: (tag: string) => void;
+  /** The pencil beside a folder: rename it, or delete it and answer for its contents. */
+  readonly editFolder: (folder: FolderNode) => void;
   /** Whether the drag in flight may land in this folder. `ROOT_ID` is the top level. */
   readonly acceptsDrop: (folderId: string) => boolean;
   readonly onDropInFolder: (folderId: string) => void;
@@ -200,6 +210,36 @@ function treeItem(
   // The row is the draggable thing, not the `li`: an `li` that has been opened contains the `ul` of
   // its children, so a draggable `li` would let a grab anywhere in an expanded subtree start a drag
   // of the ancestor — including on a child row, which has its own drag to start.
+  /*
+   * The pencil, matching the one the tag rows have carried since Phase 6.
+   *
+   * `draggable="false"` because the row around it is draggable and a press that begins on a button
+   * would otherwise start dragging the folder instead of pressing it. `stopPropagation` because the
+   * `li` navigates on click, and opening a rename panel is not also a request to go there.
+   *
+   * **`tabindex="-1"` is load-bearing.** The tree is one tab stop, not one per folder — that is what
+   * the roving tabindex above is for — and a button with the default `0` would put every folder's
+   * pencil in the tab ring, so crossing the sidebar of a vault with thirty folders would take thirty
+   * presses. The keyboard reaches this through **F2** on the focused folder instead, which is the
+   * key the tree pattern uses for renaming and is handled in `onTreeKeydown`.
+   */
+  const edit = h(
+    'button',
+    {
+      type: 'button',
+      class: 'vm-icon-button vm-tree-edit',
+      draggable: 'false',
+      tabindex: -1,
+      'aria-label': msg('folderEditAction', [node.title]),
+      title: msg('folderEditAction', [node.title]),
+      onclick: (event: Event) => {
+        event.stopPropagation();
+        deps.editFolder(node);
+      },
+    },
+    '✎',
+  );
+
   const row = h(
     'span',
     // The string, not `true`: `h` renders a boolean attribute as `draggable=""`, which is not one of
@@ -209,6 +249,7 @@ function treeItem(
     twisty,
     h('span', { class: 'vm-tree-title' }, node.title),
     h('span', { class: 'vm-count vm-small vm-muted' }, String(node.descendants)),
+    edit,
   );
 
   row.addEventListener('dragstart', (event: DragEvent) => {
@@ -223,6 +264,9 @@ function treeItem(
     {
       class: `vm-tree-item${selected ? ' is-current' : ''}`,
       role: 'treeitem',
+      // Explicit, so the pencil's own label does not become part of the folder's name. See the note
+      // at the top of this file; the count is in the label because it used to be in the name.
+      'aria-label': msg('navFolderLabel', [node.title, String(node.descendants)]),
       'aria-level': level,
       'aria-selected': selected ? 'true' : 'false',
       tabindex: selected ? 0 : -1,
@@ -348,6 +392,15 @@ function onTreeKeydown(
     case ' ':
       current.click();
       break;
+    case 'F2': {
+      // The pencil's keyboard equivalent, and F2 because that is the key the tree pattern already
+      // spends on renaming. The panel behind it holds the delete too, so a mouse and a keyboard
+      // reach the same two answers.
+      const folder = id === undefined ? undefined : byId.get(id);
+      if (folder === undefined) return;
+      deps.editFolder(folder);
+      break;
+    }
     case 'Delete':
     case 'Backspace': {
       const folder = id === undefined ? undefined : byId.get(id);
@@ -415,10 +468,10 @@ function tagList(deps: SidebarDeps, tags: readonly TagCount[]): HTMLElement {
           {
             type: 'button',
             class: 'vm-icon-button',
-            'aria-label': msg('tagRenameAction', [entry.tag]),
-            title: msg('tagRenameAction', [entry.tag]),
+            'aria-label': msg('tagEditAction', [entry.tag]),
+            title: msg('tagEditAction', [entry.tag]),
             onclick: () => {
-              deps.renameTag(entry.tag);
+              deps.editTag(entry.tag);
             },
           },
           '✎',
@@ -435,7 +488,7 @@ function tagList(deps: SidebarDeps, tags: readonly TagCount[]): HTMLElement {
  * filter at all. Rather than produce a query that silently means something else, a multi-word tag
  * is searched for as free text — which finds it, because tags are an indexed field.
  */
-function tagQuery(tag: string): string {
+export function tagQuery(tag: string): string {
   return tag.includes(' ') ? tag : `tag:${tag}`;
 }
 
