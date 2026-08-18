@@ -25,6 +25,16 @@ below.
   all* rather than *Remove them* — the list is there so you can disagree with part of it, and until
   now the only answers were everything or nothing. Removing one site leaves the rest of the review on
   screen, and sites that are not in your vault stay untouchable either way.
+- **The incognito setup step opens the page it talks about.** Turning on *Allow in Incognito* used to
+  mean copying `chrome://extensions/?id=…` out of VaultaMark and pasting it into the address bar,
+  because the extension believed it was not allowed to open that page. It is: the guided prompt and
+  the setup flow now have an *Open that page* button. The toggle is still yours to flip — no
+  extension can set it — and *Re-check* still asks Chrome rather than assuming.
+- **Settings now lists the keyboard shortcuts and what they are bound to.** Chrome, not VaultaMark,
+  owns those bindings — and it silently leaves a suggested combination unbound when another extension
+  claimed it first, which is usually the explanation for a shortcut that appears to do nothing. The
+  new *Keyboard shortcuts* section shows each command with its current combination, or *Not set*, and
+  has a button that opens Chrome's own page for changing them.
 - **A folder in the sidebar now has the same pencil a tag has.** It opens a panel that renames the
   folder or deletes it — the delete asks what happens to the contents, exactly as it always has.
   Renaming a folder previously meant finding it as a row in the main list first.
@@ -49,6 +59,9 @@ below.
   and switching tracking-parameter stripping on offers to rewrite every bookmark you have, which is
   not a question to answer in a 422-pixel column. Nothing was removed from the product; both switches
   are in the manager, worded exactly as before.
+- **The incognito fallback no longer promises a cleanup "in a later version".** Ticking *Clear this
+  site from my history afterwards* has actually cleared it, when the vault locks, since the history
+  tools landed — the sentence under the checkbox simply never caught up.
 - **Escape leaves Settings, *Import & export* and the conflict screen**, exactly as their *Back to
   bookmarks* button does. With a dialog open the key still belongs to the dialog and closes only
   that.

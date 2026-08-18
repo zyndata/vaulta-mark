@@ -337,6 +337,14 @@ test('the incognito prompt has no critical or serious accessibility violations',
   const page = await openPage('manager.html#incognito=nothing-in-particular');
   await expect(page.getByRole('heading', { level: 2 })).toBeVisible();
   await expectNoA11yViolations(page, 'the guided incognito prompt');
+
+  // Step 1 opens the page it names. An `<a href="chrome://…">` would be refused, which is why this
+  // is a button — and why the assertion is that a real tab appears at that address.
+  const opened = context.waitForEvent('page');
+  await page.getByRole('button', { name: 'Open that page' }).click();
+  const settings = await opened;
+  expect(settings.url()).toBe(`chrome://extensions/?id=${extensionId}`);
+  await settings.close();
   await page.close();
 });
 
@@ -599,7 +607,7 @@ test('a tag filter and Untagged are alternatives, not layers', async () => {
   await expect(page.locator('.vm-sidebar .is-current')).toHaveCount(1);
 
   // ---------------------------------------------------------------- an empty rename is refused
-  await page.getByRole('button', { name: 'Rename the tag scoped' }).click();
+  await page.getByRole('button', { name: /tag scoped/ }).click();
   await page.getByLabel('New name').fill('   ');
   await page.getByRole('button', { name: 'Rename', exact: true }).click();
   // Still open, and saying why — it used to swallow the submit and look broken.

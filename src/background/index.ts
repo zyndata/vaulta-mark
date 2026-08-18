@@ -469,8 +469,8 @@ function onStart(): void {
  * to close it unread. A reinstall does count as an install, and that is the right answer: the
  * profile has no vault and no record of the flow ever running.
  *
- * `manager.html`, not the popup, because the flow asks the user to paste an address into the address
- * bar (step 3) — and a popup closes the moment they click there (ARCHITECTURE §9).
+ * `manager.html`, not the popup, because the flow sends the user to a `chrome://` tab in step 3 and
+ * waits for them to come back — and a popup is gone the moment focus leaves it (ARCHITECTURE §9).
  */
 chrome.runtime.onInstalled.addListener((details) => {
   onStart();

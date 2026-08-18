@@ -180,7 +180,14 @@ test('lists, filters, opens, deletes and undoes a bookmark without touching the 
   await guide.waitForLoadState();
 
   await expect(guide.getByText(/needs permission to open incognito windows/)).toBeVisible();
-  await expect(guide.getByText(`chrome://extensions/?id=${extensionId}`)).toBeVisible();
+  // Step 1 is a button that opens the page — an `<a href="chrome://…">` would be refused, a
+  // `tabs.create` is not. Opened and closed here rather than only asserted on, so the tab does not
+  // outlive the check.
+  const settingsTab = context.waitForEvent('page');
+  await guide.getByRole('button', { name: 'Open that page' }).click();
+  const settings = await settingsTab;
+  expect(settings.url()).toBe(`chrome://extensions/?id=${extensionId}`);
+  await settings.close();
   await guide.getByRole('button', { name: 'Re-check' }).click();
   await expect(guide.getByText(/Still off/)).toBeVisible();
   expect(await createdWindows(worker)).toEqual([]);

@@ -1,34 +1,40 @@
 /**
  * The guided prompt for "Allow in Incognito is off" (ARCHITECTURE §9).
  *
- * This screen exists because of a hole in the extension APIs: there is no way to *request*
- * incognito access, and no way to navigate the user to the page that grants it — Chrome forbids an
- * extension from opening a `chrome://` URL programmatically. What is left is to explain the
- * setting, hand over the address to paste, and offer a button that re-checks.
+ * This screen exists because of a hole in the extension APIs: there is no way to *request* incognito
+ * access, and no way to set it. What there **is** — corrected 2026-08-17, having been believed
+ * otherwise since Phase 5 — is a way to take the user to the page that grants it:
+ * `chrome.tabs.create` opens a `chrome://` address perfectly well. Only an `<a href="chrome://…">`
+ * is refused, and `window.open` is dropped in silence, which is how the wrong conclusion survived.
  *
- * It lives on the manager page rather than in the popup for a practical reason: the user has to
- * click into the address bar to paste the link, and a popup closes the moment they do.
+ * So step 1 is a button now, not an address to copy. Steps 2 and 3 are unchanged and are the part
+ * that could never be automated: finding the toggle, and coming back.
+ *
+ * `onOpenSettings` is injected rather than called here for the reason every callback in this
+ * directory is: `src/ui/**` renders, and the layer that owns `chrome.*` acts. It also means a test
+ * asserts the *press*, without a browser to open a tab in.
+ *
+ * It lives on the manager page rather than in the popup because of what is below it — a fallback
+ * with a consequence and a history checkbox is not a 422-pixel column's worth of screen — and
+ * because opening a tab closes a popup anyway.
  *
  * The fallback — open in a normal window, this once — is an explicit, labelled choice with the
  * consequence written next to it, never a silent degradation. That is the whole difference between
  * a bookmark manager that keeps its promise and one that quietly stops keeping it.
  */
 
-import { copyableValue } from './address.js';
 import { h, msg, render } from './dom.js';
 
 export interface IncognitoPromptOptions {
-  /** `chrome://extensions/?id=…`, from the service worker — only it knows the extension id. */
-  readonly settingsUrl: string;
   /** Re-read the toggle. Resolves to the new state, which this screen renders itself. */
   readonly onRecheck: () => Promise<boolean>;
+  /** Open `chrome://extensions/?id=…` in a tab. The caller holds the URL and the tabs API. */
+  readonly onOpenSettings: () => void;
   /**
    * Open the item in a normal window anyway. Absent when the prompt was reached without an item
    * to open — the guided text is still worth showing, but there is nothing to fall back *to*.
    */
   readonly onFallback?: (clearHistoryAfter: boolean) => Promise<void>;
-  /** Injected so a test does not need a clipboard, and so a failure has one place to be handled. */
-  readonly copy?: (text: string) => Promise<void>;
 }
 
 /**
@@ -61,13 +67,7 @@ function renderPrompt(
     root,
     h('h2', null, msg('incognitoHeading')),
     h('p', null, msg('incognitoWhy')),
-    h(
-      'ol',
-      { class: 'vm-steps' },
-      h('li', null, msg('incognitoStep1'), ' ', addressBlock(options)),
-      h('li', null, msg('incognitoStep2')),
-      h('li', null, msg('incognitoStep3')),
-    ),
+    incognitoSteps(options.onOpenSettings),
     status,
     h(
       'button',
@@ -86,12 +86,31 @@ function renderPrompt(
   );
 }
 
-/** The address to paste, with a Copy button. Shared with onboarding and Settings → Privacy. */
-function addressBlock(options: IncognitoPromptOptions): HTMLElement {
-  return copyableValue({
-    value: options.settingsUrl,
-    ...(options.copy === undefined ? {} : { copy: options.copy }),
-  });
+/**
+ * The three steps, exported because onboarding's step 3 asks the same thing.
+ *
+ * Shared rather than repeated: the two screens differ in what surrounds them (a fallback here, Skip
+ * and a progress bar there) and not at all in the instruction, and an instruction that drifts
+ * between two places is how one of them ends up describing a version of Chrome nobody is running.
+ */
+export function incognitoSteps(onOpenSettings: () => void): HTMLElement {
+  return h(
+    'ol',
+    { class: 'vm-steps' },
+    h(
+      'li',
+      null,
+      msg('incognitoStep1'),
+      ' ',
+      h(
+        'button',
+        { type: 'button', class: 'vm-button vm-button--quiet vm-button--inline', onclick: onOpenSettings },
+        msg('incognitoOpenSettings'),
+      ),
+    ),
+    h('li', null, msg('incognitoStep2')),
+    h('li', null, msg('incognitoStep3')),
+  );
 }
 
 /** The explicit fallback. Present only when there is an item it could open. */

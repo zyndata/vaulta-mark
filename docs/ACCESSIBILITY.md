@@ -115,7 +115,9 @@ a dialog open the key belongs to the dialog and closes only that. The two column
 ### 2.4 Browser-level shortcuts
 
 These are Chrome commands, changeable at `chrome://extensions/shortcuts`, and they work with no
-VaultaMark window open:
+VaultaMark window open. Settings → *Keyboard shortcuts* lists them with whatever they are **actually**
+bound to — Chrome leaves a suggested combination unbound when another extension claimed it first —
+and has a button that opens that page:
 
 | Default | Does |
 | --- | --- |
@@ -135,8 +137,10 @@ says the permission set does not grow for a convenience.
 - **The toolbar button cannot be reached by keyboard from a page.** That is Chrome's, not ours;
   `Ctrl/⌘+Shift+S` exists precisely because of it.
 - **"Allow in Incognito" cannot be switched on by anything we ship**, keyboard or otherwise. It is a
-  checkbox on `chrome://extensions`, and `chrome://` URLs cannot be opened programmatically. The
-  prompt copies the address and instructs; it does not navigate.
+  checkbox on `chrome://extensions` and there is no API for it. What the prompt *can* do — and now
+  does, from a button that is a normal tab stop — is open that page for you; the toggle itself is
+  yours to flip. (An `<a href="chrome://…">` would be refused, which is why it is a button and not a
+  link: ARCHITECTURE §9.)
 - **The row eye is not a tab stop and cannot be**: a `listbox` may not contain interactive
   descendants at all, so the eye on a row is a `span`. **p** is its equivalent.
 - **The folder twisty and the folder pencil are not tab stops either**, for a different reason: a

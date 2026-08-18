@@ -45,6 +45,19 @@ import {
 } from '../vault/types.js';
 import { relativeTime, syncQuotaBar } from './sync.js';
 
+/**
+ * Chrome's own page for rebinding an extension's keys.
+ *
+ * **`chrome.tabs.create` opens it.** Not an `<a href>` and not `window.open` — a link to a
+ * `chrome://` address is refused from an extension page and `window.open` is dropped in silence —
+ * but the tabs API is allowed to create a tab at one, which was measured in Chromium rather than
+ * assumed. This project had believed the opposite since Phase 5 and shipped a copy-this-address
+ * widget on the strength of it; see the note under §9 in ARCHITECTURE.
+ *
+ * INV-3 is not involved: that invariant is about absolute *http(s)* URLs leaving the package.
+ */
+const SHORTCUTS_URL = 'chrome://extensions/shortcuts';
+
 export interface SettingsDeps {
   readonly settings: VaultSettings;
   /** Store a change, answering with whether it was stored. A refusal puts its control back. */
@@ -74,6 +87,10 @@ export async function settingsScreen(deps: SettingsDeps): Promise<HTMLElement> {
   const status = await send({ type: 'GET_SYNC_STATUS' });
   const drive = await send({ type: 'GET_DRIVE_STATE' });
   const historyGranted = await hasHistoryPermission();
+  // What the keys are actually bound to *now*, which is not what the manifest suggests: a suggested
+  // key Chrome could not grant (another extension had it first) is silently left unbound, and the
+  // only place that shows is here.
+  const commands = await chrome.commands.getAll();
 
   return h(
     'section',
@@ -100,6 +117,7 @@ export async function settingsScreen(deps: SettingsDeps): Promise<HTMLElement> {
         section('settingsSectionAppearance', [appearance(deps)]),
         section('settingsSectionLock', locking(deps)),
         section('settingsSectionBrowsing', browsing(deps)),
+        section('settingsSectionShortcuts', shortcuts(commands)),
         section('settingsSectionPrivacy', privacy(deps, historyGranted)),
       ),
       h(
@@ -158,6 +176,56 @@ function privacy(deps: SettingsDeps, historyGranted: boolean): HTMLElement[] {
         }
         return await deps.patch({ quickClose: checked });
       },
+    ),
+  ];
+}
+
+/* ------------------------------------------------------------------ shortcuts */
+
+/**
+ * What the four commands are bound to, and the address that changes them.
+ *
+ * The bindings themselves are Chrome's: an extension can declare a suggested key and read back what
+ * was granted, and that is the whole of the API — there is no way to *set* one. Chrome's own page
+ * is where that happens, and `chrome.tabs.create` opens it (see `SHORTCUTS_URL`), so this is a
+ * button rather than an address to copy.
+ *
+ * Reading them back matters more than it looks: Chrome grants a suggested key only if nothing else
+ * has claimed it, and a combination it could not grant is left silently unbound. "Not set" beside a
+ * command is usually the explanation for a keystroke that appears to do nothing.
+ */
+function shortcuts(commands: readonly chrome.commands.Command[]): HTMLElement[] {
+  const named = commands.filter((command) => (command.description ?? '') !== '');
+  return [
+    named.length === 0
+      ? h('p', { class: 'vm-small vm-muted' }, msg('settingsShortcutUnset'))
+      : h(
+          'ul',
+          { class: 'vm-shortcut-list' },
+          ...named.map((command) =>
+            h(
+              'li',
+              null,
+              // Chrome's own string, out of the same `_locales` file as everything else here: the
+              // descriptions in `build/manifest.ts` are `__MSG_` references.
+              h('span', null, command.description ?? ''),
+              (command.shortcut ?? '') === ''
+                ? h('span', { class: 'vm-small vm-muted' }, msg('settingsShortcutUnset'))
+                : h('kbd', null, command.shortcut ?? ''),
+            ),
+          ),
+        ),
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('settingsShortcutsHint')),
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'vm-button vm-button--quiet',
+        onclick: () => {
+          void chrome.tabs.create({ url: SHORTCUTS_URL });
+        },
+      },
+      msg('settingsShortcutsOpen'),
     ),
   ];
 }

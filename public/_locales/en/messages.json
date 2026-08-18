@@ -482,15 +482,19 @@
     "description": "Explanation at the top of the guided incognito prompt."
   },
   "incognitoStep1": {
-    "message": "Copy this address and paste it into the address bar:",
-    "description": "First step of the guided incognito prompt. Chrome forbids an extension from opening a chrome:// URL, so the user has to paste it."
+    "message": "Open VaultaMark’s own page in Chrome’s extension settings:",
+    "description": "First step of the guided incognito prompt. Followed by the button that opens it."
+  },
+  "incognitoOpenSettings": {
+    "message": "Open that page",
+    "description": "Button in the guided incognito prompt and in onboarding step 3. Opens chrome://extensions/?id=<our id> in a new tab — chrome.tabs.create is allowed to, even though a link to the same address is not."
   },
   "incognitoStep2": {
     "message": "On the page that opens, find the “Allow in Incognito” switch — it is near the bottom of VaultaMark's details, under “Site access”.",
     "description": "Second step of the guided incognito prompt."
   },
   "incognitoStep3": {
-    "message": "Turn it on, come back here, and press Re-check.",
+    "message": "Turn it on, come back to this tab, and press Re-check.",
     "description": "Third step of the guided incognito prompt."
   },
   "copyButton": {
@@ -530,8 +534,8 @@
     "description": "Checkbox that queues a history cleanup for the site being opened."
   },
   "incognitoFallbackClearHistoryHint": {
-    "message": "Queued until the cleanup arrives in a later version, and only for as long as the vault stays unlocked — the queue is never written to disk.",
-    "description": "Explanation under the clear-history checkbox, stating the Phase-9 limitation honestly."
+    "message": "Cleared the next time the vault locks, if you have allowed history access. The list is held in memory only and is never written to disk.",
+    "description": "Explanation under the clear-history checkbox. The queue is drained by cleanOnLock in background/history.ts; before Phase 9 there was nothing to drain it and this string said so, which stopped being true and stayed on screen."
   },
   "incognitoFallbackButton": {
     "message": "Open in a normal window",
@@ -1131,16 +1135,6 @@
   "tagBulkApply": {
     "message": "Apply",
     "description": "Confirm button of the bulk-tag dialog."
-  },
-  "tagRenameHeading": {
-    "message": "Rename the tag “$TAG$”",
-    "description": "Heading of the rename-tag dialog.",
-    "placeholders": {
-      "tag": {
-        "content": "$1",
-        "example": "reading"
-      }
-    }
   },
   "tagRenameLabel": {
     "message": "New name",
@@ -2628,6 +2622,22 @@
   "historyClearedOne": {
     "message": "Removed 1 history entry.",
     "description": "Announced after a cleanup, singular."
+  },
+  "settingsSectionShortcuts": {
+    "message": "Keyboard shortcuts",
+    "description": "Heading of the settings section listing the extension's keyboard commands."
+  },
+  "settingsShortcutsHint": {
+    "message": "Chrome owns these bindings, and its own page is where they are changed or cleared. A blank one usually means another extension had that combination first.",
+    "description": "Explanation above the button that opens chrome://extensions/shortcuts."
+  },
+  "settingsShortcutsOpen": {
+    "message": "Open Chrome’s shortcuts page",
+    "description": "Button that opens chrome://extensions/shortcuts in a new tab."
+  },
+  "settingsShortcutUnset": {
+    "message": "Not set",
+    "description": "Shown in place of a key combination for a command that has none."
   },
   "settingsSectionPrivacy": {
     "message": "Privacy",

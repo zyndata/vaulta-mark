@@ -106,8 +106,19 @@ test('walks a fresh profile through setup, and then never appears again', async 
     page.getByRole('heading', { name: 'VaultaMark needs permission to open incognito windows' }),
   ).toBeVisible();
 
-  // The address to paste is text, not a link Chrome would refuse to follow.
-  await expect(page.locator('code')).toContainText(`chrome://extensions/?id=${extensionId}`);
+  /*
+   * Step 1 is a button, and it really opens the page.
+   *
+   * `chrome.tabs.create` reaches a `chrome://` address even though an `<a href>` to the same one is
+   * refused — this asserts that against the real browser, because the whole step is built on it and
+   * a Chrome that closed the door would otherwise show up as a button nobody can explain.
+   */
+  await expect(page.locator('.vm-onboarding-step a')).toHaveCount(0);
+  const opened = context.waitForEvent('page');
+  await page.getByRole('button', { name: 'Open that page' }).click();
+  const settingsTab = await opened;
+  expect(settingsTab.url()).toBe(`chrome://extensions/?id=${extensionId}`);
+  await settingsTab.close();
 
   // Nothing can turn the toggle on from here, so Next is refused until the user answers.
   await next(page).click();

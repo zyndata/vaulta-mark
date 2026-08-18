@@ -151,6 +151,13 @@ Notes:
 - **No `content_scripts` declaration.** The OG capture script is injected on demand under `activeTab`.
   This is why we need no host permissions at install time.
 - **No `web_accessible_resources`.** Nothing we ship should be reachable from a web page.
+- **A `suggested_key` is a suggestion.** Chrome grants it only if nothing else has claimed the
+  combination, and leaves it silently unbound otherwise — which is the usual explanation for a
+  shortcut that appears to do nothing. Settings → *Keyboard shortcuts* (`src/manager/settings.ts`)
+  reads the real bindings back with `chrome.commands.getAll()` and shows *Not set* where there is
+  none, with a button that opens `chrome://extensions/shortcuts` — the only place a binding can be
+  changed, since the API can declare and read but not set. On that address being openable at all,
+  see the correction under §9.
 - `oauth2` is added in Phase 10 (Drive) with the single `drive.file` scope.
 - Chrome 116+ is the floor: `CompressionStream` (Chrome 80), `OffscreenCanvas.convertToBlob` with
   WebP (Chrome 94+), `chrome.storage.session` (Chrome 102), `chrome.action.openPopup` (Chrome 127 —
@@ -1363,11 +1370,11 @@ export async function openVaulted(url: string, options: OpenOptions = {}): Promi
 The open counter (`openedAt`, `openCount`) is bumped only when something actually opened, so the
 guided prompt is not a click that silently edits the vault.
 
-**The guided prompt.** Chrome does not allow an extension to navigate to `chrome://extensions`
-programmatically, and there is no API to request incognito access. So the prompt:
+**The guided prompt.** There is no API to request incognito access, and the toggle behind it is a
+checkbox on `chrome://extensions`. So the prompt:
 
 1. explains in one sentence what "Allow in Incognito" does and why VaultaMark needs it
-2. shows `chrome://extensions/?id=<our id>` with a **Copy** button and "paste this in your address bar"
+2. **opens `chrome://extensions/?id=<our id>` in a tab**, from a button (`chrome.tabs.create`)
 3. illustrates the toggle's location in words plus a bundled screenshot asset (words only until the
    store assets land in Phase 13)
 4. offers **Re-check** (calls `isAllowedIncognitoAccess()` again and updates live)
@@ -1376,10 +1383,35 @@ programmatically, and there is no API to request incognito access. So the prompt
    afterwards (Phase 9)
 
 It lives on the **manager page** (`manager.html#incognito=<itemId>`, built by
-`src/ui/incognito-prompt.ts`) rather than in the popup, because step 2 asks the user to click into
-the address bar and a popup closes the moment they do. The address is a `<code>` with a Copy button,
-not a link: Chrome refuses to follow an `<a href="chrome://…">` from an extension page, and a dead
-link is a worse instruction than a string that can be copied.
+`src/ui/incognito-prompt.ts`) rather than in the popup, because it sends the user to another tab and
+waits for them to come back, and because the fallback below it — a warning, a history checkbox and a
+button — is not a popup's worth of screen. The three steps are exported as `incognitoSteps()` and
+rendered by onboarding's step 3 as well (§12.5): two screens asking for the same thing in two sets of
+words is how one of them ends up out of date.
+
+> **Corrected 2026-08-17, and it was not a detail.** Step 2 used to show the address with a **Copy**
+> button and say "paste this into the address bar", because this document and `CLAUDE.md` had both
+> asserted since Phase 5 that an extension cannot navigate to `chrome://extensions`
+> programmatically. That is **false for `chrome.tabs.create`**. Measured in Chromium against the real
+> `dist/`, from an extension page *and* from the service worker:
+> `chrome.tabs.create({ url: 'chrome://extensions/shortcuts' })` and
+> `chrome.tabs.create({ url: 'chrome://extensions/?id=<our id>' })` both resolve and both leave a real
+> tab at that address. What is genuinely refused is an `<a href="chrome://…">`; `window.open` is
+> dropped **in silence**, which is how the wrong conclusion survived four phases. The *link* half of
+> the old reasoning was right and the conclusion drawn from it was not. It came to light because a
+> maintainer saw a published extension opening that page.
+>
+> Two things the correction does **not** change. `tabs.create` needs no permission for this, but the
+> tab's URL still cannot be *read* back without one — so **Re-check** stays
+> `isAllowedIncognitoAccess()`, an answer from the API rather than an observation of where the user
+> got to. And nothing here can turn the toggle on: there is still no API for that, which is why steps
+> 3–5 are unchanged.
+>
+> Applied in the same pass: this prompt, onboarding step 3, and Settings → *Keyboard shortcuts*
+> (§2, under the generated manifest), which opens `chrome://extensions/shortcuts`. Each has an E2E
+> that asserts a real tab appears at the real address, so a future Chrome closing the door shows up
+> as a failing test rather than as a button nobody can explain. `src/ui/address.ts` survives for the
+> Google Cloud console values, which genuinely cannot be opened by anything we ship.
 
 The **history-cleanup queue** (`vm.historyQueue`) lives in `chrome.storage.session`, not in
 `storage.local`. The host of a vaulted URL is vault content, and INV-6 says vault content does not
@@ -1665,11 +1697,18 @@ step in a setup flow that nobody could complete *in the flow* — homework hande
 phrased as if it were part of the product's own configuration. The threat it describes is real and
 belongs in `docs/PRIVACY.md`, which is where a statement that cannot be a control belongs.
 
-What stays is the widget it shared with §9. `src/ui/address.ts` renders a `chrome://` address as
-text in a `<code>` with a Copy button, never as an `<a href>`: Chrome refuses to follow a `chrome://`
-link from an extension page, and a dead link is a worse instruction than a string the user can see
-and copy. Its remaining caller is the incognito prompt's `chrome://extensions/?id=…` (§9), which
-*does* have something to check afterwards — a Re-check button reading the real permission state.
+One of the three reasons for the removal has since turned out to be wrong, and it changes nothing.
+The card was removed because (a) it had no control, (b) we cannot read or set the setting, and (c) we
+could not open that page either. **(c) is false** — `chrome.tabs.create` opens
+`chrome://settings/?search=autocomplete` as readily as any other `chrome://` address (§9,
+corrected 2026-08-17). (a) and (b) are untouched and are the load-bearing pair: a step that can open
+a page, not operate it, and never learn whether anything happened is still homework handed out at the
+end of a setup flow. Bringing the card back would be a product decision, not a consequence of the
+correction, and it has not been made.
+
+`src/ui/address.ts` outlived the card and the `chrome://` addresses both. Its remaining callers are
+the Drive setup values in Settings — this build's extension id and the OAuth scope — which have to be
+carried into the Google Cloud console, a place nothing we ship can open at all.
 
 ---
 
@@ -1678,8 +1717,8 @@ and copy. Its remaining caller is the incognito prompt's `chrome://extensions/?i
 A five-step flow on `manager.html?onboarding=1`, opened once by `chrome.runtime.onInstalled` with
 reason `install` — never on an *update*, because a browser that updated four extensions overnight
 and greeted the user with four tabs is how a flow teaches people to close it unread. It lives on the
-manager page rather than in the popup because step 3 asks the user to paste an address into the
-address bar, and a popup closes the moment they click there.
+manager page rather than in the popup because step 3 sends the user to a `chrome://` tab and waits
+for them to come back, and a popup is gone the moment focus leaves it.
 
 The five screens are: what VaultaMark is · create your master password · allow in incognito · choose
 your sync tier · two things Chrome still does. The gates are pure functions in

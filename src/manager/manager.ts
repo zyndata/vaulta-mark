@@ -1,8 +1,8 @@
 /**
  * The manager page's entry point: which of the three screens this tab is.
  *
- * Almost always it is the vault manager (`app.ts`). Two exceptions, both here because they ask the
- * user to paste an address into the address bar and a popup closes the moment they click there:
+ * Almost always it is the vault manager (`app.ts`). Two exceptions, both here because they send the
+ * user off to a `chrome://` tab and wait for them to come back, which a popup does not survive:
  * `#incognito=<itemId>` is the guided prompt for "Allow in Incognito is off" (ARCHITECTURE §9), and
  * `?onboarding=1` is the first-run flow, opened once by `chrome.runtime.onInstalled`.
  *
@@ -126,7 +126,11 @@ async function showIncognitoPrompt(encoded: string | undefined): Promise<void> {
   render(
     root,
     incognitoPrompt({
-      settingsUrl: access.settingsUrl,
+      // The address comes from the worker — only it knows the extension id — and the tab is opened
+      // here, because `src/ui/**` renders and does not reach for `chrome.*`.
+      onOpenSettings: () => {
+        void chrome.tabs.create({ url: access.settingsUrl });
+      },
       onRecheck: async () => {
         const rechecked = await send({ type: 'INCOGNITO_ACCESS', recheck: true });
         return rechecked.type !== 'ERROR' && rechecked.allowed;
