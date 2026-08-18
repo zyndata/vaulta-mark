@@ -1,6 +1,6 @@
 {
   "name": "vaulta-mark",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Bookmarks Chrome doesn't know about. No omnibox autocomplete, opens in incognito, encrypted, optional sync via your Google Drive.",
   "license": "GPL-3.0-only",

@@ -12,8 +12,15 @@ below.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-18
+
 ### Added
 
+- **VaultaMark is in the Chrome Web Store.** 1.0.0 was published there on 2026-08-16, so installing
+  no longer means building from source and loading an unpacked folder:
+  <https://chromewebstore.google.com/detail/nfcfgnaefnkpmoiagnamdacpohifncpl>. Building it yourself
+  still works and is still how the checksum in each release is meant to be checked — what changed is
+  that it is no longer the only way in.
 - **The manager warns when a vaulted page is still in Chrome's history.** A bookmark whose page you
   visited before you vaulted it is still in the address bar's suggestions — vaulting it never
   removed the visit. Rows for those pages now carry a warning marker beside the preview eye, and
@@ -830,5 +837,6 @@ The first release. Everything below is new, because there was nothing before it.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
-[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.0.0...dev
+[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.1.0...dev
+[1.1.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.1.0
 [1.0.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.0.0
