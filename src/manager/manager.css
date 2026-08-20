@@ -145,7 +145,8 @@ body.vm-manager {
  */
 .vm-conflict-slot,
 .vm-io-slot,
-.vm-settings-slot {
+.vm-settings-slot,
+.vm-dupes-slot {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -156,7 +157,8 @@ body.vm-manager {
 /* `display: flex` above beats the UA's `[hidden]`, exactly as `.vm-layout` does. */
 .vm-conflict-slot[hidden],
 .vm-io-slot[hidden],
-.vm-settings-slot[hidden] {
+.vm-settings-slot[hidden],
+.vm-dupes-slot[hidden] {
   display: none;
 }
 
@@ -1600,4 +1602,144 @@ body.vm-manager {
 .vm-icon-choice-image {
   display: block;
   flex: none;
+}
+
+/* ------------------------------------------------------------------ duplicates (Phase 16) */
+
+/*
+ * Wider than the import/export screen's 48rem measure. This one is not prose to read but rows to
+ * compare — title, folder, tags, date, and sometimes a second address underneath — and a copy whose
+ * facts wrap onto three lines is a copy that cannot be compared with the one below it.
+ */
+.vm-dupes {
+  width: 100%;
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  box-sizing: border-box;
+}
+
+.vm-dupes-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.vm-dupes-intro {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 60ch;
+  margin: 1rem 0 0;
+}
+
+.vm-dupes-intro p {
+  margin: 0;
+}
+
+/*
+ * The one removal button, and it stays reachable while the reader is forty groups down the page:
+ * the selection spans every group, so a button that scrolled away with the first one would make a
+ * cross-group tick something you have to scroll back to act on.
+ */
+.vm-dupes-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  padding: 0.6rem 0;
+  background: var(--vm-bg);
+  border-bottom: 1px solid var(--vm-border);
+}
+
+.vm-dupes-groups {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vm-dupes-group {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--vm-border);
+}
+
+.vm-dupes-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.vm-dupes-group-head p {
+  margin: 0;
+}
+
+/*
+ * The address, and it may be very long. `anywhere` rather than `break-all` so it still breaks at
+ * the slashes when it can — a URL wrapped mid-host is one nobody can read back.
+ */
+.vm-dupes-address {
+  min-width: 0;
+  font:
+    0.8125rem/1.45 ui-monospace,
+    monospace;
+  overflow-wrap: anywhere;
+}
+
+.vm-dupes-copies {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vm-dupes-copy {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+}
+
+/* The whole title is the hit area for the checkbox, which is a 13px target on its own. */
+.vm-dupes-copy-label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.vm-dupes-check {
+  flex: none;
+}
+
+.vm-dupes-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vm-dupes-facts,
+.vm-dupes-url {
+  margin: 0;
+  /* Aligned under the title rather than under the checkbox: the facts describe the copy, not the
+     control that removes it. Checkbox width plus the label's gap. */
+  padding-left: 1.4rem;
+  overflow-wrap: anywhere;
+}
+
+.vm-dupes-tags {
+  margin: 0.15rem 0 0;
+  padding-left: 1.4rem;
+}
+
+.vm-dupes-group-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
 }

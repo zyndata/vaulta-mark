@@ -44,6 +44,7 @@ import {
 import { qrPanel } from '../ui/qr.js';
 import { ThumbPopover, type ThumbData } from '../ui/thumb.js';
 import { detailPane } from './detail.js';
+import { duplicatesScreen } from './duplicates.js';
 import { ioScreen, paintProgress } from './io.js';
 import { BookmarkList } from './list.js';
 import { settingsScreen } from './settings.js';
@@ -137,6 +138,7 @@ export function mountManager(
   const conflictSlot = h('div', { class: 'vm-conflict-slot', hidden: true });
   const ioSlot = h('div', { class: 'vm-io-slot', hidden: true });
   const settingsSlot = h('div', { class: 'vm-settings-slot', hidden: true });
+  const dupesSlot = h('div', { class: 'vm-dupes-slot', hidden: true });
   const status = qs(document, '#vm-status');
 
   /** The last status the worker reported. `null` until the first answer arrives. */
@@ -198,17 +200,17 @@ export function mountManager(
   }
 
   /**
-   * Which of the four full-window screens is up.
+   * Which of the full-window screens is up.
    *
-   * One variable rather than four `hidden` attributes read back off the DOM, because the four are
-   * mutually exclusive and nothing was enforcing it: each screen only ever put the *layout* away and
+   * One variable rather than one `hidden` attribute per screen read back off the DOM, because they
+   * are mutually exclusive and nothing was enforcing it: each screen only ever put the *layout* away and
    * brought itself out, so opening import/export from the conflict screen left both on the page, one
    * scrolled under the other. Worse, resolving the last conflict calls `paintSync`, which used to
    * bring the layout back unconditionally — so settling a disagreement while looking at
    * import/export put the bookmark list on screen above it. `showScreen` is now the only thing that
-   * touches those attributes, and it always says what all four of them are.
+   * touches those attributes, and it always says what every one of them is.
    */
-  type Screen = 'list' | 'conflicts' | 'io' | 'settings';
+  type Screen = 'list' | 'conflicts' | 'io' | 'settings' | 'duplicates';
   let screen: Screen = 'list';
 
   function showScreen(next: Screen): void {
@@ -222,12 +224,14 @@ export function mountManager(
     conflictSlot.hidden = next !== 'conflicts';
     ioSlot.hidden = next !== 'io';
     settingsSlot.hidden = next !== 'settings';
+    dupesSlot.hidden = next !== 'duplicates';
     // A screen that is not on the page holds nothing: its contents are a snapshot of the vault
     // taken when it opened, and one left parked in the DOM is stale data a screen reader in browse
     // mode can still walk into. For settings that snapshot includes three password fields.
     if (next !== 'conflicts') render(conflictSlot);
     if (next !== 'io') render(ioSlot);
     if (next !== 'settings') render(settingsSlot);
+    if (next !== 'duplicates') render(dupesSlot);
   }
 
   const list = new BookmarkList({
@@ -480,6 +484,7 @@ export function mountManager(
     conflictSlot,
     ioSlot,
     settingsSlot,
+    dupesSlot,
     toastSlot,
   );
 
@@ -518,6 +523,9 @@ export function mountManager(
         },
         editTag: (tag) => {
           void editTag(tag);
+        },
+        openDuplicates: () => {
+          openDuplicates();
         },
         editFolder: (folder) => {
           void editFolder(folder);
@@ -862,6 +870,33 @@ export function mountManager(
       }),
     );
     ioSlot.scrollTop = 0;
+  }
+
+  /* ---------------------------------------------------------------- duplicates */
+
+  /**
+   * The duplicates screen, in place of the three-column layout (Phase 16).
+   *
+   * A screen for the same reason the other three are: the copies of one address have to be read
+   * side by side before anything is chosen, and the list column shows one row per bookmark with no
+   * room for a group.
+   *
+   * It removes through `removeWithUndo`, which is the list's own delete — so a clean-up here is one
+   * batch, one revision, one set of tombstones and one undo, exactly like a bulk delete from the
+   * list. The screen re-reads itself afterwards; `reloadAll` refreshes what is behind it.
+   */
+  function openDuplicates(): void {
+    showScreen('duplicates');
+    render(
+      dupesSlot,
+      duplicatesScreen({
+        onBack: () => {
+          showScreen('list');
+        },
+        remove: removeWithUndo,
+      }),
+    );
+    dupesSlot.scrollTop = 0;
   }
 
   /* ---------------------------------------------------------------- settings */
@@ -1597,10 +1632,24 @@ export function mountManager(
     });
     if (!confirmed) return;
 
+    await removeWithUndo(ids);
+  }
+
+  /**
+   * Delete a batch and offer one undo for the whole of it. Answers whether it happened.
+   *
+   * The manager's **only** delete. The list column's Delete key comes through here and so does the
+   * duplicates screen, because a second copy of this would be a second thing to keep atomic, and
+   * the two would drift on the day one of them learned something the other did not.
+   *
+   * The selection is cleared unconditionally: after a delete from the duplicates screen it holds
+   * ids the list behind may no longer have, and `refreshView` only prunes what it can still see.
+   */
+  async function removeWithUndo(ids: readonly string[]): Promise<boolean> {
     const response = await send({ type: 'DELETE_ITEMS', ids });
     if (response.type === 'ERROR') {
       warn(response.code);
-      return;
+      return false;
     }
     state.selection.clear();
     await reloadAll();
@@ -1621,6 +1670,10 @@ export function mountManager(
               const undone = await send({ type: 'RESTORE_ITEMS', ids });
               if (undone.type === 'ERROR') warn(undone.code);
               await reloadAll();
+              // The duplicates screen is a snapshot taken before the delete, so a restore that put
+              // the copies back leaves it describing a vault that no longer matches. It re-reads
+              // itself when it is the screen on top.
+              if (screen === 'duplicates') openDuplicates();
             })();
           },
         },
@@ -1631,6 +1684,7 @@ export function mountManager(
     setTimeout(() => {
       if (toast.isConnected) render(toastSlot);
     }, UNDO_MS);
+    return true;
   }
 
   /* ---------------------------------------------------------------- keyboard */

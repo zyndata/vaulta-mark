@@ -26,6 +26,8 @@ import {
   type ItemDetail,
   type ItemEdit,
   type ListRow,
+  type DuplicateGroupView,
+  type DuplicatesResponse,
   type TagCount,
   type TreeResponse,
   type ViewResponse,
@@ -44,6 +46,7 @@ import {
   type ItemPatch,
   type Mutation,
 } from '../vault/model.js';
+import { duplicateCount, duplicateGroups } from '../vault/duplicates.js';
 import { isEmptyQuery, parseQuery } from '../vault/search.js';
 import { DEFAULT_SORT, sortItems, type SortKey } from '../vault/sort.js';
 import {
@@ -103,7 +106,10 @@ export async function tree(): Promise<TreeResponse> {
   }
 
   const tags: TagCount[] = allTags(items);
-  return { type: 'TREE', folders, tags, total, untagged };
+  // One extra pass over the live bookmarks, parsing each URL once. It rides here rather than in a
+  // request of its own so the sidebar can say there is something to clean without the user having
+  // gone looking — which is the only reason the feature gets found at all.
+  return { type: 'TREE', folders, tags, total, untagged, duplicates: duplicateCount(items) };
 }
 
 /**
@@ -151,6 +157,34 @@ export async function listView(options: ViewOptions = {}): Promise<ViewResponse>
     terms: parsed.terms,
     ranked,
   };
+}
+
+/**
+ * Every address saved more than once, with its copies (Phase 16).
+ *
+ * Read-only. Nothing here decides which copy to keep, marks one, or removes anything — the screen
+ * proposes and the user disposes, and removal leaves through `DELETE_ITEMS` like every other bulk
+ * delete, so it inherits the single `repo.apply`, the tombstones and the undo rather than growing
+ * its own.
+ *
+ * Each row carries its folder path, which `listView` only ever computes once for the whole view.
+ * Here it is per row and deliberately so: the folder is one of the few things that distinguishes
+ * two copies of the same address, and a comparison screen that made the user click each copy to
+ * find out where it lives would not be a comparison screen. `pathOf` walks to the root per row, so
+ * the walk is memoised across the whole answer — a hundred copies in one deep folder is one walk.
+ */
+export async function duplicates(): Promise<DuplicatesResponse> {
+  const repo = await requireVault();
+  await session.touch();
+  const items = repo.items();
+  const toRow = rowBuilder(items);
+  const path = crumbCache(items);
+
+  const groups: DuplicateGroupView[] = duplicateGroups(items).map((group) => ({
+    key: group.key,
+    items: group.items.map((item) => ({ ...toRow(item), path: path(item.parentId) })),
+  }));
+  return { type: 'DUPLICATES', groups };
 }
 
 /** One item in full, for the detail pane. `null` for an unknown or deleted id. */
@@ -400,4 +434,17 @@ function rowBuilder(items: ItemMap): (item: VaultItem) => ListRow {
 function crumbs(items: ItemMap, folderId: string): Crumb[] {
   if (folderId === ROOT_ID || !items.has(folderId)) return [];
   return pathOf(items, folderId).map((item) => ({ id: item.id, title: item.title }));
+}
+
+/** `crumbs`, memoised per folder — for the one caller that needs a path on every row. */
+function crumbCache(items: ItemMap): (folderId: string) => Crumb[] {
+  const cache = new Map<string, Crumb[]>();
+  return (folderId) => {
+    let path = cache.get(folderId);
+    if (path === undefined) {
+      path = crumbs(items, folderId);
+      cache.set(folderId, path);
+    }
+    return path;
+  };
 }

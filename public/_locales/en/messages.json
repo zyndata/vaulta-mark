@@ -772,6 +772,130 @@
       }
     }
   },
+  "navDuplicates": {
+    "message": "Duplicates",
+    "description": "Sidebar entry opening the screen that lists addresses saved more than once. Its count is addresses, not copies."
+  },
+  "dupesHeading": {
+    "message": "Duplicate addresses",
+    "description": "Heading of the duplicates screen."
+  },
+  "dupesBack": {
+    "message": "Back to bookmarks",
+    "description": "Button that leaves the duplicates screen."
+  },
+  "dupesLoading": {
+    "message": "Looking through the vault…",
+    "description": "Placeholder while the duplicates screen waits for its first answer."
+  },
+  "dupesIntro": {
+    "message": "$COUNT$ addresses are saved more than once. Copies can differ in title, folder, tags and notes, so none is chosen for you — tick the ones to remove.",
+    "description": "Introduction to the duplicates screen. Says explicitly that nothing is pre-selected, because the screen's only verb is delete.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "dupesRule": {
+    "message": "Bookmarks match when the address is the same apart from campaign parameters such as utm_source, the part after #, and the order of the query.",
+    "description": "The matching rule, stated where the groups are shown rather than left for the user to infer from what got grouped."
+  },
+  "dupesEmpty": {
+    "message": "No address is saved twice.",
+    "description": "The duplicates screen with nothing to show."
+  },
+  "dupesCopies": {
+    "message": "$COUNT$ copies",
+    "description": "How many bookmarks share one address.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "dupesTopLevel": {
+    "message": "In: top level",
+    "description": "Where a copy lives when it is not in any folder. Phrased like detailInFolder so the two read as one column."
+  },
+  "dupesAdded": {
+    "message": "Added $DATE$",
+    "description": "When a copy was saved.",
+    "placeholders": {
+      "date": {
+        "content": "$1",
+        "example": "12 March 2026"
+      }
+    }
+  },
+  "dupesHasNote": {
+    "message": "Has a note",
+    "description": "Marks the copy carrying a note — often the reason to keep that one rather than another."
+  },
+  "dupesSavedAs": {
+    "message": "Saved as $URL$",
+    "description": "A copy's exact address, shown only when it differs from the group's heading — which is how a campaign parameter becomes visible.",
+    "placeholders": {
+      "url": {
+        "content": "$1",
+        "example": "example.com/a?utm_source=newsletter"
+      }
+    }
+  },
+  "dupesRemoveLabel": {
+    "message": "Remove $TITLE$",
+    "description": "Accessible name of a copy's checkbox. The visible label is only the title, which does not say what ticking it does.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Release notes"
+      }
+    }
+  },
+  "dupesTickExtras": {
+    "message": "Tick all but the oldest",
+    "description": "Per-group shortcut. A button rather than a default, so the user still sees what is ticked before anything is removed."
+  },
+  "dupesRemoveSelected": {
+    "message": "Remove $COUNT$ ticked",
+    "description": "The one removal button. Spans every group, because cleaning forty addresses should be one undo rather than forty.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesConfirmHeading": {
+    "message": "Remove $COUNT$ bookmarks?",
+    "description": "Heading of the duplicates removal confirmation.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesConfirmEmptied": {
+    "message": "$COUNT$ of these addresses would be left with no copy at all — those bookmarks leave the vault entirely.",
+    "description": "Warning when every copy of an address is ticked. Legitimate, but not what a screen called duplicates implies.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "dupesConfirmEmptiedOne": {
+    "message": "One of these addresses would be left with no copy at all — that bookmark leaves the vault entirely.",
+    "description": "Singular of dupesConfirmEmptied."
+  },
+  "dupesConfirmButton": {
+    "message": "Remove",
+    "description": "Confirm button on the duplicates removal confirmation."
+  },
   "listLabel": {
     "message": "Bookmarks",
     "description": "Accessible name for the manager's main list."

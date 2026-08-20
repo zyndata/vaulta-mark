@@ -38,6 +38,15 @@ export interface SidebarDeps {
   readonly newFolder: () => void;
   /** The pencil beside a tag: rename it everywhere, or take it off everything. */
   readonly editTag: (tag: string) => void;
+  /**
+   * Open the duplicates screen (Phase 16).
+   *
+   * Not a {@link Scope}, though it sits with the two that are: the answer is groups of copies to
+   * compare, and the list column has one row per bookmark and nowhere to put a group. The entry
+   * lives here anyway because "is anything saved twice?" is a question about the whole vault, and
+   * this is where the other two of those are asked.
+   */
+  readonly openDuplicates: () => void;
   /** The pencil beside a folder: rename it, or delete it and answer for its contents. */
   readonly editFolder: (folder: FolderNode) => void;
   /** Whether the drag in flight may land in this folder. `ROOT_ID` is the top level. */
@@ -102,6 +111,14 @@ export function sidebar(deps: SidebarDeps): HTMLElement {
         navButton(msg('navUntagged'), tree?.untagged, deps.scope.kind === 'untagged', () => {
           deps.goTo({ kind: 'untagged' });
         }),
+      ),
+      // Shown with its count even when the count is zero, like the two above it. A row that
+      // appeared only when there was something to clean would be one nobody could go and check,
+      // and "no address is saved twice" is an answer worth being able to ask for.
+      h(
+        'li',
+        null,
+        navButton(msg('navDuplicates'), tree?.duplicates, false, deps.openDuplicates),
       ),
     ),
 

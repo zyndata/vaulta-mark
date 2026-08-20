@@ -582,6 +582,7 @@ export type Request =
   | LookupActiveTabRequest
   | GetTreeRequest
   | ListViewRequest
+  | ListDuplicatesRequest
   | GetItemRequest
   | CreateFolderRequest
   | UpdateItemRequest
@@ -857,6 +858,15 @@ export interface TreeResponse {
   /** Live bookmarks in the whole vault, and how many of them carry no tag. */
   readonly total: number;
   readonly untagged: number;
+  /**
+   * How many **addresses** are saved more than once (Phase 16).
+   *
+   * Addresses, not copies: a page saved five times is 1 here, because it is one row on the
+   * duplicates screen and one decision to make. It rides on the tree rather than being asked for
+   * separately so the sidebar can say there is something to clean without anyone having gone
+   * looking — the same reason `ui/tracking.ts` asks for a count before it offers.
+   */
+  readonly duplicates: number;
 }
 
 export interface ViewResponse {
@@ -877,6 +887,46 @@ export interface ViewResponse {
    * offering a menu that changes nothing.
    */
   readonly ranked: boolean;
+}
+
+/* --- duplicates (Phase 16) ------------------------------------------------- */
+
+/**
+ * Every address saved more than once, with its copies.
+ *
+ * Read-only and asked for exactly once, when the screen opens: this is a review, not a live view,
+ * and a list that rearranged itself while somebody was deciding which copy to keep would move the
+ * row out from under the cursor. The screen re-asks after it has removed something, because then
+ * the user is the one who changed it.
+ */
+export interface ListDuplicatesRequest {
+  readonly type: 'LIST_DUPLICATES';
+}
+
+/** One copy, as the duplicates screen draws it. */
+export interface DuplicateRow extends ListRow {
+  /**
+   * Ancestors from the top level down to this copy's parent. Empty at the top level.
+   *
+   * On the row rather than fetched per item like the detail pane's, because the folder is one of
+   * the few things that actually distinguishes two copies, and a screen whose whole job is
+   * comparison cannot make the user click each one to see it.
+   */
+  readonly path: readonly Crumb[];
+}
+
+/** One address, and every live bookmark that resolves to it. Always two or more copies. */
+export interface DuplicateGroupView {
+  /** The normal form the copies share. An identity for the group, never displayed. */
+  readonly key: string;
+  /** Oldest first. Nothing is pre-selected — which copy to keep is the user's call. */
+  readonly items: readonly DuplicateRow[];
+}
+
+export interface DuplicatesResponse {
+  readonly type: 'DUPLICATES';
+  /** Largest group first, then oldest. Empty when there is nothing saved twice. */
+  readonly groups: readonly DuplicateGroupView[];
 }
 
 export interface ItemResponse {
@@ -1231,6 +1281,7 @@ export interface ResponseMap {
   readonly LOOKUP_ACTIVE_TAB: ActiveTabResponse;
   readonly GET_TREE: TreeResponse;
   readonly LIST_VIEW: ViewResponse;
+  readonly LIST_DUPLICATES: DuplicatesResponse;
   readonly GET_ITEM: ItemResponse;
   readonly CREATE_FOLDER: CreatedResponse;
   readonly UPDATE_ITEM: OkResponse;
@@ -1441,6 +1492,7 @@ export function parseRequest(raw: unknown): Request | null {
       return typeof recheck === 'boolean' ? { type, recheck } : null;
     }
     case 'GET_TREE':
+    case 'LIST_DUPLICATES':
     case 'COUNT_TRACKING_PARAMS':
     case 'STRIP_TRACKING_PARAMS':
     case 'GET_SYNC_STATUS':
@@ -1816,6 +1868,7 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'THUMB',
   'TREE',
   'VIEW',
+  'DUPLICATES',
   'ITEM',
   'CREATED',
   'COUNT',
@@ -1834,6 +1887,7 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'DRIVE_STATE',
   'DIAGNOSTICS',
   'MIGRATION',
+  'DESTROYED',
   'ERROR',
 ]);
 

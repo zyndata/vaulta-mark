@@ -196,6 +196,8 @@ export async function handleRequest(request: Request): Promise<Response> {
           ...(request.sort === undefined ? {} : { sort: request.sort }),
           ...(request.untagged === undefined ? {} : { untagged: request.untagged }),
         });
+      case 'LIST_DUPLICATES':
+        return await organize.duplicates();
       case 'GET_ITEM':
         return { type: 'ITEM', item: await organize.getItem(request.id) };
       case 'CREATE_FOLDER':
