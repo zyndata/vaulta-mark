@@ -1540,6 +1540,419 @@ annotated tag `v1.0.0` — see [RELEASE §4](docs/RELEASE.md#4-cutting-a-release
 
 ---
 
+> **Phases 14–18 are post-1.0 work**, scoped by the backlog triage of 2026-08-19. Nine backlog
+> issues and one maintainer proposal were reviewed one at a time; five items were accepted, three
+> refused with their reasoning, three deferred without being refused. The phases below are the
+> accepted five, ordered so that nothing is built twice. They ship together as **1.2.0**.
+
+## Phase 14 — Backlog settlement and toolbar appearance
+
+**Goal:** put the 2026-08-19 triage into the repository rather than leaving it in a conversation,
+close what was refused with the reasoning attached, and land the smallest accepted item.
+
+**Depends on:** nothing.
+**Specs to read:** [THREAT_MODEL §4](docs/THREAT_MODEL.md) — one claim there stops being true in
+this phase and is rewritten rather than deleted.
+
+**In scope**
+
+- **§5's post-1.0 table gains a decision column**, with the reason and not only the verdict. A
+  backlog that records "no" without recording "because" invites the same conversation in a year.
+  B1 accepted (Phase 15) · B2 accepted here · B3 deferred · **B4 refused** · B5 split, duplicates
+  accepted (Phase 16) and dead links refused · **B6 refused** · **B7 refused** · B8 deferred ·
+  B9 deferred.
+- **Close #21, #23, #24** with the reasoning on them. Leave **#20, #25, #26** open — deferred is
+  not refused, and an issue closed as "no" reads differently from one closed as "not now" to
+  whoever finds it next. #22 stays open until Phase 16 closes it.
+- **`src/css.d.ts`** containing `declare module '*.css';`. Harmless under TS 5.9 and it is the
+  whole fix for the four `TS2882` errors measured under TS 7.0.2 on the side-effect CSS imports in
+  `src/{manager/manager,popup/popup}.ts`. Deliberately **not** `vite/client` in tsconfig `types` —
+  that list is scoped on purpose because `src/` ships to a browser. **PR #15 stays open**: the
+  blocker is `typescript-eslint` refusing TS 7 outright, which takes `npm run lint` and therefore
+  `npm run verify` with it, and that local run is the real gate (CI cannot block a push to `dev`).
+- **Toolbar appearance** (B2, #19) — a **manager** settings section, not the popup's. It is decided
+  once, which is the line the 2026-08-17 pass drew when it moved *Opening and saving* out of a
+  422-pixel column.
+  - A choice of toolbar icon: **the current one as the default**, plus a small set of neutral
+    alternatives. Rendered by `scripts/gen-brand-assets.mjs` through the same Playwright Chromium
+    the real icons already use — a Node image library would rasterise differently from the browser
+    that displays the result — at every size the manifest declares, and honouring that script's
+    existing rule that 16/32 omit the keyhole slot.
+  - Applied with `chrome.action.setIcon` / `setTitle` **from the worker, on startup, from
+    `vm.settings`**. The worker dies every ~30 s; an icon set once is an icon lost.
+  - The popup title is settable alongside it.
+  - Both stay **local**, not synced — they describe a screen, the same reasoning that keeps
+    `sidebarWidth` and `providerId` out of the synced record.
+- **The name is "Toolbar appearance".** Not *disguise*, not *camouflage*, not *hide*. One sentence
+  under the control says what does not change: the name in `chrome://extensions`, the extension id,
+  and the Store listing. **The manifest cannot be rewritten at runtime**, so the honest version of
+  this feature is a different icon and a different popup title, and it is described in exactly
+  those words.
+- **THREAT_MODEL §4** is rewritten where it says VaultaMark does not hide that a vault exists:
+  icon and title are variable; name, id and listing are not, and cannot be.
+
+**Out of scope:** anything touching `manifest.name`; any claim of concealment in UI, docs or the
+Store listing; per-profile icons.
+
+**Tests**
+- Settings round-trip; the default is the current icon; a chosen icon survives a worker restart.
+  — `test/unit/background/appearance.test.ts`, driving the restart through the chrome mock's
+  `terminateWorker()`.
+- E2E: choosing an alternative calls `chrome.action.setIcon` with the paths for every declared
+  size. — `test/e2e/manager.spec.ts`.
+- `verify:strings` green: new keys exist in `_locales`, none dead.
+
+**Definition of done**
+- [ ] PLAN §5 records every decision with its reason; #21, #23, #24 closed; #20, #25, #26 open.
+- [ ] `src/css.d.ts` exists; `npm run verify` green; PR #15 untouched and open.
+- [ ] The icon can be changed from the manager and survives a worker restart.
+- [ ] No user-facing text anywhere claims the extension can be hidden.
+- [ ] THREAT_MODEL §4 describes what is variable and what is not.
+
+**Git:** direct commits on `dev`. Tag `phase-14-done`.
+
+---
+
+## Phase 15 — QR code for a vaulted URL
+
+**Goal:** move one address to a phone without typing it or mailing it to yourself — the usual
+workaround, and the one that takes a vaulted URL out of the vault and leaves it in an inbox
+forever.
+
+**Depends on:** nothing.
+**Specs to read:** [ARCHITECTURE §15](docs/ARCHITECTURE.md) (dependencies) — this phase adds the
+first vendored third-party code in the tree; [THREAT_MODEL §4](docs/THREAT_MODEL.md).
+
+**In scope**
+
+- **A vendored encoder, not a hand-written one.** Kazuhiko Arase's `qrcode-generator` (MIT, 2009),
+  **unminified**, with its copyright header intact, plus a hand-written `.d.ts`. It is source in
+  the tree, not an npm runtime dependency, so **D4 holds**; ARCHITECTURE §15 gains an entry saying
+  what it is, its licence, its measured size, and why it is not written here — Galois-field
+  arithmetic and the error-correction block tables are not code worth owning, and a QR code either
+  scans or it does not. MIT into GPL-3.0-only is compatible; the header stays.
+  - A minified blob would be unauditable, in a project whose auditability is an argument it makes
+    in public.
+- **Loaded through `import('./…')` with a relative literal specifier.** The remote-code scanner
+  permits exactly that shape and refuses computed or non-relative ones
+  (`scripts/verify-no-remote-code.mjs`, rule `dynamic-import`), and Rolldown emits it as its own
+  chunk — so the encoder is in neither the worker's cold-start graph nor the manager's first paint.
+  Verify against the real `dist/`, do not assume.
+- `src/ui/qr.ts` — modules to a `<canvas>`, with the quiet zone, sized to the dialog.
+  Callback-injected like `incognito-prompt.ts` so it tests without a worker.
+- The manager's detail pane gains **"Show QR code" beside *Open in incognito***, opening
+  `openDialog`. **Deliberately not drawn until asked**: a permanently visible QR is a plaintext
+  address on screen for anyone who glances at the monitor, which is the shoulder case the product
+  exists for. Gated on an unlocked vault, like the address field itself.
+- **The code carries the address and nothing else.** A title and a note would push it to version 40
+  and produce a chessboard no phone reads reliably.
+- One line under the code, in `_locales`: the scanned address opens on the phone in an ordinary tab
+  and lands in that phone's history; copy it and paste it into a private tab if that matters.
+- **No promise of incognito on the phone, anywhere.** Measured by the maintainer on 2026-08-19:
+  Chrome for Android has no QR scanner in private tabs (Lens is disabled there), iOS has no URL
+  scheme for private mode, and an `intent://` carrying `EXTRA_OPEN_NEW_INCOGNITO_TAB` is
+  undocumented, scanner-dependent and **fails silently into an ordinary tab** — leaving the user
+  believing they are private when they are not. That is worse than promising nothing, and it is the
+  same failure mode B2 was refused a name over.
+- **THREAT_MODEL §4** gains an accepted leak: a QR code is a deliberate export of one address out
+  of the vault, and what the phone does with it is outside this product's boundary.
+
+**Out of scope:** a QR for anything but one bookmark's URL; bulk QR; scanning a QR *into* the vault;
+any attempt to influence what the phone does next.
+
+**Tests**
+- **Known-answer**, against published vectors — the standard `src/crypto/` holds for PBKDF2 and
+  HKDF, and for the same reason: a wrong QR is not an error but a silent one, either unscannable or
+  scanning to a truncated address. Cover a long URL with query parameters and a URL with non-ASCII
+  (byte mode, UTF-8). — `test/unit/ui/qr.test.ts`.
+- The encoder is **not** in an entry chunk, asserted against the real `dist/` through the machinery
+  `scripts/check-budgets.mjs` already has for compressed entry sizes.
+- E2E: unlock → open a bookmark → *Show QR code* → a canvas of the expected module count;
+  a locked vault offers no such button. — `test/e2e/manager.spec.ts`.
+- a11y: the dialog passes axe and the canvas carries an accessible name.
+- `npm run verify:invariants` green — this phase contains the first deliberate `import(` in the
+  codebase, so confirm the scanner accepts it rather than assuming it does.
+
+**Definition of done**
+- [ ] A QR shown by the extension scans, on a real phone, to exactly the vaulted address.
+- [ ] The encoder is vendored unminified, licensed correctly, and recorded in ARCHITECTURE §15.
+- [ ] It is absent from the worker and manager entry chunks (measured against `dist/`).
+- [ ] Nothing in the product or the Store listing implies control over the phone.
+- [ ] THREAT_MODEL §4 records the leak.
+
+**Git:** direct commits on `dev`. Tag `phase-15-done`.
+
+---
+
+## Phase 16 — Duplicate detection
+
+**Goal:** a vault grown by native import and by merge can be cleaned of bookmarks that collapse to
+the same address.
+
+**Depends on:** nothing.
+
+**Settle before any code is written** (maintainer, 2026-08-19): is this a **cleanup** — a review
+screen over the whole vault — or a **prevention** — a notice at add time that an almost-identical
+address is already saved — or both? They are **different moments and neither implies the other**:
+prevention does not clean what has been sitting there for years, which is why people go looking for
+this feature, and cleanup does not stop the next duplicate arriving. The answer decides whether this
+is half a day or two.
+
+**In scope**
+
+- `src/vault/duplicates.ts` — pure, no I/O, no `chrome.*`: group live items by a normal form. The
+  normalisation already exists (`vaultableUrl`, plus the tracking-parameter stripper, on by default
+  since Phase 8); this phase **chooses which one is shown and writes the choice down**.
+  `example.com/a` and `example.com/a?utm_source=x` are one address; `watch?v=a` and `watch?v=b` are
+  two videos.
+- **Live items only.** A tombstone is not a duplicate — the same trap `previewOf`'s `known` count
+  fell into in Phase 8, where a subset was counted against a superset and the preview contradicted
+  itself.
+- Whichever of the two the first question settles:
+  - **cleanup** — a manager screen listing groups with the copies side by side (title, folder,
+    tags, whether there is a note, when it was added), because copies differ in everything except
+    the address and **which one to keep is the user's call, never an automatic one**. Removal
+    composes **one batch** through `organize.ts`, so it is atomic, is one `vaultRev` for the merge,
+    and inherits the tombstone plus the 8-second undo like every other bulk operation.
+  - **prevention** — the add path reports that a matching item exists and offers to open it
+    instead. **It must not block the add**; a second copy on purpose is a thing people do.
+
+**Out of scope**
+
+**Dead-link checking, refused 2026-08-19**, and recorded here rather than only in the closed issue.
+Reaching a bookmark's target means requesting it, and **INV-4 says browsing the vault makes zero
+requests** — an invariant with an end-to-end test (`test/e2e/journey.spec.ts`), a line in the Store
+listing and a line in the privacy policy behind it. It would need a host permission broad enough to
+reach any origin, which D26's table does not contain; a hundred bookmarks is a hundred requests from
+the user's address to a hundred hosts in one second, which is the vault's table of contents exported
+to anyone watching the network; and the answers are unreliable enough — 403 to `HEAD`, Cloudflare,
+login walls — that a meaningful share of "dead" would be wrong, in a screen whose purpose is to
+suggest deleting things. Close **#22** in this phase, recording the split.
+
+**Tests**
+- Table test over the normal form: which pairs collapse and which do not, including the
+  tracking-parameter pair and the two-videos pair. — `test/unit/vault/duplicates.test.ts`.
+- Tombstones are never grouped.
+- Removal is **one** `repo.apply` — assert the revision advances by exactly one for a group of *n*
+  — and is undoable. — `test/unit/background/organize.test.ts`.
+- E2E over whichever surface was chosen. — `test/e2e/manager.spec.ts`.
+
+**Definition of done**
+- [ ] The cleanup/prevention question is answered in this file before the first commit.
+- [ ] Duplicates are found by a normal form that is documented, not implicit.
+- [ ] Any removal is atomic and undoable.
+- [ ] #22 closed, recording that dead links were refused and why.
+
+**Git:** direct commits on `dev`. Tag `phase-16-done`.
+
+---
+
+## Phase 17 — Favicon bytes in the heavy tier
+
+**Goal:** a vault restored on a second computer shows real icons instead of a column of coloured
+initials, because that profile has browsed none of those sites yet.
+
+**Depends on:** Phase 10 (Drive).
+**Specs to read:** [ARCHITECTURE §10](docs/ARCHITECTURE.md) (favicons), §14 (heavy tier), §8.3
+(accepted leaks); issue #6, whose spike resolved both unknowns against a real Chromium.
+
+**Settle before any code is written: does this need a `SCHEMA_VERSION` bump at all?** Issue #6
+assumes it does. The code suggests it may not, and the difference is the difference between an
+ordinary addition and the most expensive change this project can make — a bump re-seals **every
+bucket in the field**, because `Aad.v` *is* `SCHEMA_VERSION` and a blob sealed at 2 fails to
+authenticate under 3, indistinguishably from corruption; it forces the read path to stop using the
+constant and start reading the number in the header; it pushes the whole vault again; and it locks
+out any device Chrome has not yet updated, since a vault newer than the build throws
+`UnsupportedSchemaError` and is never written.
+
+Three reasons to think it is avoidable, all to be confirmed by reading `storage/codec.ts` and
+`storage/repo.ts` rather than by argument:
+
+1. The constant's own contract is *"bumped whenever the **decrypted payload shape** changes"*
+   (`src/vault/types.ts`). A store keyed by host changes no item.
+2. `AadPurpose` is a separate field from `v`; a **new purpose leaves every existing seal
+   untouched**.
+3. Phase 10's synced settings are the precedent — an additive optional field, in bucket 0's
+   payload, deliberately with no bump.
+
+Write the answer into ARCHITECTURE whichever way it falls. **If a bump is genuinely required, this
+phase stops there** and the bump becomes a phase of its own, with its migration, its fixture, and
+its own decision about when to make every other device wait for Chrome.
+
+**In scope**
+
+- **Keyed by host, not by item.** One icon serves every bookmark on the host — fifty GitHub
+  bookmarks, one file. Two orders of magnitude cheaper than thumbnails, which are per item because
+  every page has a different picture.
+- **The stored name is an HMAC under a vault key, never `sha256(host)`** (maintainer, 2026-08-19;
+  this is not in the issue and reverses its effect if missed). The set of domains is **enumerable**:
+  an unkeyed hash lets anyone holding the Drive folder hash the top million sites and read off which
+  files are present, turning *how many domains* into *which domains* — precisely the leak D28
+  refuses a third-party favicon service over.
+- **Read from `_favicon/` only**, by `fetch` from the worker. Our own origin, a local cache read,
+  **no network request**, no new permission — measured in the spike (200 OK, 646 bytes, readable
+  `ArrayBuffer`). INV-4 untouched and re-asserted by test.
+- **The placeholder is detected and not stored.** Two never-visited domains return byte-identical
+  646-byte globes; hashing the response and comparing against the placeholder's hash is what stops
+  the vault filling with hundreds of identical globes.
+- **Capture at three moments only**, each one where the user has already caused the work: on add
+  (already in the pipeline, under a gesture); on an opportunistic upgrade when we hold nothing for a
+  host and the cache now has a real icon, **checked only while rendering that row anyway**; and an
+  explicit *refresh icon*, mirroring §14.5's manual thumbnail refresh. **No timer, no startup sweep,
+  no fetch for rows nobody is looking at** — that is the same rule D27/§14 imposes on thumbnails,
+  for the same reason.
+- Sealed under `k_thumbs` through `repo.thumbCipher()`, so this module never holds a key, exactly as
+  `src/thumbs/**` does not.
+- **Drive tier only.** `chrome.storage.sync` is 100 KB in total and the heavy tier never touches
+  it — a hard invariant, not a preference. On the Chrome-sync tier nothing changes at all:
+  `_favicon/` plus the letter avatar, as today. That is also the only tier where the problem is felt.
+- **Deletion happens at purge, not at delete**, through the housekeeping alarm's existing
+  `sweepOrphans` shape — comparing stored keys against the live host set, which is also what catches
+  the orphans a merge, an import or a rollback leaves behind, none of which pass through the delete
+  path.
+- **§8.3 gains a leak:** the number of favicon files approximates the number of distinct domains in
+  the vault. Sharper than the bucket count, strictly weaker than the one-file-per-item thumbnails
+  already there, and the bytes stay encrypted.
+
+**Out of scope:** fetching `https://<site>/favicon.ico` or parsing `<link rel="icon">` from the
+extension origin — a third-party request and out of the question under INV-4. Any background or
+scheduled refresh. Replacing the letter avatar, which stays the fallback for "no real icon known".
+Anything on the Chrome-sync tier.
+
+**Tests**
+- N bookmarks on one host cost one stored icon. — `test/unit/thumbs/favicons.test.ts`.
+- A response whose hash matches the placeholder is **not** stored and the row keeps its letter.
+- **The stored name is not derivable from the host without the key** — assert that hashing the host
+  by any unkeyed means does not produce the stored key.
+- Bytes are encrypted at rest; the INV-6 assertion is extended to the favicon store.
+- **Nothing is written to `chrome.storage.sync`.**
+- INV-4: browsing a vault full of favicons issues zero network requests. — extend
+  `test/e2e/thumbs.spec.ts`'s request trap.
+- Capture happens on add, on the opportunistic upgrade, and on explicit refresh — **and at no other
+  time**, asserted against the fetch seam itself rather than against stored state, because the claim
+  is about what is *not* done.
+- On the Chrome-sync tier, behaviour is byte-for-byte unchanged.
+
+**Definition of done**
+- [ ] The schema question is answered in ARCHITECTURE before the first commit.
+- [ ] Every acceptance criterion in issue #6 is met; #6 closed.
+- [ ] Stored names are keyed, and a test proves an unkeyed guess cannot find one.
+- [ ] Restoring a vault on a second profile with Drive connected shows real icons — **the
+      maintainer's manual pass**, for the same reason Phases 10 and 11 have one: Playwright cannot
+      sign into Google. Procedure alongside DEVELOPMENT §5.4/§5.5.
+- [ ] §8.3 records the leak.
+
+**Git:** direct commits on `dev`. Tag `phase-17-done`.
+
+---
+
+## Phase 18 — Localisation machinery and Polish
+
+**Goal:** make the product translatable in fact rather than in principle, and ship the first
+translation — Polish — in a state somebody can vouch for.
+
+**Depends on:** Phases 14–17. **Every one of them adds strings**, and translating a moving target is
+the avoidable half of this work. Phase 18 also rebuilds the popup's settings screen, which should be
+done once the screens above have stopped changing.
+
+**Specs to read:** the header of `scripts/verify-strings.mjs`, which anticipates this phase in so
+many words; `src/popup/popup.css` lines 1–30 and 290–305, which are load-bearing measurements.
+
+**Measured starting point** (2026-08-19): **572 keys, 5,060 words, 28,707 characters, 89 keys with
+placeholders, 17 singular-form keys.** The groundwork is genuinely done — INV-10 has kept every
+user-facing string in `_locales/en/messages.json` since Phase 12, and the Phase-12 decision to write
+**whole sentences** rather than a stem plus a pluralised suffix pays off exactly here, because a
+sentence assembled from fragments at runtime is one no translator can reorder.
+
+**Four things must be fixed before a single word is translated.**
+
+1. **Plurals.** `chrome.i18n` has **no plural support whatsoever** — no ICU MessageFormat, nothing.
+   The 17 singular keys are pairs built for English's two forms. **Polish has three** (1 zakładka /
+   2 zakładki / 5 zakładek, with 22 taking the second and 12 the third), so a pair cannot express
+   it. The fix is `Intl.PluralRules` — **built into the browser, zero dependencies, D4 intact**:
+   `new Intl.PluralRules(locale).select(n)` returns `one`/`few`/`many`/`other` and the key takes a
+   suffix. Rework `countsLine`/`knownLine` in `src/manager/io.ts` and the other fifteen sites. This
+   is a **structural change, not translation**, and it must come first — otherwise the translator is
+   handed a file in which correct Polish cannot be written.
+2. **The popup has eleven pixels of slack.** `popup.css` records it: the settings screen measured
+   **589 px of the 600 Chrome allows**, in a fixed 26.4 rem × 37.5 rem (422 × 600 px) column.
+   German runs 30–40 % longer than English. The cascade is already documented in this repository —
+   overflow produces a scrollbar, the scrollbar narrows the column, the narrower column rewraps the
+   hints, and the screen gets taller still. **Rebuild the popup's settings screen so it survives
+   longer text**, and add an E2E that measures the rendered height per locale. Without this the
+   first long-language translation is broken on the day it ships.
+3. **`verify-strings.mjs` checks English only.** Add a fourth check: **key parity across locales**.
+   A missing key is silent, which is the exact failure mode the first three checks exist to prevent.
+4. **Measure the fallback, do not assume it.** `default_locale` is `en`. Whether Chrome falls back
+   per *message* or only per *file* decides whether an unfinished translation renders as a partly
+   English interface (acceptable) or as **blank labels** (not). Measure it in a real Chrome against
+   the real `dist/` and write the answer down — this repository has been wrong before about what a
+   browser does, and found out by measuring.
+
+**In scope**
+
+- The four items above.
+- `public/_locales/pl/messages.json`, complete.
+- **Store listing in Polish.** Five fields. The **short description has a hard 132-character limit
+  that already refused a package once** (133 characters on the 1.0.0 upload — the Store *rejects*,
+  it does not truncate), and Polish runs longer than English, which fitted at 129. That line is
+  **written to the limit, not translated to it.** Screenshots stay English unless a full set of five
+  per locale is judged worth it; record the decision either way in `docs/STORE_LISTING.md`.
+- **Write down that there is no in-app language picker and why.** `chrome.i18n` takes its language
+  from the browser UI and offers no supported override; building one means abandoning `chrome.i18n`
+  for a private message loader, and the name and description in `chrome://extensions` would still
+  follow the browser. This will be asked in an issue — have the answer in the repository first.
+
+**Out of scope:** **German, French and Spanish.** Deferred to a separate decision after this phase,
+by the maintainer's own call: quality can only be verified in Polish, and machine translation of
+security copy is not a typo risk but a data-loss risk — *"There is no way to recover this password"*
+rendered a shade softer produces a user who sets a weak password on a vault with no recovery. The
+repository has been public since 2026-08-15 and translation is the most common form of outside
+contribution to extensions; after this phase the machinery accepts one, with English as the
+fallback. Polish also happens to be the hardest of the four — three plural forms, seven cases — so
+machinery that carries Polish carries the rest.
+
+**Tests**
+- `Intl.PluralRules` selection for `en` and `pl` across 0, 1, 2, 4, 5, 12, 22, 25, 101 — the
+  boundaries where the two languages disagree. — `test/unit/ui/plural.test.ts`.
+- Every plural key referenced by the selector exists in **both** locales, checked against
+  `messages.json` — the same shape as `test/unit/manager/io-text.test.ts`, which exists because a
+  missing key renders as an empty string and an empty line reads as one that was never there.
+- `verify-strings.mjs`'s fourth check fails a deliberately removed `pl` key. **Confirm it fails
+  before believing it** — the Phase-8 scrollbar regression test passed with the bug reintroduced.
+- E2E: the popup's settings screen fits within Chrome's 600 px in `en` and `pl`, measured in
+  Chromium, and again with a synthetic long-string locale standing in for German.
+- a11y: the axe pass runs against `pl` as well — an `aria-label` is a translated string too.
+
+**Definition of done**
+- [ ] Plurals go through `Intl.PluralRules`; no key pair encodes English's two forms.
+- [ ] The popup's settings screen fits in every shipped locale, measured, not reasoned about.
+- [ ] `npm run verify` fails on a missing key in any locale.
+- [ ] The `default_locale` fallback behaviour is measured and recorded.
+- [ ] Polish is complete and the Polish short description is ≤ 132 characters.
+- [ ] `docs/STORE_LISTING.md` carries every Polish field; the screenshot decision is recorded.
+- [ ] The absence of a language picker is documented with its reason.
+
+**Git:** direct commits on `dev`. Tag `phase-18-done`.
+
+---
+
+### Releasing 14–18
+
+These five land on `dev` and ship together as **1.2.0** — features, so a minor bump by RELEASE §4's
+table; no schema change unless Phase 17's first question answers otherwise, in which case that
+becomes its own decision.
+
+Two things to raise at the release itself:
+
+- **The rewritten Store short description is still unpublished.** It has been on `dev` since before
+  1.1.0 and only a package upload can publish it.
+- **Check `gh run list` before the release merge.** 1.0.0 was tagged while CI on `dev` was red and
+  the fix was sitting uncommitted in the working tree — a local `verify` that is green *because* of
+  an unsaved file is green about nothing.
+
+---
+
 ## 10. README outline
 
 To be written in Phase 0 and completed in Phase 13.
