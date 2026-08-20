@@ -1779,12 +1779,25 @@ the same address.
 
 **Depends on:** nothing.
 
-**Settle before any code is written** (maintainer, 2026-08-19): is this a **cleanup** — a review
-screen over the whole vault — or a **prevention** — a notice at add time that an almost-identical
-address is already saved — or both? They are **different moments and neither implies the other**:
-prevention does not clean what has been sitting there for years, which is why people go looking for
-this feature, and cleanup does not stop the next duplicate arriving. The answer decides whether this
-is half a day or two.
+**Settled 2026-08-20 (maintainer): this is a cleanup, and only a cleanup.**
+
+The question was whether duplicate detection is a **cleanup** — a review screen over the whole vault
+— or a **prevention** — a notice at add time — or both. The answer is cleanup, for a reason that
+only became visible once the code was read rather than remembered: **prevention already shipped in
+Phase 5 and nobody had written it down.** `addUrl` computes `duplicateKeyOf`, `findDuplicate` walks
+the live items, and the popup answers "you already have this page" with a button that opens it
+(`src/background/add.ts`, `src/popup/vault.ts`). The native-bookmark import has counted duplicates
+by the same key since Phase 8. So "both" would have meant building one half twice, and the half
+people actually go looking for — the one that cleans years of accumulated copies — did not exist at
+all. This phase builds that half and records the other as already done.
+
+**One thing about the shipped prevention is left alone deliberately.** This section used to say
+prevention "must not block the add; a second copy on purpose is a thing people do" — and the shipped
+behaviour *does* block it: a duplicate is answered with `status: 'duplicate'` and nothing is saved.
+Adding an *Add anyway* would change add behaviour that has been in every release since Phase 5, to
+serve a case the cleanup screen now covers from the other end, and it would put a second bookmark in
+the vault whose only purpose is to be found by the screen this phase is building. Refused, and
+recorded here so it is not re-derived as an oversight. **#22 is closed by the cleanup alone.**
 
 **In scope**
 
@@ -1796,14 +1809,28 @@ is half a day or two.
 - **Live items only.** A tombstone is not a duplicate — the same trap `previewOf`'s `known` count
   fell into in Phase 8, where a subset was counted against a superset and the preview contradicted
   itself.
-- Whichever of the two the first question settles:
-  - **cleanup** — a manager screen listing groups with the copies side by side (title, folder,
-    tags, whether there is a note, when it was added), because copies differ in everything except
-    the address and **which one to keep is the user's call, never an automatic one**. Removal
-    composes **one batch** through `organize.ts`, so it is atomic, is one `vaultRev` for the merge,
-    and inherits the tombstone plus the 8-second undo like every other bulk operation.
-  - **prevention** — the add path reports that a matching item exists and offers to open it
-    instead. **It must not block the add**; a second copy on purpose is a thing people do.
+- **A manager screen**, listing groups with the copies side by side — title, folder, tags, whether
+  there is a note, when it was added — because copies differ in everything except the address and
+  **which one to keep is the user's call, never an automatic one**. Nothing is pre-selected on the
+  user's behalf; the screen proposes a grouping and the user disposes of it.
+- **Reached from the sidebar**, beside *Untagged*, with a count of how many addresses are saved more
+  than once. Both are whole-vault filters and this is where someone already goes to ask a question
+  about the whole vault. The count is the point: it says there is something to clean without anyone
+  having gone looking, which is the same reason `ui/tracking.ts` asks for a count before it offers.
+- **Removal reuses `DELETE_ITEMS`.** The plan first said "composes one batch through
+  `organize.ts`" — but the batch it described is `items.ts`'s `remove()`, which already sends the
+  whole selection through one `repo.apply`, and which the manager already wraps in the 8-second undo
+  toast. A second entry point beside it would be a second thing to keep atomic. So: one batch, one
+  `vaultRev`, one tombstone, one undo — through the path that already had all four.
+- **The normal form is the wide one, and it is written down** (ARCHITECTURE §3.5): tracking
+  parameters stripped, then `duplicateKeyOf` — scheme, host, path, sorted query, fragment dropped.
+  It is deliberately **wider than the add-time check**, which does not strip. The two differ because
+  the moments differ: at add time a match *refuses a save*, so it must be conservative; here a match
+  only *proposes a comparison*, and nothing is removed without the user pressing a button. That
+  asymmetry is the whole reason both exist.
+  - `withoutTrackingParams` therefore moves from `src/background/add.ts` down to `src/vault/model.ts`,
+    beside `normalizeUrl` and `duplicateKeyOf`. It is pure URL arithmetic with no `chrome.*` and no
+    I/O, and `src/vault/` may not import from `src/background/` — the layering, not a preference.
 
 **Out of scope**
 
@@ -1821,12 +1848,13 @@ suggest deleting things. Close **#22** in this phase, recording the split.
 - Table test over the normal form: which pairs collapse and which do not, including the
   tracking-parameter pair and the two-videos pair. — `test/unit/vault/duplicates.test.ts`.
 - Tombstones are never grouped.
-- Removal is **one** `repo.apply` — assert the revision advances by exactly one for a group of *n*
-  — and is undoable. — `test/unit/background/organize.test.ts`.
-- E2E over whichever surface was chosen. — `test/e2e/manager.spec.ts`.
+- Removal is **one** `repo.apply` — assert `vm.meta`'s `vaultRev` advances by exactly one when a
+  group of *n* copies is removed — and is undoable. — `test/unit/background/organize.test.ts`.
+- E2E over the duplicates screen: it finds the group, removes a copy, and the undo puts it back. —
+  `test/e2e/manager.spec.ts`.
 
 **Definition of done**
-- [ ] The cleanup/prevention question is answered in this file before the first commit.
+- [x] The cleanup/prevention question is answered in this file before the first commit.
 - [ ] Duplicates are found by a normal form that is documented, not implicit.
 - [ ] Any removal is atomic and undoable.
 - [ ] #22 closed, recording that dead links were refused and why.
