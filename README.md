@@ -36,6 +36,12 @@ same thing twice. The privacy policy is served at <https://zyndata.github.io/vau
 - **A QR code, for moving one address to a phone** without retyping it or mailing it to yourself.
   It is drawn only when you ask for it, and it says plainly what it cannot do: no browser on either
   mobile platform lets a scanned link open in a private tab, so the page opens in an ordinary one.
+- **Finds the same page saved twice.** *Duplicates* in the manager's sidebar counts the addresses
+  your vault holds more than once and lists the copies side by side — title, folder, tags, note,
+  date — so you can keep the one you meant. Nothing is ticked for you. It matters most for a vault
+  built by importing your browser's bookmarks, or grown on two computers. It does **not** check
+  whether links are still alive: that would mean requesting every one of them, and browsing your
+  vault makes no requests at all.
 - **One-click history cleanup for vaulted domains** — closes the "but I visited it once" leak that
   bookmark-only tools miss.
 - **Zero config by default.** Chrome sync works out of the box with no OAuth and no extra

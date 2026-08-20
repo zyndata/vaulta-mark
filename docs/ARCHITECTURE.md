@@ -43,6 +43,7 @@ src/
 │  ├─ kdf.ts  keys.ts  envelope.ts  codec.ts  hash.ts  wipe.ts  password.ts  errors.ts
 ├─ vault/               pure domain logic, zero I/O
 │  ├─ types.ts  model.ts  order.ts  migrate.ts  search.ts  sort.ts  errors.ts
+│  ├─ duplicates.ts    grouping by the wide normal form (§3.5.1)
 ├─ storage/             persistence of the working copy
 │  ├─ repo.ts  local.ts  buckets.ts  codec.ts  quota.ts
 ├─ sync/                transport + reconciliation
@@ -60,6 +61,7 @@ src/
 ├─ manager/             manager.ts (entry/router)  app.ts (the shell)
 │  ├─ state.ts          what the tab is looking at; the only thing that fetches
 │  ├─ sidebar.ts  list.ts  detail.ts  settings.ts  dnd.ts  sync.ts  io.ts
+│  ├─ duplicates.ts    the cleanup screen
 │  └─ onboarding/       steps.ts (the gates, pure)  screen.ts (the five screens)
 ├─ ui/                  dom.ts  favicon.ts  incognito-prompt.ts  virtual-list.ts  strings.ts
 │                       dialog.ts  create-form.ts  address.ts  history-cleanup.ts
@@ -426,7 +428,7 @@ is already deleted, and would report a duplicate for a lone survivor whose earli
 `duplicateCount` — how many addresses are saved more than once, groups rather than copies — rides
 on `GET_TREE` and is what the sidebar's *Duplicates* entry shows. Removal from the screen goes
 through `DELETE_ITEMS`, so it is one `repo.apply`, one `vaultRev`, one set of tombstones and one
-8-second undo, exactly like every other bulk delete (§9).
+8-second undo, exactly like every other bulk delete.
 
 ---
 

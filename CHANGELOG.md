@@ -14,6 +14,27 @@ below.
 
 ### Added
 
+- **A screen that finds the same page saved twice, and lets you pick which copy to keep.**
+  *Duplicates* in the sidebar, beside *Untagged*, counts the addresses your vault holds more than
+  once; opening it lists the copies side by side with their title, folder, tags, note and the date
+  they were saved. **Nothing is ticked for you** — copies differ in everything except the address,
+  and which one matters is not something the extension can know — but *Tick all but the oldest* is
+  one press per group when there is nothing to choose between them. Removing is one operation
+  however many groups it spans, with the same eight-second undo as any other bulk delete.
+  - It matters most for a vault built by importing this browser's bookmarks, or grown on two
+    computers, which is where copies accumulate without anyone adding them twice on purpose.
+  - Two bookmarks count as the same page when the addresses match apart from **campaign parameters**
+    (`?utm_source=`, `?fbclid=` and the like), the part after `#`, and the order of the query. So
+    the same article saved from two mailings is one address, and two videos that differ only in
+    `?v=` are two. This is deliberately a wider net than the check made when you *save* a page,
+    where a wrong guess would cost you a bookmark you asked for; here it only puts two rows next to
+    each other and waits.
+  - **Dead-link checking was considered and refused.** Finding out whether a bookmark still works
+    means requesting it, and browsing your vault makes no requests at all — that is the sharpest
+    promise this extension makes. A hundred bookmarks would be a hundred requests to a hundred
+    hosts from your own address, which is the vault's table of contents handed to anyone watching
+    the network.
+
 - **A bookmark's address as a QR code, for getting it onto a phone.** Select a bookmark in the
   manager and press *Show QR code*, beside *Open in incognito*. It beats retyping a long URL, and it
   beats the usual workaround of mailing the address to yourself — which takes it out of the vault
@@ -30,6 +51,14 @@ below.
   the screen says so.** The extension is still called VaultaMark on the extensions page, in its
   address and in the Chrome Web Store, and nothing an extension can do at runtime changes that —
   that name is fixed when the package is built.
+
+### Fixed
+
+- **Destroying the vault said it had failed, when it had worked.** *Destroy vault* really did erase
+  everything, but the screen then reported "Something went wrong.", re-enabled the button and left
+  the old page up — because the reply's name was missing from the list the extension checks replies
+  against. Nothing was lost and nothing was left behind; the message was simply wrong about it. Found
+  by a new check that puts every service-worker reply through the same parsing the real screens use.
 
 ### Changed
 
