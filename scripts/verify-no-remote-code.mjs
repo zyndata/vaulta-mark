@@ -72,7 +72,14 @@ const RULES = [
   {
     id: 'dynamic-import',
     description: 'import() with a non-relative or computed specifier',
-    pattern: /(?<![.\w$])import\s*\(\s*(?!["'](?:\.\/|\.\.\/|\/))/g,
+    /*
+     * A relative *literal* is permitted; anything computed or off-origin is not. The backtick
+     * alternative is not a loosening, it is the shape the minifier emits: Rolldown rewrites
+     * `import('../vendor/…/qrcode.js')` into a template literal naming the hashed chunk, so a rule
+     * that only knew about quotes failed the build on its own correctly-split output. It is still
+     * a literal — `[^`$]*` refuses any `${`, and refuses a lone `$` with it, which fails closed.
+     */
+    pattern: /(?<![.\w$])import\s*\(\s*(?!["'](?:\.\/|\.\.\/|\/)|`(?:\.\/|\.\.\/|\/)[^`$]*`)/g,
   },
   {
     id: 'import-scripts',
@@ -152,12 +159,21 @@ function excerpt(value) {
   return collapsed.length > 80 ? `${collapsed.slice(0, 77)}…` : collapsed;
 }
 
-/** @returns {Promise<string[]>} */
+/**
+ * Every URL prefix that may appear in `dist/`, from both halves of the allowlist.
+ *
+ * The file keeps them apart and this joins them, because the scan asks one question — "is this
+ * string permitted here?" — while the *review* of a new entry asks two very different ones.
+ * `allowed` is a host the extension may contact. `constants` is a URI nothing dereferences, such
+ * as an XML namespace; adding one grants no reach.
+ *
+ * @returns {Promise<string[]>}
+ */
 export async function loadAllowlist() {
   const raw = await readFile(resolve(repoRoot, 'build/url-allowlist.json'), 'utf8');
-  /** @type {{ allowed: string[] }} */
+  /** @type {{ allowed: string[], constants?: string[] }} */
   const parsed = JSON.parse(raw);
-  return parsed.allowed;
+  return [...parsed.allowed, ...(parsed.constants ?? [])];
 }
 
 /**

@@ -5,11 +5,14 @@ import { join } from 'node:path';
 import { loadAllowlist, scanDirectory, scanText } from '../../../scripts/verify-no-remote-code.mjs';
 
 // Spelled out rather than loaded from the file, so widening the allowlist is a two-file diff. The
-// third entry is the OAuth token endpoint the PKCE fallback posts to (ARCHITECTURE §13.2).
+// third entry is the OAuth token endpoint the PKCE fallback posts to (ARCHITECTURE §13.2); the
+// fourth is not an endpoint at all — it is the SVG namespace, which reaches dist/ from the vendored
+// QR encoder's unused SVG builder and lives under the file's separate `constants` key.
 const ALLOWED = [
   'https://www.googleapis.com/',
   'https://accounts.google.com/',
   'https://oauth2.googleapis.com/',
+  'http://www.w3.org/2000/svg',
 ];
 
 const rulesFor = (source: string, file = 'bundle.js'): string[] =>
@@ -58,6 +61,17 @@ describe('remote-code scanner (INV-1, INV-3, INV-8)', () => {
     );
     expect(rulesFor('await import(specifier);')).toContain('dynamic-import');
     expect(rulesFor('await import("./lazy.js");')).toEqual([]);
+
+    /*
+     * The minifier writes the split chunk's specifier as a template literal, so a rule that only
+     * knew about quotes failed the build on Rolldown's own output. A substitution puts it straight
+     * back — that is a computed specifier however relative it looks.
+     */
+    expect(rulesFor('await import(`./qrcode-DtWdxa9d.js`);')).toEqual([]);
+    expect(rulesFor('await import(`./${name}.js`);')).toContain('dynamic-import');
+    expect(rulesFor('await import(`' + 'https://evil.example.com/p.js' + '`);')).toContain(
+      'dynamic-import',
+    );
   });
 
   it('rejects a blob: worker and importScripts', () => {
@@ -131,7 +145,7 @@ describe('remote-code scanner over a directory', () => {
     });
   });
 
-  it('reads the allowlist this repository actually ships', async () => {
+  it('reads the allowlist this repository actually ships, both halves of it', async () => {
     await expect(loadAllowlist()).resolves.toEqual(ALLOWED);
   });
 });

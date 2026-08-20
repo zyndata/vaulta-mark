@@ -13,3 +13,7 @@ LICENSE
 
 # GitHub's issue-form YAML is hand-tuned for how the form renders, not for how it reads.
 .github/
+
+# Vendored third-party source: kept byte-identical to upstream so it can be diffed against the
+# published package (docs/ARCHITECTURE.md §15). Reformatting it would throw that away.
+src/vendor/
