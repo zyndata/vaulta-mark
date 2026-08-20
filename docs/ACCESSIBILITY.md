@@ -21,8 +21,8 @@ pointer can perform and a keyboard cannot.** Dragging is a shortcut throughout, 
 
 **A "page" here means a document, not a URL.** VaultaMark ships two HTML files and about a dozen
 documents: the popup alone is create, unlock, unlocked and settings; the manager is the list, a
-selection, a modal, settings, import/export, the conflict screen, the incognito prompt and five
-onboarding steps. Each is a different tree to assistive technology, and testing "the page" would
+selection, a modal, the QR dialog, settings, import/export, the conflict screen, the incognito
+prompt and five onboarding steps. Each is a different tree to assistive technology, and testing "the page" would
 reach only the first of each pair. The axe assertions are therefore spread through the specs, at the
 point where each document is already on screen — see the note at the top of `test/e2e/a11y.ts`.
 
@@ -147,6 +147,11 @@ says the permission set does not grow for a convenience.
   `treeitem` *may* hold a button, but the tree is deliberately one tab stop rather than one per
   folder, and a tabbable control on every row would undo that. **→ / ←** are the twisty's equivalent
   and **F2** is the pencil's. All three are the real operation, not a workaround.
+- **A QR code cannot be read by a screen reader, and nothing here pretends otherwise.** The canvas
+  is `role="img"` with a name saying what it is, not the address itself: reading a hundred
+  characters of query string aloud is not an accessible name, and the address is in the detail
+  pane's URL field behind the dialog, where it can be read, edited and copied. The feature's
+  audience is a camera.
 - **Screen readers have not been tested by a screen-reader user.** The automated pass proves the
   markup is right; it does not prove the experience is good. That remains open, and saying so is
   more honest than a claim the test suite does not support.

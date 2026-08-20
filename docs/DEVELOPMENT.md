@@ -330,11 +330,35 @@ So, with `dist/` loaded unpacked and Drive connected (§5.4):
 6. **Check nothing leaks.** `chrome://extensions` → service worker → Application → Storage: every
    `vm.thumbs.*` value is base64 that does not begin `iVBOR`, `/9j/` or `UklGR`.
 
+### 5.6 The QR code, against a real phone
+
+`test/unit/ui/qr.test.ts` reads every symbol back with a decoder written from ISO/IEC 18004 rather
+than from the encoder, so "it encodes the right bytes" is settled without a camera.
+`test/e2e/manager.spec.ts` draws one in a real Chromium and checks its module count and its quiet
+zone. What neither can do is **point a phone at a screen**, and that is the one thing a QR code is
+for. So, with `dist/` loaded unpacked:
+
+1. Vault a page whose URL is long and has query parameters, and one whose host or path is not ASCII.
+2. Select each in the manager and press **Show QR code**.
+3. Scan with the phone's own camera app — not a QR utility from a store, which may be more forgiving
+   than what people actually have.
+4. The address that opens must be the vaulted one, **character for character**, query string
+   included. A truncated or mangled URL usually still opens *something*, which is why this is read
+   rather than glanced at.
+5. Try it at arm's length and at an angle, on the light theme and the dark one. The symbol is black
+   on white in both by design (§17.1); if a dark window makes it unreadable, the quiet zone is the
+   thing to look at.
+6. **Check the copy is honest**: the address opens in an ordinary tab, and it is in that phone's
+   history afterwards. If a phone somewhere makes that untrue, the sentence under the code is what
+   needs changing, not the sentence's absence.
+
+---
+
 ---
 
 ## 6. The invariant scanners
 
-`npm run verify:invariants` runs two scripts against the **built** `dist/`, because the point is to
+`npm run verify:invariants` runs its scripts against the **built** `dist/`, because the point is to
 catch what a dependency or a plugin smuggled into the bundle, which source-level linting cannot see:
 
 - [`scripts/verify-manifest.mjs`](../scripts/verify-manifest.mjs) — MV3, the exact CSP string, and
@@ -343,7 +367,9 @@ catch what a dependency or a plugin smuggled into the bundle, which source-level
 - [`scripts/verify-no-remote-code.mjs`](../scripts/verify-no-remote-code.mjs) — `eval`, the
   `Function` constructor, remote or computed `import()`, `importScripts`, WASM, `sendBeacon`,
   `XMLHttpRequest`, `blob:`/`data:` script URLs, and any absolute URL not in
-  [`build/url-allowlist.json`](../build/url-allowlist.json).
+  [`build/url-allowlist.json`](../build/url-allowlist.json). A **relative literal** `import()` is
+  permitted and is how `src/ui/qr.ts` loads the vendored encoder; note that the minifier writes that
+  specifier as a substitution-free template literal, so the rule reads backticks too.
 
 ESLint enforces the same bans at the source level, so you find out while typing rather than at the
 end of `verify`. If a scanner fires on something legitimate, the fix is a narrower rule or an

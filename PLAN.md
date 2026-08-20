@@ -92,7 +92,7 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | D1 | **TypeScript 5.x, strict** | Non-negotiable for a crypto/sync codebase. |
 | D2 | **Vite 8 + a small in-repo MV3 plugin**, *not* `@crxjs/vite-plugin` | `@crxjs/vite-plugin` v2 is still beta and has had maintenance gaps; a build tool going stale would block Store releases. Our needs are modest (multi-entry build, manifest emit, static asset copy, content-script IIFE bundle). We ship ~80 lines in `build/mv3-plugin.ts` that we own and can audit, plus a `scripts/dev-reload.mjs` watcher. **Deviation from the suggested stack — justified here.** *Was Vite 5 through Phase 11; taken to 8 in Phase 12 (§9) as one deliberate step with D5 and D6.* Vite 8 bundles with **Rolldown**, not Rollup, and three things followed: it ships no `esbuild`, so the minifier is `'oxc'`; it **ignores assignment to `bundle` in `generateBundle`** (honouring the delete), which is why the HTML flattening re-emits with `this.emitFile`; and it loads `vite.config.ts` through Node's own type stripping, so the config and the `build/` modules it reaches spell out `.ts` extensions and the `package.json` import attribute. |
 | D3 | **Vanilla TS UI, no framework** | As requested. A tiny reactive helper (`src/ui/dom.ts`, ~150 LOC: `h()`, signal-ish store, list diffing) is written in-repo instead of pulling a runtime dependency. Keeps the popup under a 1-frame paint budget and keeps the reviewer's diff small. |
-| D4 | **Zero runtime npm dependencies** in the shipped bundle (target) | Everything we need exists in the platform: WebCrypto, `CompressionStream`, `OffscreenCanvas`, `createImageBitmap`, `structuredClone`. Every added runtime dep is supply-chain risk in a security tool. Dev dependencies are unrestricted. Exception process: any proposed runtime dep needs a note in `docs/ARCHITECTURE.md` §Dependencies. |
+| D4 | **Zero runtime npm dependencies** in the shipped bundle (target) | Everything we need exists in the platform: WebCrypto, `CompressionStream`, `OffscreenCanvas`, `createImageBitmap`, `structuredClone`. Every added runtime dep is supply-chain risk in a security tool. Dev dependencies are unrestricted. Exception process: any proposed runtime dep needs a note in `docs/ARCHITECTURE.md` §Dependencies. **Vendored source is a separate thing and is allowed**: a file in this tree, reviewed as a diff and changed only by a commit, cannot be substituted by a resolver — see ARCHITECTURE §15.1, which lists what is vendored and why. |
 | D5 | **Vitest 4** (unit/integration) + **Playwright** with a persistent-context Chromium extension harness (E2E) | As suggested. `@vitest/coverage-v8`, `fake-indexeddb` not needed; a hand-written `chrome.*` mock lives in `test/mocks/chrome.ts`. *Was Vitest 3 through Phase 11.* Two removals to know about: `coverage.all` is gone because everything matched by `coverage.include` is now reported whether or not a test imported it — which is what the flag used to buy — and a mock implementation is no longer silently made `new`-able, so a constructor must be mocked with a `function` or a `class`. |
 | D6 | **ESLint 10 flat config + Prettier + `tsc --noEmit`** | Standard. Plus custom ESLint rules banning `eval`, `new Function`, `chrome.bookmarks` outside the import module, and remote URLs. *Was ESLint 9 through Phase 11.* |
 | D7 | **npm** (not pnpm/yarn) | Widest CI/action support, lockfile v3, no corepack friction for contributors. |
@@ -1712,11 +1712,59 @@ any attempt to influence what the phone does next.
   codebase, so confirm the scanner accepts it rather than assuming it does.
 
 **Definition of done**
-- [ ] A QR shown by the extension scans, on a real phone, to exactly the vaulted address.
-- [ ] The encoder is vendored unminified, licensed correctly, and recorded in ARCHITECTURE §15.
-- [ ] It is absent from the worker and manager entry chunks (measured against `dist/`).
-- [ ] Nothing in the product or the Store listing implies control over the phone.
-- [ ] THREAT_MODEL §4 records the leak.
+- [ ] A QR shown by the extension scans, on a real phone, to exactly the vaulted address. —
+      **the maintainer's pass, procedure in DEVELOPMENT §5.6.** Nothing in the harness can point a
+      camera at a screen. What *is* settled without one: `test/unit/ui/qr.test.ts` reads every
+      symbol back with a decoder written from ISO/IEC 18004 rather than from the encoder — anchored
+      on the standard's own worked example — over a long URL with query parameters, a URL with a
+      fragment and percent escapes, a Cyrillic one, and a CJK host with an accented query.
+- [x] The encoder is vendored unminified, licensed correctly, and recorded in ARCHITECTURE §15. —
+      `src/vendor/qrcode-generator/qrcode.js`, byte-identical to `qrcode-generator@2.0.4`'s
+      `dist/qrcode.mjs` with both sha256 sums recorded beside it; §15.1 is new and says why it is
+      vendored rather than depended on, and why it is not written here. The MIT notice ships as
+      `public/THIRD-PARTY-NOTICES.txt`, because the minifier strips comments and `dist/` is a copy.
+- [x] It is absent from the worker and manager entry chunks (measured against `dist/`). —
+      `checkCodeSplitting` in `scripts/check-budgets.mjs` finds the encoder by a string it throws,
+      reads the eagerly loaded scripts out of the built HTML and the built manifest, and fails the
+      build if any of them carries it. **Verified by reintroducing the fault**: a static import
+      folds it into `assets/manager-*.js` and the check goes red.
+- [x] Nothing in the product or the Store listing implies control over the phone. — `qrOrdinaryTab`
+      says the address opens in an ordinary tab and lands in that phone's history, and the E2E
+      asserts that sentence is in the dialog. No `intent://`, no mobile-private claim, nothing
+      added to STORE_LISTING.
+- [x] THREAT_MODEL §4 records the leak. — accepted leak 8, plus traced claim D6 in §5.6 and P4 in
+      §5.7 for the vendored source.
+
+**What this phase learned, worth keeping.** Three of the four things that went wrong were found by
+running the checks rather than by reading them, which is exactly why the phase's own test list said
+to *confirm* the scanner accepts a dynamic import instead of assuming it.
+
+**The minifier writes the split chunk's specifier as a template literal.** Rolldown rewrites
+`import('../vendor/…/qrcode.js')` into a backtick literal naming the hashed chunk, and
+`verify-no-remote-code` only knew about quotes — so a correctly split build failed its own
+remote-code scan. The rule reads backticks now, and only substitution-free ones: the character class
+refuses any `${`, and refuses a lone `$` with it, which fails closed.
+
+**A vendored file names a URL that is not an address.** `http://www.w3.org/2000/svg` reaches `dist/`
+from an SVG builder nothing calls, and INV-3 has one mechanism for URLs. Putting it in `allowed`
+would have said the extension may contact w3.org, which is a different and much larger claim, so
+`build/url-allowlist.json` gained a **`constants`** key: URIs that are names, which nothing
+dereferences. The alternative — trimming the dead half of the vendored file — was rejected because
+byte-identical to upstream is the strongest form of "you can check this yourself", and that is the
+whole reason the file is unminified in the first place.
+
+**The test decoder had its format-information bits mirrored, and the standard's worked example did
+not catch it.** Reading a fifteen-bit field backwards still lands on a plausible error-correction
+level and mask often enough to pass once. What caught it was a round trip at level **L** reporting
+**M** — a second, independent property of the same read. A known-answer test with one assertion is
+one coincidence away from being wrong.
+
+Two smaller ones. **Error correction is level L on purpose**: it buys tolerance of *damage*, and a
+symbol on a clean self-lit screen has none — what a higher level costs is a version or two, and
+every version makes each module smaller inside a dialog of fixed width, which is what actually
+decides whether a camera resolves it. And the encoder's byte mode takes the low byte of each
+character, so the UTF-8 encoding is done with the platform's `TextEncoder` and handed in one
+character per byte, rather than vendoring upstream's second file for the purpose.
 
 **Git:** direct commits on `dev`. Tag `phase-15-done`.
 

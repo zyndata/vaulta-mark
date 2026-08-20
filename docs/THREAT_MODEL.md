@@ -85,6 +85,14 @@ Each of these is known, is not fixed, and is not going to be without a change of
    there are no user-defined saved filters and no per-folder sort order (ARCHITECTURE §5.1).
 7. **The extension is identifiable, whatever the toolbar says.** See §4.7 — it is long enough to be
    worth its own heading, because it is the one accepted leak a user can be misled about.
+8. **A QR code is an address leaving the vault, on purpose.** *Show QR code* draws one bookmark's
+   URL on the screen in machine-readable form for as long as the dialog is open — anyone who can
+   see the monitor, or a camera pointed at it, has that address. That is the feature, not a flaw in
+   it, which is why it is drawn only when asked and never sits in the detail pane (ARCHITECTURE
+   §17.2). What happens after the scan is **outside this product's boundary**: the phone opens the
+   address in an ordinary tab and keeps it in that phone's history, no API on either mobile
+   platform can change that, and the line under the code says so rather than implying otherwise
+   (§17.3).
 
 ### 4.7 What the toolbar can and cannot change
 
@@ -189,6 +197,7 @@ fail if the claim stopped being true.
 | D3 | The diagnostics report carries counts, booleans and enums only — no URLs, titles, names, notes, ids, addresses or tokens | `src/shared/diagnostics.ts` is a closed field list, never an object walk; `test/unit/background/diagnostics.test.ts` seeds distinctive strings and searches the whole report for each |
 | D4 | No user-facing string escapes `_locales` (INV-10) | `scripts/verify-strings.mjs`; `test/unit/scripts/verify-strings.test.ts` |
 | D5 | Nothing in the product claims the extension can be hidden — the toolbar's picture and tooltip are variable, its name, id and listing are not (§4.7) | `settingsToolbarUnchanged` in `_locales`, asserted on screen by `test/e2e/manager.spec.ts`; the section is named *Toolbar appearance* in `_locales` and in ARCHITECTURE §16 |
+| D6 | The QR code carries one bookmark's URL and nothing else, is drawn only on request, and claims nothing about the phone (§4, leak 8) | `src/ui/qr.ts` encodes `item.url` alone; `test/unit/ui/qr.test.ts` reads symbols back with an independent decoder; `test/e2e/manager.spec.ts` asserts no canvas exists until the button is pressed, none at all while locked, and that `qrOrdinaryTab` is in the dialog |
 
 ### 5.7 Dependencies
 
@@ -197,6 +206,7 @@ fail if the claim stopped being true.
 | P1 | Zero runtime dependencies | `package.json` has no `dependencies`; N1's scanner refuses a remote import; `release/bundle-report.md` lists what is actually in the package |
 | P2 | `npm audit` reports nothing outstanding | Phase 12 cleared the backlog: Vite 8, Vitest 4, ESLint 10 in one step. **Zero advisories at the time of writing.** Reviewed at the end of every phase (PLAN §0) |
 | P3 | A toolchain advisory cannot reach a user | Nothing from npm ships (P1), which is what made the Phase-12 batching decision safe in the first place (PLAN R11) |
+| P4 | The one piece of third-party source that *does* ship is vendored, unminified and verifiable | `src/vendor/qrcode-generator/qrcode.js` is byte-identical to `qrcode-generator@2.0.4`'s `dist/qrcode.mjs`, sha256 recorded beside it; it is source in the tree rather than a resolved dependency, so no install can substitute it (ARCHITECTURE §15.1). Its licence ships as `THIRD-PARTY-NOTICES.txt` |
 
 ---
 

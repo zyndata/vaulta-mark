@@ -63,8 +63,11 @@ src/
 │  └─ onboarding/       steps.ts (the gates, pure)  screen.ts (the five screens)
 ├─ ui/                  dom.ts  favicon.ts  incognito-prompt.ts  virtual-list.ts  strings.ts
 │                       dialog.ts  create-form.ts  address.ts  history-cleanup.ts
-│                       tracking.ts  export-gate.ts  styles.css
-└─ shared/              messages.ts  settings.ts  result.ts  time.ts  url.ts
+│                       tracking.ts  export-gate.ts  thumb.ts  diagnostics.ts  qr.ts
+│                       styles.css
+├─ vendor/              third-party source, byte-identical to upstream (§15.1)
+│  └─ qrcode-generator/ qrcode.js  ← MIT, unminified, loaded by import() from ui/qr.ts
+└─ shared/              messages.ts  settings.ts  result.ts  time.ts  url.ts  appearance.ts
 ```
 
 **Dependency direction is strictly one-way:**
@@ -2186,6 +2189,45 @@ the platform cannot; a bundle-size measurement; a look at its own dependency tre
 dependencies count); a note in this section. Dev dependencies (Vite, Vitest, Playwright, ESLint,
 TypeScript) are unrestricted — they never reach users.
 
+### 15.1 Vendored source
+
+**Not the same thing as a runtime dependency, and the difference is the supply chain.** A package in
+`dependencies` is fetched by a resolver, at a version range, with its own transitive tree, on every
+machine that installs — and the code that arrives can differ from the code that was reviewed.
+Vendored source is a file in this repository: it is read once, reviewed as a diff, and changes only
+when a commit changes it. So D4 holds with the list below non-empty.
+
+The bar for vendoring is the same as for writing: *would we write this, and would ours be better?*
+
+| What | Where | Licence | Size |
+| --- | --- | --- | --- |
+| `qrcode-generator` 2.0.4, Kazuhiko Arase — `dist/qrcode.mjs` | `src/vendor/qrcode-generator/qrcode.js` | MIT (2009) | 51.9 KB source · 20.6 KB in its own chunk · 7.3 KB gzipped |
+
+**Why it is not written here.** A QR encoder is Galois-field arithmetic over GF(256), the
+error-correction block tables from ISO/IEC 18004 Annex, eight mask patterns and a penalty score.
+None of that is code worth owning: it is a fixed specification with no product decisions in it, and
+the outcome is binary — a symbol either scans or it does not. There is nothing to get subtly right
+in a way that is ours.
+
+**Why it is unminified.** So it can be read. A project whose auditability is an argument it makes in
+public does not ship somebody else's minified output and call it reviewed. It is also **byte-
+identical to the published package**, sha256 in `src/vendor/qrcode-generator/README.md`, so the
+review is a one-command diff rather than a reading.
+
+Three consequences worth knowing, because each of them was a build failure first:
+
+- **ESLint's house style is off for `src/vendor/**`** and the invariant bans are not. Reformatting a
+  vendored file to our taste would throw away the diff-against-upstream property to satisfy a rule
+  about how *we* write loops.
+- **The copyright notice does not survive minification**, so the one that ships is
+  `public/THIRD-PARTY-NOTICES.txt`, carrying the MIT text and the DENSO WAVE trademark line. MIT
+  requires the notice in every copy, and `dist/` is a copy.
+- **The file names an absolute URL** — `http://www.w3.org/2000/svg`, in an SVG builder we never
+  call. It is an XML namespace, which is a name and not an address, and `build/url-allowlist.json`
+  has a separate `constants` key for exactly that distinction: widening `allowed` means the
+  extension may talk to one more host, and widening `constants` does not.
+
+
 ---
 
 ## 16. Toolbar appearance
@@ -2261,6 +2303,72 @@ it would be spending that budget on a picture.
 The empty `toolbarTitle` is restored as `chrome.i18n.getMessage('actionTitle')` — the same string out
 of the same `_locales` file the manifest names — not as a copy kept in the module, and not as
 `setTitle('')`, which would leave the button with no tooltip at all.
+
+---
+
+## 17. QR code for one address
+
+Phase 15. **A QR code is a deliberate export of exactly one bookmark's URL, drawn on demand, and it
+promises nothing about the device that reads it.** Those three clauses are the whole specification.
+
+**The problem it replaces.** Getting a vaulted address onto a phone means retyping a URL nobody
+retypes correctly, or mailing it to yourself — which takes the address out of the vault and leaves
+it in an inbox, in a sent folder and on a mail server, for good.
+
+### 17.1 What goes in it
+
+The URL. Nothing else. A title and a note would push the symbol several versions higher and produce
+a chessboard whose modules are too small for a camera at arm's length; a QR code that does not scan
+is not a smaller feature than one that does.
+
+Encoding is **byte mode over UTF-8**, so an internationalised host or a non-ASCII path survives. The
+vendored encoder's byte mode takes the low byte of every character, so `src/ui/qr.ts` hands it the
+UTF-8 bytes one per character (`toBinaryString`) rather than vendoring upstream's second file for
+the purpose — `TextEncoder` is in the platform and is right about surrogate pairs.
+
+Error correction is **level L (7 %)**, which is a choice and not a default. Error correction buys
+tolerance of *damage*: creases, ink spread, a coffee ring. This symbol lives on a clean, self-lit
+screen for a few seconds and is never printed. What a higher level would cost is real — a version or
+two, and every version makes each module smaller inside a dialog of fixed width, which is what
+actually decides whether a camera resolves it.
+
+The **quiet zone is four modules** and is painted by us, into the canvas, rather than left to CSS. A
+symbol with nothing around it is the commonest reason a phone sees no code at all. The symbol is
+black on white **whatever `data-theme` says**: QR has a stated polarity, some readers cope with an
+inverted one, and "some" is not a thing to hand a user who is holding up a phone.
+
+### 17.2 When it is drawn
+
+**Only when asked.** *Show QR code* sits beside *Open in incognito* in the manager's detail pane and
+opens a dialog. A QR drawn into the pane as soon as a bookmark was selected would be that
+bookmark's address on screen, in machine-readable form, for anyone who glanced at the monitor —
+which is the case this product exists for. It is reachable only with the vault unlocked, because the
+pane it lives on is not built otherwise.
+
+### 17.3 What it does not promise
+
+**Nothing about what the phone does next**, and the copy under the code says so in as many words:
+the scanned address opens in an ordinary tab and lands in that phone's history.
+
+That is a limit, not an omission. Measured 2026-08-19: Chrome for Android has no scanner inside a
+private tab (Lens is disabled there); iOS has no URL scheme for private browsing; and an
+`intent://` URL carrying `EXTRA_OPEN_NEW_INCOGNITO_TAB` is undocumented, scanner-dependent, and
+fails **silently into an ordinary tab** when it is not honoured. A feature that silently degrades
+from private to not-private leaves someone believing they are private when they are not, and acting
+on it. That is worse than promising nothing — the same reasoning that renamed B2 (§16, THREAT_MODEL
+§4.7).
+
+### 17.4 Where the encoder lives
+
+`src/ui/qr.ts` reaches it with `import('../vendor/qrcode-generator/qrcode.js')` — a **relative
+string literal**, the one dynamic-import shape `scripts/verify-no-remote-code.mjs` permits, and the
+one Rolldown resolves at build time into a chunk of the package. So 20 KB of Galois-field arithmetic
+is in neither the service worker's cold-start graph nor the manager's first paint, and is read from
+disk the first time somebody opens the dialog.
+
+That is asserted against the real `dist/`, not assumed: `scripts/check-budgets.mjs` finds the
+encoder by a string it throws, works out which scripts a document or the manifest loads eagerly, and
+fails the build if any of them carries it.
 
 ---
 

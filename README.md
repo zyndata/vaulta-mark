@@ -33,6 +33,9 @@ same thing twice. The privacy policy is served at <https://zyndata.github.io/vau
 - **Discord-style link previews.** The page's Open Graph image is captured **once**, when you save the
   bookmark, then encrypted. Browsing your vault makes **zero** network requests, ever.
 - **Every vaulted link opens in an incognito window.** No history, no cache, no trace.
+- **A QR code, for moving one address to a phone** without retyping it or mailing it to yourself.
+  It is drawn only when you ask for it, and it says plainly what it cannot do: no browser on either
+  mobile platform lets a scanned link open in a private tab, so the page opens in an ordinary one.
 - **One-click history cleanup for vaulted domains** — closes the "but I visited it once" leak that
   bookmark-only tools miss.
 - **Zero config by default.** Chrome sync works out of the box with no OAuth and no extra
