@@ -14,6 +14,15 @@ below.
 
 ### Added
 
+- **A bookmark's address as a QR code, for getting it onto a phone.** Select a bookmark in the
+  manager and press *Show QR code*, beside *Open in incognito*. It beats retyping a long URL, and it
+  beats the usual workaround of mailing the address to yourself — which takes it out of the vault
+  and leaves it in an inbox for good. The code is drawn only when you ask for it, never left sitting
+  in the pane where anyone walking past could photograph it, and it carries the address and nothing
+  else. **It cannot make the phone open the link privately**, and the line under it says so: no
+  phone browser offers a way to do that, so the page opens in an ordinary tab and stays in that
+  phone's history. Copy the address and paste it into a private tab yourself if that matters.
+
 - **The toolbar button can wear a different picture, and say something else.** Settings → *Toolbar
   appearance* offers four icons — the usual one, a plain bookmark, a grey folder, a grey sheet of
   paper — and a tooltip you can type yourself. Both are per-computer: the machine in a shared office

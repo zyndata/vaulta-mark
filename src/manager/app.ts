@@ -41,6 +41,7 @@ import {
   openDialog,
   promptText,
 } from '../ui/dialog.js';
+import { qrPanel } from '../ui/qr.js';
 import { ThumbPopover, type ThumbData } from '../ui/thumb.js';
 import { detailPane } from './detail.js';
 import { ioScreen, paintProgress } from './io.js';
@@ -552,6 +553,9 @@ export function mountManager(
         },
         open: (id) => {
           void openItem(id);
+        },
+        showQr: (item) => {
+          void showQr(item);
         },
         renameFolder: (item) => {
           void renameFolder(item);
@@ -1295,6 +1299,23 @@ export function mountManager(
           ? msg('detailForgotOne')
           : msg('detailForgot', [String(response.count)]),
     );
+  }
+
+  /**
+   * The bookmark's address as a QR code, in a dialog (§17).
+   *
+   * Nothing is asked of the worker: the address is already in `ItemDetail`, which is what the pane
+   * behind this dialog is showing. The dialog reports rather than asks, so it has one way out and
+   * no confirming button — `openDialog` labels that one "Close".
+   *
+   * A folder has no address; the button that calls this is only built for a bookmark.
+   */
+  async function showQr(item: ItemDetail): Promise<void> {
+    if (item.url === undefined) return;
+    await openDialog<never>({
+      heading: msg('qrHeading', [item.title]),
+      body: [qrPanel({ url: item.url })],
+    });
   }
 
   async function openItem(id: string): Promise<void> {

@@ -976,6 +976,36 @@
     "message": "Open in incognito",
     "description": "Button in the detail pane that opens the bookmark."
   },
+  "detailShowQr": {
+    "message": "Show QR code",
+    "description": "Button in the detail pane that opens a dialog drawing the bookmark's address as a QR code."
+  },
+  "qrHeading": {
+    "message": "QR code for $TITLE$",
+    "description": "Heading of the QR code dialog. The substitution is the bookmark's title.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Weeknight recipes"
+      }
+    }
+  },
+  "qrDrawing": {
+    "message": "Drawing the code…",
+    "description": "Shown in the QR dialog while the encoder is being loaded and run."
+  },
+  "qrCanvasLabel": {
+    "message": "QR code of this bookmark's address",
+    "description": "Accessible name of the canvas the QR code is drawn on. Deliberately not the address itself: a screen reader cannot scan a QR code, and a long query string read aloud is not a name."
+  },
+  "qrOrdinaryTab": {
+    "message": "Scanning this opens the address in an ordinary tab on the phone, and it will be in that phone's history. Nothing here can open a private tab on another device. If that matters, copy the address and paste it into a private tab yourself.",
+    "description": "The one line under the QR code. It exists to make sure nobody reads the feature as private on the receiving device."
+  },
+  "qrTooLong": {
+    "message": "This address is too long to fit in a QR code.",
+    "description": "Shown instead of the code when the encoder refuses the address — no QR version can hold it."
+  },
   "detailInFolder": {
     "message": "In: $PATH$",
     "description": "Where the bookmark lives, as a breadcrumb path.",

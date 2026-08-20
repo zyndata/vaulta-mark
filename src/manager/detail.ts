@@ -39,6 +39,13 @@ export interface DetailDeps {
     tags: string[] | null;
   }) => Promise<void>;
   readonly open: (id: string) => void;
+  /**
+   * "Show QR code" was pressed (§17).
+   *
+   * The dialog is raised by the caller rather than from here, because it needs `openDialog` and
+   * this file builds a pane — the same seam every other action in it uses.
+   */
+  readonly showQr: (item: ItemDetail) => void;
   readonly renameFolder: (item: ItemDetail) => void;
   readonly deleteFolder: (item: ItemDetail) => void;
   /**
@@ -169,6 +176,20 @@ export function detailPane(deps: DetailDeps): HTMLElement {
               },
             },
             msg('detailOpen'),
+          ),
+          // Beside "Open in incognito" because it is the other way of getting to the page, and it
+          // is a button rather than a drawn code because a QR sitting in the pane would be this
+          // bookmark's address on screen for anyone who walked past (§17).
+          h(
+            'button',
+            {
+              type: 'button',
+              class: 'vm-button vm-button--quiet vm-button--inline',
+              onclick: () => {
+                deps.showQr(item);
+              },
+            },
+            msg('detailShowQr'),
           ),
         ),
     isFolder || !deps.inHistory ? null : historySection(item, deps),

@@ -567,6 +567,39 @@ body {
   width: auto;
 }
 
+/* ------------------------------------------------------------------ QR code */
+
+/* In a dialog, so here rather than in manager.css for the same reason the dialog itself is. */
+.vm-qr-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* Holds the "drawing…" line first and the canvas after it, so it keeps its shape across the swap —
+   a dialog that jumps a hundred pixels the moment its contents arrive is one people close again. */
+.vm-qr {
+  display: flex;
+  min-height: 9rem;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* Black on white whatever `data-theme` says: a QR code has a stated polarity and an inverted one is
+   a coin toss on the reader (`drawQr` in ui/qr.ts). The white the canvas paints for its own quiet
+   zone is what separates the symbol from a dark window, so nothing here may draw over it — no
+   border, no radius, no shadow. */
+.vm-qr canvas {
+  display: block;
+  background: #fff;
+}
+
+.vm-qr-panel .vm-hint {
+  margin: 0;
+}
+
 .vm-settings-section {
   padding-top: 0.5rem;
   border-top: 1px solid var(--vm-border);

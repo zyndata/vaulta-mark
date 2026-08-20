@@ -939,3 +939,77 @@ test('choosing a toolbar icon reaches chrome.action, at every size the manifest 
   await section.getByLabel('Tooltip').blur();
   await page.close();
 });
+
+/**
+ * "Show QR code" (§17), against the real canvas and the real vendored encoder.
+ *
+ * The size is asserted rather than the existence of a canvas, because every number in it is a
+ * decision: 29 modules is version 3, which is what a 37-byte address at level L comes to; the eight
+ * extra are the quiet zone, four a side, and a symbol without one is the commonest reason a phone
+ * sees nothing; and seven is `floor(264 / 37)`, the whole-pixel module size. A regression in any of
+ * the three still draws something that looks like a QR code.
+ *
+ * What no test here can do is scan it. `test/unit/ui/qr.test.ts` reads the symbol back with an
+ * independent decoder, and a real phone is the maintainer's pass (DEVELOPMENT §5.6).
+ */
+test('draws one bookmark’s address as a QR code, and only when asked', async () => {
+  const page = await openPage('manager.html');
+  await row(page, 'Lattice reduction').click();
+  await expect(page.getByRole('textbox', { name: 'Title' })).toBeVisible();
+
+  // Nothing is drawn until the button is pressed: a QR sitting in the pane is a plaintext address
+  // on screen for anyone who glances at the monitor, which is the case the product exists for.
+  await expect(page.locator('canvas')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Show QR code' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+
+  const canvas = dialog.getByRole('img', { name: "QR code of this bookmark's address" });
+  await expect(canvas).toBeVisible();
+  await expect(canvas).toHaveAttribute('width', String((29 + 8) * 7));
+  await expect(canvas).toHaveAttribute('height', String((29 + 8) * 7));
+
+  // The symbol is drawn, not merely sized: a canvas nothing painted reads back as transparent
+  // black, and its top-left corner is inside the quiet zone, which must be white.
+  const corner = await canvas.evaluate((element) => {
+    const context = (element as HTMLCanvasElement).getContext('2d');
+    return [...(context?.getImageData(2, 2, 1, 1).data ?? [])];
+  });
+  expect(corner).toEqual([255, 255, 255, 255]);
+
+  // And the sentence that stops anyone reading this as private on the receiving device.
+  await expect(dialog).toContainText('ordinary tab');
+
+  await expectNoA11yViolations(page, 'the QR code dialog');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.close();
+});
+
+/**
+ * A locked vault offers no QR code, because it offers no detail pane at all.
+ *
+ * Worth asserting rather than reasoning about: the button reads `item.url`, which is vault content,
+ * and "the pane it lives on is not built" is a property of `manager.ts`'s router that a later
+ * refactor could quietly lose. The vault is put back on the way out, since every test in this file
+ * shares one.
+ */
+test('offers no QR code while the vault is locked', async () => {
+  const page = await openPage('manager.html');
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+
+  await page.evaluate(() => chrome.runtime.sendMessage({ type: 'LOCK' }));
+  await page.reload();
+  await expect(page.locator('.vm-placeholder')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Show QR code' })).toHaveCount(0);
+  await expect(page.locator('canvas')).toHaveCount(0);
+
+  await page.evaluate(
+    (password) => chrome.runtime.sendMessage({ type: 'UNLOCK', password }),
+    PASSWORD,
+  );
+  await page.reload();
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+  await page.close();
+});
