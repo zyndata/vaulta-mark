@@ -12,6 +12,24 @@ below.
 
 ## [Unreleased]
 
+### Added
+
+- **The toolbar button can wear a different picture, and say something else.** Settings → *Toolbar
+  appearance* offers four icons — the usual one, a plain bookmark, a grey folder, a grey sheet of
+  paper — and a tooltip you can type yourself. Both are per-computer: the machine in a shared office
+  can look one way while the one at home keeps the mark. **It is not a way to hide VaultaMark, and
+  the screen says so.** The extension is still called VaultaMark on the extensions page, in its
+  address and in the Chrome Web Store, and nothing an extension can do at runtime changes that —
+  that name is fixed when the package is built.
+
+### Changed
+
+- **The post-1.0 backlog now records why, not only whether.** Three requests were closed as
+  refused with the reasoning attached — a second hidden vault under a different password, per-folder
+  auto-lock, and Argon2id — and three more were left open as deferred rather than closed, because
+  "not now" and "no" are different answers. The reasoning is in
+  [PLAN.md §5](PLAN.md#5-feature-inventory--core-vs-optional) as well as on each issue.
+
 ## [1.1.0] - 2026-08-18
 
 ### Added

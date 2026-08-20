@@ -24,7 +24,8 @@ Two things are deliberately **not** assets:
 
 - **The existence of the vault.** The KDF header is plaintext — it must be, since the parameters
   have to be readable before a key exists. Plausible deniability is a non-goal.
-- **Which extension is installed.** Anyone with the profile can read `chrome://extensions`.
+- **Which extension is installed.** Anyone with the profile can read `chrome://extensions`. The
+  toolbar button's picture and tooltip can be changed (§4.7); its name there cannot.
 
 ---
 
@@ -82,6 +83,36 @@ Each of these is known, is not fixed, and is not going to be without a change of
 6. **`vm.settings` is plaintext**, by design — the lock screen must honour the theme before a key
    exists. It is therefore incapable of holding anything that describes a bookmark, which is why
    there are no user-defined saved filters and no per-folder sort order (ARCHITECTURE §5.1).
+7. **The extension is identifiable, whatever the toolbar says.** See §4.7 — it is long enough to be
+   worth its own heading, because it is the one accepted leak a user can be misled about.
+
+### 4.7 What the toolbar can and cannot change
+
+Phase 14 made the toolbar button's **picture** and its **tooltip** settings (ARCHITECTURE §16). This
+paragraph exists so that nobody, here or in the product, mistakes that for concealment.
+
+**Variable**, from Settings → Toolbar appearance:
+
+- the icon on the toolbar button — one of four, applied with `chrome.action.setIcon`;
+- the tooltip on it — free text, applied with `chrome.action.setTitle`.
+
+**Fixed, and not fixable:**
+
+- the extension's **name**, in `chrome://extensions`, `chrome://apps`, the Chrome task manager and
+  the profile menu. `manifest.name` is resolved at install time and **no API rewrites a manifest
+  field of a running extension**;
+- the extension's **id**, which is in the `chrome-extension://` origin of every page it opens and is
+  visible in Chrome's own UI;
+- the **Chrome Web Store listing**, which is public and is not a per-install thing at all;
+- the **permissions** the extension holds, listed on its own `chrome://extensions` card.
+
+So: a different picture is a different picture. Someone who reads a changed toolbar icon as "nobody
+can tell VaultaMark is here" has a false belief, and will act on it — which is worse than never
+having been offered the setting. That is why the section is named *Toolbar appearance*, why it
+carries a sentence saying exactly what does not change, and why nothing in the product, the
+documentation or the Store listing claims otherwise. It is also why B2 ("disguise mode / panic
+camouflage", issue #19) was closed as a *rename and a narrowing* rather than built as asked — see
+PLAN §5.
 
 ---
 
@@ -157,6 +188,7 @@ fail if the claim stopped being true.
 | D2 | An export reveals nothing about its contents | `test/e2e/portable.spec.ts` and `journey.spec.ts` search the produced file for the titles and hosts that are in it |
 | D3 | The diagnostics report carries counts, booleans and enums only — no URLs, titles, names, notes, ids, addresses or tokens | `src/shared/diagnostics.ts` is a closed field list, never an object walk; `test/unit/background/diagnostics.test.ts` seeds distinctive strings and searches the whole report for each |
 | D4 | No user-facing string escapes `_locales` (INV-10) | `scripts/verify-strings.mjs`; `test/unit/scripts/verify-strings.test.ts` |
+| D5 | Nothing in the product claims the extension can be hidden — the toolbar's picture and tooltip are variable, its name, id and listing are not (§4.7) | `settingsToolbarUnchanged` in `_locales`, asserted on screen by `test/e2e/manager.spec.ts`; the section is named *Toolbar appearance* in `_locales` and in ARCHITECTURE §16 |
 
 ### 5.7 Dependencies
 

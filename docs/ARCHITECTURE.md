@@ -635,7 +635,8 @@ of quota per byte of ciphertext, and a silent shape change on the way out.
 
 `vm.settings` holds `theme`, `idleTimeoutMinutes`, `providerId`, `lockOnBrowserBlur`,
 `stripTrackingParams`, `reuseIncognitoWindow`, `clearHistoryOnLock`, `quickClose`,
-`localThumbnails`, `thumbnailsOffered`, `sortBy` and the
+`localThumbnails`, `thumbnailsOffered`, `sortBy`, the toolbar's appearance (`toolbarIcon`,
+`toolbarTitle` — §16) and the
 manager's two column widths (`sidebarWidth`, `detailWidth`). It is deliberately plaintext and
 deliberately incapable of holding vault content: the lock screen has to honour the theme, and the
 auto-lock alarm has to be armed, before any key exists.
@@ -644,11 +645,15 @@ It is **half** of the settings, and the other half travels with the vault (§6.7
 that describe how the *vault* behaves — theme, idle timeout, lock-on-blur, the tracking strip, the
 incognito-window reuse, the two history toggles and the sort order — are recorded inside the
 ciphertext, so a second Chrome profile that adopts the synced vault arrives with them already set.
-`sidebarWidth`, `detailWidth`, `providerId`, `localThumbnails` and `thumbnailsOffered` stay here and
+`sidebarWidth`, `detailWidth`, `providerId`, `localThumbnails`, `thumbnailsOffered`, `toolbarIcon`
+and `toolbarTitle` stay here and
 only here, because a column width describes a screen, a provider id describes this profile's
-connection, and "keep preview pictures on this device only" describes this computer's disk: a laptop
+connection, "keep preview pictures on this device only" describes this computer's disk, and a
+toolbar button describes a screen again: a laptop
 must not inherit a desktop's columns, a profile with no Drive token must not be told to use Drive,
-and a machine that opted into local-only pictures has not opted the others in.
+a machine that opted into local-only pictures has not opted the others in, and one computer being
+in a shared office is the whole reason its toolbar was changed and no reason at all to change every
+other one.
 
 `sortBy` names one of six orders. Five are derived from a field of the item — date added, date
 modified, title, recently opened, most opened — and the sixth, **`manual`** (Phase 12), reads
@@ -2180,6 +2185,82 @@ fetched at runtime.
 the platform cannot; a bundle-size measurement; a look at its own dependency tree (transitive
 dependencies count); a note in this section. Dev dependencies (Vite, Vitest, Playwright, ESLint,
 TypeScript) are unrestricted — they never reach users.
+
+---
+
+## 16. Toolbar appearance
+
+Phase 14. The picture on the toolbar button and the tooltip on it are settings; **the extension's
+name, its id and its Store listing are not, and cannot be.**
+
+That sentence is the specification. `manifest.name` is `__MSG_extName__`, resolved by Chrome from
+the packaged locale at install time, and there is no API that rewrites a manifest field of a running
+extension — not `chrome.action`, not `chrome.management`, not anything reachable from a service
+worker. So `chrome://extensions`, `chrome://apps`, the extension's own `chrome-extension://` origin
+and its Web Store page all read VaultaMark whatever is chosen here, and every word this feature
+shows a user has to be true given that. It is called **Toolbar appearance**; it is never called
+disguise, camouflage, stealth or hide. THREAT_MODEL §4 records it as what it is.
+
+The reasoning is the same one that refused the `intent://` trick in Phase 15: a feature that leaves
+someone believing they are hidden when they are not is worse than no feature, because they will act
+on the belief.
+
+### 16.1 What is stored
+
+Two fields in `vm.settings` (§5.1), per-device and deliberately **not** in `SYNCED_SETTING_KEYS`
+(§6.7):
+
+| Field | Values |
+| --- | --- |
+| `toolbarIcon` | `default` · `ribbon` · `folder` · `page` |
+| `toolbarTitle` | a tooltip, or the empty string for the manifest's own |
+
+Per-device for the same reason as `sidebarWidth` and `providerId`: it describes a *screen*. One
+computer is at a desk in a shared office and another is at home, and that difference is the whole
+reason anyone reaches for this — a synced answer would defeat it on the machine that needed it.
+
+`toolbarTitle` is the only free-text field in a file that is stored in the clear, so it is
+whitespace-collapsed and capped at `TOOLBAR_TITLE_MAX` (64) on the way in *and* on the way out
+(`normalizeToolbarTitle`, `src/vault/types.ts`) — the same both-ways treatment a pane width gets, and
+for the same reason: a stored value is only as trustworthy as the last thing that wrote it, and this
+one ends up on a `chrome.action.setTitle` call.
+
+### 16.2 The drawings
+
+`scripts/gen-brand-assets.mjs` renders all four through Playwright's Chromium, at every size the
+manifest declares (16, 32, 48, 128), committed as PNGs — a build step would make an icon change
+because someone's toolchain moved, and a Node image library would be a dependency *and* would
+rasterise differently from the browser that displays the result.
+
+They obey the rule the mark already obeyed, in its general form: **interior detail thinner than
+about 8 units of 128 is dropped at 16 and 32 rather than rendered as a smear.** That is the
+keyhole's slot on `default` and the ruled lines on `page`; `ribbon` and `folder` have no such detail
+and are one drawing at every size.
+
+`ribbon` is the mark with the keyhole removed — the shape the extension is recognised by, without
+the element that says what is behind it. `folder` and `page` are slate rather than the brand blue,
+because a grey utility glyph is the most anonymous thing a Chrome toolbar holds.
+
+### 16.3 Applying it
+
+`src/background/appearance.ts`, from the service worker, through `chrome.action.setIcon` and
+`chrome.action.setTitle`. Two call sites:
+
+1. **`session.updateSettings`**, immediately — the toolbar is outside any window the settings page
+   could repaint, and a worker does not receive its own `SETTINGS_CHANGED` broadcast, so a version
+   that listened for one would look right and change nothing.
+2. **The worker's top-level evaluation**, deferred by `APPEARANCE_DELAY_MS` (250 ms). Chrome keeps a
+   runtime action icon for the browser session, and "the browser session" ends at a browser restart,
+   an extension reload and an update — three events after which a chosen icon silently reverts to
+   the manifest's. Re-applying on every wake costs one `storage.local` read and one idempotent call.
+
+Deferred rather than awaited for the reason `scheduleProbe` is: the cold-start budget is measured to
+the **first handled message** (§7.2), and a storage read plus two `chrome.action` calls in front of
+it would be spending that budget on a picture.
+
+The empty `toolbarTitle` is restored as `chrome.i18n.getMessage('actionTitle')` — the same string out
+of the same `_locales` file the manifest names — not as a copy kept in the module, and not as
+`setTitle('')`, which would leave the button with no tooltip at all.
 
 ---
 
