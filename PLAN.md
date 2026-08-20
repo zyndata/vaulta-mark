@@ -313,24 +313,33 @@ These are enforced by CI (`npm run verify:invariants`), not just by convention. 
 | Auto-lock on browser blur | Optional | 9 (setting) |
 | Panic-lock shortcut | **Core** | 4 (cheap; it's just `lock()` on a command) |
 | Drag-and-drop reordering / re-parenting | Optional | 12 |
-| QR code for a vaulted URL | Optional | Post-1.0 (B1) |
-| Disguise mode (camouflaged icon/title) | Optional | Post-1.0 (B2) |
-| Argon2id KDF option | Optional | Post-1.0 (B7) |
+| QR code for a vaulted URL | Optional | 15 (B1) |
+| Toolbar appearance: a choice of icon and tooltip. **Not** concealment — B2 was refused under that name | Optional | 14 |
+| Argon2id KDF option | **Refused** | — (B7: needs `wasm-unsafe-eval` — INV-2, D3) |
 
 **Post-1.0 backlog** — opened as GitHub issues at the end of Phase 13 (2026-08-14), labelled
-`post-1.0`, each carrying the constraint that deferred it:
+`post-1.0`, each carrying the constraint that deferred it. **Triaged one at a time on 2026-08-19**,
+and the decision column below is that triage: five items accepted, three refused, three deferred (B5
+splits, so the counts are of halves rather than of rows). It is written down here rather than left in
+a conversation because *a backlog that records "no" without recording "because" invites the same
+conversation in a year* — and because a refusal that exists only in someone's memory is
+indistinguishable from an oversight to whoever finds the issue next.
 
-| | | |
-| --- | --- | --- |
-| [#18](https://github.com/zyndata/vaulta-mark/issues/18) | B1 QR code for a vaulted URL | needs a bundled encoder — D4 |
-| [#19](https://github.com/zyndata/vaulta-mark/issues/19) | B2 disguise / panic camouflage | the manifest name cannot be hidden; decide what is being promised first |
-| [#20](https://github.com/zyndata/vaulta-mark/issues/20) | B3 keyboard-driven command palette | mostly a second front end onto existing vocabulary |
-| [#21](https://github.com/zyndata/vaulta-mark/issues/21) | B4 vault-in-vault | vault-format change; the plaintext header is the hard part |
-| [#22](https://github.com/zyndata/vaulta-mark/issues/22) | B5 duplicate detection & dead-link check | the dead-link half is the first outbound traffic that is not Drive — INV-4 |
-| [#23](https://github.com/zyndata/vaulta-mark/issues/23) | B6 per-folder auto-lock | "locked" means one thing today, and cryptography enforces it |
-| [#24](https://github.com/zyndata/vaulta-mark/issues/24) | B7 Argon2id | needs `wasm-unsafe-eval` — INV-2, D3 |
-| [#25](https://github.com/zyndata/vaulta-mark/issues/25) | B8 Firefox port evaluation | an evaluation, not a commitment; `storage.session` and `_favicon/` decide it |
-| [#26](https://github.com/zyndata/vaulta-mark/issues/26) | B9 local-only WebDAV provider | a third `SyncProvider`; needs an optional host permission |
+**Closed as refused**, with the reasoning on the issue: #21, #23, #24. **Left open** as deferred:
+#20, #25, #26 — "not now" and "no" read differently to whoever arrives later, and closing the first
+as the second throws that distinction away. #19 and #22 are closed by the phase that lands them.
+
+| | | Constraint | Decision, 2026-08-19 |
+| --- | --- | --- | --- |
+| [#18](https://github.com/zyndata/vaulta-mark/issues/18) | B1 QR code for a vaulted URL | needs a bundled encoder — D4 | **Accepted — Phase 15.** It replaces mailing a vaulted URL to yourself, which leaves the address in an inbox forever. The encoder is *vendored source*, not an npm runtime dependency, so D4 holds. What it must never do is promise the phone opens it privately: measured, Chrome for Android has no scanner in private tabs, and an `intent://` carrying `EXTRA_OPEN_NEW_INCOGNITO_TAB` fails **silently** into an ordinary tab — the B2 failure mode again |
+| [#19](https://github.com/zyndata/vaulta-mark/issues/19) | B2 disguise / panic camouflage | the manifest name cannot be hidden; decide what is being promised first | **Accepted — Phase 14, renamed and narrowed.** "Disguise" is a promise the platform cannot keep: `manifest.name` is resolved at install time and no API rewrites it on a running extension. What shipped is *Toolbar appearance* — the icon and the tooltip — with one sentence saying the name, the id and the Store listing do not change. A feature that leaves someone believing they are hidden when they are not is worse than no feature (THREAT_MODEL §4.7) |
+| [#20](https://github.com/zyndata/vaulta-mark/issues/20) | B3 keyboard-driven command palette | mostly a second front end onto existing vocabulary | **Deferred, not refused.** Every command it would offer already exists in `organize.ts` and most are already on a key, so it is a front end rather than a capability. Worth building when the vocabulary is large enough to be hard to remember, which it is not yet |
+| [#21](https://github.com/zyndata/vaulta-mark/issues/21) | B4 vault-in-vault | vault-format change; the plaintext header is the hard part | **Refused.** The header is plaintext by necessity — the KDF parameters must be readable before a key exists — so a second vault is either visible in it, which is not a hidden vault, or the header has to lie about how many there are, and then a wrong password becomes indistinguishable from a decoy. Plausible deniability is a stated non-goal (THREAT_MODEL §1); this is the feature that would quietly turn it into a promise |
+| [#22](https://github.com/zyndata/vaulta-mark/issues/22) | B5 duplicate detection & dead-link check | the dead-link half is the first outbound traffic that is not Drive — INV-4 | **Split.** Duplicates **accepted — Phase 16**: pure, the normalisation already exists, and a vault grown by native import and by merge is full of them. Dead links **refused**: checking a link means requesting it, and "browsing the vault makes zero requests" (INV-4) is the sharpest claim this product makes. A link checker would send every vaulted URL to its host from the user's own address, which is the exact traffic the extension exists to avoid |
+| [#23](https://github.com/zyndata/vaulta-mark/issues/23) | B6 per-folder auto-lock | "locked" means one thing today, and cryptography enforces it | **Refused.** "Locked" means no key exists anywhere, `storage.session` included (INV-7), and cryptography is what enforces it. Per-folder locking is a *second* meaning — the key is present and the interface declines to use it — and shipping both under one word makes the strong one unverifiable by anyone reading the screen. A genuine second password per folder is a different feature, and it is B4 |
+| [#24](https://github.com/zyndata/vaulta-mark/issues/24) | B7 Argon2id | needs `wasm-unsafe-eval` — INV-2, D3 | **Refused.** It needs WASM, WASM needs `'wasm-unsafe-eval'` in the CSP, and INV-2 pins that CSP byte-for-byte. Widening the one directive that keeps arbitrary compiled code out of the package, to improve a KDF that is already 600,000 PBKDF2 iterations, is a bad trade for this threat model — D3, unchanged. Revisit if WebCrypto ever grows Argon2id, not before |
+| [#25](https://github.com/zyndata/vaulta-mark/issues/25) | B8 Firefox port evaluation | an evaluation, not a commitment; `storage.session` and `_favicon/` decide it | **Deferred, not refused.** It is an evaluation and it costs about a week. `storage.session` and `_favicon/` are the two APIs that decide whether it is a port or a rewrite, and neither has moved |
+| [#26](https://github.com/zyndata/vaulta-mark/issues/26) | B9 local-only WebDAV provider | a third `SyncProvider`; needs an optional host permission | **Deferred, not refused.** The `SyncProvider` seam is real and was paid for in Phase 7, so this is not architecturally hard — but it needs an optional host permission broad enough to reach an arbitrary server, which is a permissions decision (D26) rather than a sync one |
 
 ---
 
@@ -1570,6 +1579,8 @@ this phase and is rewritten rather than deleted.
   that list is scoped on purpose because `src/` ships to a browser. **PR #15 stays open**: the
   blocker is `typescript-eslint` refusing TS 7 outright, which takes `npm run lint` and therefore
   `npm run verify` with it, and that local run is the real gate (CI cannot block a push to `dev`).
+  **Landed early** — the file went in with `bd69fc7` while chasing the bump, so this phase's job was
+  to confirm it is the whole fix and to leave PR #15 parked, not to write it.
 - **Toolbar appearance** (B2, #19) — a **manager** settings section, not the popup's. It is decided
   once, which is the line the 2026-08-17 pass drew when it moved *Opening and saving* out of a
   422-pixel column.
@@ -1603,11 +1614,38 @@ Store listing; per-profile icons.
 - `verify:strings` green: new keys exist in `_locales`, none dead.
 
 **Definition of done**
-- [ ] PLAN §5 records every decision with its reason; #21, #23, #24 closed; #20, #25, #26 open.
-- [ ] `src/css.d.ts` exists; `npm run verify` green; PR #15 untouched and open.
-- [ ] The icon can be changed from the manager and survives a worker restart.
-- [ ] No user-facing text anywhere claims the extension can be hidden.
-- [ ] THREAT_MODEL §4 describes what is variable and what is not.
+- [x] PLAN §5 records every decision with its reason; #21, #23, #24 closed; #20, #25, #26 open. —
+      §5's backlog table has a decision column; the three refusals carry the reasoning on the issue
+      as well as here, because an issue is where the next person looks.
+- [x] `src/css.d.ts` exists; `npm run verify` green; PR #15 untouched and open. — the file landed
+      early, in `bd69fc7`, staged ahead of the bump; this phase confirmed it is the whole fix and
+      left the PR parked. The blocker is unchanged: `typescript-eslint` refuses TS 7 outright, which
+      takes `npm run lint` and therefore `npm run verify` with it, and that local run is the real
+      gate because CI cannot block a push to `dev`.
+- [x] The icon can be changed from the manager and survives a worker restart. —
+      `test/unit/background/appearance.test.ts` drives the restart through `terminateWorker()` plus
+      a re-import over the same `storage.local`; `test/e2e/manager.spec.ts` asserts the real
+      `chrome.action.setIcon` call, with a path for every size the manifest declares.
+- [x] No user-facing text anywhere claims the extension can be hidden. — the section is called
+      *Toolbar appearance*, `settingsToolbarUnchanged` says what does not change, and the E2E fails
+      if that sentence leaves the screen. Nothing in `_locales`, the README or STORE_LISTING says
+      disguise, camouflage, stealth or hide.
+- [x] THREAT_MODEL §4 describes what is variable and what is not. — §4.7, plus a seventh accepted
+      leak pointing at it and traced claim D5 in §5.6.
+
+**What this phase learned, worth keeping.** The honest version of B2 is *smaller than what was
+asked for*, and writing that down was most of the work: `manifest.name` is resolved by Chrome at
+install time and no API rewrites a manifest field on a running extension, so "disguise" cannot be
+delivered and the near-miss — a changed icon that a user reads as concealment — is worse than
+nothing, because they act on the belief. That is the same shape as the `intent://` refusal in Phase
+15, and it is why both are recorded rather than merely done.
+
+Two smaller ones. `chrome.action`'s runtime icon lasts for the *browser session*, so a browser
+restart, an extension reload and an update each revert it — the apply is therefore on the worker's
+top-level evaluation, deferred past the cold-start budget, and not in `onStart()`. And the icons
+are drawn by the *same* Playwright Chromium that draws the real ones and are committed as PNGs, so
+regenerating them proved byte-identical output for `icon*.png` — the alternatives were added
+without touching the four files the manifest already points at, or the Store assets.
 
 **Git:** direct commits on `dev`. Tag `phase-14-done`.
 
