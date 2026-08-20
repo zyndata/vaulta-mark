@@ -378,11 +378,13 @@ written case for a runtime dependency. This is not that case.
   on offers, once and only when there is something to offer, to apply the same strip to what is
   already saved (`organize.countTracked` / `organize.stripTracked`, `ui/tracking.ts`); nothing is
   ever rewritten without that being answered. Two bookmarks that collapse to the same address stay
-  two bookmarks — a clean-up of addresses is not a licence to delete one of them. A separate key is
-  computed for duplicate detection only (`duplicateKeyOf`:
-  scheme+host+path+sorted query, fragment dropped, a bare origin's trailing slash normalised away)
-  and **never stored**. A URL `URL` cannot parse is kept verbatim: this is a bookmark manager, not a
-  validator, and a user should get back exactly what they saved.
+  two bookmarks — a clean-up of addresses is not a licence to delete one of them; removing one is
+  the separate, asked-for operation in §3.5.1. A URL `URL` cannot parse is kept verbatim: this is a
+  bookmark manager, not a validator, and a user should get back exactly what they saved.
+- **Duplicate keys** are computed on demand and **never stored** — a second normalization of the
+  same URL sitting in the ciphertext would be redundant bytes and a second thing to migrate. There
+  are **two** of them, and which one applies depends on what a match is about to do. See §3.5.1.
+
 - **Which URLs may be vaulted at all** (`background/add.ts`, an allowlist of `http`, `https`, `ftp`,
   `ftps`): a browser-internal page (`chrome:`, `chrome-extension:`, `about:`, `devtools:`,
   `view-source:`, and the equivalents in other Chromium builds) is refused because nothing could
@@ -395,6 +397,36 @@ written case for a runtime dependency. This is not that case.
 - **Search text:** NFKD-folded, combining marks stripped, lowercased. The search index is built on
   unlock and dropped on lock — it is never persisted, because a search index *is* the vault content
   reorganised, and writing one would break INV-6.
+
+#### 3.5.1 The two duplicate keys
+
+**Normative.** "The same page" is asked at two different moments, and the moments want different
+answers. Both keys are pure, both are computed on demand, neither is ever stored.
+
+| | Key | Where | What a match does |
+| --- | --- | --- | --- |
+| **Narrow** | `duplicateKeyOf(url)` — scheme + host + path + sorted query, fragment dropped, a bare origin's trailing slash normalised away | `background/add.ts` (`findDuplicate`), `import/native-bookmarks.ts` | **Refuses the save.** The popup answers "you already have this page" and offers to open it |
+| **Wide** | `duplicateKey(url)` — the same, **preceded by the tracking-parameter strip** | `vault/duplicates.ts`, the manager's duplicates screen | **Proposes a comparison.** Two rows side by side; nothing is removed until a button is pressed |
+
+So `example.com/a` and `example.com/a?utm_source=x` are **one** address to the wide key and **two**
+to the narrow one, while `watch?v=a` and `watch?v=b` are two videos to both — the query is kept,
+only campaign parameters come off.
+
+**The asymmetry is the point, not an inconsistency to be tidied away.** A false match at add time
+costs the user a bookmark they asked for and did not get; a false match in the cleanup screen costs
+them a glance. The narrow key is therefore conservative and the wide one is not. The wide key
+applies the strip whatever `stripTrackingParams` is set to, because that setting governs what
+happens to the *next* thing saved, and a vault full of `?utm_source=` collected before it was
+switched on is exactly the vault the screen exists for.
+
+**Live items only, on both sides.** A tombstone is a bookmark the user already deleted, kept so the
+merge engine can carry the deletion to another device (§6). Grouping one would offer to delete what
+is already deleted, and would report a duplicate for a lone survivor whose earlier copy is gone.
+
+`duplicateCount` — how many addresses are saved more than once, groups rather than copies — rides
+on `GET_TREE` and is what the sidebar's *Duplicates* entry shows. Removal from the screen goes
+through `DELETE_ITEMS`, so it is one `repo.apply`, one `vaultRev`, one set of tombstones and one
+8-second undo, exactly like every other bulk delete (§9).
 
 ---
 

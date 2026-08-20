@@ -23,7 +23,7 @@
 
 import type { ItemSummary } from '../shared/messages.js';
 import { UnsupportedUrlError } from '../vault/errors.js';
-import { duplicateKeyOf, normalizeUrl } from '../vault/model.js';
+import { duplicateKeyOf, normalizeUrl, withoutTrackingParams } from '../vault/model.js';
 import { hasPreview, isBookmark, isDeleted, type Bookmark, type VaultItem } from '../vault/types.js';
 import type { VaultRepository } from '../storage/repo.js';
 
@@ -53,39 +53,6 @@ const INTERNAL_SCHEMES: ReadonlySet<string> = new Set([
   'vivaldi:',
   'moz-extension:',
 ]);
-
-/**
- * Query parameters dropped when `stripTrackingParams` is on.
- *
- * Campaign and click-identifier parameters only. Nothing here changes which page a URL resolves to;
- * anything that might is deliberately absent, because the setting is a convenience and losing a
- * working link to it would not be.
- */
-const TRACKING_PARAMS: readonly string[] = [
-  'utm_source',
-  'utm_medium',
-  'utm_campaign',
-  'utm_term',
-  'utm_content',
-  'utm_id',
-  'utm_source_platform',
-  'utm_creative_format',
-  'utm_marketing_tactic',
-  'gclid',
-  'gbraid',
-  'wbraid',
-  'dclid',
-  'fbclid',
-  'msclkid',
-  'twclid',
-  'igshid',
-  'mc_cid',
-  'mc_eid',
-  'yclid',
-  'vero_id',
-  '_hsenc',
-  '_hsmi',
-];
 
 export interface AddOptions {
   /** From `VaultSettings.stripTrackingParams`. On by default (§3.5). */
@@ -131,15 +98,6 @@ export function vaultableUrl(raw: string, options: AddOptions = {}): string {
   return normalizeUrl(
     options.stripTrackingParams === true ? withoutTrackingParams(parsed) : parsed.href,
   );
-}
-
-/** Drop campaign parameters, and the `?` with them when nothing else was in the query. */
-export function withoutTrackingParams(url: URL | string): string {
-  const parsed = typeof url === 'string' ? new URL(url) : new URL(url.href);
-  for (const name of TRACKING_PARAMS) parsed.searchParams.delete(name);
-  // `searchParams` leaves a bare "?" behind once it has deleted the last parameter.
-  if ([...parsed.searchParams].length === 0) parsed.search = '';
-  return parsed.href;
 }
 
 /**

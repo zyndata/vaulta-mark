@@ -137,6 +137,52 @@ export function normalizeUrl(url: string): string {
 }
 
 /**
+ * Query parameters dropped when `stripTrackingParams` is on, and by duplicate grouping always.
+ *
+ * Campaign and click-identifier parameters only. Nothing here changes which page a URL resolves to;
+ * anything that might is deliberately absent, because the setting is a convenience and losing a
+ * working link to it would not be.
+ *
+ * It lives here, beside the two normalizations, rather than in `background/add.ts` where it was
+ * written: `duplicates.ts` needs it and `src/vault/` may not import from `src/background/`. It is
+ * pure URL arithmetic either way — no `chrome.*`, no I/O, nothing about tabs.
+ */
+const TRACKING_PARAMS: readonly string[] = [
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'utm_id',
+  'utm_source_platform',
+  'utm_creative_format',
+  'utm_marketing_tactic',
+  'gclid',
+  'gbraid',
+  'wbraid',
+  'dclid',
+  'fbclid',
+  'msclkid',
+  'twclid',
+  'igshid',
+  'mc_cid',
+  'mc_eid',
+  'yclid',
+  'vero_id',
+  '_hsenc',
+  '_hsmi',
+];
+
+/** Drop campaign parameters, and the `?` with them when nothing else was in the query. */
+export function withoutTrackingParams(url: URL | string): string {
+  const parsed = typeof url === 'string' ? new URL(url) : new URL(url.href);
+  for (const name of TRACKING_PARAMS) parsed.searchParams.delete(name);
+  // `searchParams` leaves a bare "?" behind once it has deleted the last parameter.
+  if ([...parsed.searchParams].length === 0) parsed.search = '';
+  return parsed.href;
+}
+
+/**
  * The key two bookmarks share when they are "the same page": scheme, host, path, sorted query.
  * Fragment dropped.
  *
