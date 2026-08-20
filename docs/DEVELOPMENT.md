@@ -336,7 +336,8 @@ So, with `dist/` loaded unpacked and Drive connected (§5.4):
 than from the encoder, so "it encodes the right bytes" is settled without a camera.
 `test/e2e/manager.spec.ts` draws one in a real Chromium and checks its module count and its quiet
 zone. What neither can do is **point a phone at a screen**, and that is the one thing a QR code is
-for. So, with `dist/` loaded unpacked:
+for. **Done once, 2026-08-20**, when the feature landed; repeat it before any release that changes
+`src/ui/qr.ts` or re-vendors the encoder. With `dist/` loaded unpacked:
 
 1. Vault a page whose URL is long and has query parameters, and one whose host or path is not ASCII.
 2. Select each in the manager and press **Show QR code**.

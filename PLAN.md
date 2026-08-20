@@ -1712,12 +1712,14 @@ any attempt to influence what the phone does next.
   codebase, so confirm the scanner accepts it rather than assuming it does.
 
 **Definition of done**
-- [ ] A QR shown by the extension scans, on a real phone, to exactly the vaulted address. —
-      **the maintainer's pass, procedure in DEVELOPMENT §5.6.** Nothing in the harness can point a
-      camera at a screen. What *is* settled without one: `test/unit/ui/qr.test.ts` reads every
-      symbol back with a decoder written from ISO/IEC 18004 rather than from the encoder — anchored
-      on the standard's own worked example — over a long URL with query parameters, a URL with a
-      fragment and percent escapes, a Cyrillic one, and a CJK host with an accented query.
+- [x] A QR shown by the extension scans, on a real phone, to exactly the vaulted address. —
+      **verified by the maintainer on 2026-08-20**, procedure in DEVELOPMENT §5.6. Nothing in the
+      harness can point a camera at a screen, which is why this one item waited for a person. What
+      *was* settled without one, and is what made the pass a confirmation rather than a discovery:
+      `test/unit/ui/qr.test.ts` reads every symbol back with a decoder written from ISO/IEC 18004
+      rather than from the encoder — anchored on the standard's own worked example — over a long URL
+      with query parameters, a URL with a fragment and percent escapes, a Cyrillic one, and a CJK
+      host with an accented query.
 - [x] The encoder is vendored unminified, licensed correctly, and recorded in ARCHITECTURE §15. —
       `src/vendor/qrcode-generator/qrcode.js`, byte-identical to `qrcode-generator@2.0.4`'s
       `dist/qrcode.mjs` with both sha256 sums recorded beside it; §15.1 is new and says why it is
