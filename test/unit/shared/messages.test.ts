@@ -486,6 +486,7 @@ describe('parseResponse / parseBroadcast', () => {
       'ITEMS',
       'OPENED',
       'INCOGNITO_ACCESS_STATE',
+      'DUPLICATES',
       'FILE',
       'IMPORT_PREVIEW',
       'IMPORT_RESULT',

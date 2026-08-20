@@ -16,6 +16,7 @@
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { parseResponse } from '../../../src/shared/messages.js';
 import {
   installChromeMock,
   uninstallChromeMock,
@@ -35,8 +36,19 @@ async function startWorker(): Promise<void> {
   await import('../../../src/background/index.js');
 }
 
+/**
+ * Send a request through the real router, and check the answer would survive the wire.
+ *
+ * `parseResponse` is the second half of the transport and it guards a **hand-maintained set** of
+ * response type names (`RESPONSE_TYPES`). A worker that answers correctly with a type missing from
+ * that set is turned into `ERROR/UNKNOWN` in every UI, and nothing in this file would notice —
+ * these tests read the worker's answer directly, which is how Phase 16 shipped a new response type
+ * with green unit tests and a screen that said "Something went wrong."
+ */
 async function send(message: unknown): Promise<Record<string, unknown>> {
-  return (await mock.sendMessage(message)) as Record<string, unknown>;
+  const raw = await mock.sendMessage(message);
+  expect(parseResponse(raw), `unparseable answer to ${JSON.stringify(message)}`).not.toBeNull();
+  return raw as Record<string, unknown>;
 }
 
 /**
@@ -97,6 +109,66 @@ async function detail(id: string): Promise<Record<string, unknown> | null> {
 
 async function tree(): Promise<Record<string, unknown>> {
   return await send({ type: 'GET_TREE' });
+}
+
+interface DupeGroup {
+  key: string;
+  items: { id: string; title: string; url?: string; path: { title: string }[]; hasNote: boolean }[];
+}
+
+async function duplicates(): Promise<DupeGroup[]> {
+  const response = await send({ type: 'LIST_DUPLICATES' });
+  expect(response['type'], JSON.stringify(response)).toBe('DUPLICATES');
+  return response['groups'] as DupeGroup[];
+}
+
+/**
+ * The copies in a group, by id, **sorted** — and the sort is the point.
+ *
+ * Everything this file adds is stamped by the worker's own clock, so four bookmarks added in a loop
+ * routinely share a millisecond. `duplicateGroups` orders copies oldest first and tie-breaks on the
+ * id, which is a random uuid — so insertion order is not what comes back, and a positional
+ * assertion here would pass or fail on which uuid was minted. The ordering itself is pinned where
+ * the clock can be held still: `test/unit/vault/duplicates.test.ts`.
+ */
+function idsIn(group: DupeGroup | undefined): string[] {
+  return (group?.items ?? []).map((item) => item.id).sort();
+}
+
+/** The same sort, for the expected side. */
+function sorted(ids: readonly string[]): string[] {
+  return [...ids].sort();
+}
+
+/**
+ * The vault's current revision, read off the plaintext header the way the sync engine does.
+ *
+ * Flushed first: the repository coalesces writes for 300 ms, so the number in storage lags the one
+ * in memory by up to that long, and a test asserting "exactly one revision" against a lagging
+ * header would be asserting nothing at all.
+ */
+async function rev(): Promise<number> {
+  const worker = await import('../../../src/background/session.js');
+  await (await worker.currentRepository())?.flush();
+  const meta = mock.storage.local.snapshot()['vm.meta'] as { vaultRev: number };
+  return meta.vaultRev;
+}
+
+/**
+ * Save the same page twice.
+ *
+ * The add path refuses a second copy outright, so this is the route a real vault takes to one: the
+ * tracking strip switched off, a page saved from two different mailings, and the campaign parameter
+ * left in the address of each. Turning the strip back on is what a user does when they finally
+ * notice — and it changes nothing about what is already saved, which is the whole reason the
+ * duplicates screen exists.
+ */
+async function addDuplicatePair(path: string): Promise<[string, string]> {
+  await send({ type: 'SET_SETTINGS', settings: { stripTrackingParams: false } });
+  const first = await addBookmark(`https://example.com/${path}?utm_source=one`, `${path} from one`);
+  const second = await addBookmark(`https://example.com/${path}?utm_source=two`, `${path} from two`);
+  await send({ type: 'SET_SETTINGS', settings: { stripTrackingParams: true } });
+  return [first, second];
 }
 
 /* ---------------------------------------------------------------- harness */
@@ -872,6 +944,7 @@ describe('a locked vault', () => {
     for (const request of [
       { type: 'GET_TREE' },
       { type: 'LIST_VIEW' },
+      { type: 'LIST_DUPLICATES' },
       { type: 'GET_ITEM', id },
       { type: 'CREATE_FOLDER', title: 'Work' },
       { type: 'UPDATE_ITEM', id, patch: { title: 'x' } },
@@ -891,5 +964,133 @@ describe('a locked vault', () => {
         code: 'VAULT_LOCKED',
       });
     }
+  });
+});
+
+/* ------------------------------------------------------------------ duplicates (Phase 16) */
+
+/**
+ * The cleanup half of Phase 16, driven over the wire.
+ *
+ * The theme is the same as everywhere else in this file — **one batch, one revision** — with one
+ * addition that only this screen has: what it groups is a *proposal*, so the assertions about what
+ * is *not* grouped (tombstones, singletons) matter as much as the ones about what is. A screen
+ * whose only verb is delete must not propose deleting something twice.
+ */
+describe('duplicates', () => {
+  it('finds an address saved twice, each copy with its own folder path', async () => {
+    const work = await addFolder('Work');
+    const [first, second] = await addDuplicatePair('a');
+    await send({ type: 'MOVE_ITEMS', ids: [second], parentId: work });
+    await addBookmark('https://example.com/only-once', 'Once');
+
+    const groups = await duplicates();
+    expect(groups).toHaveLength(1);
+    expect(idsIn(groups[0])).toEqual(sorted([first, second]));
+
+    // Each copy carries its own path, which is one of the few things that tells two copies apart —
+    // and the reason it is on the row rather than fetched per item the way the detail pane does it.
+    const byId = new Map((groups[0]?.items ?? []).map((item) => [item.id, item]));
+    expect(byId.get(first)?.path).toEqual([]);
+    expect(byId.get(second)?.path.map((crumb) => crumb.title)).toEqual(['Work']);
+  });
+
+  it('says nothing about a vault in which every address is saved once', async () => {
+    await addBookmark('https://example.com/a', 'A');
+    await addBookmark('https://example.com/b', 'B');
+    expect(await duplicates()).toEqual([]);
+    expect((await tree())['duplicates']).toBe(0);
+  });
+
+  it('counts addresses rather than copies on the tree', async () => {
+    await addDuplicatePair('a');
+    await addDuplicatePair('b');
+    await addBookmark('https://example.com/c', 'C');
+
+    // Four bookmarks are involved, and the sidebar says 2: two addresses to look at.
+    expect((await tree())['duplicates']).toBe(2);
+    expect(await duplicates()).toHaveLength(2);
+  });
+
+  it('never groups a tombstone', async () => {
+    const [first, second] = await addDuplicatePair('a');
+    await send({ type: 'DELETE_ITEMS', ids: [second] });
+
+    // One live copy left, so there is nothing to compare it with — and offering to remove the
+    // tombstone would be offering to delete what is already deleted.
+    expect(await duplicates()).toEqual([]);
+    expect((await tree())['duplicates']).toBe(0);
+
+    await send({ type: 'RESTORE_ITEMS', ids: [second] });
+    expect(idsIn((await duplicates())[0])).toEqual(sorted([first, second]));
+  });
+
+  /**
+   * The assertion the phase was written around.
+   *
+   * Removal reuses `DELETE_ITEMS`, so a group of *n* costs exactly one revision however many copies
+   * are ticked — one write, one thing for the merge engine to carry, one undo. A per-copy delete
+   * would pass every other test in this file and fail this one.
+   */
+  it('removes a whole group in exactly one revision, and the undo puts it back', async () => {
+    await send({ type: 'SET_SETTINGS', settings: { stripTrackingParams: false } });
+    const ids: string[] = [];
+    for (const source of ['one', 'two', 'three', 'four']) {
+      ids.push(await addBookmark(`https://example.com/a?utm_source=${source}`, `From ${source}`));
+    }
+    await send({ type: 'SET_SETTINGS', settings: { stripTrackingParams: true } });
+
+    const group = (await duplicates())[0];
+    expect(group?.items).toHaveLength(4);
+
+    // Three of the four, which is the shape "Tick all but the oldest" leaves behind.
+    const doomed = ids.slice(1);
+    const before = await rev();
+    expect(await send({ type: 'DELETE_ITEMS', ids: doomed })).toEqual({ type: 'OK' });
+    expect(await rev()).toBe(before + 1);
+
+    expect(await duplicates()).toEqual([]);
+    expect(await titles()).toEqual(['From one']);
+
+    // And the undo is one revision too, restoring under the same ids rather than adding new ones.
+    const afterDelete = await rev();
+    expect(await send({ type: 'RESTORE_ITEMS', ids: doomed })).toEqual({ type: 'OK' });
+    expect(await rev()).toBe(afterDelete + 1);
+    expect(idsIn((await duplicates())[0])).toEqual(sorted(ids));
+  });
+
+  it('rejects the whole removal when one of the ids is gone', async () => {
+    const [first, second] = await addDuplicatePair('a');
+    const before = await rev();
+
+    expect(await send({ type: 'DELETE_ITEMS', ids: [second, 'no-such-item'] })).toEqual({
+      type: 'ERROR',
+      code: 'ITEM_NOT_FOUND',
+    });
+    // Nothing moved, not even the id that was real. A screen working from a stale list is told,
+    // not half-obeyed.
+    expect(await rev()).toBe(before);
+    expect(idsIn((await duplicates())[0])).toEqual(sorted([first, second]));
+  });
+
+  it('groups two bookmarks edited into the same address', async () => {
+    // The other way a vault grows a duplicate: the add path refuses one, but nothing stops the
+    // detail pane from pointing an existing bookmark at an address another one already holds.
+    const first = await addBookmark('https://example.com/a', 'A');
+    const second = await addBookmark('https://example.com/b', 'B');
+    await send({ type: 'UPDATE_ITEM', id: second, patch: { url: 'https://example.com/a' } });
+
+    const groups = await duplicates();
+    expect(groups).toHaveLength(1);
+    expect(idsIn(groups[0])).toEqual(sorted([first, second]));
+  });
+
+  it('reports which copy carries a note, because that is often why it is the one to keep', async () => {
+    const [, second] = await addDuplicatePair('a');
+    await send({ type: 'UPDATE_ITEM', id: second, patch: { note: 'the good one' } });
+
+    const items = (await duplicates())[0]?.items ?? [];
+    expect(items.find((item) => item.id === second)?.hasNote).toBe(true);
+    expect(items.filter((item) => item.hasNote)).toHaveLength(1);
   });
 });

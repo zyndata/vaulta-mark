@@ -1013,3 +1013,106 @@ test('offers no QR code while the vault is locked', async () => {
   await expect(row(page, 'Lattice reduction')).toBeVisible();
   await page.close();
 });
+
+/**
+ * The Phase-16 cleanup, end to end.
+ *
+ * Two copies of one address have to exist before the screen has anything to say, and the add path
+ * refuses to make them — which is the point of the feature. So they arrive the way a real vault's
+ * duplicates arrive: the tracking strip switched off, the same page saved from two mailings, and
+ * the campaign parameter still in each address. The setting goes back on afterwards, because
+ * turning it on is exactly what does *not* clean up what is already saved.
+ *
+ * Cleans up after itself. The tests in this file share one vault, and leaving two bookmarks named
+ * after this one in it would be a row count somebody else's assertion has to know about.
+ */
+test('finds an address saved twice, removes a copy, and undoes it', async () => {
+  const page = await openPage('manager.html');
+
+  const ids = await page.evaluate(async () => {
+    const add = async (url: string, title: string): Promise<string> => {
+      const response: { item: { id: string } } = await chrome.runtime.sendMessage({
+        type: 'ADD_URL',
+        url,
+        title,
+      });
+      return response.item.id;
+    };
+    await chrome.runtime.sendMessage({
+      type: 'SET_SETTINGS',
+      settings: { stripTrackingParams: false },
+    });
+    const first = await add(
+      'https://dupes-e2e.invalid/report?utm_source=newsletter',
+      'Quarterly report',
+    );
+    // Far enough apart to be a different millisecond. Copies come back oldest first and tie-break
+    // on a random uuid, so two adds inside one tick would put the rows in an order that changes
+    // between runs — and "the oldest is the one left alone" is exactly what this test is checking.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const second = await add('https://dupes-e2e.invalid/report?utm_source=twitter', 'The report');
+    await chrome.runtime.sendMessage({
+      type: 'SET_SETTINGS',
+      settings: { stripTrackingParams: true },
+    });
+    return [first, second];
+  });
+  await page.reload();
+
+  // ---------------------------------------------------------------- the sidebar says so
+  // One address, not two copies — which is the number of decisions there are to make.
+  const entry = page.getByRole('button', { name: 'Duplicates' });
+  await expect(entry).toContainText('1');
+  await entry.click();
+
+  // ---------------------------------------------------------------- the copies, side by side
+  await expect(page.getByRole('heading', { name: 'Duplicate addresses' })).toBeVisible();
+  await expect(page.locator('.vm-dupes-group')).toHaveCount(1);
+  await expect(page.locator('.vm-dupes-copy')).toHaveCount(2);
+  // Oldest first, and each copy's real address is shown where it differs from the heading's.
+  await expect(page.locator('.vm-dupes-title')).toHaveText(['Quarterly report', 'The report']);
+  await expect(page.locator('.vm-dupes-url')).toContainText('utm_source=twitter');
+
+  await expectNoA11yViolations(page, 'the duplicates screen');
+
+  // ---------------------------------------------------------------- nothing is ticked for you
+  const remove = page.getByRole('button', { name: /^Remove \d+ ticked$/ });
+  await expect(remove).toBeDisabled();
+  await expect(remove).toContainText('0');
+
+  await page.getByRole('button', { name: 'Tick all but the oldest' }).click();
+  await expect(remove).toContainText('1');
+  await expect(remove).toBeEnabled();
+  // The oldest is the one left alone.
+  await expect(page.getByRole('checkbox', { name: 'Remove Quarterly report' })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Remove The report' })).toBeChecked();
+
+  // ---------------------------------------------------------------- asked, then done, then undoable
+  await remove.click();
+  await expect(page.getByRole('dialog')).toContainText('Remove 1 bookmarks?');
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove', exact: true }).click();
+
+  await expect(page.getByText('Deleted 1 bookmarks.')).toBeVisible();
+  // The screen re-read itself: one copy left is not a duplicate.
+  await expect(page.getByText('No address is saved twice.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Undo' }).click();
+  // And the screen re-read itself again, because the vault under it changed back.
+  await expect(page.locator('.vm-dupes-copy')).toHaveCount(2);
+
+  // ---------------------------------------------------------------- back, and tidy up
+  await page.getByRole('button', { name: 'Back to bookmarks' }).click();
+  await expect(page.locator('.vm-row').first()).toBeVisible();
+
+  await page.evaluate(
+    (doomed) => chrome.runtime.sendMessage({ type: 'DELETE_ITEMS', ids: doomed }),
+    ids,
+  );
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Duplicates' })).toContainText('0');
+
+  await expect(page.locator('#vm-status .vm-notice--danger')).toHaveCount(0);
+  expect(requests).toEqual([]);
+
+  await page.close();
+});
