@@ -224,6 +224,48 @@ export function isSortKey(value: unknown): value is SortKey {
 }
 
 /**
+ * The toolbar button's picture (PLAN §9 Phase 14, §16).
+ *
+ * `default` is the mark the extension ships with — a bookmark ribbon with a keyhole through it,
+ * which says "locked bookmarks" to anyone who glances at the toolbar. The other three say nothing
+ * in particular, which is the whole of what this setting offers.
+ *
+ * **It is not concealment and must never be described as any.** `manifest.name` cannot be rewritten
+ * at runtime, so `chrome://extensions`, the extension id and the Store listing all still read
+ * VaultaMark whatever is chosen here. What is variable is the picture and the tooltip; that is the
+ * honest extent of it, and it is what THREAT_MODEL §4 records.
+ */
+export const TOOLBAR_ICONS = ['default', 'ribbon', 'folder', 'page'] as const;
+
+export type ToolbarIconId = (typeof TOOLBAR_ICONS)[number];
+
+export const DEFAULT_TOOLBAR_ICON: ToolbarIconId = 'default';
+
+export function isToolbarIconId(value: unknown): value is ToolbarIconId {
+  return typeof value === 'string' && (TOOLBAR_ICONS as readonly string[]).includes(value);
+}
+
+/**
+ * How much of a typed toolbar tooltip is kept.
+ *
+ * Chrome truncates the tooltip long before this, so the cap is not about layout: it is about
+ * `vm.settings` being a plaintext blob that this is the only free-text field in. 64 characters is
+ * more than a tooltip anyone reads and far less than somewhere to keep a paragraph.
+ */
+export const TOOLBAR_TITLE_MAX = 64;
+
+/**
+ * A typed toolbar tooltip, reduced to what is stored.
+ *
+ * Whitespace is collapsed before the cap rather than after: a title of sixty spaces is an empty
+ * title with a length, and a tooltip carrying newlines is a tooltip Chrome renders as one line of
+ * gaps. The empty string is the sentinel for "use the manifest's own", not a title of no characters.
+ */
+export function normalizeToolbarTitle(value: string): string {
+  return value.replace(/\s+/gu, ' ').trim().slice(0, TOOLBAR_TITLE_MAX);
+}
+
+/**
  * Non-sensitive settings (`vm.settings`, ARCHITECTURE §5.1).
  *
  * Deliberately plaintext, and deliberately incapable of holding vault content: the lock screen has
@@ -267,6 +309,21 @@ export interface VaultSettings {
    * same reason {@link localThumbnails} is.
    */
   readonly thumbnailsOffered: boolean;
+  /**
+   * Which picture the toolbar button wears (§16). {@link DEFAULT_TOOLBAR_ICON} is the mark.
+   *
+   * Deliberately **not** in `SYNCED_SETTING_KEYS`, and for the same reason as the column widths: it
+   * describes a screen. One computer is at a desk in a shared office and another is at home, and the
+   * whole reason someone reaches for this is that those two are different places.
+   */
+  readonly toolbarIcon: ToolbarIconId;
+  /**
+   * The toolbar button's tooltip, or the empty string to keep the manifest's own (§16).
+   *
+   * Per-device for the same reason. It is also the one free-text field in a file that is stored in
+   * the clear — {@link normalizeToolbarTitle} is what keeps it to a tooltip's worth of it.
+   */
+  readonly toolbarTitle: string;
   /**
    * The order the manager's list is in.
    *
@@ -353,6 +410,10 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   localThumbnails: false,
   thumbnailsOffered: false,
   sortBy: DEFAULT_SORT,
+  toolbarIcon: DEFAULT_TOOLBAR_ICON,
+  // The empty string, not the shipped tooltip: `_locales` is where that sentence lives, and a copy
+  // of it frozen into `vm.settings` on first run would survive every later edit to it.
+  toolbarTitle: '',
   sidebarWidth: SIDEBAR_WIDTH.initial,
   detailWidth: DETAIL_WIDTH.initial,
 };

@@ -350,6 +350,10 @@ export interface ChromeMock {
   triggerMenuClick(info: { menuItemId: string; linkUrl?: string; selectionText?: string }): void;
   /** The toolbar badge's current text, as `chrome.action.setBadgeText` left it. */
   badgeText(): string;
+  /** The size-to-path map of the last `chrome.action.setIcon`, or `null` if it was never called. */
+  actionIcon(): Record<string, string> | null;
+  /** The last `chrome.action.setTitle`, or `null` if it was never called. */
+  actionTitle(): string | null;
   /** `chrome.idle.setDetectionInterval`'s last argument, or `undefined` if never called. */
   idleDetectionInterval(): number | undefined;
   /** Send a message the way a popup would, resolving with the first response given. */
@@ -496,6 +500,8 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   let idleDetectionInterval: number | undefined;
   let incognitoAccess = options.incognitoAccess ?? false;
   let badgeText = '';
+  let actionIcon: Record<string, string> | null = null;
+  let actionTitle: string | null = null;
 
   const sendMessage = (message: unknown): Promise<unknown> =>
     new Promise((resolve) => {
@@ -657,7 +663,17 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
       },
       getBadgeText: () => Promise.resolve(badgeText),
       setBadgeBackgroundColor: () => Promise.resolve(),
-      setTitle: () => Promise.resolve(),
+      // Recorded rather than swallowed: "the icon survives a worker restart" (ARCHITECTURE §16) is a claim
+      // about the exact paths handed to Chrome, and a stub that returned a resolved promise would
+      // pass against a build that never called it.
+      setIcon: (details: { path?: Record<string, string> }) => {
+        actionIcon = details.path ?? null;
+        return Promise.resolve();
+      },
+      setTitle: (details: { title?: string }) => {
+        actionTitle = details.title ?? null;
+        return Promise.resolve();
+      },
     },
     commands: {
       getAll: () => Promise.resolve([]),
@@ -847,6 +863,8 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
       incognitoAccess = allowed;
     },
     badgeText: () => badgeText,
+    actionIcon: () => actionIcon,
+    actionTitle: () => actionTitle,
     terminateWorker: () => {
       for (const event of [
         onMessage,

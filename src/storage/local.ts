@@ -24,6 +24,8 @@ import {
   VAULT_MAGIC,
   clampPaneWidth,
   isSortKey,
+  isToolbarIconId,
+  normalizeToolbarTitle,
   type BaseMeta,
   type BucketMeta,
   type OnboardingRecord,
@@ -423,6 +425,16 @@ export async function readSettings(): Promise<VaultSettings> {
         ? stored.thumbnailsOffered
         : DEFAULT_SETTINGS.thumbnailsOffered,
     sortBy: isSortKey(stored.sortBy) ? stored.sortBy : DEFAULT_SETTINGS.sortBy,
+    toolbarIcon: isToolbarIconId(stored.toolbarIcon)
+      ? stored.toolbarIcon
+      : DEFAULT_SETTINGS.toolbarIcon,
+    // Normalised on the way out as well as on the way in, for the same reason a width is clamped
+    // both ways: a stored value is only as trustworthy as the last thing that wrote it, and this one
+    // ends up on a `chrome.action.setTitle` call.
+    toolbarTitle:
+      typeof stored.toolbarTitle === 'string'
+        ? normalizeToolbarTitle(stored.toolbarTitle)
+        : DEFAULT_SETTINGS.toolbarTitle,
     sidebarWidth: paneWidth(stored.sidebarWidth, SIDEBAR_WIDTH),
     detailWidth: paneWidth(stored.detailWidth, DETAIL_WIDTH),
   };

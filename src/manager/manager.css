@@ -1545,3 +1545,59 @@ body.vm-manager {
     monospace;
   resize: vertical;
 }
+
+/*
+ * The four toolbar icons, as radios you can see the answer to (§16).
+ *
+ * `auto-fit` rather than a fixed column count: this card sits in one of two settings columns, and at
+ * the narrow end of that range the four choices wrap to two rows instead of pushing the card wider
+ * than the one beside it.
+ */
+.vm-icon-choices {
+  display: grid;
+  /* 10rem, measured: at the settings card's width it is the largest value that still fits two and
+     the smallest that refuses three, so four choices land as a square rather than as three and one. */
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.5rem;
+}
+
+/*
+ * The radio stays a visible radio, beside the picture rather than under it.
+ *
+ * A visually-hidden input is one a sighted keyboard user cannot see the focus ring on, and a grid of
+ * pictures with nothing showing which one is focused is a grid nobody can operate without a mouse.
+ * The tick is also the only unambiguous statement of which is chosen — a highlighted border says it
+ * too, and says it in colour alone.
+ */
+.vm-icon-choice {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.5rem 0.55rem;
+  border: 1px solid var(--vm-border);
+  border-radius: var(--vm-radius);
+}
+
+.vm-icon-choice:has(input:checked) {
+  border-color: var(--vm-accent);
+  box-shadow: inset 0 0 0 1px var(--vm-accent);
+}
+
+.vm-icon-choice input {
+  flex: none;
+  margin: 0;
+}
+
+.vm-icon-choice label {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  min-width: 0;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.vm-icon-choice-image {
+  display: block;
+  flex: none;
+}

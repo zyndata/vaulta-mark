@@ -27,6 +27,8 @@ import {
   DETAIL_WIDTH,
   SIDEBAR_WIDTH,
   clampPaneWidth,
+  isToolbarIconId,
+  normalizeToolbarTitle,
   type VaultSettings,
 } from '../vault/types.js';
 
@@ -1766,6 +1768,22 @@ export function parseSettingsPatch(raw: unknown): SettingsPatch | null {
   if (sortBy !== undefined) {
     if (!isSortKey(sortBy)) return null;
     patch.sortBy = sortBy;
+  }
+
+  const toolbarIcon = raw['toolbarIcon'];
+  if (toolbarIcon !== undefined) {
+    if (!isToolbarIconId(toolbarIcon)) return null;
+    patch.toolbarIcon = toolbarIcon;
+  }
+
+  // Normalised rather than rejected, like the widths below and unlike everything above: the sender
+  // is a text field with a `maxlength`, so nothing a person types can reach the cap — and a refusal
+  // that answers "your tooltip had two spaces in it" by leaving the old one in place would be a
+  // control that silently does nothing.
+  const toolbarTitle = raw['toolbarTitle'];
+  if (toolbarTitle !== undefined) {
+    if (typeof toolbarTitle !== 'string') return null;
+    patch.toolbarTitle = normalizeToolbarTitle(toolbarTitle);
   }
 
   // Clamped rather than rejected: the sender is a mouse drag, and the honest answer to "wider than

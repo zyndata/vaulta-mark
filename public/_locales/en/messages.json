@@ -1338,6 +1338,42 @@
     "message": "Appearance",
     "description": "Heading of the appearance section in settings."
   },
+  "settingsSectionToolbar": {
+    "message": "Toolbar appearance",
+    "description": "Heading of the toolbar-icon section in the manager's settings. Deliberately not 'disguise' or 'hide': the extension's name, id and Store listing do not change and cannot."
+  },
+  "settingsToolbarIcon": {
+    "message": "Toolbar icon",
+    "description": "Accessible name of the group of four toolbar-icon choices."
+  },
+  "toolbarIconDefault": {
+    "message": "VaultaMark",
+    "description": "Name of the default toolbar icon: the bookmark ribbon with a keyhole."
+  },
+  "toolbarIconRibbon": {
+    "message": "Bookmark",
+    "description": "Name of the toolbar icon that is a plain bookmark ribbon, without the keyhole."
+  },
+  "toolbarIconFolder": {
+    "message": "Folder",
+    "description": "Name of the grey folder toolbar icon."
+  },
+  "toolbarIconPage": {
+    "message": "Document",
+    "description": "Name of the grey sheet-of-paper toolbar icon."
+  },
+  "settingsToolbarTitle": {
+    "message": "Tooltip",
+    "description": "Label for the field that sets the toolbar button's tooltip."
+  },
+  "settingsToolbarTitleHint": {
+    "message": "What the toolbar button says when you hover over it. Leave it empty to keep the one it came with.",
+    "description": "Hint under the toolbar tooltip field."
+  },
+  "settingsToolbarUnchanged": {
+    "message": "This changes the button and its tooltip, nothing else. The extension is still called VaultaMark on the extensions page, in its address, and in the Chrome Web Store — that name is fixed when the extension is built and nothing can rewrite it while it runs.",
+    "description": "The honesty sentence under the toolbar-appearance controls. It must stay: someone who reads this section as a way to hide the extension and acts on that belief is worse off than someone who never found it."
+  },
   "settingsSectionLock": {
     "message": "Locking",
     "description": "Heading of the locking section in settings."

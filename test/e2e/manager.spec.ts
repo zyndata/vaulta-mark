@@ -871,3 +871,71 @@ test('drags a folder onto another folder in the sidebar, and deletes one with th
   await page.close();
 });
 
+
+/**
+ * Toolbar appearance (§16): the picture and the tooltip on the toolbar button.
+ *
+ * `chrome.action` has getters for a badge and none for an icon, so the assertion is on the call
+ * itself, recorded inside the service worker the way `thumbs.spec.ts` records injections. That is
+ * also the right thing to assert: the property is that **every declared size** is handed over, and a
+ * screenshot of a toolbar button would not distinguish "all four" from "the 16 and a guess".
+ *
+ * The other half of the test is the sentence under the controls. It says what does *not* change —
+ * the name, the address, the Store listing — and it is load-bearing rather than decorative: someone
+ * who reads this section as a way to hide the extension and acts on that belief is worse off than
+ * someone who never found it. So a build that drops it fails here.
+ */
+test('choosing a toolbar icon reaches chrome.action, at every size the manifest declares', async () => {
+  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  await worker.evaluate(() => {
+    const target = globalThis as unknown as { __vmIcons?: unknown[]; chrome: typeof chrome };
+    target.__vmIcons = [];
+    const real = target.chrome.action.setIcon.bind(target.chrome.action);
+    target.chrome.action.setIcon = (details: chrome.action.TabIconDetails) => {
+      target.__vmIcons?.push(details.path);
+      return real(details);
+    };
+  });
+
+  const page = await openPage('manager.html');
+  await page.getByRole('button', { name: 'Settings' }).click();
+
+  const section = page
+    .locator('.vm-settings-section')
+    .filter({ has: page.getByRole('heading', { name: 'Toolbar appearance' }) });
+  await expect(section).toContainText('still called VaultaMark');
+  await expect(section).toContainText('fixed when the extension is built');
+
+  await section.getByRole('radio', { name: 'Folder' }).check();
+
+  await expect
+    .poll(async () =>
+      worker.evaluate(() => (globalThis as unknown as { __vmIcons?: unknown[] }).__vmIcons ?? []),
+    )
+    .toContainEqual({
+      16: 'icons/folder16.png',
+      32: 'icons/folder32.png',
+      48: 'icons/folder48.png',
+      128: 'icons/folder128.png',
+    });
+
+  // The tooltip is the other half, and the empty field is a value: it means "keep the shipped one".
+  await section.getByLabel('Tooltip').fill('Reading list');
+  await section.getByLabel('Tooltip').blur();
+  await expect
+    .poll(async () => page.evaluate(async () => (await chrome.storage.local.get('vm.settings'))['vm.settings']))
+    .toMatchObject({ toolbarIcon: 'folder', toolbarTitle: 'Reading list' });
+
+  // And it survives the trip back — a reload rebuilds this screen from `vm.settings`, which is the
+  // same read the worker does after a restart.
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(section.getByRole('radio', { name: 'Folder' })).toBeChecked();
+  await expect(section.getByLabel('Tooltip')).toHaveValue('Reading list');
+
+  // Put it back, so the specs after this one meet the extension they expect.
+  await section.getByRole('radio', { name: 'VaultaMark' }).check();
+  await section.getByLabel('Tooltip').fill('');
+  await section.getByLabel('Tooltip').blur();
+  await page.close();
+});

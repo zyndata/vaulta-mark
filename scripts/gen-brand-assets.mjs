@@ -18,6 +18,12 @@
  * slot appears at 48 and above. The silhouette is identical at every size, which is the part a
  * person recognises in a toolbar.
  *
+ * **The three alternatives (Phase 14) obey the same rule**, which is the general form of it: any
+ * interior detail thinner than about 8 units of 128 is dropped at 16 and 32 rather than rendered as
+ * a smear. That is the keyhole's slot on the mark and the ruled lines on the page; the folder has
+ * no such detail and is one drawing at every size. They exist so the toolbar button can say nothing
+ * in particular — see `src/shared/appearance.ts`, and THREAT_MODEL §4 for what does *not* change.
+ *
  * Usage: node scripts/gen-brand-assets.mjs
  */
 
@@ -65,6 +71,115 @@ function mark({ slot }) {
         fill="#ffffff" mask="url(#keyhole)"/>
 </svg>`.trim();
 }
+
+/**
+ * The neutral badge. A grey utility icon is the most anonymous thing a Chrome toolbar holds, so the
+ * two alternatives that are not a bookmark at all are drawn in it rather than in the brand's blue.
+ */
+const SLATE_LIGHT = '#7b8494';
+const SLATE_DARK = '#39404e';
+
+/**
+ * The badge and the frame every mark shares, so the four differ only in the shape cut into them.
+ *
+ * @param {string} from
+ * @param {string} to
+ * @param {string} body
+ * @returns {string}
+ */
+function badge(from, to, body) {
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="badge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${from}"/>
+      <stop offset="1" stop-color="${to}"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="27" fill="url(#badge)"/>
+  ${body}
+</svg>`.trim();
+}
+
+/**
+ * The mark without its keyhole: a bookmark, and only that.
+ *
+ * The nearest alternative to the default and the one most people will pick — it keeps the shape the
+ * extension is recognised by and drops the one element that says what is behind it.
+ *
+ * @returns {string}
+ */
+function ribbon() {
+  return badge(
+    BLUE_LIGHT,
+    BLUE_DARK,
+    '<path d="M38 24 h52 a4 4 0 0 1 4 4 v78 l-30 -25 l-30 25 v-78 a4 4 0 0 1 4 -4 Z" fill="#ffffff"/>',
+  );
+}
+
+/**
+ * A folder, in slate.
+ *
+ * No interior detail at all: the tab is part of the silhouette rather than a line drawn inside one,
+ * so this is a single drawing at every size.
+ *
+ * @returns {string}
+ */
+function folder() {
+  return badge(
+    SLATE_LIGHT,
+    SLATE_DARK,
+    '<path d="M26 42 h30 l10 12 h36 a4 4 0 0 1 4 4 v42 a4 4 0 0 1 -4 4 h-72 a4 4 0 0 1 -4 -4 v-54 a4 4 0 0 1 4 -4 Z" fill="#ffffff"/>',
+  );
+}
+
+/**
+ * A sheet of paper with a folded corner, in slate.
+ *
+ * The three ruled lines are 6 units of 128 — the keyhole slot's problem exactly — so they appear at
+ * 48 and above and the small sizes get the silhouette, whose folded corner is what makes it read as
+ * paper rather than as a rectangle.
+ *
+ * @param {{ lines: boolean }} options
+ * @returns {string}
+ */
+function page({ lines }) {
+  const ruled = lines
+    ? `<rect x="48" y="60" width="32" height="6" rx="3" fill="#000"/>
+       <rect x="48" y="76" width="32" height="6" rx="3" fill="#000"/>
+       <rect x="48" y="92" width="22" height="6" rx="3" fill="#000"/>`
+    : '';
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="badge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${SLATE_LIGHT}"/>
+      <stop offset="1" stop-color="${SLATE_DARK}"/>
+    </linearGradient>
+    <mask id="ruled">
+      <rect width="128" height="128" fill="#fff"/>
+      ${ruled}
+    </mask>
+  </defs>
+  <rect width="128" height="128" rx="27" fill="url(#badge)"/>
+  <path d="M38 22 h34 l22 22 v62 a4 4 0 0 1 -4 4 h-52 a4 4 0 0 1 -4 -4 v-80 a4 4 0 0 1 4 -4 Z"
+        fill="#ffffff" mask="url(#ruled)"/>
+</svg>`.trim();
+}
+
+/**
+ * The alternatives, keyed exactly as `TOOLBAR_ICONS` in `src/vault/types.ts` — `default` excepted,
+ * which is the mark and is emitted as `icon<size>.png` above.
+ *
+ * `detail` is false at 16 and 32, the same threshold the keyhole slot uses.
+ *
+ * @type {Record<string, (options: { detail: boolean }) => string>}
+ */
+const ALTERNATIVES = {
+  ribbon: () => ribbon(),
+  folder: () => folder(),
+  page: ({ detail }) => page({ lines: detail }),
+};
 
 /** The Store's own icon spec: a 128 canvas with the artwork at 96, transparently padded. */
 function storeIcon() {
@@ -136,6 +251,14 @@ async function main() {
   for (const size of [16, 32, 48, 128]) {
     const svg = mark({ slot: size >= 48 });
     await emit(`public/icons/icon${size}.png`, await shoot(page, svg, size, size));
+  }
+
+  console.log('toolbar alternatives (public/icons/)');
+  for (const [id, draw] of Object.entries(ALTERNATIVES)) {
+    for (const size of [16, 32, 48, 128]) {
+      const svg = draw({ detail: size >= 48 });
+      await emit(`public/icons/${id}${size}.png`, await shoot(page, svg, size, size));
+    }
   }
 
   console.log('store assets (docs/store/)');

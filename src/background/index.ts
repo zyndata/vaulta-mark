@@ -37,6 +37,7 @@ import {
 import { BookmarksPermissionError } from '../import/native-bookmarks.js';
 import { HistoryPermissionError } from '../history/cleanup.js';
 import { NoActiveTabError } from './add.js';
+import { scheduleToolbarAppearance } from './appearance.js';
 import { armHousekeeping, registerLifecycleListeners } from './autolock.js';
 import { clearBadge, flashBadge, type BadgeKind } from './badge.js';
 import { registerCommandListener } from './commands.js';
@@ -362,6 +363,18 @@ chrome.storage.onChanged.addListener((changes, area) => {
  * (§7.2), and a network round trip must not be in front of it.
  */
 scheduleProbe();
+
+/**
+ * Put the chosen toolbar icon and tooltip back (§16).
+ *
+ * Here rather than in `onStart()`, which fires on install, update and browser launch only: an action
+ * icon set at runtime lasts for the browser session, and *that* is the set of events that ends one.
+ * A worker restart in between does not — but this costs one storage read a quarter of a second after
+ * a wake, and being certain the picture someone chose is the picture they see is worth more than
+ * the read. Deferred for the same reason `scheduleProbe` is: the cold-start budget is measured to
+ * the first handled message.
+ */
+scheduleToolbarAppearance();
 
 registerLifecycleListeners({
   enforceDeadline: () => session.enforceDeadline(),

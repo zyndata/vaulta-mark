@@ -33,6 +33,7 @@ import { fetchRemote, hasRemoteVault, markAdopted, scheduleSync } from '../sync/
 import type { LockReason, OnboardingPatch, SettingsPatch } from '../shared/messages.js';
 import { broadcast } from '../shared/messages.js';
 import { VaultLockedError, VaultStateError } from '../vault/errors.js';
+import { applyToolbarAppearance } from './appearance.js';
 import { applySyncedSettings, stampSettings } from '../vault/settings-sync.js';
 import type { EncryptedVault, OnboardingRecord, VaultSettings } from '../vault/types.js';
 import {
@@ -561,11 +562,19 @@ export async function updateSettings(patch: SettingsPatch): Promise<VaultSetting
     localThumbnails: patch.localThumbnails ?? current.localThumbnails,
     thumbnailsOffered: patch.thumbnailsOffered ?? current.thumbnailsOffered,
     sortBy: patch.sortBy ?? current.sortBy,
+    toolbarIcon: patch.toolbarIcon ?? current.toolbarIcon,
+    // `??` rather than `||`: the empty string is a legal value here — it means "use the manifest's
+    // own tooltip" — and clearing the field is the only way back to it.
+    toolbarTitle: patch.toolbarTitle ?? current.toolbarTitle,
     sidebarWidth: patch.sidebarWidth ?? current.sidebarWidth,
     detailWidth: patch.detailWidth ?? current.detailWidth,
   };
   await writeSettings(next);
   applyIdleDetection(next);
+  // The toolbar is the one setting whose effect is outside any window this page could repaint, so
+  // it is applied here rather than left to the `SETTINGS_CHANGED` broadcast — which the worker does
+  // not receive from itself in any case.
+  await applyToolbarAppearance(next);
 
   // The synced half goes into the vault, where it is encrypted and where other devices will find
   // it. Stamped rather than replaced wholesale: a field whose value did not change keeps its old
