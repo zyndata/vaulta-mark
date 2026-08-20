@@ -1855,8 +1855,10 @@ suggest deleting things. Close **#22** in this phase, recording the split.
 
 **Definition of done**
 - [x] The cleanup/prevention question is answered in this file before the first commit.
-- [ ] Duplicates are found by a normal form that is documented, not implicit.
-- [ ] Any removal is atomic and undoable.
+- [x] Duplicates are found by a normal form that is documented, not implicit — ARCHITECTURE
+      §3.5.1, which is also where the *two* keys and their asymmetry are written down.
+- [x] Any removal is atomic and undoable — through `DELETE_ITEMS`, asserted as exactly one
+      `vaultRev` for a group of *n* in `test/unit/background/organize.test.ts`.
 - [ ] #22 closed, recording that dead links were refused and why.
 
 **Git:** direct commits on `dev`. Tag `phase-16-done`.
