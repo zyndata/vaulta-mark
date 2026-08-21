@@ -278,6 +278,38 @@ describe('duplicateGroups', () => {
     expect(duplicateCount(items)).toBe(duplicateGroups(items).length);
   });
 
+  /**
+   * `duplicateKey` is memoised per item object, because `duplicateCount` runs over the whole vault
+   * on every `GET_TREE` and `GET_TREE` is re-asked on every change. The memo is only safe because
+   * **items are values**: `model.ts` builds a new object for every mutation rather than writing to
+   * the old one, so the same object always has the same URL. These two pin that assumption — if
+   * `updateItem` ever mutated in place, the second one is what would go red.
+   */
+  describe('the per-item key memo', () => {
+    it('gives the same answer for the same items twice', () => {
+      const items = vault(
+        bookmark('a', 'https://example.com/one'),
+        bookmark('b', 'https://example.com/one?utm_source=x'),
+      );
+      expect(duplicateCount(items)).toBe(1);
+      expect(duplicateCount(items)).toBe(1);
+      expect(duplicateGroups(items)).toHaveLength(1);
+    });
+
+    it('follows a URL change, because a changed item is a different object', () => {
+      const before = bookmark('b', 'https://example.com/two');
+      const items = vault(bookmark('a', 'https://example.com/one'), before);
+      expect(duplicateCount(items)).toBe(0);
+
+      // What `updateItem` does: a new object, same id, new url. The old one is still keyed in the
+      // memo under its own identity and is simply no longer reachable.
+      const after = { ...before, url: 'https://example.com/one' };
+      const changed = vault(bookmark('a', 'https://example.com/one'), after);
+      expect(duplicateCount(changed)).toBe(1);
+      expect(duplicateGroups(changed)[0]?.items.map((item) => item.id)).toEqual(['a', 'b']);
+    });
+  });
+
   it('takes a plain iterable as well as an item map', () => {
     const items = [bookmark('a', 'https://example.com/one'), bookmark('b', 'https://example.com/one')];
     expect(duplicateGroups(items)).toHaveLength(1);

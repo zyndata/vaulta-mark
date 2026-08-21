@@ -52,10 +52,37 @@ export interface DuplicateGroup {
  */
 export function duplicateKey(url: string): string {
   try {
-    return duplicateKeyOf(withoutTrackingParams(url));
+    // The strip is skipped outright when there is no query to strip, which is most bookmarks. It
+    // is the expensive half — `URLSearchParams.delete` re-serializes the URL on every call, and
+    // there are twenty-three names to try — and this runs over the whole vault on every `GET_TREE`.
+    return duplicateKeyOf(url.includes('?') ? withoutTrackingParams(url) : url);
   } catch {
     return duplicateKeyOf(url);
   }
+}
+
+/**
+ * {@link duplicateKey}, remembered per item.
+ *
+ * `duplicateCount` rides on `GET_TREE`, and `GET_TREE` is re-asked by every open manager page on
+ * every `VAULT_CHANGED` — so adding five thousand bookmarks one at a time with the manager open
+ * re-keys the whole vault five thousand times. Measured: it more than doubled the seeding half of
+ * `test/e2e/large-vault.spec.ts` and pushed the cold first paint past its budget.
+ *
+ * A `WeakMap` on the item is safe because **items are values**: every mutation in `model.ts` builds
+ * a new object rather than writing to the old one, so an item that is still the same object still
+ * has the same URL. Entries go when the item does, and the whole table goes when the vault locks
+ * and the repository is dropped.
+ */
+const keyCache = new WeakMap<Bookmark, string>();
+
+function keyOf(item: Bookmark): string {
+  let key = keyCache.get(item);
+  if (key === undefined) {
+    key = duplicateKey(item.url);
+    keyCache.set(item, key);
+  }
+  return key;
 }
 
 /**
@@ -78,7 +105,7 @@ export function duplicateKey(url: string): string {
 export function duplicateGroups(items: ItemMap | Iterable<VaultItem>): DuplicateGroup[] {
   const byKey = new Map<string, Bookmark[]>();
   for (const item of liveBookmarks(items)) {
-    const key = duplicateKey(item.url);
+    const key = keyOf(item);
     const bucket = byKey.get(key);
     if (bucket === undefined) byKey.set(key, [item]);
     else bucket.push(item);
@@ -114,7 +141,7 @@ export function duplicateCount(items: ItemMap | Iterable<VaultItem>): number {
   const seen = new Set<string>();
   const repeated = new Set<string>();
   for (const item of liveBookmarks(items)) {
-    const key = duplicateKey(item.url);
+    const key = keyOf(item);
     if (seen.has(key)) repeated.add(key);
     else seen.add(key);
   }
