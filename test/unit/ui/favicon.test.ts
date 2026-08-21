@@ -17,8 +17,10 @@ import {
   displayHost,
   faviconImage,
   faviconUrl,
+  forgetStoredIcons,
   hostHue,
   letterAvatar,
+  useStoredIcons,
 } from '../../../src/ui/favicon.js';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../../mocks/chrome.js';
 
@@ -29,8 +31,16 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  forgetStoredIcons();
   uninstallChromeMock();
 });
+
+/** Wait for the icon lookup and the swap that follows it. */
+async function settle(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 describe('faviconUrl', () => {
   it('is always extension-origin, never a third-party service', () => {
@@ -139,5 +149,77 @@ describe('faviconImage', () => {
 
     expect(holder.querySelector('img')).toBe(null);
     expect(holder.querySelector('.vm-avatar')?.textContent).toBe('E');
+  });
+});
+
+/**
+ * The vault's own icons (§10.1).
+ *
+ * What matters here is the *shape* of the enhancement: Chrome's answer is what a row starts with,
+ * the vault's answer replaces it only when there is one, and a profile that keeps no icons is asked
+ * exactly once. Whether there is something better to show is the worker's decision, not this file's.
+ */
+describe('stored icons', () => {
+  const PNG = 'iVBORw0KGgo';
+
+  beforeEach(() => {
+    globalThis.URL.createObjectURL = () => 'blob:vm/icon';
+    globalThis.URL.revokeObjectURL = () => undefined;
+  });
+
+  it('asks nothing at all until a lookup is installed', async () => {
+    const img = faviconImage('https://example.com/page');
+    await settle();
+    expect(img.src).toContain('/_favicon/');
+  });
+
+  it('starts from Chrome and swaps in the vault icon when there is one', async () => {
+    useStoredIcons(() => Promise.resolve({ image: PNG, available: true }));
+    const img = faviconImage('https://example.com/page');
+    // Chrome's answer first: the row must never wait on a message to draw something.
+    expect(img.src).toContain('/_favicon/');
+    await settle();
+    expect(img.src).toBe('blob:vm/icon');
+  });
+
+  it('keeps Chrome answer when the worker has nothing better', async () => {
+    useStoredIcons(() => Promise.resolve({ image: null, available: true }));
+    const img = faviconImage('https://example.com/page');
+    await settle();
+    expect(img.src).toContain('/_favicon/');
+  });
+
+  it('asks once per host, however many rows that host has', async () => {
+    const asked: string[] = [];
+    useStoredIcons((url) => {
+      asked.push(url);
+      return Promise.resolve({ image: null, available: true });
+    });
+    for (let i = 0; i < 20; i++) faviconImage(`https://example.com/page/${i}`);
+    faviconImage('https://other.example/x');
+    await settle();
+    expect(asked).toHaveLength(2);
+  });
+
+  it('stops asking entirely once told this profile stores none', async () => {
+    let asked = 0;
+    useStoredIcons(() => {
+      asked += 1;
+      return Promise.resolve({ image: null, available: false });
+    });
+    faviconImage('https://a.example/1');
+    await settle();
+    faviconImage('https://b.example/1');
+    faviconImage('https://c.example/1');
+    await settle();
+    // The Chrome sync tier never has a stored icon, so one answer retires the question.
+    expect(asked).toBe(1);
+  });
+
+  it('survives a lookup that fails', async () => {
+    useStoredIcons(() => Promise.reject(new Error('the worker went away')));
+    const img = faviconImage('https://example.com/page');
+    await settle();
+    expect(img.src).toContain('/_favicon/');
   });
 });
