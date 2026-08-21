@@ -15,7 +15,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../../mocks/chrome.js';
+import { installChromeMock, uninstallChromeMock } from '../../mocks/chrome.js';
 import { chromeTier, fakeDrive, type FakeProvider } from '../../helpers/provider.js';
 import { fromBase64Url, type Bytes } from '../../../src/crypto/codec.js';
 import { VaultRepository } from '../../../src/storage/repo.js';
@@ -36,7 +36,6 @@ const PASSWORD = 'a reasonably long master password';
 const PAGE = 'https://github.com/zyndata/vaulta-mark';
 const OTHER_PAGE = 'https://github.com/zyndata/other';
 
-let mock: ChromeMock;
 let repo: VaultRepository;
 
 /** Every URL `fetch` was called with, in order. The seam the "no fetch" claims are made against. */
@@ -85,8 +84,7 @@ function useProvider(provider: FakeProvider): void {
 
 beforeEach(async () => {
   uninstallChromeMock();
-  mock = installChromeMock();
-  void mock;
+  installChromeMock();
   cache = new Map();
   fetched = [];
   resetIconState();
