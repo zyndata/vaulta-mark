@@ -175,9 +175,11 @@ test('backs the vault up and restores it from the file', async () => {
 
   const preview = page.getByRole('dialog');
   await expect(preview.getByRole('heading', { name: 'What is in this backup' })).toBeVisible();
-  // The counts agree with themselves: two bookmarks, and no folder clause at all rather than
-  // "in 0 folders".
-  await expect(preview.getByText('2 bookmarks and no folders.')).toBeVisible();
+  // The counts agree with themselves: two bookmarks, and a sentence saying there are no folders
+  // rather than a clause reading "in 0 folders". Two sentences since Phase 18, one count each —
+  // the six-way enumeration this replaced could not have been written in a three-form language.
+  await expect(preview.getByText('The file holds 2 bookmarks.')).toBeVisible();
+  await expect(preview.getByText('There are no folders in it.')).toBeVisible();
 
   // **Replace**, not merge, because this is a restore.
   //

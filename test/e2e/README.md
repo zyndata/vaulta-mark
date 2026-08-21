@@ -14,6 +14,7 @@
 | `journey.spec.ts` | 12 | first run → onboarding → create → add → organise → open → lock/unlock → export/import → sync, in **one profile**, plus INV-4 over the whole arc |
 | `budgets.spec.ts` | 12 | popup first paint — the one performance budget that needs a real renderer |
 | `large-vault.spec.ts` | 6, moved in 12 | five thousand bookmarks in a windowed list, in a profile of its own |
+| `locale-fit.spec.ts` | 18 | the popup's settings screen fits Chrome's 600 px in `en` and in synthetic locales 40 % and 200 % longer — **measure, never read the CSS** |
 
 `manager.spec.ts` also carries the Phase-12 reordering case and the axe pass over five documents;
 `popup.spec.ts` and `onboarding.spec.ts` carry the axe passes over theirs. There is no single

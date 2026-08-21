@@ -1089,10 +1089,10 @@ test('finds an address saved twice, removes a copy, and undoes it', async () => 
 
   // ---------------------------------------------------------------- asked, then done, then undoable
   await remove.click();
-  await expect(page.getByRole('dialog')).toContainText('Remove 1 bookmarks?');
+  await expect(page.getByRole('dialog')).toContainText('Remove 1 bookmark?');
   await page.getByRole('dialog').getByRole('button', { name: 'Remove', exact: true }).click();
 
-  await expect(page.getByText('Deleted 1 bookmarks.')).toBeVisible();
+  await expect(page.getByText('Deleted 1 bookmark.')).toBeVisible();
   // The screen re-read itself: one copy left is not a duplicate.
   await expect(page.getByText('No address is saved twice.')).toBeVisible();
 

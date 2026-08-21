@@ -296,9 +296,19 @@ body.vm-popup {
  * The vertical rhythm here is tight, and used to be tight *because it had to be*: with the opening
  * and saving section still on it the screen measured 589 px of the 600 Chrome allows, and loosening
  * any of these margins put the version line under the fold — a scrollbar for one line of text, which
- * narrows the column, rewraps three paragraphs of hint text and makes the screen taller still. There
- * is room now. The rhythm is kept because it matches the vault screen next door, not because the
- * fold is a couple of pixels away; there is slack for a section, and not much more than one.
+ * narrows the column, rewraps three paragraphs of hint text and makes the screen taller still.
+ *
+ * **Re-measured in Phase 18, against the real build in a real Chromium: 534 px of the 540 this
+ * screen gets, and the sections themselves cost 440 of it.** Both numbers are the same screen; what
+ * changed between them is that Phase 16 moved the opening-and-saving section to the manager. The
+ * screen now takes English at **two and a half times its length** before anything reaches the fold,
+ * which is well past the 30–40 % German runs — so the translation this phase ships was never in
+ * danger, and the phase's premise that it was is a measurement that outlived its screen.
+ *
+ * The cascade above is real all the same, and it is guarded rather than out-run: `.vm-settings-body`
+ * scrolls with a **stable gutter**, so the column is the same width whether it overflows or not and
+ * a line of text that appears cannot rewrap the three paragraphs above it. The rhythm is kept
+ * because it matches the vault screen next door.
  */
 .vm-screen-head {
   display: flex;
@@ -334,10 +344,11 @@ body.vm-popup {
  */
 .vm-settings-more {
   /* The floor, not "after the last section": this is the way out of the screen, and a way out sits
-     where the footer sits on the screen next door. It carries the `auto` the version line used to,
-     which is why that rule below it is a plain zero — two auto margins in one column split the free
-     space between them and would leave the button floating in the middle of it. */
-  margin-top: auto;
+     where the footer sits on the screen next door. It used to be held there by `margin-top: auto`,
+     which is a claim on *free space* — and free space is exactly what a longer language spends. It
+     is `.vm-settings-body` that grows into the gap now, so this sits on the floor of a full screen
+     and an empty one alike, and cannot be pushed off either. */
+  flex: none;
   padding-top: 0.75rem;
   border-top: 1px solid var(--vm-border);
 }
@@ -349,6 +360,7 @@ body.vm-popup {
 
 /* Directly under the button above, which is what holds the pair down on the floor. */
 .vm-version-line {
+  flex: none;
   margin: 0.75rem 0 0;
   padding-top: 0.5rem;
   border-top: 1px solid var(--vm-border);
@@ -360,6 +372,37 @@ body.vm-popup {
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+  /* The horizontal half of the same problem, and it applies to the heading and the two footer lines
+     as much as to the sections. A word longer than the column sets the column's min-content width,
+     and this column is 26.4rem of Chrome's own making: the popup grows a sideways scrollbar rather
+     than the text wrapping. German compounds are the reason to expect one; measured against the
+     real build, this screen needs a token of about sixty characters before it happens. Harmless on
+     the rows next door, which truncate with an ellipsis and so never wrap at all. */
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The part of the settings screen that scrolls: the sections, and nothing else.
+ *
+ * `flex: 1 1 auto` with `min-height: 0` is what makes the fit structural rather than lucky — it
+ * takes the room the heading and the two footer lines leave and no more, so the sections cannot
+ * push either of them out of the popup however long the language is.
+ *
+ * `scrollbar-gutter: stable` is the guard against the cascade written at the top of this section:
+ * without it the appearance of a scrollbar narrows the column, the narrower column rewraps the
+ * hints, and the rewrap needs a scrollbar. The gutter is reserved whether or not there is anything
+ * to scroll, so the column is one width and that loop cannot start. Chrome 94, under the floor.
+ *
+ * `--vm-ring-room` for the same reason `#vm-root` has it (see `ui/styles.css`): this box clips, and
+ * the auto-lock `<select>` and the lock-on-blur checkbox both take focus inside it.
+ */
+.vm-settings-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  margin: calc(-1 * var(--vm-ring-room));
+  padding: var(--vm-ring-room);
 }
 
 /* ------------------------------------------------------------------ footer */

@@ -105,6 +105,14 @@ below.
   - Nothing here changes what the English reads, apart from a handful of lines that gained a proper
     singular they had been going without.
 
+- **The popup's settings screen now fits whatever language it is read in, by construction.** Chrome
+  will not show a popup taller than 600 pixels, and every screen in it was laid out against English —
+  the shortest of the languages this could ship in. The screen held its bottom two lines — the way
+  back to the rest of the settings, and the version number — in whatever space the sections above
+  happened to leave, which works exactly as long as the words are short. The sections scroll on
+  their own now, so those two lines are at the bottom of the popup at any length. Measured in a real
+  browser at English's length, at 40 % longer (German's own figure) and at three times longer.
+
 - **The post-1.0 backlog now records why, not only whether.** Three requests were closed as
   refused with the reasoning attached — a second hidden vault under a different password, per-folder
   auto-lock, and Argon2id — and three more were left open as deferred rather than closed, because
