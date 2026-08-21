@@ -6,7 +6,7 @@
  * per-file fake is a per-file chance for one of them to be quietly forgotten.
  */
 
-import type { ProviderId, SyncProvider } from '../../src/sync/provider.js';
+import type { SyncProvider } from '../../src/sync/provider.js';
 
 export interface FakeProvider extends SyncProvider {
   readonly thumbs: Map<string, Uint8Array>;
@@ -73,7 +73,7 @@ export function chromeTier(): FakeProvider {
   const refuse = (): Promise<never> => Promise.reject(new Error('no heavy tier'));
   return {
     ...base,
-    id: 'chrome' as ProviderId,
+    id: 'chrome',
     capabilities: { heavyTier: false, maxLightBytes: 102_400 },
     getThumb: refuse,
     putThumb: refuse,

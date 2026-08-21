@@ -485,7 +485,8 @@ export async function destroyVault(): Promise<void> {
 
 /**
  * Periodic upkeep that needs the key: purge tombstones past the 90-day TTL (D20), then drop the
- * thumbnails of items that are no longer there (§14.6).
+ * thumbnails of items that are no longer there and the icons of hosts that are no longer anywhere
+ * in the vault (§14.6, §10.1).
  *
  * The sweep is injected for the same reason `beforeLock` is — `background/thumbs.ts` reaches the
  * repository through this file, so importing it back would be a cycle.

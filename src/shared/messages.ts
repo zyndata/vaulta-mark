@@ -338,6 +338,36 @@ export interface RefreshThumbRequest {
 }
 
 /**
+ * The stored favicon for a page, if this vault has one and Chrome does not (§10.1).
+ *
+ * Asked once per **host** by a list that is being rendered, never once per row and never for rows
+ * nobody is looking at. The worker answers `image: null` for the ordinary case — Chrome's own cache
+ * has the icon, so the `<img>` the row already built is showing it — and only sends bytes when
+ * Chrome answered with its generic globe and the vault holds something better.
+ *
+ * It is also where the **opportunistic upgrade** happens: if Chrome's cache has a real icon and the
+ * vault holds none for that host, this is the moment it is stored. That is not a side effect
+ * smuggled onto a read — it is the one moment §10.1 allows besides an add and an explicit refresh,
+ * and it costs nothing extra because the answer had to be fetched to reply at all.
+ */
+export interface GetIconRequest {
+  readonly type: 'GET_ICON';
+  readonly url: string;
+}
+
+/**
+ * Re-read one host's icon from Chrome's cache and write down what is there now.
+ *
+ * The only path that **replaces**, including replacing an icon with nothing: mirrors
+ * {@link RefreshThumbRequest}, and unlike it needs no `activeTab` grant, because `_favicon/` is our
+ * own origin rather than the page's.
+ */
+export interface RefreshIconRequest {
+  readonly type: 'REFRESH_ICON';
+  readonly url: string;
+}
+
+/**
  * Is the page in front of the popup already vaulted?
  *
  * Asked when the popup opens, so the one place that *can* re-capture a preview offers it directly
@@ -579,6 +609,8 @@ export type Request =
   | IncognitoAccessRequest
   | GetThumbRequest
   | RefreshThumbRequest
+  | GetIconRequest
+  | RefreshIconRequest
   | LookupActiveTabRequest
   | GetTreeRequest
   | ListViewRequest
@@ -771,6 +803,22 @@ export interface ThumbResponse {
    */
   readonly ogTitle: string | null;
   readonly ogDescription: string | null;
+}
+
+/**
+ * One host's stored icon.
+ *
+ * `available: false` means this tier keeps no icons at all — the Chrome tier, or a locked vault —
+ * and is how a page learns to stop asking, so a profile that will never have a stored icon pays one
+ * message rather than one per host (§10.1).
+ */
+export interface IconResponse {
+  readonly type: 'ICON';
+  /** Echoed back, because answers arrive out of order and a row must match its own. */
+  readonly url: string;
+  /** base64url of the icon bytes, or `null` for "nothing better than what you have". */
+  readonly image: string | null;
+  readonly available: boolean;
 }
 
 export interface ItemsResponse {
@@ -1008,7 +1056,8 @@ export interface ConflictsResponse {
  */
 export interface SyncStatusResponse {
   readonly type: 'SYNC_STATUS';
-  readonly phase: 'idle' | 'peeking' | 'pulling' | 'merging' | 'pushing' | 'conflict' | 'error' | 'locked';
+  readonly phase:
+    'idle' | 'peeking' | 'pulling' | 'merging' | 'pushing' | 'conflict' | 'error' | 'locked';
   readonly providerId: 'chrome' | 'drive';
   readonly lastSyncedAt: number | null;
   readonly conflicts: number;
@@ -1278,6 +1327,8 @@ export interface ResponseMap {
   readonly INCOGNITO_ACCESS: IncognitoAccessResponse;
   readonly GET_THUMB: ThumbResponse;
   readonly REFRESH_THUMB: ThumbResponse;
+  readonly GET_ICON: IconResponse;
+  readonly REFRESH_ICON: IconResponse;
   readonly LOOKUP_ACTIVE_TAB: ActiveTabResponse;
   readonly GET_TREE: TreeResponse;
   readonly LIST_VIEW: ViewResponse;
@@ -1449,6 +1500,11 @@ export function parseRequest(raw: unknown): Request | null {
     case 'ADD_ACTIVE_TAB':
     case 'LOOKUP_ACTIVE_TAB':
       return { type };
+    case 'GET_ICON':
+    case 'REFRESH_ICON': {
+      const url = raw['url'];
+      return isNonEmptyString(url) ? { type, url } : null;
+    }
     case 'ADD_URL': {
       const url = raw['url'];
       if (typeof url !== 'string' || url === '') return null;
@@ -1866,6 +1922,7 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'OPENED',
   'INCOGNITO_ACCESS_STATE',
   'THUMB',
+  'ICON',
   'TREE',
   'VIEW',
   'DUPLICATES',

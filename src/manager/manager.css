@@ -1497,6 +1497,21 @@ body.vm-manager {
   border-top: 1px solid var(--vm-border);
 }
 
+/*
+ * The icon refresh, under the preview's own button (§10.1).
+ *
+ * Same column, its own group: it is a second sentence and a second button about a *different*
+ * picture, and letting the two buttons sit side by side would read as one control with two labels.
+ */
+.vm-detail-icon {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--vm-border);
+}
+
 .vm-detail-preview h3 {
   margin: 0;
   font-weight: 600;

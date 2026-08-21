@@ -207,14 +207,27 @@ describe('subkey', () => {
 
   it('produces non-extractable keys with only the usages their purpose needs', async () => {
     const dek = generateDek();
+    // `icons` sits with `hmac`: it names a stored favicon rather than encrypting one (§10.1), so it
+    // is a MAC key, and the bytes it names are sealed under `thumbs`.
+    const macs = new Set(['hmac', 'icons']);
     for (const purpose of SUBKEY_PURPOSES) {
       const key = await subkey(dek, purpose);
       expect(key.extractable).toBe(false);
       expect([...key.usages].sort()).toStrictEqual(
-        purpose === 'hmac' ? ['sign', 'verify'] : ['decrypt', 'encrypt'],
+        macs.has(purpose) ? ['sign', 'verify'] : ['decrypt', 'encrypt'],
       );
-      expect(key.algorithm.name).toBe(purpose === 'hmac' ? 'HMAC' : 'AES-GCM');
+      expect(key.algorithm.name).toBe(macs.has(purpose) ? 'HMAC' : 'AES-GCM');
     }
+  });
+
+  it('gives every purpose a different key, icons included', async () => {
+    const dek = generateDek();
+    const data = utf8('github.com');
+    const asIcons = hex(await hmacSha256(await subkey(dek, 'icons'), data));
+    const asHmac = hex(await hmacSha256(await subkey(dek, 'hmac'), data));
+    // The two MAC keys must not be the same key: bucket tags are published in the plaintext header,
+    // so a shared key would let anyone holding a synced vault confirm a guessed host from it.
+    expect(asIcons).not.toBe(asHmac);
   });
 
   it('refuses a DEK of the wrong length', async () => {

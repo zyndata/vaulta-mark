@@ -282,7 +282,12 @@ export class DriveSyncProvider implements SyncProvider {
     const record = await readDriveRecord();
     const folderId = record.folderId ?? (await this.#findFolder())?.id ?? null;
     if (folderId !== null) await this.#api.remove(folderId);
-    await patchDriveRecord({ fileId: null, folderId: null, thumbsFolderId: null, iconsFolderId: null });
+    await patchDriveRecord({
+      fileId: null,
+      folderId: null,
+      thumbsFolderId: null,
+      iconsFolderId: null,
+    });
   }
 
   /* ---------------------------------------------------------------- locating things */
@@ -341,7 +346,10 @@ export class DriveSyncProvider implements SyncProvider {
   }
 
   async #thumbsFolderId(): Promise<string> {
-    const id = await this.#subfolderId(THUMBS_FOLDER_NAME, (await readDriveRecord()).thumbsFolderId);
+    const id = await this.#subfolderId(
+      THUMBS_FOLDER_NAME,
+      (await readDriveRecord()).thumbsFolderId,
+    );
     await patchDriveRecord({ thumbsFolderId: id });
     return id;
   }

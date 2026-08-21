@@ -45,6 +45,7 @@ import { installContextMenus, registerContextMenuListener } from './contextmenu.
 import * as diagnostics from './diagnostics.js';
 import * as history from './history.js';
 import * as io from './io.js';
+import * as icons from './favicons.js';
 import * as items from './items.js';
 import * as organize from './organize.js';
 import * as session from './session.js';
@@ -158,6 +159,10 @@ export async function handleRequest(request: Request): Promise<Response> {
         return await items.thumb(request.id);
       case 'REFRESH_THUMB':
         return await items.refreshThumb(request.id);
+      case 'GET_ICON':
+        return await items.icon(request.url);
+      case 'REFRESH_ICON':
+        return await items.refreshIcon(request.url);
       case 'LOOKUP_ACTIVE_TAB':
         return { type: 'ACTIVE_TAB', item: await items.lookupActiveTab() };
       case 'LIST_ITEMS': {
@@ -201,7 +206,10 @@ export async function handleRequest(request: Request): Promise<Response> {
       case 'GET_ITEM':
         return { type: 'ITEM', item: await organize.getItem(request.id) };
       case 'CREATE_FOLDER':
-        return { type: 'CREATED', id: await organize.createFolder(request.title, request.parentId) };
+        return {
+          type: 'CREATED',
+          id: await organize.createFolder(request.title, request.parentId),
+        };
       case 'UPDATE_ITEM':
         await organize.editItem(request.id, request.patch);
         return { type: 'OK' };
@@ -334,7 +342,8 @@ configureSync({
   repository: () => session.currentRepository(),
   onVaultChanged: () => broadcast({ type: 'VAULT_CHANGED' }),
   onSettingsChanged: () => session.settingsArrived(),
-  onStatus: (status) => broadcast({ type: 'SYNC_CHANGED', status: { type: 'SYNC_STATUS', ...status } }),
+  onStatus: (status) =>
+    broadcast({ type: 'SYNC_CHANGED', status: { type: 'SYNC_STATUS', ...status } }),
 });
 
 /**
@@ -394,7 +403,9 @@ registerLifecycleListeners({
  * the failure paths carry the URL that failed, which is exactly the thing that must never reach a
  * console (INV-6's spirit, and the "never log a URL" rule).
  */
-async function addFromGesture(add: () => Promise<{ status: 'added' | 'duplicate' }>): Promise<void> {
+async function addFromGesture(
+  add: () => Promise<{ status: 'added' | 'duplicate' }>,
+): Promise<void> {
   let kind: BadgeKind;
   try {
     kind = (await add()).status === 'duplicate' ? 'duplicate' : 'added';
@@ -448,7 +459,10 @@ session.configureLockHooks({
  * it from `session.ts` would close the loop.
  */
 session.configureHousekeeping({
-  afterPurge: (repo) => thumbs.sweepOrphans(repo),
+  afterPurge: async (repo) => {
+    await thumbs.sweepOrphans(repo);
+    await icons.sweepOrphans(repo);
+  },
 });
 
 registerContextMenuListener({

@@ -145,7 +145,10 @@ export async function readAccessToken(): Promise<AccessToken | null> {
   if (raw === null || typeof raw !== 'object') return null;
   const stored = raw as Partial<AccessToken>;
   if (typeof stored.token !== 'string' || stored.token === '') return null;
-  return { token: stored.token, expiresAt: typeof stored.expiresAt === 'number' ? stored.expiresAt : 0 };
+  return {
+    token: stored.token,
+    expiresAt: typeof stored.expiresAt === 'number' ? stored.expiresAt : 0,
+  };
 }
 
 export async function writeAccessToken(token: AccessToken): Promise<void> {

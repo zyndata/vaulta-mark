@@ -109,9 +109,7 @@ export class ChromeSyncProvider implements SyncProvider {
           // A part the header promises and the area does not have is a torn push, or a device that
           // ran out of quota half way. Either way these are not a vault, and pretending otherwise
           // would decrypt a bucket short of its items and then push the result back as the truth.
-          throw new CorruptRemote(
-            `Remote vault is missing part ${part} of bucket ${meta.i}.`,
-          );
+          throw new CorruptRemote(`Remote vault is missing part ${part} of bucket ${meta.i}.`);
         }
         joined += chunk;
       }
@@ -138,7 +136,8 @@ export class ChromeSyncProvider implements SyncProvider {
 
     const headerValue = { ...vault.header };
     const projected =
-      itemBytes(SYNC_META_KEY, headerValue) + [...parts].reduce((sum, [key, value]) => sum + itemBytes(key, value), 0);
+      itemBytes(SYNC_META_KEY, headerValue) +
+      [...parts].reduce((sum, [key, value]) => sum + itemBytes(key, value), 0);
     if (projected > SYNC_QUOTA_BYTES) {
       throw new QuotaExceeded(projected, SYNC_QUOTA_BYTES);
     }

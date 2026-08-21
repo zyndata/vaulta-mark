@@ -23,6 +23,7 @@ import {
   type SyncStatusResponse,
 } from '../shared/messages.js';
 import { applyTheme, h, msg, qs, render } from '../ui/dom.js';
+import { forgetStoredIcons, useStoredIcons, type StoredIconLookup } from '../ui/favicon.js';
 import { errorText, syncErrorText } from '../ui/strings.js';
 import { normalizeTags } from '../vault/model.js';
 import { SORT_KEYS, isSortKey, type SortKey } from '../vault/sort.js';
@@ -129,7 +130,11 @@ export function mountManager(
   const sidebarSlot = h('div', { class: 'vm-sidebar-slot' });
   const detailSlot = h('div', { class: 'vm-detail-slot' });
   const crumbSlot = h('nav', { class: 'vm-crumbs', 'aria-label': msg('navFolders') });
-  const actionSlot = h('div', { class: 'vm-actions', role: 'toolbar', 'aria-label': msg('actionsLabel') });
+  const actionSlot = h('div', {
+    class: 'vm-actions',
+    role: 'toolbar',
+    'aria-label': msg('actionsLabel'),
+  });
   const countSlot = h('p', { class: 'vm-count-line vm-small vm-muted', role: 'status' });
   const emptySlot = h('p', { class: 'vm-list-empty vm-muted' });
   const toastSlot = h('div', { class: 'vm-toast-slot' });
@@ -293,7 +298,9 @@ export function mountManager(
   function setPaneWidth(pane: Pane, value: number): void {
     const width = clampPaneWidth(value, PANES[pane].bounds);
     settings =
-      pane === 'sidebar' ? { ...settings, sidebarWidth: width } : { ...settings, detailWidth: width };
+      pane === 'sidebar'
+        ? { ...settings, sidebarWidth: width }
+        : { ...settings, detailWidth: width };
     applyPaneWidths();
   }
 
@@ -427,7 +434,14 @@ export function mountManager(
   /** A `THUMB` answer, or the shape "there is nothing here" when the worker refused. */
   function toThumbData(response: Awaited<ReturnType<typeof send>>): ThumbData {
     if (response.type !== 'THUMB')
-      return { state: 'none', image: null, width: 0, height: 0, ogTitle: null, ogDescription: null };
+      return {
+        state: 'none',
+        image: null,
+        width: 0,
+        height: 0,
+        ogTitle: null,
+        ogDescription: null,
+      };
     return {
       state: response.state,
       image: response.image,
@@ -444,7 +458,12 @@ export function mountManager(
       'header',
       { class: 'vm-topbar' },
       h('h1', { class: 'vm-wordmark' }, 'VaultaMark'),
-      h('div', { class: 'vm-search-slot' }, search, h('span', { class: 'vm-small vm-muted' }, msg('managerSearchHint'))),
+      h(
+        'div',
+        { class: 'vm-search-slot' },
+        search,
+        h('span', { class: 'vm-small vm-muted' }, msg('managerSearchHint')),
+      ),
       sortSlot,
       syncSlot,
       h(
@@ -559,6 +578,10 @@ export function mountManager(
         refreshPreview: (item) => {
           void refreshPreview(item);
         },
+        iconsStored: syncState?.providerId === 'drive',
+        refreshIcon: (item) => {
+          void refreshIcon(item);
+        },
         open: (id) => {
           void openItem(id);
         },
@@ -671,7 +694,12 @@ export function mountManager(
   function action(labelKey: string, disabled: boolean, onClick: () => void): HTMLElement {
     return h(
       'button',
-      { type: 'button', class: 'vm-button vm-button--quiet vm-button--inline', disabled, onclick: onClick },
+      {
+        type: 'button',
+        class: 'vm-button vm-button--quiet vm-button--inline',
+        disabled,
+        onclick: onClick,
+      },
       msg(labelKey),
     );
   }
@@ -1270,7 +1298,10 @@ export function mountManager(
   function moveCursor(delta: number): void {
     const rows = rowsOf(state);
     if (rows.length === 0) return;
-    const next = Math.max(0, Math.min(rows.length - 1, (state.cursor < 0 ? -1 : state.cursor) + delta));
+    const next = Math.max(
+      0,
+      Math.min(rows.length - 1, (state.cursor < 0 ? -1 : state.cursor) + delta),
+    );
     selectAt(next, { toggle: false, range: false });
   }
 
@@ -1294,6 +1325,30 @@ export function mountManager(
   async function refreshPreview(item: ItemDetail): Promise<void> {
     await openItem(item.id);
     say(msg('thumbRefreshOpened'));
+  }
+
+  /**
+   * "Refresh icon", from the detail pane (§10.1).
+   *
+   * The one refresh in this window that can finish: `_favicon/` is the extension's own origin, so
+   * there is no page to open and no `activeTab` grant to wait for. It **replaces**, an absence
+   * included — a site whose icon Chrome has forgotten loses its stored copy, because a refresh is
+   * the user saying "this is what it is now".
+   *
+   * The list is repainted afterwards rather than the row patched: the icon is keyed by host, so one
+   * refresh can change every row on that site, and there is no cheaper way to say that.
+   */
+  async function refreshIcon(item: ItemDetail): Promise<void> {
+    if (item.url === undefined) return;
+    const response = await send({ type: 'REFRESH_ICON', url: item.url });
+    if (response.type === 'ERROR') {
+      warn(response.code);
+      return;
+    }
+    forgetStoredIcons();
+    useStoredIcons(storedIconLookup());
+    say(msg(response.image === null ? 'iconRefreshedNone' : 'iconRefreshed'));
+    paintList();
   }
 
   /**
@@ -1564,7 +1619,11 @@ export function mountManager(
       heading: msg('tagDeleteHeading', [tag]),
       body: [
         dialogText(
-          count === undefined ? 'tagDeleteBody' : count === 1 ? 'tagDeleteBodyOne' : 'tagDeleteBodyCount',
+          count === undefined
+            ? 'tagDeleteBody'
+            : count === 1
+              ? 'tagDeleteBodyOne'
+              : 'tagDeleteBodyCount',
           count === undefined ? [tag] : [tag, String(count)],
         ),
       ],
@@ -1657,7 +1716,11 @@ export function mountManager(
     const toast = h(
       'div',
       // The filling bar is the deadline, drawn (`ui/styles.css`). Same constant as the timer.
-      { class: 'vm-toast vm-toast--timed', role: 'status', style: `--vm-undo-ms: ${String(UNDO_MS)}ms` },
+      {
+        class: 'vm-toast vm-toast--timed',
+        role: 'status',
+        style: `--vm-undo-ms: ${String(UNDO_MS)}ms`,
+      },
       h('span', null, msg('deletedCount', [String(ids.length)])),
       h(
         'button',
@@ -1859,10 +1922,14 @@ export function mountManager(
     }
     if (message.type === 'SESSION_LOCKED') {
       // Nothing decrypted may stay on screen, and the manager cannot unlock — that is the popup's
-      // job, and it is one click away.
+      // job, and it is one click away. The icon lookup goes with it: a locked vault has no key to
+      // open one with, and every answer from here on would be "unavailable".
+      forgetStoredIcons();
       render(root, h('p', { class: 'vm-placeholder' }, msg('managerLocked')));
     }
   });
+
+  useStoredIcons(storedIconLookup());
 
   applyTheme(settings.theme, document.documentElement);
   void reloadAll();
@@ -1905,4 +1972,19 @@ function isTyping(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null;
   const tag = element?.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || element?.isContentEditable === true;
+}
+
+/**
+ * Ask the worker for one host's stored icon (ARCHITECTURE §10.1).
+ *
+ * Installed once, here, because `src/ui/` stays free of the message protocol. It is asked at most
+ * once per host per page, and on a profile that keeps no icons the first answer retires it.
+ */
+function storedIconLookup(): StoredIconLookup {
+  return async (url) => {
+    const response = await send({ type: 'GET_ICON', url });
+    return response.type === 'ICON'
+      ? { image: response.image, available: response.available }
+      : { image: null, available: false };
+  };
 }

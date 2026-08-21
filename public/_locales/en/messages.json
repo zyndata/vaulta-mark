@@ -409,6 +409,22 @@
     "message": "Reading the page…",
     "description": "Popup notice while a preview is being re-captured."
   },
+  "iconRefresh": {
+    "message": "Refresh icon",
+    "description": "Button that re-reads a site's icon from Chrome's own cache (ARCHITECTURE §10.1)."
+  },
+  "iconRefreshExplain": {
+    "message": "Site icons come from Chrome's own cache, and this vault keeps a copy so your other computers can show them too. This re-reads it — no page is opened and nothing is downloaded.",
+    "description": "Explanation above the manager's Refresh icon button."
+  },
+  "iconRefreshed": {
+    "message": "Saved this site's icon.",
+    "description": "Status line after Refresh icon found an icon in Chrome's cache."
+  },
+  "iconRefreshedNone": {
+    "message": "Chrome has no icon for this site yet. Visit it once and try again.",
+    "description": "Status line after Refresh icon found only Chrome's generic placeholder."
+  },
   "thumbRefreshed": {
     "message": "Preview updated.",
     "description": "Popup notice after a successful re-capture."

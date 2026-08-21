@@ -32,6 +32,21 @@ export interface DetailDeps {
    * tab creates. The pane says so in words before the button is pressed (§14.5).
    */
   readonly refreshPreview: (item: ItemDetail) => void;
+  /**
+   * Whether this profile stores site icons at all (§10.1).
+   *
+   * The Drive tier does and the Chrome tier does not, and the difference has to reach the pane:
+   * a *Refresh icon* button on a profile that keeps no icons would be a button that reads Chrome's
+   * cache and throws the answer away.
+   */
+  readonly iconsStored: boolean;
+  /**
+   * "Refresh icon" was clicked.
+   *
+   * Unlike {@link DetailDeps.refreshPreview} this one finishes the job here: `_favicon/` is our own
+   * origin, so it needs no page open and no `activeTab` grant (§10.1).
+   */
+  readonly refreshIcon: (item: ItemDetail) => void;
   readonly save: (patch: {
     title: string;
     url?: string;
@@ -80,7 +95,12 @@ export function detailPane(deps: DetailDeps): HTMLElement {
   const isFolder = item.type === 'folder';
 
   const title = h('input', { type: 'text', value: item.title, autocomplete: 'off' });
-  const url = h('input', { type: 'text', value: item.url ?? '', autocomplete: 'off', spellcheck: 'false' });
+  const url = h('input', {
+    type: 'text',
+    value: item.url ?? '',
+    autocomplete: 'off',
+    spellcheck: 'false',
+  });
   const note = h('textarea', { rows: 6, maxlength: MAX_NOTE_LENGTH });
   note.value = item.note;
 
@@ -283,6 +303,33 @@ function previewSection(item: ItemDetail, deps: DetailDeps): HTMLElement {
         },
       },
       msg('thumbRefresh'),
+    ),
+    ...(deps.iconsStored ? [iconRefresh(item, deps)] : []),
+  );
+}
+
+/**
+ * *Refresh icon*, the small sibling of *Refresh preview* (§10.1).
+ *
+ * It sits in the same section because it answers the same question — "this row is showing the wrong
+ * thing, fix it" — and it is deliberately worded to say what it reads: Chrome's own cache, which is
+ * why it needs no page open. What it writes down is what is there *now*, an absence included.
+ */
+function iconRefresh(item: ItemDetail, deps: DetailDeps): HTMLElement {
+  return h(
+    'div',
+    { class: 'vm-detail-icon' },
+    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('iconRefreshExplain')),
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'vm-button vm-button--quiet vm-button--inline',
+        onclick: () => {
+          deps.refreshIcon(item);
+        },
+      },
+      msg('iconRefresh'),
     ),
   );
 }
