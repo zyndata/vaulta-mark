@@ -17,9 +17,9 @@
  *
  * **Phase 18 changed the shape being pinned.** `countsLine` used to choose one of six whole
  * sentences enumerating English's two forms against two counts; it now writes two sentences, one
- * count each, and asks `Intl.PluralRules` for the form of each. The same cases are driven either
- * way; the Polish ones — where 2 and 5 take different forms of the same noun, which the enumeration
- * could not have expressed — arrive with the Polish locale.
+ * count each, and asks `Intl.PluralRules` for the form of each. So the same cases are driven, in
+ * both `en` and `pl` — Polish being the language the enumeration could not have expressed, and the
+ * one where 2 and 5 take different forms of the same noun.
  */
 
 import { readFileSync } from 'node:fs';
@@ -73,6 +73,30 @@ describe('countsLine, in English', () => {
         }
       }
     }
+  });
+});
+
+/*
+ * The same line in Polish, where "2 folders" and "5 folders" are different words.
+ *
+ * The English cases above cannot fail on this: `pluralCategory` answers `one` or `other` there for
+ * every integer, which is what the six enumerated keys already did. This block is the one that
+ * would have caught the old shape, and it is why the shape changed.
+ */
+describe('countsLine, in Polish', () => {
+  beforeEach(() => {
+    installChromeMock({ uiLanguage: 'pl-PL' });
+  });
+
+  it.each([
+    [1, 1, 'ioPreviewCountsBookmarks_one ioPreviewCountsFolders_one'],
+    [2, 2, 'ioPreviewCountsBookmarks_few ioPreviewCountsFolders_few'],
+    [5, 12, 'ioPreviewCountsBookmarks_many ioPreviewCountsFolders_many'],
+    // 22 and 12 end in the same digit and take different forms. No pair of keys can say that.
+    [22, 12, 'ioPreviewCountsBookmarks_few ioPreviewCountsFolders_many'],
+    [0, 0, 'ioPreviewCountsBookmarks_many ioPreviewCountsNoFolders'],
+  ])('%i bookmarks and %i folders reads from %s', (bookmarks, folders, keys) => {
+    expect(countsLine(bookmarks, folders)).toBe(keys);
   });
 });
 

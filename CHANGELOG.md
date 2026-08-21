@@ -14,6 +14,23 @@ below.
 
 ### Added
 
+- **VaultaMark speaks Polish.** Every screen, every button, every warning and every accessible
+  label — all of it, not the easy half. VaultaMark follows Chrome's own language, so a browser set
+  to Polish gets a Polish VaultaMark and nothing has to be switched on.
+  - **A language Chrome is in and VaultaMark is not falls back to English, one sentence at a time.**
+    Measured in a real browser rather than assumed, because the alternative — falling back a whole
+    file at a time — would have rendered the missing sentences as *blank*, including the one that
+    says a forgotten password cannot be recovered.
+  - **There is no language picker in the extension, on purpose.** Chrome decides, and there is no
+    supported way for an extension to override it; a picker that changed the popup's words but not
+    the name Chrome shows on the extensions page would look broken rather than limited. Changing
+    Chrome's language changes VaultaMark's.
+  - **Translations into other languages are welcome**, and the machinery now accepts a partial one:
+    the gaps read as English rather than as nothing. German, French and Spanish are deliberately
+    *not* included here — machine-translating a sentence like "there is no way to recover this
+    password" a shade softer is not a typo, it is a lost vault, and Polish is the one language whose
+    wording could actually be checked.
+
 - **Site icons now travel with the vault, so a second computer shows them.** Until now a bookmark's
   icon came only from Chrome's own cache on the machine you were looking at — which is exactly right
   for privacy, and means a vault restored on a new computer showed a column of coloured initials,

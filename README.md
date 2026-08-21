@@ -177,6 +177,23 @@ Why `scripting` needs no host permission: `activeTab` is granted by all four sav
 (toolbar, context menu, keyboard shortcut, popup), so the extension never needs broad access to the
 sites you visit.
 
+## Languages
+
+**English and Polish.** VaultaMark follows **Chrome's own language** — if Chrome is in Polish, so is
+VaultaMark. A language it does not have falls back to English, one message at a time, so a
+translation that is only half finished shows English in the gaps rather than blank labels.
+
+**There is no language picker inside VaultaMark, and that is deliberate.** `chrome.i18n` takes its
+language from the browser and offers no supported override; building a picker means replacing it
+with our own message loader, and even then the name and description Chrome shows on
+`chrome://extensions` and in the Web Store would keep following the browser. A picker that changes
+some of the product's words and not others is worse than none. The full reasoning is in
+[ARCHITECTURE §18.4](docs/ARCHITECTURE.md#184-there-is-no-in-app-language-picker-and-there-will-not-be-one).
+
+**Translations are welcome.** Copy `public/_locales/en/messages.json`, translate the `message`
+fields, and open a PR — `npm run verify` will tell you what is missing, including the plural forms
+your language has and English does not. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Privacy
 
 **No telemetry. No analytics. No error reporting. No accounts. No network calls at all** — except to

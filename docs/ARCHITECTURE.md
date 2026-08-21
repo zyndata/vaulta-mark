@@ -2624,4 +2624,110 @@ fails the build if any of them carries it.
 
 ---
 
+## 18. Localisation
+
+Phase 18. Two locales ship — `en` and `pl` — and everything below exists because a second one
+arrived, not because the first one needed it.
+
+### 18.1 The shape of the message file
+
+`chrome.i18n`, `public/_locales/<tag>/messages.json`, `default_locale: "en"`. **INV-10 has kept
+every user-facing string in that file since Phase 12**, and `scripts/verify-strings.mjs` is what
+keeps it there: an AST walk over `src/` that reports a key `msg()` names and the file lacks, a key
+the file has and nothing names, and prose that reached the document without going through `msg`.
+
+Two rules the file follows, and the second one changed in Phase 18:
+
+- **Whole sentences, never a stem plus a suffix.** A sentence assembled at runtime out of fragments
+  is one no translator can reorder, and word order is the first thing a language moves.
+- **One count per sentence.** Two counts in one sentence means enumerating the combinations, which
+  is six keys in English and sixteen in Polish and a different number in the next language. Where a
+  sentence carried two — the import preview's "412 bookmarks in 19 folders", the native import's
+  three totals — it is now two or three sentences with one count each. That is the only split that
+  costs a translator nothing: each half is a whole sentence they can reorder inside.
+
+### 18.2 Plurals: `Intl.PluralRules`, not key pairs
+
+`chrome.i18n` has **no plural support whatsoever** — no ICU MessageFormat, no `plural` argument, no
+`select`. It substitutes and stops.
+
+Through Phase 17 that was survivable because English has two forms and a pair of keys expresses
+both. **Polish has three that matter here** — 1 zakładka, 2 zakładki, 5 zakładek, with 22 taking the
+second and 12 the third — so the pair is not a translation problem but a shape the file has to stop
+having: hand it to a translator and there is nowhere for them to put the third form.
+
+`src/ui/plural.ts` turns a count into a key suffix through `Intl.PluralRules`, which is in the
+browser (Chrome 63, well under the floor of 116) and so leaves D4 — zero runtime dependencies —
+intact:
+
+```
+plural('listCountBookmarks', 5)  →  msg('listCountBookmarks_many')   // pl
+                                 →  msg('listCountBookmarks_other')  // en
+```
+
+Forty-six families, `_one` / `_few` / `_many` / `_other`. Which members a locale has is that
+language's business and is never listed anywhere: `verify-strings.mjs` asks `Intl.PluralRules` for
+the categories of each shipped locale and requires exactly those, so a new language adds no rule.
+
+**The locale the rules are asked about is not `chrome.i18n.getUILanguage()`.** It is the UI language
+resolved against `SHIPPED_LOCALES`, mirroring Chrome's own resolution — exact tag, then the base
+tag, then `default_locale`. A Russian-language browser, for which Chrome renders our English,
+would otherwise ask `Intl.PluralRules('ru')` about 21, be told `one`, and print the English
+"1 bookmark" over a list of twenty-one.
+
+A category whose key is absent falls back to `_other` rather than rendering empty — see §18.3.
+
+### 18.3 What a missing key does — measured, not assumed
+
+**Chrome falls back to `default_locale` per message, not per file.** Measured 2026-08-21 in
+Chromium against the real build, with a `pl` locale holding exactly one key: the translated key came
+back in Polish, a key that file lacked came back in English, and a key no locale has came back as
+the empty string. `test/e2e/locale-fallback.spec.ts` is that measurement, kept.
+
+The consequence is a policy: **an unfinished translation renders as a partly English interface**,
+which is imperfect, obvious, and reportable by whoever is reading it — so a partial outside
+contribution is mergeable and can be finished later. Under the other reading it would have rendered
+as blank labels, including the sentence saying a forgotten password cannot be recovered, and a blank
+label is invisible to exactly the person who could report it.
+
+It does not make the parity check optional. `verify-strings.mjs` fails on a key any shipped locale
+is missing, on a key it has that `en` does not, and on a plural family missing a form that
+language needs. Confirmed by deliberately breaking each of the three.
+
+### 18.4 There is no in-app language picker, and there will not be one
+
+This is the question an issue will ask, so the answer is here first.
+
+`chrome.i18n` takes its language from **the browser's UI language** and offers no supported
+override. There is no API to set it, and `chrome.i18n.getMessage` reads whichever `_locales`
+directory Chrome picked when the extension loaded.
+
+Building a picker therefore means abandoning `chrome.i18n` for a private message loader: read the
+JSON ourselves, resolve substitutions ourselves, keep the chosen tag in `storage.local`, re-render
+every open document when it changes. That is a real amount of code for a real loss — and it does not
+even deliver the feature, because **the manifest's own strings would still follow the browser**.
+`name` and `description` are resolved by Chrome, not by us, so `chrome://extensions`, the Web Store
+listing and the toolbar tooltip would stay in the browser's language while the popup was in another.
+A language picker that changes some of the product's words is worse than none: it looks broken in a
+way that reads as a bug rather than a limitation.
+
+Someone who wants VaultaMark in another language changes Chrome's language, which changes the whole
+browser to match — which is, in almost every case, what they actually wanted.
+
+### 18.5 Fitting a longer language
+
+Chrome clamps a popup at 800 × 600 and will not scroll it beyond that. The popup's settings screen
+holds its two bottom lines — the way through to the manager's settings, and the version number —
+**by construction rather than by slack**: the sections scroll in a box of their own and take the
+room the heading and those two lines leave. That box reserves its scrollbar gutter, so a scrollbar
+appearing cannot narrow the column and rewrap the text above it, which is the cascade that made this
+a Phase-18 item at all.
+
+`test/e2e/locale-fit.spec.ts` measures it in a real Chromium in `en`, in `pl`, and in synthetic
+locales 40 % and 200 % longer than English. The 200 % case fails against the pre-Phase-18 screen,
+which is why the others are worth believing. The Polish run carries the axe pass as well: an
+accessible name is a translated string like any other.
+
+---
+
 *See also: [PLAN.md](../PLAN.md) · [RELEASE.md](RELEASE.md)*

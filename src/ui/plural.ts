@@ -37,7 +37,7 @@ import { msg } from './dom.js';
  * — `scripts/verify-strings.mjs` reads this list to decide which files it checks for parity, so a
  * locale directory that nobody added here is a directory nothing verifies.
  */
-export const SHIPPED_LOCALES = ['en'] as const;
+export const SHIPPED_LOCALES = ['en', 'pl'] as const;
 
 export type ShippedLocale = (typeof SHIPPED_LOCALES)[number];
 

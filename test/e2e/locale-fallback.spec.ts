@@ -113,8 +113,8 @@ test('Chrome falls back to default_locale per message, not per file', async () =
   const answers = await page.evaluate(
     ([translated, missing]) => ({
       uiLanguage: chrome.i18n.getUILanguage(),
-      translated: chrome.i18n.getMessage(translated as string),
-      missing: chrome.i18n.getMessage(missing as string),
+      translated: chrome.i18n.getMessage(translated!),
+      missing: chrome.i18n.getMessage(missing!),
       // A key no locale has. The floor: this is what "nothing found" looks like, and the missing
       // key above must not look like it.
       nonsense: chrome.i18n.getMessage('vmNoSuchKeyAnywhere'),

@@ -1,0 +1,3702 @@
+{
+  "extName": {
+    "message": "VaultaMark"
+  },
+  "extDescription": {
+    "message": "Zakładki, o których Chrome nie wie. Bez podpowiedzi w pasku adresu, otwierane w incognito, szyfrowane, opcjonalnie na Twoim Dysku."
+  },
+  "actionTitle": {
+    "message": "VaultaMark — zaszyfrowane zakładki"
+  },
+  "cmdAdd": {
+    "message": "Dodaj bieżącą kartę do sejfu"
+  },
+  "cmdLock": {
+    "message": "Zamknij sejf teraz"
+  },
+  "cmdManager": {
+    "message": "Otwórz menedżera VaultaMark"
+  },
+  "popupVersion": {
+    "message": "v$VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1",
+        "example": "0.1.0"
+      }
+    }
+  },
+  "popupLoading": {
+    "message": "Sprawdzanie sejfu…"
+  },
+  "popupOpenManager": {
+    "message": "Otwórz menedżera"
+  },
+  "menuAddPage": {
+    "message": "Dodaj do VaultaMark"
+  },
+  "menuAddLink": {
+    "message": "Dodaj odnośnik do VaultaMark"
+  },
+  "createIntro": {
+    "message": "Wybierz hasło główne. Szyfruje ono wszystko, co zapiszesz, i nigdzie nie jest przechowywane ani wysyłane."
+  },
+  "createFieldPassword": {
+    "message": "Hasło główne"
+  },
+  "createFieldConfirm": {
+    "message": "Powtórz hasło"
+  },
+  "createFieldPhrase": {
+    "message": "Wpisz frazę, aby potwierdzić"
+  },
+  "createConfirmPhrase": {
+    "message": "rozumiem"
+  },
+  "createPhraseHint": {
+    "message": "Wpisz powyżej „$PHRASE$”, aby przejść dalej.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "I understand"
+      }
+    }
+  },
+  "createNoRecoveryHeading": {
+    "message": "Tego hasła nie da się w żaden sposób odzyskać."
+  },
+  "createNoRecoveryBody": {
+    "message": "Żadnego odnośnika resetującego, żadnego kodu odzyskiwania, żadnego zgłoszenia do pomocy. Jeśli je zapomnisz, wszystko w sejfie przepada bezpowrotnie — nawet my tego nie odczytamy."
+  },
+  "createStrength": {
+    "message": "Siła: $LEVEL$",
+    "placeholders": {
+      "level": {
+        "content": "$1",
+        "example": "Strong"
+      }
+    }
+  },
+  "createPasswordsDiffer": {
+    "message": "Oba hasła nie są takie same."
+  },
+  "createWeakConfirm": {
+    "message": "To hasło jest słabsze, niż byśmy chcieli, a później nie da się go odzyskać. Naciśnij przycisk ponownie, aby mimo to go użyć."
+  },
+  "createButton": {
+    "message": "Utwórz sejf"
+  },
+  "createButtonAnyway": {
+    "message": "Utwórz sejf mimo to"
+  },
+  "createNeedsLength": {
+    "message": "Wciąż potrzeba: hasła o długości co najmniej $MINIMUM$ znaków.",
+    "placeholders": {
+      "minimum": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "createNeedsMatch": {
+    "message": "Wciąż potrzeba: oba hasła muszą być takie same."
+  },
+  "createNeedsPhrase": {
+    "message": "Wciąż potrzeba: wpisz „$PHRASE$” w polu powyżej.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "I understand"
+      }
+    }
+  },
+  "strength0": {
+    "message": "Bardzo słabe"
+  },
+  "strength1": {
+    "message": "Słabe"
+  },
+  "strength2": {
+    "message": "Przeciętne"
+  },
+  "strength3": {
+    "message": "Dobre"
+  },
+  "strength4": {
+    "message": "Silne"
+  },
+  "warnTooShort": {
+    "message": "Za krótkie — użyj co najmniej 10 znaków."
+  },
+  "warnCommonPassword": {
+    "message": "To jedno z najczęściej używanych haseł."
+  },
+  "warnCommonPasswordVariant": {
+    "message": "To popularne hasło z drobnymi podmianami znaków — od tego atakujący zaczyna."
+  },
+  "warnSingleCharacterClass": {
+    "message": "Tylko jeden rodzaj znaków. Dołożenie innych pomaga."
+  },
+  "warnRepeatedCharacters": {
+    "message": "Zawiera długi ciąg powtórzonych znaków."
+  },
+  "warnSequentialCharacters": {
+    "message": "Zawiera sekwencję w rodzaju „abcd” albo „1234”."
+  },
+  "warnKeyboardPattern": {
+    "message": "Zawiera układ z klawiatury w rodzaju „qwerty”."
+  },
+  "warnYearLike": {
+    "message": "Zawiera coś, co wygląda na rok."
+  },
+  "unlockFieldPassword": {
+    "message": "Hasło główne"
+  },
+  "unlockButton": {
+    "message": "Otwórz"
+  },
+  "lockedManual": {
+    "message": "Sejf został zamknięty."
+  },
+  "lockedPanic": {
+    "message": "Sejf został zamknięty natychmiast."
+  },
+  "lockedExpired": {
+    "message": "Sejf zamknął się sam po okresie bezczynności."
+  },
+  "lockedIdle": {
+    "message": "Sejf zamknął się sam, bo komputer przeszedł w stan bezczynności."
+  },
+  "lockedBlur": {
+    "message": "Sejf zamknął się sam, gdy przełączyłeś się poza Chrome."
+  },
+  "vaultAddButton": {
+    "message": "Dodaj tę stronę"
+  },
+  "vaultAdded": {
+    "message": "Zapisano „$TITLE$”.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "vaultAlreadySaved": {
+    "message": "Ta strona już jest w Twoim sejfie."
+  },
+  "vaultOpenItButton": {
+    "message": "Otwórz ją"
+  },
+  "vaultFilterLabel": {
+    "message": "Filtruj sejf"
+  },
+  "vaultFilterPlaceholder": {
+    "message": "Filtruj…"
+  },
+  "vaultEmpty": {
+    "message": "W sejfie nic jeszcze nie ma. „Dodaj tę stronę” wkłada do niego kartę, na której jesteś."
+  },
+  "vaultNoMatches": {
+    "message": "Nic nie pasuje do „$QUERY$”.",
+    "placeholders": {
+      "query": {
+        "content": "$1",
+        "example": "github"
+      }
+    }
+  },
+  "vaultShowingCount": {
+    "message": "Widoczne $SHOWN$ z $TOTAL$.",
+    "placeholders": {
+      "shown": {
+        "content": "$1",
+        "example": "20"
+      },
+      "total": {
+        "content": "$2",
+        "example": "143"
+      }
+    }
+  },
+  "vaultDeleteLabel": {
+    "message": "Usuń „$TITLE$”",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "vaultPreviewLabel": {
+    "message": "Podgląd „$TITLE$”",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "vaultDeleted": {
+    "message": "Usunięto „$TITLE$”.",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "vaultUndo": {
+    "message": "Cofnij"
+  },
+  "unlockedHeading": {
+    "message": "Sejf otwarty"
+  },
+  "unlockedAutoLockIn": {
+    "message": "Zamknie się sam po około $MINUTES$ min bezczynności.",
+    "placeholders": {
+      "minutes": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "unlockedAutoLockNever": {
+    "message": "Pozostanie otwarty, dopóki go nie zamkniesz albo nie zamkniesz Chrome."
+  },
+  "unlockedLockButton": {
+    "message": "Zamknij teraz"
+  },
+  "settingsIdleTimeout": {
+    "message": "Zamknij po bezczynności"
+  },
+  "settingsIdleMinutes_one": {
+    "message": "1 minuta",
+    "placeholders": {
+      "minutes": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "settingsIdleMinutes_few": {
+    "message": "$MINUTES$ minuty",
+    "placeholders": {
+      "minutes": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "settingsIdleMinutes_many": {
+    "message": "$MINUTES$ minut",
+    "placeholders": {
+      "minutes": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "settingsIdleMinutes_other": {
+    "message": "$MINUTES$ minuty",
+    "placeholders": {
+      "minutes": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "settingsIdleNever": {
+    "message": "Nigdy"
+  },
+  "settingsLockOnBlur": {
+    "message": "Zamykaj, gdy przełączam się do innej aplikacji"
+  },
+  "settingsLockOnBlurHint": {
+    "message": "Zamyka w chwili, gdy Chrome traci fokus, więc przy każdym powrocie wpisujesz hasło od nowa. Przechodzenie między oknami Chrome nie zamyka sejfu."
+  },
+  "settingsReuseWindow": {
+    "message": "Używaj ponownie okna incognito, które już mam otwarte"
+  },
+  "settingsReuseWindowHint": {
+    "message": "Wyłączone — każda zakładka otwiera własne okno, a każde z nich to osobna sesja incognito, którą trzeba osobno zamknąć."
+  },
+  "settingsStripTracking": {
+    "message": "Usuwaj parametry śledzące przy zapisywaniu"
+  },
+  "settingsStripTrackingHint": {
+    "message": "Odrzuca utm_*, fbclid, gclid i podobne — znaczniki kampanii, których żadna witryna nie potrzebuje, aby odnaleźć stronę. Domyślnie włączone, więc ten sam artykuł zapisany z dwóch newsletterów to jedna zakładka."
+  },
+  "settingsLocalThumbnails": {
+    "message": "Trzymaj obrazki podglądu tylko na tym urządzeniu"
+  },
+  "settingsLocalThumbnailsHint": {
+    "message": "Synchronizacja Chrome nie ma gdzie trzymać obrazków, więc podglądy zrobione tutaj tutaj zostaną i inne komputery ich nie zobaczą. Po podłączeniu Dysku Google podglądy są zbierane i synchronizowane bez względu na to ustawienie."
+  },
+  "thumbHeading": {
+    "message": "Podgląd"
+  },
+  "thumbNone": {
+    "message": "Brak podglądu."
+  },
+  "thumbInDrive": {
+    "message": "Podgląd przechowywany na Dysku."
+  },
+  "thumbRefresh": {
+    "message": "Odśwież podgląd"
+  },
+  "thumbRefreshExplain": {
+    "message": "Ponowne pobranie oznacza ponowne wczytanie strony. Ten przycisk otwiera ją w oknie incognito; tam otwórz VaultaMark z paska narzędzi i naciśnij Odśwież podgląd na komunikacie u góry."
+  },
+  "thumbRefreshOpened": {
+    "message": "Otwarto stronę w oknie incognito. Otwórz tam VaultaMark z paska narzędzi i naciśnij Odśwież podgląd na komunikacie u góry."
+  },
+  "thumbRefreshing": {
+    "message": "Czytanie strony…"
+  },
+  "iconRefresh": {
+    "message": "Odśwież ikonę"
+  },
+  "iconRefreshExplain": {
+    "message": "Ikony witryn pochodzą z własnej pamięci podręcznej Chrome, a ten sejf trzyma ich kopię, aby Twoje inne komputery też mogły je pokazać. To odczytuje ją na nowo — żadna strona nie jest otwierana i nic nie jest pobierane."
+  },
+  "iconRefreshed": {
+    "message": "Zapisano ikonę tej witryny."
+  },
+  "iconRefreshedNone": {
+    "message": "Chrome nie ma jeszcze ikony tej witryny. Otwórz ją raz w zwykłym oknie i spróbuj ponownie — wizyta w incognito nie zostawia Chrome niczego do skopiowania."
+  },
+  "thumbRefreshed": {
+    "message": "Podgląd zaktualizowany."
+  },
+  "thumbRefreshFailed": {
+    "message": "Ta strona nie udostępniła obrazka podglądu."
+  },
+  "thumbOfferHeading": {
+    "message": "Zachować obrazki podglądu?"
+  },
+  "thumbOfferBody": {
+    "message": "VaultaMark może zapisać obrazek podglądu, który publikuje strona, i pokazywać go obok zakładki. Synchronizacja Chrome nie ma gdzie trzymać obrazków, więc zostałyby na tym komputerze, a inne urządzenia by ich nie zobaczyły."
+  },
+  "thumbOfferCost": {
+    "message": "Obrazki są czytane ze strony w chwili zapisu, przekodowywane i szyfrowane jak wszystko inne. Podłącz zamiast tego Dysk Google, a będą synchronizowane na każde urządzenie. Możesz to później zmienić w Ustawieniach."
+  },
+  "thumbOfferConfirm": {
+    "message": "Zachowaj je tutaj"
+  },
+  "trackingCleanupHeading": {
+    "message": "Wyczyścić zakładki, które już masz?"
+  },
+  "trackingCleanupBody_one": {
+    "message": "Jedna zapisana zakładka wciąż niesie parametry śledzące. Można je teraz usunąć z jej adresu.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "trackingCleanupBody_few": {
+    "message": "$COUNT$ zapisane zakładki wciąż niosą parametry śledzące. Można je teraz usunąć z tych adresów.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "trackingCleanupBody_many": {
+    "message": "$COUNT$ zapisanych zakładek wciąż niesie parametry śledzące. Można je teraz usunąć z tych adresów.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "trackingCleanupBody_other": {
+    "message": "$COUNT$ zapisanej zakładki wciąż niesie parametry śledzące. Można je teraz usunąć z tych adresów.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "trackingCleanupCaveat": {
+    "message": "Usuwane są tylko znaczniki kampanii; nic nie jest kasowane i każda strona nadal otwiera się tam, gdzie otwierała. Tego nie da się cofnąć."
+  },
+  "trackingCleanupButton": {
+    "message": "Wyczyść je"
+  },
+  "trackingCleaned_one": {
+    "message": "Wyczyszczono 1 zakładkę.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "trackingCleaned_few": {
+    "message": "Wyczyszczono $COUNT$ zakładki.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "trackingCleaned_many": {
+    "message": "Wyczyszczono $COUNT$ zakładek.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "trackingCleaned_other": {
+    "message": "Wyczyszczono $COUNT$ zakładki.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "incognitoHeading": {
+    "message": "VaultaMark potrzebuje zgody na otwieranie okien incognito"
+  },
+  "incognitoWhy": {
+    "message": "VaultaMark otwiera każdy odnośnik z sejfu w oknie incognito, żeby adres nigdy nie trafił do Twojej historii ani do podpowiedzi paska adresu. Chrome pozwala na to rozszerzeniu dopiero, gdy włączysz to ręcznie — nie ma sposobu, żebyśmy zapytali o to w oknie dialogowym."
+  },
+  "incognitoStep1": {
+    "message": "Otwórz własną stronę VaultaMark w ustawieniach rozszerzeń Chrome:"
+  },
+  "incognitoOpenSettings": {
+    "message": "Otwórz tę stronę"
+  },
+  "incognitoStep2": {
+    "message": "Na otwartej stronie znajdź przełącznik „Zezwalaj w trybie incognito” — jest przy dole szczegółów VaultaMark, pod „Dostęp do witryny”."
+  },
+  "incognitoStep3": {
+    "message": "Włącz go, wróć na tę kartę i naciśnij Sprawdź ponownie."
+  },
+  "copyButton": {
+    "message": "Kopiuj"
+  },
+  "copied": {
+    "message": "Skopiowano."
+  },
+  "copyFailed": {
+    "message": "Nie udało się skopiować — zaznacz wartość powyżej i zrób to ręcznie."
+  },
+  "incognitoRecheck": {
+    "message": "Sprawdź ponownie"
+  },
+  "incognitoStillOff": {
+    "message": "Nadal wyłączone. Włącz „Zezwalaj w trybie incognito” i naciśnij Sprawdź ponownie."
+  },
+  "incognitoNowOn": {
+    "message": "Dostęp do incognito jest włączony. Możesz zamknąć tę kartę — od teraz Twoje zakładki będą otwierać się w incognito."
+  },
+  "incognitoFallbackHeading": {
+    "message": "Albo otwórz ją ten jeden raz w zwykłym oknie"
+  },
+  "incognitoFallbackWarning": {
+    "message": "Zwykłe okno zapisze wizytę w historii i zasili nią podpowiedzi paska adresu — czyli dokładnie to, czego zapisanie zakładki w sejfie miało uniknąć."
+  },
+  "incognitoFallbackClearHistory": {
+    "message": "Wyczyść potem tę witrynę z mojej historii"
+  },
+  "incognitoFallbackClearHistoryHint": {
+    "message": "Czyszczone przy najbliższym zamknięciu sejfu, jeśli zezwolisz na dostęp do historii. Lista jest trzymana wyłącznie w pamięci i nigdy nie trafia na dysk."
+  },
+  "incognitoFallbackButton": {
+    "message": "Otwórz w zwykłym oknie"
+  },
+  "errorWrongPassword": {
+    "message": "To hasło jest nieprawidłowe."
+  },
+  "errorPasswordTooShort": {
+    "message": "Hasło główne musi mieć co najmniej $MINIMUM$ znaków.",
+    "placeholders": {
+      "minimum": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "errorCorruptVault": {
+    "message": "Dane sejfu na tym urządzeniu są uszkodzone. Przywróć kopię zapasową, aby je odzyskać."
+  },
+  "errorUnsupportedSchema": {
+    "message": "Ten sejf powstał w nowszej wersji VaultaMark. Zaktualizuj rozszerzenie, aby go otworzyć."
+  },
+  "errorVaultLocked": {
+    "message": "Sejf jest zamknięty."
+  },
+  "errorVaultState": {
+    "message": "To nie zgadza się ze stanem sejfu na tym urządzeniu."
+  },
+  "errorItemNotFound": {
+    "message": "Tej zakładki już nie ma w sejfie."
+  },
+  "errorInvalidMutation": {
+    "message": "Taka zmiana nie dałaby działającego układu folderów — folder nie może trafić do samego siebie, a zakładka nie może zawierać innych zakładek."
+  },
+  "errorNoActiveTab": {
+    "message": "Nie ma tu strony do dodania."
+  },
+  "errorUrlInternalPage": {
+    "message": "To jedna z własnych stron przeglądarki, a VaultaMark nie potrafi jej później otworzyć na nowo."
+  },
+  "errorUrlLocalFile": {
+    "message": "Plików z Twojego komputera nie da się otworzyć w oknie incognito, więc nie byłoby jak otworzyć tej zakładki."
+  },
+  "errorUrlUnsupportedScheme": {
+    "message": "VaultaMark zapisuje adresy internetowe; tego nie potrafiłby otworzyć ponownie."
+  },
+  "errorUnreachable": {
+    "message": "Usługa działająca w tle nie odpowiada. Spróbuj otworzyć to okno na nowo."
+  },
+  "errorUnknown": {
+    "message": "Coś poszło nie tak."
+  },
+  "managerLoading": {
+    "message": "Otwieranie sejfu…"
+  },
+  "managerLocked": {
+    "message": "Sejf jest zamknięty. Otwórz okienko VaultaMark, aby go otworzyć."
+  },
+  "managerNoVault": {
+    "message": "Na tym urządzeniu nie ma jeszcze sejfu. Otwórz okienko VaultaMark, aby go utworzyć."
+  },
+  "managerSearchLabel": {
+    "message": "Szukaj w sejfie"
+  },
+  "managerSearchPlaceholder": {
+    "message": "Szukaj — albo tag:x, folder:y, host:z, in:note"
+  },
+  "managerSearchHint": {
+    "message": "Naciśnij /, aby szukać."
+  },
+  "managerSortLabel": {
+    "message": "Sortuj według"
+  },
+  "managerSortRanked": {
+    "message": "Posortowane według trafności."
+  },
+  "sortAdded": {
+    "message": "Data dodania"
+  },
+  "sortModified": {
+    "message": "Data zmiany"
+  },
+  "sortTitle": {
+    "message": "Tytuł"
+  },
+  "sortOpened": {
+    "message": "Ostatnio otwierane"
+  },
+  "sortOpens": {
+    "message": "Najczęściej otwierane"
+  },
+  "sortManual": {
+    "message": "Moja własna kolejność"
+  },
+  "reorderMoved_one": {
+    "message": "Przeniesiono.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "reorderMoved_few": {
+    "message": "Przeniesiono $COUNT$ elementy.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "reorderMoved_many": {
+    "message": "Przeniesiono $COUNT$ elementów.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "reorderMoved_other": {
+    "message": "Przeniesiono $COUNT$ elementu.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "reorderUnavailable": {
+    "message": "Zmiana kolejności działa w trybie „Moja własna kolejność”, wewnątrz folderu, przy pustym polu wyszukiwania."
+  },
+  "managerSettingsButton": {
+    "message": "Ustawienia"
+  },
+  "managerLockButton": {
+    "message": "Zamknij"
+  },
+  "navSidebarLabel": {
+    "message": "Foldery i etykiety"
+  },
+  "navAllBookmarks": {
+    "message": "Wszystkie zakładki"
+  },
+  "navUntagged": {
+    "message": "Bez etykiet"
+  },
+  "navFolderLabel": {
+    "message": "$FOLDER$ ($COUNT$)",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Recipes"
+      },
+      "count": {
+        "content": "$2",
+        "example": "12"
+      }
+    }
+  },
+  "folderEditHeading": {
+    "message": "Folder „$FOLDER$”",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Recipes"
+      }
+    }
+  },
+  "folderEditAction": {
+    "message": "Zmień nazwę albo usuń folder $FOLDER$",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Recipes"
+      }
+    }
+  },
+  "folderDeleteAction": {
+    "message": "Usuń folder"
+  },
+  "navFolders": {
+    "message": "Foldery"
+  },
+  "navTags": {
+    "message": "Etykiety"
+  },
+  "navNoFolders": {
+    "message": "Nie ma jeszcze folderów."
+  },
+  "navNoTags": {
+    "message": "Nie ma jeszcze etykiet."
+  },
+  "navNewFolder": {
+    "message": "Nowy folder"
+  },
+  "navExpand": {
+    "message": "Rozwiń $FOLDER$",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Work"
+      }
+    }
+  },
+  "navCollapse": {
+    "message": "Zwiń $FOLDER$",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Work"
+      }
+    }
+  },
+  "navDuplicates": {
+    "message": "Duplikaty"
+  },
+  "dupesHeading": {
+    "message": "Powtórzone adresy"
+  },
+  "dupesBack": {
+    "message": "Wróć do zakładek"
+  },
+  "dupesLoading": {
+    "message": "Przeglądanie sejfu…"
+  },
+  "dupesIntro_one": {
+    "message": "Jeden adres jest zapisany więcej niż raz. Jego kopie mogą różnić się tytułem, folderem, etykietami i notatką, więc żadna nie jest wybrana za Ciebie — zaznacz te do usunięcia.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "dupesIntro_few": {
+    "message": "$COUNT$ adresy są zapisane więcej niż raz. Kopie mogą różnić się tytułem, folderem, etykietami i notatką, więc żadna nie jest wybrana za Ciebie — zaznacz te do usunięcia.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "dupesIntro_many": {
+    "message": "$COUNT$ adresów jest zapisanych więcej niż raz. Kopie mogą różnić się tytułem, folderem, etykietami i notatką, więc żadna nie jest wybrana za Ciebie — zaznacz te do usunięcia.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "dupesIntro_other": {
+    "message": "$COUNT$ adresu jest zapisane więcej niż raz. Kopie mogą różnić się tytułem, folderem, etykietami i notatką, więc żadna nie jest wybrana za Ciebie — zaznacz te do usunięcia.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "dupesRule": {
+    "message": "Zakładki pasują do siebie, gdy adres jest ten sam pomijając parametry kampanii, takie jak utm_source, część po # oraz kolejność zapytania."
+  },
+  "dupesEmpty": {
+    "message": "Żaden adres nie jest zapisany dwa razy."
+  },
+  "dupesCopies_one": {
+    "message": "1 kopia",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "dupesCopies_few": {
+    "message": "$COUNT$ kopie",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "dupesCopies_many": {
+    "message": "$COUNT$ kopii",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "dupesCopies_other": {
+    "message": "$COUNT$ kopii",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "dupesTopLevel": {
+    "message": "W: najwyższy poziom"
+  },
+  "dupesAdded": {
+    "message": "Dodano $DATE$",
+    "placeholders": {
+      "date": {
+        "content": "$1",
+        "example": "12 March 2026"
+      }
+    }
+  },
+  "dupesHasNote": {
+    "message": "Ma notatkę"
+  },
+  "dupesSavedAs": {
+    "message": "Zapisano jako $URL$",
+    "placeholders": {
+      "url": {
+        "content": "$1",
+        "example": "example.com/a?utm_source=newsletter"
+      }
+    }
+  },
+  "dupesRemoveLabel": {
+    "message": "Usuń $TITLE$",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Release notes"
+      }
+    }
+  },
+  "dupesTickExtras": {
+    "message": "Zaznacz wszystkie poza najstarszą"
+  },
+  "dupesRemoveSelected_one": {
+    "message": "Usuń 1 zaznaczoną",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesRemoveSelected_few": {
+    "message": "Usuń $COUNT$ zaznaczone",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesRemoveSelected_many": {
+    "message": "Usuń $COUNT$ zaznaczonych",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesRemoveSelected_other": {
+    "message": "Usuń $COUNT$ zaznaczonej",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesConfirmHeading_one": {
+    "message": "Usunąć 1 zakładkę?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesConfirmHeading_few": {
+    "message": "Usunąć $COUNT$ zakładki?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesConfirmHeading_many": {
+    "message": "Usunąć $COUNT$ zakładek?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesConfirmHeading_other": {
+    "message": "Usunąć $COUNT$ zakładki?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesConfirmEmptied_one": {
+    "message": "Jeden z tych adresów zostałby zupełnie bez kopii — ta zakładka zniknie z sejfu całkowicie.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "dupesConfirmEmptied_few": {
+    "message": "$COUNT$ z tych adresów zostałyby zupełnie bez kopii — te zakładki znikną z sejfu całkowicie.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "dupesConfirmEmptied_many": {
+    "message": "$COUNT$ z tych adresów zostałoby zupełnie bez kopii — te zakładki znikną z sejfu całkowicie.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "dupesConfirmEmptied_other": {
+    "message": "$COUNT$ z tych adresów zostałoby zupełnie bez kopii — te zakładki znikną z sejfu całkowicie.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "dupesConfirmButton": {
+    "message": "Usuń"
+  },
+  "listLabel": {
+    "message": "Zakładki"
+  },
+  "listEmptyVault": {
+    "message": "W sejfie nic jeszcze nie ma. Dodaj stronę z okienka VaultaMark albo przyciskiem na pasku narzędzi."
+  },
+  "listEmptyFolder": {
+    "message": "Ten folder jest pusty."
+  },
+  "listEmptySearch": {
+    "message": "Nic nie pasuje do tego wyszukiwania."
+  },
+  "listEmptyUntagged": {
+    "message": "Każda zakładka ma co najmniej jedną etykietę."
+  },
+  "listCountBookmarks_one": {
+    "message": "1 zakładka",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "listCountBookmarks_few": {
+    "message": "$COUNT$ zakładki",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "listCountBookmarks_many": {
+    "message": "$COUNT$ zakładek",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "listCountBookmarks_other": {
+    "message": "$COUNT$ zakładki",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "listFolderCount": {
+    "message": "$COUNT$ w środku",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "listHasNote": {
+    "message": "Ma notatkę"
+  },
+  "listHasThumb": {
+    "message": "Pokaż podgląd"
+  },
+  "listInHistory": {
+    "message": "Ta strona wciąż jest w historii przeglądania Chrome. Zaznacz ją, aby to usunąć."
+  },
+  "listKeyboardHint": {
+    "message": "j i k przesuwają, Enter otwiera, e edytuje, p pokazuje podgląd, Delete usuwa, Esc czyści."
+  },
+  "selectionCount_one": {
+    "message": "1 zaznaczona",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "selectionCount_few": {
+    "message": "$COUNT$ zaznaczone",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "selectionCount_many": {
+    "message": "$COUNT$ zaznaczonych",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "selectionCount_other": {
+    "message": "$COUNT$ zaznaczonej",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "actionsLabel": {
+    "message": "Działania dla zaznaczonych zakładek"
+  },
+  "actionOpen": {
+    "message": "Otwórz"
+  },
+  "actionMove": {
+    "message": "Przenieś do…"
+  },
+  "actionTag": {
+    "message": "Etykiety…"
+  },
+  "actionDelete": {
+    "message": "Usuń"
+  },
+  "actionSelectAll": {
+    "message": "Zaznacz wszystko"
+  },
+  "actionClearSelection": {
+    "message": "Wyczyść zaznaczenie"
+  },
+  "deletedCount_one": {
+    "message": "Usunięto 1 zakładkę.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "deletedCount_few": {
+    "message": "Usunięto $COUNT$ zakładki.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "deletedCount_many": {
+    "message": "Usunięto $COUNT$ zakładek.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "deletedCount_other": {
+    "message": "Usunięto $COUNT$ zakładki.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "moved_one": {
+    "message": "Przeniesiono 1 element.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "moved_few": {
+    "message": "Przeniesiono $COUNT$ elementy.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "moved_many": {
+    "message": "Przeniesiono $COUNT$ elementów.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "moved_other": {
+    "message": "Przeniesiono $COUNT$ elementu.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "paneResizeSidebar": {
+    "message": "Zmień szerokość panelu bocznego"
+  },
+  "paneResizeDetail": {
+    "message": "Zmień szerokość panelu szczegółów"
+  },
+  "detailLabel": {
+    "message": "Szczegóły"
+  },
+  "detailNothing": {
+    "message": "Zaznacz zakładkę, aby ją obejrzeć i edytować."
+  },
+  "detailMany_one": {
+    "message": "Zaznaczono 1 zakładkę. Użyj działań nad listą, aby ją przenieść, opisać etykietą albo usunąć.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "detailMany_few": {
+    "message": "Zaznaczono $COUNT$ zakładki. Użyj działań nad listą, aby przenieść je, opisać etykietami albo usunąć razem.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "detailMany_many": {
+    "message": "Zaznaczono $COUNT$ zakładek. Użyj działań nad listą, aby przenieść je, opisać etykietami albo usunąć razem.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "detailMany_other": {
+    "message": "Zaznaczono $COUNT$ zakładki. Użyj działań nad listą, aby przenieść je, opisać etykietami albo usunąć razem.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "detailFieldTitle": {
+    "message": "Tytuł"
+  },
+  "detailFieldUrl": {
+    "message": "Adres"
+  },
+  "detailFieldNote": {
+    "message": "Notatka"
+  },
+  "detailFieldTags": {
+    "message": "Etykiety"
+  },
+  "detailTagsPlaceholder": {
+    "message": "Dodaj etykietę i naciśnij Enter"
+  },
+  "detailRemoveTag": {
+    "message": "Usuń etykietę $TAG$",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "detailNoteCount": {
+    "message": "$USED$ z $MAX$ znaków",
+    "placeholders": {
+      "used": {
+        "content": "$1",
+        "example": "312"
+      },
+      "max": {
+        "content": "$2",
+        "example": "4096"
+      }
+    }
+  },
+  "detailSave": {
+    "message": "Zapisz zmiany"
+  },
+  "detailSaved": {
+    "message": "Zapisano."
+  },
+  "detailOpen": {
+    "message": "Otwórz w incognito"
+  },
+  "detailShowQr": {
+    "message": "Pokaż kod QR"
+  },
+  "qrHeading": {
+    "message": "Kod QR dla $TITLE$",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Weeknight recipes"
+      }
+    }
+  },
+  "qrDrawing": {
+    "message": "Rysowanie kodu…"
+  },
+  "qrCanvasLabel": {
+    "message": "Kod QR z adresem tej zakładki"
+  },
+  "qrOrdinaryTab": {
+    "message": "Zeskanowanie tego otworzy adres w zwykłej karcie na telefonie i trafi on do historii tego telefonu. Nic tutaj nie potrafi otworzyć karty prywatnej na innym urządzeniu. Jeśli to ma znaczenie, skopiuj adres i wklej go w karcie prywatnej samodzielnie."
+  },
+  "qrTooLong": {
+    "message": "Ten adres jest za długi, aby zmieścić go w kodzie QR."
+  },
+  "detailInFolder": {
+    "message": "W: $PATH$",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "Work / Roadmaps"
+      }
+    }
+  },
+  "detailAtTopLevel": {
+    "message": "Na najwyższym poziomie"
+  },
+  "detailInHistory": {
+    "message": "Ta strona wciąż jest w historii przeglądania Chrome."
+  },
+  "detailInHistoryHint": {
+    "message": "Włożenie strony do sejfu nie usuwa tego, gdzie już byłeś, a pasek adresu sam podpowiada strony z historii. Usunięcie tutaj dotyczy tej jednej strony — Ustawienia → Prywatność mają to samo narzędzie dla całych witryn."
+  },
+  "detailForgetHistory": {
+    "message": "Usuń tę stronę z historii"
+  },
+  "detailForgetHistoryHeading": {
+    "message": "Usunąć „$TITLE$” z historii Chrome?",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Weapon tier list"
+      }
+    }
+  },
+  "detailForgetHistoryBody": {
+    "message": "Każda wizyta na tej stronie zostanie usunięta z historii przeglądania Chrome. Sama zakładka zostaje w Twoim sejfie, a inne strony z tej samej witryny nie są ruszane."
+  },
+  "detailForgetHistoryNoUndo": {
+    "message": "To prawdziwa historia przeglądania, a Chrome nie oferuje cofnięcia."
+  },
+  "detailForgot_one": {
+    "message": "Usunięto 1 wpis historii dla tej strony.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "detailForgot_few": {
+    "message": "Usunięto $COUNT$ wpisy historii dla tej strony.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "detailForgot_many": {
+    "message": "Usunięto $COUNT$ wpisów historii dla tej strony.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "detailForgot_other": {
+    "message": "Usunięto $COUNT$ wpisu historii dla tej strony.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "detailForgotNothing": {
+    "message": "Dla tej strony nie zostało już nic do usunięcia."
+  },
+  "detailStats_one": {
+    "message": "Dodano $ADDED$ · otwarto raz",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "12 March 2026"
+      },
+      "count": {
+        "content": "$2",
+        "example": "4"
+      }
+    }
+  },
+  "detailStats_few": {
+    "message": "Dodano $ADDED$ · otwarto $COUNT$ razy",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "12 March 2026"
+      },
+      "count": {
+        "content": "$2",
+        "example": "4"
+      }
+    }
+  },
+  "detailStats_many": {
+    "message": "Dodano $ADDED$ · otwarto $COUNT$ razy",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "12 March 2026"
+      },
+      "count": {
+        "content": "$2",
+        "example": "4"
+      }
+    }
+  },
+  "detailStats_other": {
+    "message": "Dodano $ADDED$ · otwarto $COUNT$ razy",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "12 March 2026"
+      },
+      "count": {
+        "content": "$2",
+        "example": "4"
+      }
+    }
+  },
+  "folderNewHeading": {
+    "message": "Nowy folder"
+  },
+  "folderNameLabel": {
+    "message": "Nazwa folderu"
+  },
+  "folderCreate": {
+    "message": "Utwórz folder"
+  },
+  "folderRenameHeading": {
+    "message": "Zmień nazwę folderu"
+  },
+  "folderRename": {
+    "message": "Zmień nazwę"
+  },
+  "folderDelete": {
+    "message": "Usuń folder"
+  },
+  "folderDeleteHeading": {
+    "message": "Usunąć „$FOLDER$”?",
+    "placeholders": {
+      "folder": {
+        "content": "$1",
+        "example": "Work"
+      }
+    }
+  },
+  "folderDeleteQuestion_one": {
+    "message": "W środku jest 1 zakładka. Co ma się z nią stać?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "folderDeleteQuestion_few": {
+    "message": "W środku są $COUNT$ zakładki. Co ma się z nimi stać?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "folderDeleteQuestion_many": {
+    "message": "W środku jest $COUNT$ zakładek. Co ma się z nimi stać?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "folderDeleteQuestion_other": {
+    "message": "W środku jest $COUNT$ zakładki. Co ma się z nimi stać?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "folderDeleteReparent": {
+    "message": "Zachowaj je, poziom wyżej"
+  },
+  "folderDeleteRecursive": {
+    "message": "Usuń je również"
+  },
+  "moveHeading": {
+    "message": "Przenieś do folderu"
+  },
+  "moveTopLevel": {
+    "message": "Najwyższy poziom"
+  },
+  "moveConfirm": {
+    "message": "Przenieś tutaj"
+  },
+  "tagBulkHeading": {
+    "message": "Opisz zaznaczone etykietami"
+  },
+  "tagBulkAdd": {
+    "message": "Dodaj te etykiety"
+  },
+  "tagBulkRemove": {
+    "message": "Usuń te etykiety"
+  },
+  "tagBulkHint": {
+    "message": "Oddziel etykiety przecinkami. Etykieta wpisana w obu polach zostaje usunięta."
+  },
+  "tagBulkApply": {
+    "message": "Zastosuj"
+  },
+  "tagRenameLabel": {
+    "message": "Nowa nazwa"
+  },
+  "tagRenameEverywhere": {
+    "message": "Zmienia ją na każdej zakładce, która ją nosi."
+  },
+  "tagRenameUnchanged": {
+    "message": "Etykieta już tak się nazywa."
+  },
+  "tagBulkNothing": {
+    "message": "Podaj co najmniej jedną etykietę do dodania albo usunięcia."
+  },
+  "tagRenamed_one": {
+    "message": "Zmieniono nazwę na 1 zakładce.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "tagRenamed_few": {
+    "message": "Zmieniono nazwę na $COUNT$ zakładkach.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "tagRenamed_many": {
+    "message": "Zmieniono nazwę na $COUNT$ zakładkach.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "tagRenamed_other": {
+    "message": "Zmieniono nazwę na $COUNT$ zakładkach.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "tagFilterBy": {
+    "message": "Pokaż zakładki z etykietą $TAG$",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagEditAction": {
+    "message": "Zmień nazwę albo usuń etykietę $TAG$",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagEditHeading": {
+    "message": "Etykieta „$TAG$”",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagDeleteAction": {
+    "message": "Usuń etykietę"
+  },
+  "tagDeleteHeading": {
+    "message": "Usunąć etykietę „$TAG$”?",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagDeleteBodyCount_one": {
+    "message": "Zejdzie z jednej zakładki. Nie usuwa to niczego poza samą etykietą i nie da się tego cofnąć.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      },
+      "count": {
+        "content": "$2",
+        "example": "12"
+      }
+    }
+  },
+  "tagDeleteBodyCount_few": {
+    "message": "Zejdzie z $COUNT$ zakładek. Nie usuwa to niczego poza samą etykietą i nie da się tego cofnąć.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      },
+      "count": {
+        "content": "$2",
+        "example": "12"
+      }
+    }
+  },
+  "tagDeleteBodyCount_many": {
+    "message": "Zejdzie z $COUNT$ zakładek. Nie usuwa to niczego poza samą etykietą i nie da się tego cofnąć.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      },
+      "count": {
+        "content": "$2",
+        "example": "12"
+      }
+    }
+  },
+  "tagDeleteBodyCount_other": {
+    "message": "Zejdzie z $COUNT$ zakładek. Nie usuwa to niczego poza samą etykietą i nie da się tego cofnąć.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      },
+      "count": {
+        "content": "$2",
+        "example": "12"
+      }
+    }
+  },
+  "tagDeleteBody": {
+    "message": "Zejdzie z każdej zakładki, która ją nosi. Nie usuwa to niczego poza samą etykietą i nie da się tego cofnąć.",
+    "placeholders": {
+      "tag": {
+        "content": "$1",
+        "example": "reading"
+      }
+    }
+  },
+  "tagDeleteConfirm": {
+    "message": "Usuń etykietę"
+  },
+  "tagDeleted_one": {
+    "message": "Usunięto z 1 zakładki.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "tagDeleted_few": {
+    "message": "Usunięto z $COUNT$ zakładek.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "tagDeleted_many": {
+    "message": "Usunięto z $COUNT$ zakładek.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "tagDeleted_other": {
+    "message": "Usunięto z $COUNT$ zakładek.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dialogCancel": {
+    "message": "Anuluj"
+  },
+  "dialogInvalid": {
+    "message": "Tego nie da się tu użyć."
+  },
+  "dialogNameRequired": {
+    "message": "Wpisz nazwę — to pole nie może być puste."
+  },
+  "dialogClose": {
+    "message": "Zamknij"
+  },
+  "deleteConfirmHeadingTitled": {
+    "message": "Usunąć „$TITLE$”?",
+    "placeholders": {
+      "title": {
+        "content": "$1",
+        "example": "Example Domain"
+      }
+    }
+  },
+  "deleteConfirmHeading_one": {
+    "message": "Usunąć 1 element?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "deleteConfirmHeading_few": {
+    "message": "Usunąć $COUNT$ elementy?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "deleteConfirmHeading_many": {
+    "message": "Usunąć $COUNT$ elementów?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "deleteConfirmHeading_other": {
+    "message": "Usunąć $COUNT$ elementu?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "deleteConfirmBody": {
+    "message": "Zaraz potem przez chwilę można to cofnąć. Później już nie da się tego odwrócić."
+  },
+  "deleteConfirmButton": {
+    "message": "Usuń"
+  },
+  "settingsHeading": {
+    "message": "Ustawienia"
+  },
+  "settingsBack": {
+    "message": "‹ Wstecz"
+  },
+  "settingsAllInManager": {
+    "message": "Wszystkie ustawienia w menedżerze"
+  },
+  "settingsAllInManagerHint": {
+    "message": "Wygląd, synchronizacja, prywatność, hasło, kopie zapasowe."
+  },
+  "settingsBackToBookmarks": {
+    "message": "Wróć do zakładek"
+  },
+  "settingsTheme": {
+    "message": "Motyw"
+  },
+  "themeSystem": {
+    "message": "Jak w systemie"
+  },
+  "themeLight": {
+    "message": "Jasny"
+  },
+  "themeDark": {
+    "message": "Ciemny"
+  },
+  "settingsSectionAppearance": {
+    "message": "Wygląd"
+  },
+  "settingsSectionToolbar": {
+    "message": "Wygląd na pasku narzędzi"
+  },
+  "settingsToolbarIcon": {
+    "message": "Ikona na pasku narzędzi"
+  },
+  "toolbarIconDefault": {
+    "message": "VaultaMark"
+  },
+  "toolbarIconRibbon": {
+    "message": "Zakładka"
+  },
+  "toolbarIconFolder": {
+    "message": "Folder"
+  },
+  "toolbarIconPage": {
+    "message": "Dokument"
+  },
+  "settingsToolbarTitle": {
+    "message": "Etykieta podpowiedzi"
+  },
+  "settingsToolbarTitleHint": {
+    "message": "To, co mówi przycisk na pasku narzędzi, gdy najedziesz na niego kursorem. Zostaw puste, aby zachować to, z czym przyszedł."
+  },
+  "settingsToolbarUnchanged": {
+    "message": "To zmienia przycisk i jego podpowiedź, nic więcej. Rozszerzenie nadal nazywa się VaultaMark na stronie rozszerzeń, w swoim adresie i w Chrome Web Store — ta nazwa jest ustalana przy budowaniu rozszerzenia i nic nie może jej nadpisać w trakcie działania."
+  },
+  "settingsSectionLock": {
+    "message": "Zamykanie"
+  },
+  "settingsSectionBrowsing": {
+    "message": "Otwieranie i zapisywanie"
+  },
+  "settingsSectionPassword": {
+    "message": "Hasło główne"
+  },
+  "settingsSectionDanger": {
+    "message": "Zniszcz ten sejf"
+  },
+  "settingsCurrentPassword": {
+    "message": "Obecne hasło"
+  },
+  "settingsNewPassword": {
+    "message": "Nowe hasło"
+  },
+  "settingsConfirmPassword": {
+    "message": "Powtórz nowe hasło"
+  },
+  "settingsChangePassword": {
+    "message": "Zmień hasło"
+  },
+  "settingsPasswordChanged": {
+    "message": "Hasło zmienione. Twoje zakładki nie zostały zaszyfrowane od nowa — na nowo opakowano jedynie klucz, który je otwiera."
+  },
+  "settingsDestroyWarning": {
+    "message": "To kasuje sejf i wszystko, co w nim jest, z tego urządzenia. Nie ma kopii zapasowej ani odzyskiwania — ani przez nas, ani przez nikogo."
+  },
+  "settingsDestroyPhrase": {
+    "message": "zniszcz mój sejf"
+  },
+  "settingsDestroyLabel": {
+    "message": "Wpisz frazę, aby potwierdzić"
+  },
+  "settingsDestroyHint": {
+    "message": "Wpisz „$PHRASE$”, aby odblokować przycisk.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "destroy my vault"
+      }
+    }
+  },
+  "settingsDestroyRemote": {
+    "message": "Usuń także zsynchronizowaną kopię"
+  },
+  "settingsDestroyRemoteHint": {
+    "message": "Włączone, żeby zniszczenie naprawdę znaczyło zniszczenie. Zostaw włączone, chyba że inny komputer wciąż korzysta z tego sejfu i chcesz, aby jego zsynchronizowana kopia przetrwała — nowy sejf utworzony tutaj później nie otworzy tamtej kopii nawet tym samym hasłem, a oba będą odmawiać synchronizacji, dopóki jeden nie zniknie."
+  },
+  "settingsDestroyButton": {
+    "message": "Zniszcz ten sejf"
+  },
+  "settingsDestroyConfirm": {
+    "message": "Ostatnia szansa. Naciśnij ponownie, aby skasować sejf."
+  },
+  "settingsDestroyed": {
+    "message": "Sejf został skasowany, tutaj i z synchronizacji."
+  },
+  "settingsDestroyedRemoteKept": {
+    "message": "Sejf został skasowany z tego urządzenia. Zsynchronizowana kopia nadal tam jest, zgodnie z Twoją prośbą."
+  },
+  "settingsDestroyedRemoteFailed": {
+    "message": "Sejf został skasowany z tego urządzenia, ale zsynchronizowana kopia była nieosiągalna i nadal tam jest. Połącz się i spróbuj ponownie albo zniszcz ją z komputera, który ma do niej dostęp."
+  },
+  "errorSyncFailed": {
+    "message": "Tego nie udało się zsynchronizować. Sprawdź stan synchronizacji, aby zobaczyć, co poszło nie tak."
+  },
+  "syncErrorQuotaExceeded": {
+    "message": "Pamięć synchronizacji Chrome jest pełna. Usuń część zakładek albo podłącz Dysk Google, aby mieć więcej miejsca."
+  },
+  "syncErrorRateLimited": {
+    "message": "Zbyt częsta synchronizacja. Za chwilę sama nadrobi zaległości."
+  },
+  "syncErrorOffline": {
+    "message": "Brak połączenia. Twoje zakładki są bezpieczne na tym urządzeniu i zsynchronizują się, gdy wrócisz do sieci."
+  },
+  "syncErrorAuthRequired": {
+    "message": "Synchronizacja wymaga ponownego zalogowania."
+  },
+  "syncErrorCorruptRemote": {
+    "message": "Zsynchronizowana kopia została zapisana w połowie przez inne urządzenie. To ją naprawi."
+  },
+  "syncErrorPreconditionFailed": {
+    "message": "Inne urządzenie zapisało wcześniej. Trwa scalanie i ponowna próba."
+  },
+  "syncErrorVaultMismatch": {
+    "message": "Zsynchronizowana kopia należy do innego sejfu. Dwa sejfy nie mogą dzielić jednego obszaru synchronizacji — otwórz Ustawienia → Synchronizacja, aby wybrać, który go zatrzyma."
+  },
+  "syncMismatchExplain": {
+    "message": "Nic tutaj nie potrafi scalić tych dwóch — są zamknięte różnymi kluczami, i jest tak nawet wtedy, gdy obu nadano to samo hasło główne: sejf utworzony po raz drugi to nowy sejf. Więc jeden z nich synchronizuje się dalej, a drugi nie. Obie odpowiedzi są poniżej; żadna nie następuje bez drugiego potwierdzenia."
+  },
+  "syncMismatchKeepRemote": {
+    "message": "Użyj zsynchronizowanego sejfu na tym komputerze"
+  },
+  "syncMismatchKeepRemoteHint": {
+    "message": "To odpowiedź na wypadek, gdy to zsynchronizowany sejf zawiera Twoje zakładki — po ponownej instalacji albo na komputerze dopiero co skonfigurowanym. Potrzebujesz hasła głównego, które go otwiera."
+  },
+  "syncMismatchAdoptHeading": {
+    "message": "Użyj zsynchronizowanego sejfu"
+  },
+  "syncMismatchAdoptExplain": {
+    "message": "Zsynchronizowany sejf zostaje dokładnie taki, jaki jest. Ten komputer dołącza do niego tak, jak robi to drugi komputer: jego zakładki, foldery, etykiety i notatki pojawiają się tutaj, a od teraz oba trzymają się nawzajem w aktualnym stanie."
+  },
+  "syncMismatchAdoptLosesNone": {
+    "message": "Własny sejf tego komputera nie ma w sobie żadnych zakładek, więc nic tutaj nie ginie."
+  },
+  "syncMismatchAdoptLoses_one": {
+    "message": "Jedyna zakładka we własnym sejfie tego komputera zostanie skasowana. Nie ma cofnięcia.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "syncMismatchAdoptLoses_few": {
+    "message": "$COUNT$ zakładki we własnym sejfie tego komputera zostaną skasowane. Nie ma cofnięcia.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "syncMismatchAdoptLoses_many": {
+    "message": "$COUNT$ zakładek we własnym sejfie tego komputera zostanie skasowanych. Nie ma cofnięcia.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "syncMismatchAdoptLoses_other": {
+    "message": "$COUNT$ zakładki we własnym sejfie tego komputera zostanie skasowane. Nie ma cofnięcia.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "syncMismatchAdoptBackupFirst": {
+    "message": "Aby je zachować, zamknij to i najpierw zrób kopię zapasową sejfu w Import i eksport."
+  },
+  "syncMismatchAdoptPassword": {
+    "message": "Hasło główne zsynchronizowanego sejfu"
+  },
+  "syncMismatchAdoptConfirm": {
+    "message": "Skasuj ten sejf i dołącz do zsynchronizowanego"
+  },
+  "syncMismatchAdoptNeedsPassword": {
+    "message": "Wpisz hasło główne zsynchronizowanego sejfu."
+  },
+  "syncMismatchAdopted": {
+    "message": "Ten komputer korzysta teraz ze zsynchronizowanego sejfu."
+  },
+  "syncMismatchReplace": {
+    "message": "Nadpisz zsynchronizowaną kopię tym sejfem"
+  },
+  "syncMismatchReplaceHint": {
+    "message": "To odpowiedź na wypadek, gdy to sejf na tym komputerze jest tym do zachowania. Zsynchronizowana kopia drugiego sejfu zostanie usunięta, a komputery, które z niej korzystały, poproszą zamiast tego o hasło tego sejfu."
+  },
+  "syncMismatchReplaceConfirm": {
+    "message": "To usuwa jedyną zsynchronizowaną kopię drugiego sejfu. Naciśnij ponownie, aby to zrobić."
+  },
+  "syncMismatchReplaceWorking": {
+    "message": "Zastępowanie zsynchronizowanej kopii…"
+  },
+  "syncMismatchReplaced": {
+    "message": "Zsynchronizowana kopia to teraz ten sejf."
+  },
+  "syncErrorVaultLocked": {
+    "message": "Otwórz sejf, aby go zsynchronizować."
+  },
+  "syncErrorUnknown": {
+    "message": "Synchronizacja nie powiodła się. Zostanie ponowiona."
+  },
+  "adoptHeading": {
+    "message": "Na Twoim drugim komputerze już jest sejf"
+  },
+  "adoptBody": {
+    "message": "Chrome zsynchronizował go tutaj, wciąż zaszyfrowany. Wpisz hasło główne, którego do niego używasz, a ten komputer dołączy do tego samego sejfu — nie ma nic do eksportowania ani przenoszenia."
+  },
+  "adoptFieldPassword": {
+    "message": "Hasło główne"
+  },
+  "adoptButton": {
+    "message": "Użyj tego sejfu tutaj"
+  },
+  "adoptWorking": {
+    "message": "Otwieranie…"
+  },
+  "adoptCreateInstead": {
+    "message": "Utwórz zamiast tego osobny sejf"
+  },
+  "adoptSeparateHeading": {
+    "message": "To nie będzie się synchronizować z Twoim drugim komputerem"
+  },
+  "adoptSeparateBody": {
+    "message": "Drugi sejf z własnym hasłem nie może scalić się z tym, który już jest w synchronizacji Chrome — oba siedziałyby tam, odmawiając synchronizacji, dopóki jeden nie zostanie usunięty. Zrób to tylko wtedy, gdy naprawdę chcesz je rozdzielić."
+  },
+  "adoptSeparateBack": {
+    "message": "Wróć i użyj istniejącego sejfu"
+  },
+  "syncSectionHeading": {
+    "message": "Synchronizacja"
+  },
+  "syncProviderChrome": {
+    "message": "Synchronizacja Chrome"
+  },
+  "syncProviderDrive": {
+    "message": "Dysk Google"
+  },
+  "syncNever": {
+    "message": "Jeszcze niezsynchronizowane"
+  },
+  "syncLastSynced": {
+    "message": "Ostatnia synchronizacja: $WHEN$",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "2 minutes ago"
+      }
+    }
+  },
+  "syncNowButton": {
+    "message": "Synchronizuj teraz"
+  },
+  "syncNowDone": {
+    "message": "Synchronizacja zakończona."
+  },
+  "syncBusy": {
+    "message": "Synchronizowanie…"
+  },
+  "syncQuotaLabel": {
+    "message": "Pamięć synchronizacji"
+  },
+  "syncQuotaUsed": {
+    "message": "Zajęte $USED$ z $TOTAL$",
+    "placeholders": {
+      "used": {
+        "content": "$1",
+        "example": "42 kB"
+      },
+      "total": {
+        "content": "$2",
+        "example": "100 kB"
+      }
+    }
+  },
+  "syncQuotaWarn": {
+    "message": "Ten sejf zapełnia synchronizację Chrome. Dysk Google mieści znacznie więcej — podłącz go w Ustawienia → Synchronizacja."
+  },
+  "syncQuotaFull": {
+    "message": "Pamięć synchronizacji Chrome jest pełna. Nowe zakładki zostają na tym urządzeniu, dopóki nie zwolnisz miejsca."
+  },
+  "conflictBanner_one": {
+    "message": "Jedna zakładka zmieniła się na dwóch urządzeniach naraz.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "conflictBanner_few": {
+    "message": "$COUNT$ zakładki zmieniły się na dwóch urządzeniach naraz.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "conflictBanner_many": {
+    "message": "$COUNT$ zakładek zmieniło się na dwóch urządzeniach naraz.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "conflictBanner_other": {
+    "message": "$COUNT$ zakładki zmieniło się na dwóch urządzeniach naraz.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "conflictReview": {
+    "message": "Przejrzyj"
+  },
+  "conflictHeading": {
+    "message": "Zmienione w dwóch miejscach"
+  },
+  "conflictIntro": {
+    "message": "Te rzeczy zostały zmienione na tym urządzeniu i na innym, zanim oba zdążyły się zsynchronizować. Nic nie zostało wyrzucone — wybierz, którą wersję zachować. Reszta Twojego sejfu synchronizuje się w tym czasie normalnie."
+  },
+  "conflictMine": {
+    "message": "To urządzenie"
+  },
+  "conflictTheirs": {
+    "message": "Drugie urządzenie"
+  },
+  "conflictDeletedSide": {
+    "message": "Usunięte tutaj"
+  },
+  "conflictKeepMine": {
+    "message": "Zachowaj wersję z tego urządzenia"
+  },
+  "conflictKeepTheirs": {
+    "message": "Zachowaj tę drugą"
+  },
+  "conflictKeepBoth": {
+    "message": "Zachowaj obie"
+  },
+  "conflictKeepAllMine": {
+    "message": "Zachowaj wersje z tego urządzenia dla wszystkich"
+  },
+  "conflictKeepAllTheirs": {
+    "message": "Zachowaj wersje z drugiego urządzenia dla wszystkich"
+  },
+  "conflictCopySuffix": {
+    "message": "(kopia z konfliktu)"
+  },
+  "conflictResolved_one": {
+    "message": "Rozstrzygnięto.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "conflictResolved_few": {
+    "message": "Rozstrzygnięto $COUNT$ z nich.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "conflictResolved_many": {
+    "message": "Rozstrzygnięto $COUNT$ z nich.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "conflictResolved_other": {
+    "message": "Rozstrzygnięto $COUNT$ z nich.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "conflictFieldTitle": {
+    "message": "Tytuł"
+  },
+  "conflictFieldUrl": {
+    "message": "Adres"
+  },
+  "conflictFieldNote": {
+    "message": "Notatka"
+  },
+  "conflictFieldFolder": {
+    "message": "Folder"
+  },
+  "conflictFieldTags": {
+    "message": "Etykiety"
+  },
+  "conflictBack": {
+    "message": "Wróć do zakładek"
+  },
+  "conflictNone": {
+    "message": "Nic nie jest w konflikcie."
+  },
+  "errorBookmarksPermission": {
+    "message": "VaultaMark potrzebuje zgody na odczyt zakładek tej przeglądarki. Udziel jej na ekranie importu."
+  },
+  "managerIoButton": {
+    "message": "Import i eksport"
+  },
+  "ioHeading": {
+    "message": "Import i eksport"
+  },
+  "ioBack": {
+    "message": "Wróć do zakładek"
+  },
+  "ioWorking": {
+    "message": "Pracuję…"
+  },
+  "ioBackupHeading": {
+    "message": "Zrób kopię zapasową sejfu"
+  },
+  "ioBackupHint": {
+    "message": "Zapisuje zaszyfrowany plik .vmv z każdą zakładką, folderem, etykietą i notatką. Trzymaj go w bezpiecznym miejscu — jest wart tyle co sam sejf i równie nieczytelny bez hasła."
+  },
+  "ioBackupButton": {
+    "message": "Zapisz kopię zapasową…"
+  },
+  "ioBackupPasswordIntro": {
+    "message": "Wybierz hasło, którym ten plik kopii zostanie zamknięty."
+  },
+  "ioBackupUseVaultPassword": {
+    "message": "Użyj hasła mojego sejfu"
+  },
+  "ioBackupUseOtherPassword": {
+    "message": "Użyj innego hasła dla tego pliku"
+  },
+  "ioBackupPasswordLabel": {
+    "message": "Hasło"
+  },
+  "ioBackupConfirmLabel": {
+    "message": "Potwierdź hasło"
+  },
+  "ioBackupConfirmHint": {
+    "message": "Potrzebne tylko wtedy, gdy plik dostaje własne hasło."
+  },
+  "ioBackupNoRecovery": {
+    "message": "Dla tego pliku również nie ma odzyskiwania. Jeśli zapomnisz jego hasła, kopia przepada."
+  },
+  "ioBackupPasswordRequired": {
+    "message": "Najpierw wpisz hasło."
+  },
+  "ioBackupDone": {
+    "message": "Kopię zapasową zapisano jako $FILE$.",
+    "placeholders": {
+      "file": {
+        "content": "$1",
+        "example": "vaultamark-2026-08-03.vmv"
+      }
+    }
+  },
+  "ioRestoreHeading": {
+    "message": "Przywróć z kopii zapasowej"
+  },
+  "ioRestoreHint": {
+    "message": "Otwórz plik .vmv — kopię zrobioną tutaj albo plik sejfu pobrany z Twojego Dysku Google. Zobaczysz, co w nim jest, i wybierzesz, co z tym zrobić, zanim cokolwiek się zmieni."
+  },
+  "ioRestoreFileLabel": {
+    "message": "Plik kopii zapasowej"
+  },
+  "ioRestoreUnreadable": {
+    "message": "Tego pliku nie dało się odczytać."
+  },
+  "ioRestorePasswordHeading": {
+    "message": "Otwórz kopię zapasową"
+  },
+  "ioRestorePasswordIntro": {
+    "message": "Wpisz hasło, którym zapisano $FILE$.",
+    "placeholders": {
+      "file": {
+        "content": "$1",
+        "example": "vaultamark-2026-08-03.vmv"
+      }
+    }
+  },
+  "ioRestorePasswordLabel": {
+    "message": "Hasło kopii zapasowej"
+  },
+  "ioRestoreOpenButton": {
+    "message": "Otwórz"
+  },
+  "ioPreviewHeading": {
+    "message": "Co jest w tej kopii zapasowej"
+  },
+  "ioPreviewCountsBookmarks_one": {
+    "message": "Plik zawiera 1 zakładkę.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      }
+    }
+  },
+  "ioPreviewCountsBookmarks_few": {
+    "message": "Plik zawiera $BOOKMARKS$ zakładki.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      }
+    }
+  },
+  "ioPreviewCountsBookmarks_many": {
+    "message": "Plik zawiera $BOOKMARKS$ zakładek.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      }
+    }
+  },
+  "ioPreviewCountsBookmarks_other": {
+    "message": "Plik zawiera $BOOKMARKS$ zakładki.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      }
+    }
+  },
+  "ioPreviewCountsFolders_one": {
+    "message": "Leżą w 1 folderze.",
+    "placeholders": {
+      "folders": {
+        "content": "$1",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCountsFolders_few": {
+    "message": "Leżą w $FOLDERS$ folderach.",
+    "placeholders": {
+      "folders": {
+        "content": "$1",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCountsFolders_many": {
+    "message": "Leżą w $FOLDERS$ folderach.",
+    "placeholders": {
+      "folders": {
+        "content": "$1",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCountsFolders_other": {
+    "message": "Leżą w $FOLDERS$ folderach.",
+    "placeholders": {
+      "folders": {
+        "content": "$1",
+        "example": "19"
+      }
+    }
+  },
+  "ioPreviewCountsNoFolders": {
+    "message": "Nie ma w niej żadnych folderów."
+  },
+  "ioPreviewCreated": {
+    "message": "Zapisano $WHEN$ przez $BY$.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "3 August 2026, 14:02"
+      },
+      "by": {
+        "content": "$2",
+        "example": "VaultaMark 1.0.0"
+      }
+    }
+  },
+  "ioPreviewCreatedUnknown": {
+    "message": "Ta kopia zapasowa nie mówi, kiedy powstała."
+  },
+  "ioPreviewSyncHeading": {
+    "message": "Co jest w tym pliku sejfu"
+  },
+  "ioPreviewSynced": {
+    "message": "To zsynchronizowany plik sejfu, ostatnio zmieniony $WHEN$.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "3 August 2026, 14:02"
+      }
+    }
+  },
+  "ioPreviewSyncedUnknown": {
+    "message": "To zsynchronizowany plik sejfu. Nie mówi, kiedy zmieniono go ostatnio."
+  },
+  "ioPreviewKnown_one": {
+    "message": "Jedna z nich już jest w tym sejfie.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "38"
+      }
+    }
+  },
+  "ioPreviewKnown_few": {
+    "message": "$COUNT$ z nich już są w tym sejfie.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "38"
+      }
+    }
+  },
+  "ioPreviewKnown_many": {
+    "message": "$COUNT$ z nich już jest w tym sejfie.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "38"
+      }
+    }
+  },
+  "ioPreviewKnown_other": {
+    "message": "$COUNT$ z nich już jest w tym sejfie.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "38"
+      }
+    }
+  },
+  "ioPreviewAllNew": {
+    "message": "Żadnej z nich nie ma jeszcze w tym sejfie."
+  },
+  "ioPreviewMergeExplained": {
+    "message": "Scalanie dokłada to, czego brakuje, i zachowuje wszystko, co już masz. Tam, gdzie zakładka różni się po obu stronach, zachowywane są obie wersje, a Ty wybierasz później. Nic nie ginie."
+  },
+  "ioPreviewReplaceExplained": {
+    "message": "Zastąpienie wyrzuca obecny sejf i wstawia na jego miejsce kopię zapasową. Masz jedną szansę, aby to cofnąć, przez 24 godziny."
+  },
+  "ioModeMerge": {
+    "message": "Scal z tym sejfem"
+  },
+  "ioModeReplace": {
+    "message": "Zastąp cały ten sejf"
+  },
+  "ioPreviewApply": {
+    "message": "Dalej"
+  },
+  "ioPreviewPickMode": {
+    "message": "Najpierw wybierz scalanie albo zastąpienie."
+  },
+  "ioImportDoneAdded_one": {
+    "message": "Zaimportowano 1 zakładkę.",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "412"
+      }
+    }
+  },
+  "ioImportDoneAdded_few": {
+    "message": "Zaimportowano $ADDED$ zakładki.",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "412"
+      }
+    }
+  },
+  "ioImportDoneAdded_many": {
+    "message": "Zaimportowano $ADDED$ zakładek.",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "412"
+      }
+    }
+  },
+  "ioImportDoneAdded_other": {
+    "message": "Zaimportowano $ADDED$ zakładki.",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "412"
+      }
+    }
+  },
+  "ioImportDoneHolds_one": {
+    "message": "Sejf zawiera teraz 1 element.",
+    "placeholders": {
+      "total": {
+        "content": "$1",
+        "example": "930"
+      }
+    }
+  },
+  "ioImportDoneHolds_few": {
+    "message": "Sejf zawiera teraz $TOTAL$ elementy.",
+    "placeholders": {
+      "total": {
+        "content": "$1",
+        "example": "930"
+      }
+    }
+  },
+  "ioImportDoneHolds_many": {
+    "message": "Sejf zawiera teraz $TOTAL$ elementów.",
+    "placeholders": {
+      "total": {
+        "content": "$1",
+        "example": "930"
+      }
+    }
+  },
+  "ioImportDoneHolds_other": {
+    "message": "Sejf zawiera teraz $TOTAL$ elementu.",
+    "placeholders": {
+      "total": {
+        "content": "$1",
+        "example": "930"
+      }
+    }
+  },
+  "ioImportDoneDiffer_one": {
+    "message": "1 z nich różni się od tego, co już masz — otwórz baner konfliktów, aby wybrać.",
+    "placeholders": {
+      "conflicts": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "ioImportDoneDiffer_few": {
+    "message": "$CONFLICTS$ z nich różnią się od tego, co już masz — otwórz baner konfliktów, aby wybrać.",
+    "placeholders": {
+      "conflicts": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "ioImportDoneDiffer_many": {
+    "message": "$CONFLICTS$ z nich różni się od tego, co już masz — otwórz baner konfliktów, aby wybrać.",
+    "placeholders": {
+      "conflicts": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "ioImportDoneDiffer_other": {
+    "message": "$CONFLICTS$ z nich różni się od tego, co już masz — otwórz baner konfliktów, aby wybrać.",
+    "placeholders": {
+      "conflicts": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "importReplaceHeading": {
+    "message": "Zastąpić cały sejf?"
+  },
+  "importReplaceWarning_one": {
+    "message": "Usuwa to jedyną zakładkę obecnie w sejfie i wstawia na jej miejsce $INCOMING$ z kopii zapasowej.",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "930"
+      },
+      "incoming": {
+        "content": "$2",
+        "example": "412"
+      }
+    }
+  },
+  "importReplaceWarning_few": {
+    "message": "Usuwa to wszystkie $CURRENT$ zakładki obecnie w sejfie i wstawia na ich miejsce $INCOMING$ z kopii zapasowej.",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "930"
+      },
+      "incoming": {
+        "content": "$2",
+        "example": "412"
+      }
+    }
+  },
+  "importReplaceWarning_many": {
+    "message": "Usuwa to wszystkie $CURRENT$ zakładek obecnie w sejfie i wstawia na ich miejsce $INCOMING$ z kopii zapasowej.",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "930"
+      },
+      "incoming": {
+        "content": "$2",
+        "example": "412"
+      }
+    }
+  },
+  "importReplaceWarning_other": {
+    "message": "Usuwa to wszystkie $CURRENT$ zakładki obecnie w sejfie i wstawia na ich miejsce $INCOMING$ z kopii zapasowej.",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "930"
+      },
+      "incoming": {
+        "content": "$2",
+        "example": "412"
+      }
+    }
+  },
+  "importReplaceUndo": {
+    "message": "Kopia obecnego sejfu jest trzymana przez 24 godziny, więc można to raz cofnąć."
+  },
+  "importReplaceNoUndo": {
+    "message": "Tego nie da się cofnąć."
+  },
+  "importReplacePhrase": {
+    "message": "ZASTĄP MÓJ SEJF"
+  },
+  "importReplaceConfirmLabel": {
+    "message": "Wpisz frazę, aby przejść dalej"
+  },
+  "importReplaceConfirmHint": {
+    "message": "Wpisz dokładnie $PHRASE$.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "REPLACE MY VAULT"
+      }
+    }
+  },
+  "importReplaceConfirmRefused": {
+    "message": "To nie jest $PHRASE$.",
+    "placeholders": {
+      "phrase": {
+        "content": "$1",
+        "example": "REPLACE MY VAULT"
+      }
+    }
+  },
+  "importReplaceButton": {
+    "message": "Dalej"
+  },
+  "importReplaceLastHeading": {
+    "message": "Ostatnia szansa"
+  },
+  "importReplaceLastBody_one": {
+    "message": "1 zakładka zostanie zaraz zastąpiona. Naciśnij jeszcze raz, aby to zrobić.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "930"
+      }
+    }
+  },
+  "importReplaceLastBody_few": {
+    "message": "$COUNT$ zakładki zostaną zaraz zastąpione. Naciśnij jeszcze raz, aby to zrobić.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "930"
+      }
+    }
+  },
+  "importReplaceLastBody_many": {
+    "message": "$COUNT$ zakładek zostanie zaraz zastąpionych. Naciśnij jeszcze raz, aby to zrobić.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "930"
+      }
+    }
+  },
+  "importReplaceLastBody_other": {
+    "message": "$COUNT$ zakładki zostanie zaraz zastąpione. Naciśnij jeszcze raz, aby to zrobić.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "930"
+      }
+    }
+  },
+  "importReplaceLastButton": {
+    "message": "Zastąp sejf"
+  },
+  "ioUndoAvailable": {
+    "message": "Sejf sprzed ostatniego importu można jeszcze przywrócić do $WHEN$.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "4 August 2026, 14:02"
+      }
+    }
+  },
+  "ioUndoButton": {
+    "message": "Cofnij import"
+  },
+  "ioUndoHeading": {
+    "message": "Cofnąć import?"
+  },
+  "ioUndoBody": {
+    "message": "Sejf wraca do stanu sprzed importu. Wszystko dodane albo zmienione od tamtej pory ginie, a ta kopia zostaje zużyta."
+  },
+  "ioUndoDone": {
+    "message": "Sejf został przywrócony."
+  },
+  "ioNativeHeading": {
+    "message": "Importuj z tej przeglądarki"
+  },
+  "ioNativeHint": {
+    "message": "Kopiuje zakładki z Chrome do sejfu. Kopiowanie nie usuwa ich z Chrome — to osobny krok, i to on wyjmuje je z paska adresu."
+  },
+  "ioNativePermissionExplained": {
+    "message": "VaultaMark nie ma zgody na odczyt zakładek tej przeglądarki. Prosi o nią dopiero wtedy, gdy korzystasz z tej funkcji, i możesz ją potem cofnąć."
+  },
+  "ioNativeGrantButton": {
+    "message": "Zezwól na odczyt zakładek"
+  },
+  "ioNativePermissionRefused": {
+    "message": "Zgody nie udzielono, więc nie ma czego pokazać."
+  },
+  "ioNativeUntitled": {
+    "message": "(bez tytułu)"
+  },
+  "ioNativeImportButton": {
+    "message": "Skopiuj zaznaczone do sejfu"
+  },
+  "ioNativeNothingSelected": {
+    "message": "Najpierw coś zaznacz."
+  },
+  "ioNativeImportedBookmarks_one": {
+    "message": "Skopiowano 1 zakładkę.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeImportedBookmarks_few": {
+    "message": "Skopiowano $BOOKMARKS$ zakładki.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeImportedBookmarks_many": {
+    "message": "Skopiowano $BOOKMARKS$ zakładek.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeImportedBookmarks_other": {
+    "message": "Skopiowano $BOOKMARKS$ zakładki.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeImportedFolders_one": {
+    "message": "Utworzono 1 folder.",
+    "placeholders": {
+      "folders": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "ioNativeImportedFolders_few": {
+    "message": "Utworzono $FOLDERS$ foldery.",
+    "placeholders": {
+      "folders": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "ioNativeImportedFolders_many": {
+    "message": "Utworzono $FOLDERS$ folderów.",
+    "placeholders": {
+      "folders": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "ioNativeImportedFolders_other": {
+    "message": "Utworzono $FOLDERS$ folderu.",
+    "placeholders": {
+      "folders": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "ioNativeImportedSkipped_one": {
+    "message": "1 pominięto jako duplikat albo nieobsługiwany adres.",
+    "placeholders": {
+      "skipped": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "ioNativeImportedSkipped_few": {
+    "message": "$SKIPPED$ pominięto jako duplikaty albo nieobsługiwane adresy.",
+    "placeholders": {
+      "skipped": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "ioNativeImportedSkipped_many": {
+    "message": "$SKIPPED$ pominięto jako duplikaty albo nieobsługiwane adresy.",
+    "placeholders": {
+      "skipped": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "ioNativeImportedSkipped_other": {
+    "message": "$SKIPPED$ pominięto jako duplikaty albo nieobsługiwane adresy.",
+    "placeholders": {
+      "skipped": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "ioNativeDeleteButton": {
+    "message": "Usuń oryginały z Chrome…"
+  },
+  "ioNativeDeleteHint": {
+    "message": "To usunięcie kopii w Chrome wyjmuje te adresy z podpowiedzi paska adresu. Nic nie jest usuwane, dopóki nie naciśniesz przycisku powyżej i nie potwierdzisz."
+  },
+  "ioNativeDeleteHeading_one": {
+    "message": "Usunąć 1 zakładkę z Chrome?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteHeading_few": {
+    "message": "Usunąć $COUNT$ zakładki z Chrome?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteHeading_many": {
+    "message": "Usunąć $COUNT$ zakładek z Chrome?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteHeading_other": {
+    "message": "Usunąć $COUNT$ zakładki z Chrome?",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteBody_one": {
+    "message": "1 zaznaczona zakładka lub folder zostanie usunięta z własnych zakładek Chrome.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteBody_few": {
+    "message": "$COUNT$ zaznaczone zakładki i foldery zostaną usunięte z własnych zakładek Chrome.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteBody_many": {
+    "message": "$COUNT$ zaznaczonych zakładek i folderów zostanie usuniętych z własnych zakładek Chrome.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteBody_other": {
+    "message": "$COUNT$ zaznaczonej zakładki zostanie usunięte z własnych zakładek Chrome.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteWhy": {
+    "message": "To właśnie sprawia, że te adresy przestają pojawiać się w pasku adresu. Upewnij się najpierw, że są w sejfie."
+  },
+  "ioNativeDeleteNoUndo": {
+    "message": "VaultaMark nie potrafi tego cofnąć. Własne cofnięcie Chrome może jeszcze dać radę."
+  },
+  "ioNativeDeleteConfirm": {
+    "message": "Usuń z Chrome"
+  },
+  "ioNativeDeleted_one": {
+    "message": "Usunięto 1 zakładkę z Chrome.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleted_few": {
+    "message": "Usunięto $COUNT$ zakładki z Chrome.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleted_many": {
+    "message": "Usunięto $COUNT$ zakładek z Chrome.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleted_other": {
+    "message": "Usunięto $COUNT$ zakładki z Chrome.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteFailed_one": {
+    "message": "1 nie dała się usunąć — wbudowanych folderów Chrome nie da się skasować.",
+    "placeholders": {
+      "failed": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "ioNativeDeleteFailed_few": {
+    "message": "$FAILED$ nie dało się usunąć — wbudowanych folderów Chrome nie da się skasować.",
+    "placeholders": {
+      "failed": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "ioNativeDeleteFailed_many": {
+    "message": "$FAILED$ nie dało się usunąć — wbudowanych folderów Chrome nie da się skasować.",
+    "placeholders": {
+      "failed": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "ioNativeDeleteFailed_other": {
+    "message": "$FAILED$ nie dało się usunąć — wbudowanych folderów Chrome nie da się skasować.",
+    "placeholders": {
+      "failed": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "cmdQuickClose": {
+    "message": "Zamknij tę kartę i wyczyść jej witrynę z historii"
+  },
+  "errorHistoryPermission": {
+    "message": "VaultaMark potrzebuje zgody na odczyt i usuwanie historii przeglądania, zanim cokolwiek wyczyści."
+  },
+  "onboardingTitle": {
+    "message": "Konfigurowanie VaultaMark"
+  },
+  "onboardingStepOf": {
+    "message": "Krok $CURRENT$ z $TOTAL$",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "2"
+      },
+      "total": {
+        "content": "$2",
+        "example": "5"
+      }
+    }
+  },
+  "onboardingBack": {
+    "message": "Wstecz"
+  },
+  "onboardingNext": {
+    "message": "Dalej"
+  },
+  "onboardingFinish": {
+    "message": "Zakończ konfigurację"
+  },
+  "onboardingNeedsVault": {
+    "message": "Najpierw utwórz hasło główne — łącznie z wpisaniem potwierdzenia. Nie da się tego kroku ominąć, bo nie ma sposobu na odzyskanie hasła, którego jeszcze nie wybrałeś."
+  },
+  "onboardingNeedsIncognito": {
+    "message": "Włącz „Zezwalaj w trybie incognito” i naciśnij Sprawdź ponownie albo wybierz „Pomiń na razie”."
+  },
+  "onboardingIntroHeading": {
+    "message": "Zakładki, które nie trafiają do paska adresu"
+  },
+  "onboardingIntroBody": {
+    "message": "Chrome podpowiada wszystko, co dodasz do zakładek. Zaczynasz pisać w pasku adresu i już tam jest, na oczach każdego, kto patrzy na Twój ekran. VaultaMark trzyma swoje zakładki tam, gdzie Chrome nie sięga."
+  },
+  "onboardingIntroPointOmnibox": {
+    "message": "Zakładki z sejfu nigdy nie trafiają do zakładek Chrome, więc nigdy nie pojawiają się w podpowiedziach."
+  },
+  "onboardingIntroPointIncognito": {
+    "message": "Otwarcie takiej zakładki używa okna incognito, więc wizyta nie zostawia po sobie historii, pamięci podręcznej ani ciasteczek."
+  },
+  "onboardingIntroPointEncrypted": {
+    "message": "Wszystko — adresy, tytuły, foldery, etykiety, notatki — jest szyfrowane kluczem wyprowadzonym z Twojego hasła głównego."
+  },
+  "onboardingIntroFooter": {
+    "message": "Jeszcze cztery ekrany. Dwa z nich mają ogromne znaczenie i ten przewodnik powie które."
+  },
+  "onboardingPasswordHeading": {
+    "message": "Utwórz hasło główne"
+  },
+  "onboardingPasswordBody": {
+    "message": "To hasło jest jedynym kluczem do Twojego sejfu. Wybierz coś długiego, czego nie zapomnisz, i zapisz to w menedżerze haseł, jeśli takiego używasz."
+  },
+  "onboardingPasswordDone": {
+    "message": "Twój sejf jest gotowy."
+  },
+  "onboardingPasswordExists": {
+    "message": "Ten profil ma już sejf, więc nie ma tu czego tworzyć. Hasło główne możesz później zmienić w Ustawieniach."
+  },
+  "onboardingIncognitoSkip": {
+    "message": "Pomiń na razie"
+  },
+  "onboardingIncognitoSkipHint": {
+    "message": "Pominięcie jest w porządku — ale dopóki to nie jest włączone, VaultaMark woli odmówić otwarcia zakładki z sejfu, niż otworzyć ją tam, gdzie zostanie zapisana. Menedżer będzie o tym przypominał."
+  },
+  "onboardingIncognitoSkipped": {
+    "message": "Pominięto. VaultaMark będzie przypominał o tym w menedżerze, dopóki tego nie włączysz."
+  },
+  "onboardingSyncHeading": {
+    "message": "Wybierz sposób synchronizacji sejfu"
+  },
+  "onboardingSyncBody": {
+    "message": "Twój sejf jest szyfrowany, zanim opuści to urządzenie, tak czy inaczej. Różni się to, dokąd trafia zaszyfrowana kopia i ile się jej mieści."
+  },
+  "onboardingSyncChrome": {
+    "message": "Synchronizacja Chrome"
+  },
+  "onboardingSyncDrive": {
+    "message": "Dysk Google"
+  },
+  "onboardingSyncDefault": {
+    "message": "Aktywne"
+  },
+  "onboardingSyncLater": {
+    "message": "Opcjonalne"
+  },
+  "onboardingSyncRowSetup": {
+    "message": "Konfiguracja"
+  },
+  "onboardingSyncRowCapacity": {
+    "message": "Pojemność"
+  },
+  "onboardingSyncRowThumbs": {
+    "message": "Podglądy stron"
+  },
+  "onboardingSyncRowWhere": {
+    "message": "Dokąd trafia zaszyfrowana kopia"
+  },
+  "onboardingSyncChromeSetup": {
+    "message": "Żadna. To już działa."
+  },
+  "onboardingSyncDriveSetup": {
+    "message": "Jednorazowe logowanie do Google z dostępem do jednego pliku."
+  },
+  "onboardingSyncChromeCapacity": {
+    "message": "Około 1000 zakładek."
+  },
+  "onboardingSyncDriveCapacity": {
+    "message": "Praktycznie bez ograniczeń."
+  },
+  "onboardingSyncChromeThumbs": {
+    "message": "Nie — nie ma na nie miejsca."
+  },
+  "onboardingSyncDriveThumbs": {
+    "message": "Tak."
+  },
+  "onboardingSyncChromeWhere": {
+    "message": "Pamięć synchronizacji Twojego profilu Chrome."
+  },
+  "onboardingSyncDriveWhere": {
+    "message": "Jeden plik na Twoim własnym Dysku Google."
+  },
+  "onboardingSyncActive": {
+    "message": "Synchronizacja Chrome jest włączona i niczego od Ciebie nie potrzebuje. Dysk Google możesz podłączyć w każdej chwili w Ustawienia → Synchronizacja i nic z tego, co teraz zapiszesz, nie zginie przy przełączeniu."
+  },
+  "onboardingSyncChangeLater": {
+    "message": "Możesz to zmienić w każdej chwili w Ustawieniach."
+  },
+  "onboardingChromeHeading": {
+    "message": "Jedna rzecz, którą Chrome wciąż pamięta"
+  },
+  "onboardingChromeBody": {
+    "message": "Sejf trzyma adresy poza zakładkami Chrome. Nie sięga do zapisu, który Chrome prowadzi o odwiedzonych stronach, a udawanie inaczej byłoby gorsze niż powiedzenie tego wprost."
+  },
+  "onboardingHistoryHeading": {
+    "message": "Strony odwiedzone, zanim trafiły do sejfu"
+  },
+  "onboardingHistoryBody": {
+    "message": "Wpisane adresy żyją w historii Chrome i to stamtąd trafiają do podpowiedzi, nawet gdy nic nie jest w zakładkach. VaultaMark potrafi usunąć wpisy historii dla witryn z Twojego sejfu — i tylko dla nich."
+  },
+  "historyPermissionExplained": {
+    "message": "Aby znaleźć i usunąć te wpisy, VaultaMark potrzebuje zgody Chrome na odczyt i usuwanie historii przeglądania. Prosi o nią tutaj, a nie przy instalacji, i możesz ją potem cofnąć."
+  },
+  "historyGrantButton": {
+    "message": "Zezwól na dostęp do historii"
+  },
+  "historyRefused": {
+    "message": "Odmówiono zgody. Nic nie zostało zmienione, a narzędzia do historii pozostają wyłączone."
+  },
+  "historyCheckHint": {
+    "message": "Nic nie jest usuwane, dopóki nie zobaczysz dokładnie, co miałoby zniknąć."
+  },
+  "historyCheckButton": {
+    "message": "Sprawdź, co zostałoby usunięte"
+  },
+  "historyChecking": {
+    "message": "Sprawdzanie…"
+  },
+  "historyClearing": {
+    "message": "Usuwanie wpisów historii…"
+  },
+  "historyCheckAgainButton": {
+    "message": "Sprawdź ponownie"
+  },
+  "historyCheckFailed": {
+    "message": "To nie zadziałało. Nic nie zostało usunięte."
+  },
+  "historyDryRunEntries_one": {
+    "message": "Usunie to 1 wpis historii.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyDryRunEntries_few": {
+    "message": "Usunie to $ENTRIES$ wpisy historii.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyDryRunEntries_many": {
+    "message": "Usunie to $ENTRIES$ wpisów historii.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyDryRunEntries_other": {
+    "message": "Usunie to $ENTRIES$ wpisu historii.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyDryRunSites_one": {
+    "message": "Dotyczy to jednej witryny.",
+    "placeholders": {
+      "domains": {
+        "content": "$1",
+        "example": "27"
+      }
+    }
+  },
+  "historyDryRunSites_few": {
+    "message": "Dotyczy to $DOMAINS$ witryn.",
+    "placeholders": {
+      "domains": {
+        "content": "$1",
+        "example": "27"
+      }
+    }
+  },
+  "historyDryRunSites_many": {
+    "message": "Dotyczy to $DOMAINS$ witryn.",
+    "placeholders": {
+      "domains": {
+        "content": "$1",
+        "example": "27"
+      }
+    }
+  },
+  "historyDryRunSites_other": {
+    "message": "Dotyczy to $DOMAINS$ witryn.",
+    "placeholders": {
+      "domains": {
+        "content": "$1",
+        "example": "27"
+      }
+    }
+  },
+  "historyDryRunNothing": {
+    "message": "Nie ma czego usuwać. Żadna z $DOMAINS$ witryn w Twoim sejfie nie ma nic w historii Chrome.",
+    "placeholders": {
+      "domains": {
+        "content": "$1",
+        "example": "27"
+      }
+    }
+  },
+  "historyReview": {
+    "message": "Przejrzyj listę"
+  },
+  "historyReviewEntries_one": {
+    "message": "1 wpis",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "historyReviewEntries_few": {
+    "message": "$COUNT$ wpisy",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "historyReviewEntries_many": {
+    "message": "$COUNT$ wpisów",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "historyReviewEntries_other": {
+    "message": "$COUNT$ wpisu",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "historyReviewRemove": {
+    "message": "Usuń"
+  },
+  "historyReviewRemoveLabel": {
+    "message": "Usuń wpisy historii dla $DOMAIN$",
+    "placeholders": {
+      "domain": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "historyClearButton": {
+    "message": "Usuń wszystkie"
+  },
+  "historyCancelButton": {
+    "message": "Zostaw to"
+  },
+  "historyConfirmHeading": {
+    "message": "Usunąć te wpisy historii?"
+  },
+  "historyConfirmEntries_one": {
+    "message": "1 wpis zostanie usunięty z historii przeglądania Chrome.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyConfirmEntries_few": {
+    "message": "$ENTRIES$ wpisy zostaną usunięte z historii przeglądania Chrome.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyConfirmEntries_many": {
+    "message": "$ENTRIES$ wpisów zostanie usuniętych z historii przeglądania Chrome.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyConfirmEntries_other": {
+    "message": "$ENTRIES$ wpisu zostanie usunięte z historii przeglądania Chrome.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyConfirmSite_one": {
+    "message": "Jeden wpis z $DOMAIN$ zostanie usunięty z historii przeglądania Chrome.",
+    "placeholders": {
+      "domain": {
+        "content": "$1",
+        "example": "example.com"
+      },
+      "entries": {
+        "content": "$2",
+        "example": "143"
+      }
+    }
+  },
+  "historyConfirmSite_few": {
+    "message": "$ENTRIES$ wpisy z $DOMAIN$ zostaną usunięte z historii przeglądania Chrome.",
+    "placeholders": {
+      "domain": {
+        "content": "$1",
+        "example": "example.com"
+      },
+      "entries": {
+        "content": "$2",
+        "example": "143"
+      }
+    }
+  },
+  "historyConfirmSite_many": {
+    "message": "$ENTRIES$ wpisów z $DOMAIN$ zostanie usuniętych z historii przeglądania Chrome.",
+    "placeholders": {
+      "domain": {
+        "content": "$1",
+        "example": "example.com"
+      },
+      "entries": {
+        "content": "$2",
+        "example": "143"
+      }
+    }
+  },
+  "historyConfirmSite_other": {
+    "message": "$ENTRIES$ wpisu z $DOMAIN$ zostanie usunięte z historii przeglądania Chrome.",
+    "placeholders": {
+      "domain": {
+        "content": "$1",
+        "example": "example.com"
+      },
+      "entries": {
+        "content": "$2",
+        "example": "143"
+      }
+    }
+  },
+  "historyConfirmCaveat": {
+    "message": "To prawdziwa historia przeglądania, a Chrome nie oferuje cofnięcia. Witryny spoza Twojego sejfu nie są ruszane."
+  },
+  "historyCleared_one": {
+    "message": "Usunięto 1 wpis historii.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyCleared_few": {
+    "message": "Usunięto $COUNT$ wpisy historii.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyCleared_many": {
+    "message": "Usunięto $COUNT$ wpisów historii.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyCleared_other": {
+    "message": "Usunięto $COUNT$ wpisu historii.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "settingsSectionShortcuts": {
+    "message": "Skróty klawiszowe"
+  },
+  "settingsShortcutsHint": {
+    "message": "Te przypisania należą do Chrome i to na jego własnej stronie się je zmienia albo czyści. Puste zwykle znaczy, że inne rozszerzenie zajęło tę kombinację pierwsze."
+  },
+  "settingsShortcutsOpen": {
+    "message": "Otwórz stronę skrótów Chrome"
+  },
+  "settingsShortcutUnset": {
+    "message": "Nieustawione"
+  },
+  "settingsSectionPrivacy": {
+    "message": "Prywatność"
+  },
+  "settingsSectionAbout": {
+    "message": "O programie"
+  },
+  "settingsHistoryIntro": {
+    "message": "Włożenie strony do sejfu nie usuwa jej z historii Chrome, a historia sama zasila podpowiedzi paska adresu."
+  },
+  "settingsClearHistoryOnLock": {
+    "message": "Czyść witryny z sejfu z historii przy każdym zamknięciu sejfu"
+  },
+  "settingsClearHistoryOnLockHint": {
+    "message": "Uruchamia to samo czyszczenie automatycznie, bez pytania, za każdym razem gdy sejf się zamyka. Usuwa prawdziwą historię przeglądania witryn z Twojego sejfu — łącznie z wizytami, które nie miały nic wspólnego z VaultaMark."
+  },
+  "settingsQuickClose": {
+    "message": "Szybkie zamknięcie (Ctrl+Shift+X)"
+  },
+  "settingsQuickCloseHint": {
+    "message": "Zamyka bieżącą kartę i usuwa historię tej witryny jednym skrótem. Usuwa prawdziwą historię przeglądania witryny, nie tylko wpisy związane z VaultaMark, i robi to bez względu na to, czy witryna jest w Twoim sejfie."
+  },
+  "settingsRestartLock": {
+    "message": "Sejf zawsze zamyka się przy ponownym uruchomieniu Chrome."
+  },
+  "settingsRestartLockHint": {
+    "message": "Otwarty klucz trzymany jest wyłącznie w pamięci i znika, gdy Chrome się kończy, więc nie ma tu czego włączać ani wyłączać."
+  },
+  "settingsAboutVersion": {
+    "message": "VaultaMark $VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1",
+        "example": "0.1.0"
+      }
+    }
+  },
+  "settingsAboutLicense": {
+    "message": "Na licencji GPL-3.0-only."
+  },
+  "settingsAboutPrivacy": {
+    "message": "VaultaMark niczego nie zbiera. Nie ma serwera, konta, telemetrii ani żadnego identyfikatora. Przeglądanie sejfu nie wykonuje ani jednego żądania sieciowego. Jedynym wyjątkiem jest synchronizacja z Dyskiem Google, wyłączona dopóki jej nie włączysz, która przechowuje wyłącznie szyfrogram na Twoim własnym koncie."
+  },
+  "settingsAboutSecurity": {
+    "message": "Nie ma odzyskiwania hasła — z założenia: nikt, łącznie z autorem, nie trzyma klucza do Twojego sejfu. Używaj zaszyfrowanego eksportu jako kopii zapasowej. Problemy z bezpieczeństwem można zgłaszać prywatnie przez security advisories projektu."
+  },
+  "settingsAboutProject": {
+    "message": "Pełna polityka prywatności, model zagrożeń i specyfikacja kryptograficzna są dołączone do źródeł projektu na github.com/zyndata/vaulta-mark."
+  },
+  "settingsReplayOnboarding": {
+    "message": "Odtwórz przewodnik konfiguracji"
+  },
+  "settingsReplayOnboardingHint": {
+    "message": "Uruchamia pięć ekranów konfiguracji jeszcze raz. Nic nie jest zmieniane ani resetowane — Twój sejf, hasło i ustawienia zostają dokładnie takie, jakie są."
+  },
+  "managerIncognitoNudge": {
+    "message": "Opcja „Zezwalaj w trybie incognito” jest nadal wyłączona, więc VaultaMark nie może otwierać Twoich zakładek tak, jak obiecuje."
+  },
+  "managerIncognitoNudgeFix": {
+    "message": "Pokaż mi jak"
+  },
+  "syncDriveHeading": {
+    "message": "Dysk Google"
+  },
+  "syncDriveExplain": {
+    "message": "Dysk mieści znacznie więcej niż synchronizacja Chrome — tysiące zakładek zamiast setek — i to tam trafiają podglądy stron. Wymaga konta Google i jednego ekranu z uprawnieniami. Możesz go tutaj podłączyć albo odłączyć w każdej chwili; nic z tego, co zapisałeś, nie ginie w żadnym z tych przypadków."
+  },
+  "syncDriveScope": {
+    "message": "VaultaMark widzi na Twoim Dysku wyłącznie pliki, które sam tworzy. Nie może odczytać niczego innego, a to, co przechowuje, jest szyfrowane Twoim hasłem głównym, zanim opuści ten komputer — Google też tego nie odczyta."
+  },
+  "syncDriveConnect": {
+    "message": "Podłącz Dysk Google"
+  },
+  "syncDriveDisconnect": {
+    "message": "Wróć do synchronizacji Chrome"
+  },
+  "syncDriveAccount": {
+    "message": "Połączono jako $EMAIL$",
+    "placeholders": {
+      "email": {
+        "content": "$1"
+      }
+    }
+  },
+  "syncDriveOpenFile": {
+    "message": "Otwórz plik sejfu na Dysku"
+  },
+  "syncDriveDisconnectExplain": {
+    "message": "Twój sejf wraca do synchronizacji Chrome. Nic z tego, co zapisałeś, nie ginie, a ponowne podłączenie Dysku później podejmie rzecz w tym miejscu. Podglądy stron zostają na tym komputerze, bo synchronizacja Chrome nie ma gdzie ich trzymać."
+  },
+  "syncDriveDisconnectConfirm": {
+    "message": "Wróć"
+  },
+  "syncDriveDeleteRemote": {
+    "message": "Usuń także kopię na moim Dysku"
+  },
+  "syncDriveDeleteRemoteHint": {
+    "message": "Domyślnie wyłączone: to plik na Twoim własnym Dysku, zostawienie go nic nie kosztuje, a zachowuje kopię, z której możesz później przywrócić sejf w Import i eksport."
+  },
+  "syncDriveUnavailable": {
+    "message": "Ta kompilacja VaultaMark nie ma skonfigurowanego projektu Google, więc synchronizacja z Dyskiem jest w niej niedostępna. Synchronizacji Chrome to nie dotyczy."
+  },
+  "syncDriveSetupIntro": {
+    "message": "Jeśli budujesz to samodzielnie, oto kroki, które włączają Dysk. Trzeba je wykonać tylko raz i tylko po stronie tego, kto buduje paczkę — osoby instalujące VaultaMark z Chrome Web Store nigdy tego nie widzą."
+  },
+  "syncDriveSetupProject": {
+    "message": "W konsoli Google Cloud utwórz projekt i włącz Google Drive API."
+  },
+  "syncDriveSetupScope": {
+    "message": "Na ekranie zgody OAuth dodaj ten jeden zakres i nic szerszego:"
+  },
+  "syncDriveSetupPublish": {
+    "message": "Opublikuj ekran zgody — przenieś go z Testowania do Produkcji. Nie ma tu żadnej weryfikacji do przejścia, bo ten zakres nie jest wrażliwy, ale aplikacja pozostawiona w Testowaniu wydaje logowania, które przestają działać po siedmiu dniach."
+  },
+  "syncDriveSetupClient": {
+    "message": "Utwórz klienta OAuth typu „Chrome Extension” i podaj mu identyfikator tego rozszerzenia:"
+  },
+  "syncDriveSetupEnv": {
+    "message": "Wstaw otrzymany identyfikator klienta do pliku .env.local jako VM_OAUTH_CLIENT_ID i zbuduj ponownie."
+  },
+  "syncDriveSetupIdNote": {
+    "message": "Powyższy identyfikator należy do tej instalacji. Rozszerzenie wczytane z folderu bierze identyfikator ze ścieżki tego folderu, więc zmienia się on przy przeniesieniu folderu — a klient OAuth przestałby do niego pasować. Jednorazowe uruchomienie „npm run dev-key” przypina identyfikator do klucza, zanim go zarejestrujesz."
+  },
+  "syncDriveSetupNoLink": {
+    "message": "Celowo nie ma tu odnośnika do konsoli. VaultaMark nie zawiera adresów internetowych, których nie potrzebuje, żeby każdy czytający kod widział od razu, dokąd rozszerzenie może się połączyć — a jeden odnośnik dla wygody byłby jednym za dużo."
+  },
+  "syncDriveConnected": {
+    "message": "Dysk jest podłączony, a Twój sejf się tam przeniósł."
+  },
+  "syncDriveDisconnected": {
+    "message": "Twój sejf wrócił do synchronizacji Chrome."
+  },
+  "syncDriveChromeCopyGone": {
+    "message": "Przeniesienie na Dysk usuwa kopię z synchronizacji Chrome, więc Twoje inne komputery poproszą o podłączenie Dysku również u siebie."
+  },
+  "diagnosticsHint": {
+    "message": "Jeśli zgłaszasz problem, to tworzy krótki raport o tym, jak skonfigurowany jest VaultaMark. Nie zawiera adresów, tytułów, nazw folderów ani etykiet, notatek ani danych konta — wyłącznie liczby i ustawienia. Możesz go przeczytać, zanim skopiujesz."
+  },
+  "diagnosticsButton": {
+    "message": "Utwórz raport diagnostyczny"
+  },
+  "diagnosticsReportLabel": {
+    "message": "Raport diagnostyczny"
+  },
+  "diagnosticsCopy": {
+    "message": "Kopiuj do schowka"
+  },
+  "diagnosticsCopied": {
+    "message": "Skopiowano."
+  },
+  "diagnosticsCopyFailed": {
+    "message": "Chrome nie pozwolił VaultaMark skorzystać ze schowka. Raport jest powyżej — zaznacz go i skopiuj ręcznie."
+  },
+  "diagnosticsFailed": {
+    "message": "Nie udało się zebrać raportu. Proces działający w tle nie odpowiedział; zamknięcie i ponowne otwarcie tej strony zwykle to naprawia."
+  },
+  "syncMigrateAuthorizing": {
+    "message": "Pytanie Google o uprawnienia…"
+  },
+  "syncMigratePreparing": {
+    "message": "Przygotowywanie…"
+  },
+  "syncMigrateUploading": {
+    "message": "Kopiowanie Twojego sejfu…"
+  },
+  "syncMigrateVerifying": {
+    "message": "Sprawdzanie, czy kopia odczytuje się poprawnie…"
+  },
+  "syncMigrateSwitching": {
+    "message": "Przełączanie…"
+  },
+  "syncMigrateCleaning": {
+    "message": "Sprzątanie starej kopii…"
+  },
+  "syncMigrateFailedAuth": {
+    "message": "Google nie udzielił dostępu, więc nic nie zostało zmienione."
+  },
+  "syncMigrateFailedOffline": {
+    "message": "Nie ma połączenia, więc nic nie zostało zmienione."
+  },
+  "syncMigrateFailedLocked": {
+    "message": "Najpierw otwórz sejf."
+  },
+  "syncMigrateFailedVerify": {
+    "message": "Kopia nie odczytała się jako to, co zostało wysłane, więc nic nie zostało zmienione. Twój sejf jest dokładnie tam, gdzie był."
+  },
+  "syncMigrateFailedMismatch": {
+    "message": "W tym folderze na Dysku jest już inny sejf. Niekoniecznie z innym hasłem — sejf utworzony po raz drugi to nowy sejf, cokolwiek mu nadano do otwierania, więc komputer, który stracił swoją kopię i zaczął od nowa, też tu trafia. Tych dwóch nie da się scalić i nic nie zostało zmienione. Wybierz poniżej, który z nich zachować."
+  },
+  "syncMigrateFailedTooLarge_one": {
+    "message": "Ten sejf już nie mieści się w synchronizacji Chrome: zawiera 1 zakładkę, a zmieściłoby się około $FITS$. Zrób kopię zapasową i usuń część albo zostań przy Dysku.",
+    "placeholders": {
+      "items": {
+        "content": "$1",
+        "example": "930"
+      },
+      "fits": {
+        "content": "$2",
+        "example": "600"
+      }
+    }
+  },
+  "syncMigrateFailedTooLarge_few": {
+    "message": "Ten sejf już nie mieści się w synchronizacji Chrome: zawiera $ITEMS$ zakładki, a zmieściłoby się około $FITS$. Zrób kopię zapasową i usuń część albo zostań przy Dysku.",
+    "placeholders": {
+      "items": {
+        "content": "$1",
+        "example": "930"
+      },
+      "fits": {
+        "content": "$2",
+        "example": "600"
+      }
+    }
+  },
+  "syncMigrateFailedTooLarge_many": {
+    "message": "Ten sejf już nie mieści się w synchronizacji Chrome: zawiera $ITEMS$ zakładek, a zmieściłoby się około $FITS$. Zrób kopię zapasową i usuń część albo zostań przy Dysku.",
+    "placeholders": {
+      "items": {
+        "content": "$1",
+        "example": "930"
+      },
+      "fits": {
+        "content": "$2",
+        "example": "600"
+      }
+    }
+  },
+  "syncMigrateFailedTooLarge_other": {
+    "message": "Ten sejf już nie mieści się w synchronizacji Chrome: zawiera $ITEMS$ zakładki, a zmieściłoby się około $FITS$. Zrób kopię zapasową i usuń część albo zostań przy Dysku.",
+    "placeholders": {
+      "items": {
+        "content": "$1",
+        "example": "930"
+      },
+      "fits": {
+        "content": "$2",
+        "example": "600"
+      }
+    }
+  },
+  "syncMigrateFailedUnknown": {
+    "message": "To nie zadziałało, więc nic nie zostało zmienione."
+  }
+}

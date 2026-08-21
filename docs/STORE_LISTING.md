@@ -355,3 +355,117 @@ wrong and nothing will catch it**, which is the cost of copy living in a dashboa
 Step 3 exists because it is the step a reviewer will otherwise report as broken: without *Allow in
 Incognito* the extension explains rather than opening, and an explanation screen looks like a
 failure to someone who does not know it is a Chrome-level toggle we cannot set ourselves.
+
+---
+
+## 11. Polish (Phase 18)
+
+`pl` is the second locale VaultaMark ships, and the Store presents a listing per language. Five
+fields make up that listing; three are translated here and two deliberately are not.
+
+| # | Field | Polish? | Where it comes from |
+| --- | --- | --- | --- |
+| 1 | Extension name | **No — never translated** | `extName`, which is the literal string `VaultaMark`. §1 |
+| 2 | Short description | **Yes**, §11.1 | `extDescription` in `public/_locales/pl/messages.json` — a **package upload**, not a dashboard edit |
+| 3 | Detailed description | **Yes**, §11.2 | pasted into the dashboard under Language → Polish; editable without a package |
+| 4 | Screenshots | **No — the English set is used** | §11.3 records why |
+| 5 | Small promo tile | **No — the English set is used** | same decision as the screenshots |
+
+### 11.1 Short description — 130 characters
+
+> Zakładki, o których Chrome nie wie. Bez podpowiedzi w pasku adresu, otwierane w incognito,
+> szyfrowane, opcjonalnie na Twoim Dysku.
+
+**130 of the 132 allowed**, measured — and measured by `scripts/verify-manifest.mjs`, which reads
+**every** locale in the built package now rather than only `en`. The Store applies the same limit to
+each language and **rejects** the upload rather than truncating, which is how the 1.0.0 package was
+refused for a 133-character English line.
+
+**This line was written to the limit, not translated to it.** A faithful rendering of the English —
+*…szyfrowane, opcjonalna synchronizacja przez Twój własny Dysk Google* — runs past 150 characters,
+because Polish inflects and has no short equivalent of "sync". Every claim in §2 survives the
+compression, in the same order: nothing reaches the omnibox, opens in incognito, encrypted, optional
+sync to the user's own Drive. What went is the word *synchronizacja* — fifteen characters for a noun
+that the phrase *na Twoim Dysku* ("on your Drive") already implies — and *Google*, which *Dysk*
+capitalised carries in Polish. *Opcjonalnie* keeps the "optional" that §2 calls load-bearing: Drive
+is opt-in and Chrome sync is the default, so a line reading *synced via your Google Drive* flat
+would be untrue in either language.
+
+### 11.2 Detailed description
+
+Paste verbatim under Language → Polish. Plain text, same as §3 — Markdown renders literally.
+
+```text
+Zakładki, o których Chrome nie wie.
+
+VaultaMark trzyma Twoje zakładki w sejfie zaszyfrowanym hasłem, przechowywanym całkowicie poza systemem zakładek i historii Chrome. Chrome nigdy nie dowiaduje się, że te adresy są w zakładkach, więc nigdy nie mogą pojawić się w podpowiedziach paska adresu, gdy ktoś patrzy, jak piszesz.
+
+CZYM SIĘ RÓŻNI
+
+- Przechowywane poza zakładkami Chrome. O to właśnie chodzi: adresy z sejfu nie mogą trafić do podpowiedzi paska adresu. Nadal synchronizują się między Twoimi urządzeniami, zaszyfrowane.
+- Każdy odnośnik z sejfu otwiera się w oknie incognito. Bez historii, bez pamięci podręcznej, bez śladu.
+- Czyszczenie historii jednym kliknięciem dla witryn, które masz w sejfie — zamyka lukę „ale raz tam byłem”, której narzędzia zajmujące się samymi zakładkami nie widzą.
+- Podglądy odnośników pobierane raz, w chwili zapisania strony, i szyfrowane. Późniejsze przeglądanie sejfu nie wykonuje ani jednego żądania sieciowego.
+- Opcjonalna synchronizacja przez Twój własny Dysk Google, w wąskim zakresie drive.file, więc rozszerzenie widzi wyłącznie plik, który samo utworzyło. Nie ma serwera VaultaMark, bo nie ma firmy VaultaMark.
+- Zero konfiguracji na start. Synchronizacja Chrome działa od razu, bez logowania i bez dodatkowych uprawnień.
+
+JAK DZIAŁA SZYFROWANIE
+
+Twoje hasło główne jest rozciągane algorytmem PBKDF2-HMAC-SHA256 (600 000 iteracji) do klucza, który odpakowuje losowy 256-bitowy klucz sejfu. Każdy tytuł, adres, nazwa folderu, etykieta, notatka i miniatura są szyfrowane algorytmem AES-256-GCM, zanim gdziekolwiek trafią. Hasło nigdy nie jest przechowywane ani przesyłane.
+
+NIE MA ODZYSKIWANIA HASŁA
+
+Żadnego. Ani przez autora, ani przez Google, ani przez nikogo. Nie istnieje klucz odzyskiwania i nie istnieje tylne wejście. Jeśli zapomnisz hasła głównego, Twój sejf będzie trwale nie do odczytania. Taki jest projekt i to dlatego nikogo nie da się zmusić do wydania Twoich zakładek. Jako kopii zapasowej używaj wbudowanego zaszyfrowanego eksportu.
+
+PRYWATNOŚĆ
+
+Bez telemetrii. Bez analityki. Bez raportowania błędów. Bez kont. Bez żadnych żądań sieciowych poza Twoim własnym Dyskiem Google, gdy go podłączysz. Pilnują tego automatyczne testy, które zatrzymują kompilację, a nie sama obietnica w opisie.
+
+DWA POZIOMY SYNCHRONIZACJI
+
+Synchronizacja Chrome (domyślnie): bez konfiguracji, około 600 zakładek, bez miniatur.
+Dysk Google (opcjonalnie): praktycznie bez ograniczeń, z zaszyfrowanymi podglądami stron.
+
+Otwarte źródła, GPL-3.0-only: https://github.com/zyndata/vaulta-mark
+```
+
+Every claim §3's verification table checks survives word for word; nothing was added and nothing
+dropped. Two things read differently on purpose:
+
+- **"NIE MA ODZYSKIWANIA HASŁA"** is the heading English writes as *THERE IS NO PASSWORD RECOVERY*.
+  This is the sentence in the product where a softer rendering is a data-loss risk rather than a
+  typo — a reader who takes it as a hedge sets a weak password on a vault with no recovery — so the
+  Polish is as flat and as final as the English, and the paragraph under it opens on the bare
+  *Żadnego.* ("None.")
+- **"Otwarte źródła"** rather than the borrowed *open source*. Both are understood; the first is a
+  claim in the reader's own language, and this is the line that invites them to go and check.
+
+### 11.3 Screenshots stay English — the decision, recorded
+
+**The five screenshots and the promo tile stay English, and the Polish listing shows them.** PLAN
+Phase 18 asks for the decision either way, so here it is, with what would change it.
+
+A Polish set is cheap to make once: `scripts/capture-store-screenshots.mjs` is deterministic and
+would only need a Polish build. What it is not is cheap *afterwards* — every retake becomes two
+sets, the fixture titles, folder names and notes in the capture script are English prose that would
+want translating too, and a set that goes stale in one language only is worse than one honest set.
+Each shot's subject is legible without reading a label: a list of bookmarks, a sidebar, a settings
+panel, a warning behind a phrase you have to type.
+
+**Revisit on evidence, not on principle.** Two things would change the answer: a third or fourth
+locale, at which point per-locale capture stops being a special case and becomes a loop; or Store
+metrics showing the Polish listing converting materially worse than the English one, which is the
+only measurement that could say the images are costing anything.
+
+### 11.4 What is not translated, and why
+
+- **The name.** `VaultaMark` is the product, in every locale (§1).
+- **§4 single-purpose statement, §5 permission justifications, §6 data disclosures, §10 test
+  instructions.** These are read by Chrome Web Store reviewers, not by users, and the dashboard
+  takes one of each. English.
+- **The privacy policy and the support/homepage URLs.** One document, one repository. A translated
+  privacy policy that drifts from the English one is a legal statement in two versions.
+- **In-app: nothing is left untranslated.** Every message key is in `pl`, and `npm run verify` fails
+  if one is not — see [ARCHITECTURE §18](ARCHITECTURE.md#18-localisation). There is **no in-app
+  language picker**, deliberately; §18.4 is the reasoning, and it is there because the question will
+  arrive as an issue.

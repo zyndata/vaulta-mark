@@ -15,7 +15,9 @@
  * Three locales, and the third is the point:
  *
  * - **`en`** — the baseline the screen was drawn against.
- * - **`pl`** — the translation this phase ships, and the only one whose numbers anybody has checked.
+ * - **`pl`** — the translation this phase ships, and the only one whose wording anybody has checked.
+ *   It carries the axe pass as well: an accessible name is a translated string like any other, and
+ *   an `aria-label` that came back empty is invisible to exactly the people who depend on it.
  * - **synthetic long locales**, built here by stretching every English word and installed into a
  *   throwaway copy of the package as `de`. They stand in for German, which is not shipped and would
  *   not be a fair test if it were: a real translation is only as long as its translator made it,
@@ -38,6 +40,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, expect, test, type BrowserContext, type Page } from '@playwright/test';
+
+import { expectNoA11yViolations } from './a11y.js';
 
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
@@ -169,7 +173,7 @@ async function measure(page: Page) {
       rootClientWidth: root.clientWidth,
       doorVisible: within(door),
       versionVisible: within(version),
-      sample: (screen.textContent ?? '').slice(0, 40),
+      sample: screen.textContent.slice(0, 40),
     };
   });
 }
@@ -199,6 +203,29 @@ test.describe('the popup settings screen fits Chrome, in every locale', () => {
     const harness = await launch('en-US', null);
     try {
       expectItFits(await measure(await settingsScreen(harness)), 'en');
+    } finally {
+      await shutDown(harness);
+    }
+  });
+
+  test('in Polish, which is a real translation and gets the axe pass too', async () => {
+    const harness = await launch('pl', null);
+    try {
+      const page = await settingsScreen(harness);
+      const m = await measure(page);
+      // The browser is genuinely reading `_locales/pl` — otherwise this measures English twice.
+      expect(m.sample).toContain('Ustawienia');
+      expectItFits(m, 'pl');
+
+      /*
+       * The axe pass, in Polish (PLAN Phase 18: "an `aria-label` is a translated string too").
+       *
+       * The English passes live in popup.spec.ts and manager.spec.ts and are not repeated here.
+       * What is different about a second locale is that every accessible name on the screen is a
+       * different string: a label that was translated as an empty string, or a `lang` that says
+       * `en` over Polish text, is a defect this run can see and the English one cannot.
+       */
+      await expectNoA11yViolations(page, 'the popup settings screen, in Polish');
     } finally {
       await shutDown(harness);
     }

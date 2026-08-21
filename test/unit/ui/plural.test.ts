@@ -16,6 +16,8 @@
  * language: a Russian browser reading our English would be told 21 is `one` and shown "1 bookmark".
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -89,6 +91,71 @@ describe('messageLocale', () => {
   it('defaults to the locales this build actually ships', () => {
     expect(SHIPPED_LOCALES).toContain(DEFAULT_LOCALE);
     for (const tag of SHIPPED_LOCALES) expect(messageLocale(tag)).toBe(tag);
+  });
+});
+
+/*
+ * Every form the selector can ask for exists in every locale that ships.
+ *
+ * The same shape as `test/unit/manager/io-text.test.ts`, and it exists for the same reason: a key
+ * that is not there renders as an empty string, and an empty line reads as a line that was never
+ * written. `scripts/verify-strings.mjs` checks this too, from the other end — it reads the *files*
+ * and compares their key sets. This reads the *selector*: it drives real counts through
+ * `pluralCategory` and looks up what came back. A family the code can reach and the file has not
+ * got fails here whether or not the tables agree with each other.
+ */
+describe('the shipped locales, against the selector', () => {
+  const messages = Object.fromEntries(
+    SHIPPED_LOCALES.map((locale) => [
+      locale,
+      JSON.parse(readFileSync(resolve(`public/_locales/${locale}/messages.json`), 'utf8')) as Record<
+        string,
+        { message: string }
+      >,
+    ]),
+  );
+
+  /** Every family the English file defines, by base. */
+  const bases = [
+    ...new Set(
+      Object.keys(messages['en'] ?? {})
+        .map((key) => /^(?<base>.+)_(?:one|few|many|other|two|zero)$/u.exec(key)?.groups?.['base'])
+        .filter((base): base is string => base !== undefined),
+    ),
+  ];
+
+  it('finds families to check, so an empty sweep cannot pass', () => {
+    expect(bases.length).toBeGreaterThan(40);
+    expect(bases).toContain('listCountBookmarks');
+  });
+
+  it.each(SHIPPED_LOCALES)('%s answers every count the selector can produce', (locale) => {
+    const file = messages[locale] ?? {};
+    const missing: string[] = [];
+    for (const base of bases)
+      for (const count of COUNTS) {
+        const key = `${base}_${pluralCategory(count, locale)}`;
+        if (file[key] === undefined) missing.push(`${locale}: ${key} (for ${String(count)})`);
+      }
+    expect(missing).toStrictEqual([]);
+  });
+
+  it.each(SHIPPED_LOCALES)('%s keeps every placeholder its English carries', (locale) => {
+    const file = messages[locale] ?? {};
+    const english = messages['en'] ?? {};
+    const dropped: string[] = [];
+    for (const [key, entry] of Object.entries(file)) {
+      // A pl-only form has no English twin; compare it against the family's `other`, which the
+      // sweep above has already proved is there.
+      const reference =
+        english[key] ?? english[`${key.replace(/_(?:one|few|many|other|two|zero)$/u, '')}_other`];
+      if (reference === undefined) continue;
+      for (const token of reference.message.match(/\$[A-Z_]+\$/gu) ?? [])
+        if (!entry.message.includes(token)) dropped.push(`${locale}: ${key} lost ${token}`);
+    }
+    // A substitution with nowhere to go does not fail, warn or log — the number simply is not on
+    // the screen, in a sentence that was written to carry it.
+    expect(dropped).toStrictEqual([]);
   });
 });
 
