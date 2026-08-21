@@ -97,9 +97,13 @@ async function launch(language: string, packageDir: string | null): Promise<Harn
     // See lock.spec.ts: the default headless build does not run extensions at all.
     channel: 'chromium',
     headless: true,
-    // `--lang` is what `chrome.i18n` reads. Playwright's `locale` option sets `Accept-Language`,
-    // which is a different thing and would leave every screen in English.
+    // `--lang` picks the `_locales` directory: it is the browser's *application* locale.
     args: [`--disable-extensions-except=${load}`, `--load-extension=${load}`, `--lang=${language}`],
+    // And `locale` is what a page reports for `chrome.i18n.getUILanguage()`, which `plural()`
+    // resolves into the locale it asks `Intl.PluralRules` about. Playwright emulates `en-US` unless
+    // told otherwise, so setting only `--lang` gives a browser rendering one language and reporting
+    // another — see locale-fallback.spec.ts, which was measured wrong by exactly that.
+    locale: language,
   });
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
   return { context, extensionId: new URL(worker.url()).host, userDataDir, packageDir };

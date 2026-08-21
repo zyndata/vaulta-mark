@@ -393,6 +393,37 @@ for. **Done once, 2026-08-20**, when the feature landed; repeat it before any re
 
 ---
 
+### 5.7 Locales: what is automated, and the two things the harness gets wrong
+
+`locale-fit.spec.ts` and `locale-fallback.spec.ts` cover the parts of localisation only a browser
+can answer. Two harness facts cost an afternoon each and are not guessable:
+
+- **`--lang` and Playwright's `locale` are different switches, and both are needed.** `--lang=pl`
+  sets the browser's *application* locale, which is what picks `_locales/pl/messages.json`.
+  Playwright separately emulates a context locale — `en-US` unless told otherwise — and that is what
+  a page gets back from `chrome.i18n.getUILanguage()`. Set only `--lang` and you have a browser
+  rendering Polish while every page in it reports `en-US`, which is not a state a real browser can
+  be in and which makes `src/ui/plural.ts` pick English's categories for Polish text. Pass
+  `locale: 'pl-PL'` alongside `--lang=pl`, always.
+- **A synthetic locale goes into a copy of `dist/`, never into `dist/`.** Every other spec loads the
+  same directory and `npm run zip` packages it.
+
+#### What `default_locale` actually does — measured 2026-08-21
+
+The manifest documentation says Chrome falls back to `default_locale` without saying at what
+granularity, and the difference is a policy rather than a detail. **Measured, in Chromium, against
+the real build, with a `pl` locale holding exactly one key: Chrome falls back _per message_.** The
+translated key came back in Polish, a key the Polish file did not have came back in English, and a
+key no locale has came back as the empty string.
+
+So an unfinished translation renders as a **partly English interface**, not as blank labels. That is
+what makes a partial translation mergeable — the gaps are visible to whoever is reading them, which
+is the only person positioned to report them. It does not make the parity check optional: a missing
+key is still a sentence nobody chose, and `scripts/verify-strings.mjs` fails on one.
+
+`locale-fallback.spec.ts` is that measurement, kept, so a future Chrome that changes its mind says
+so out loud.
+
 ---
 
 ## 6. The invariant scanners
