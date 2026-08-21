@@ -90,6 +90,21 @@ below.
 
 ### Changed
 
+- **Counted sentences now agree with their numbers in any language, not only in English.** Every
+  line that says how many of something there are — "3 bookmarks", "12 entries", "5 minutes" — used
+  to come from a pair of sentences, one for one and one for everything else. That is exactly the two
+  forms English has and it is wrong nearly everywhere else: Polish needs three (1 zakładka,
+  2 zakładki, 5 zakładek, with 22 taking the second and 12 the third), so a pair could not have been
+  translated correctly no matter what anyone wrote in it. The forms now come from the browser's own
+  `Intl.PluralRules`, which knows every language's rules and costs nothing to ask.
+  - **Two sentences that each counted two things were split in half.** The import preview said
+    "412 bookmarks in 19 folders" from a key that enumerated every combination of English's two
+    forms — six of them. In Polish that is sixteen, and in the next language a different number
+    again. It now reads as two sentences with one count each, which a translator can write correctly
+    in any language and reorder within.
+  - Nothing here changes what the English reads, apart from a handful of lines that gained a proper
+    singular they had been going without.
+
 - **The post-1.0 backlog now records why, not only whether.** Three requests were closed as
   refused with the reasoning attached — a second hidden vault under a different password, per-folder
   auto-lock, and Argon2id — and three more were left open as deferred rather than closed, because

@@ -35,6 +35,7 @@ import {
 } from '../shared/messages.js';
 import { dialogField, dialogText, openDialog } from '../ui/dialog.js';
 import { h, matchesPhrase, msg, render } from '../ui/dom.js';
+import { plural } from '../ui/plural.js';
 import { historyCleanupPanel } from '../ui/history-cleanup.js';
 import { errorText, syncErrorText } from '../ui/strings.js';
 import { offerTrackingCleanup } from '../ui/tracking.js';
@@ -523,9 +524,7 @@ async function askAdoptRemote(from: 'chrome' | 'drive'): Promise<boolean> {
         { class: local === 0 ? 'vm-notice' : 'vm-notice vm-notice--danger' },
         local === 0
           ? msg('syncMismatchAdoptLosesNone')
-          : local === 1
-            ? msg('syncMismatchAdoptLosesOne')
-            : msg('syncMismatchAdoptLoses', [String(local)]),
+          : plural('syncMismatchAdoptLoses', local, [String(local)]),
       ),
       ...(local === 0 ? [] : [dialogText('syncMismatchAdoptBackupFirst')]),
       dialogField('syncMismatchAdoptPassword', password),
@@ -830,10 +829,10 @@ const MIGRATION_FAILURE_KEYS: Record<
 function migrationFailureText(response: MigrationResponse): string {
   const reason = response.reason ?? 'unknown';
   if (reason !== 'too-large') return msg(MIGRATION_FAILURE_KEYS[reason]);
-  return msg(MIGRATION_FAILURE_KEYS[reason], [
-    String(response.items ?? 0),
-    String(response.fits ?? 0),
-  ]);
+  // Named rather than read back out of the table above: `plural()` takes a family base, and a base
+  // reached through a lookup is one `scripts/verify-strings.mjs` cannot see and so cannot check.
+  const items = response.items ?? 0;
+  return plural('syncMigrateFailedTooLarge', items, [String(items), String(response.fits ?? 0)]);
 }
 
 function section(headingKey: string, children: HTMLElement[], extraClass?: string): HTMLElement {
@@ -979,7 +978,7 @@ function locking(deps: SettingsDeps): HTMLElement[] {
         { value: String(minutes), selected: minutes === deps.settings.idleTimeoutMinutes },
         minutes === IDLE_TIMEOUT_NEVER
           ? msg('settingsIdleNever')
-          : msg('settingsIdleMinutes', [String(minutes)]),
+          : plural('settingsIdleMinutes', minutes, [String(minutes)]),
       ),
     ),
   );

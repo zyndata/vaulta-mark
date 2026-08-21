@@ -335,9 +335,19 @@
     "message": "Lock after inactivity",
     "description": "Label for the idle-timeout selector."
   },
-  "settingsIdleMinutes": {
+  "settingsIdleMinutes_one": {
+    "message": "1 minute",
+    "description": "An idle-timeout choice. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "minutes": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "settingsIdleMinutes_other": {
     "message": "$MINUTES$ minutes",
-    "description": "An idle-timeout choice.",
+    "description": "An idle-timeout choice. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "minutes": {
         "content": "$1",
@@ -453,9 +463,9 @@
     "message": "Clean the bookmarks you already have?",
     "description": "Heading of the dialog offered when the strip-tracking setting is switched on."
   },
-  "trackingCleanupBody": {
-    "message": "$COUNT$ saved bookmarks still carry tracking parameters. They can be removed from those addresses now.",
-    "description": "Body of the tracking clean-up offer.",
+  "trackingCleanupBody_one": {
+    "message": "One saved bookmark still carries tracking parameters. They can be removed from its address now.",
+    "description": "Body of the tracking clean-up offer. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -463,9 +473,15 @@
       }
     }
   },
-  "trackingCleanupBodyOne": {
-    "message": "One saved bookmark still carries tracking parameters. They can be removed from its address now.",
-    "description": "Body of the tracking clean-up offer when exactly one bookmark is affected."
+  "trackingCleanupBody_other": {
+    "message": "$COUNT$ saved bookmarks still carry tracking parameters. They can be removed from those addresses now.",
+    "description": "Body of the tracking clean-up offer. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
   },
   "trackingCleanupCaveat": {
     "message": "Only the campaign tags are removed; nothing is deleted and every page still opens where it did. This cannot be undone.",
@@ -475,9 +491,9 @@
     "message": "Clean them up",
     "description": "Confirming button on the tracking clean-up offer."
   },
-  "trackingCleaned": {
-    "message": "Cleaned $COUNT$ bookmarks.",
-    "description": "Reported after the tracking clean-up ran.",
+  "trackingCleaned_one": {
+    "message": "Cleaned 1 bookmark.",
+    "description": "Reported after the tracking clean-up ran. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -485,9 +501,15 @@
       }
     }
   },
-  "trackingCleanedOne": {
-    "message": "Cleaned 1 bookmark.",
-    "description": "Reported after the tracking clean-up changed exactly one bookmark."
+  "trackingCleaned_other": {
+    "message": "Cleaned $COUNT$ bookmarks.",
+    "description": "Reported after the tracking clean-up ran. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
   },
   "incognitoHeading": {
     "message": "VaultaMark needs permission to open incognito windows",
@@ -675,15 +697,24 @@
     "message": "My own order",
     "description": "Sort order: the arrangement the user has dragged the items into. The only order that can be reordered."
   },
-  "reorderMovedOne": {
+  "reorderMoved_one": {
     "message": "Moved.",
-    "description": "Live-region confirmation after one item was dragged or nudged to a new position."
-  },
-  "reorderMovedCount": {
-    "message": "Moved $COUNT$ items.",
-    "description": "Live-region confirmation after several items were moved to a new position.",
+    "description": "Live-region confirmation after items were dragged or nudged to a new position. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
-      "count": { "content": "$1", "example": "4" }
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "reorderMoved_other": {
+    "message": "Moved $COUNT$ items.",
+    "description": "Live-region confirmation after items were dragged or nudged to a new position. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
     }
   },
   "reorderUnavailable": {
@@ -804,9 +835,19 @@
     "message": "Looking through the vault…",
     "description": "Placeholder while the duplicates screen waits for its first answer."
   },
-  "dupesIntro": {
+  "dupesIntro_one": {
+    "message": "One address is saved more than once. Its copies can differ in title, folder, tags and notes, so none is chosen for you — tick the ones to remove.",
+    "description": "Introduction to the duplicates screen. Says explicitly that nothing is pre-selected, because the screen’s only verb is delete. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "dupesIntro_other": {
     "message": "$COUNT$ addresses are saved more than once. Copies can differ in title, folder, tags and notes, so none is chosen for you — tick the ones to remove.",
-    "description": "Introduction to the duplicates screen. Says explicitly that nothing is pre-selected, because the screen's only verb is delete.",
+    "description": "Introduction to the duplicates screen. Says explicitly that nothing is pre-selected, because the screen’s only verb is delete. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -822,9 +863,19 @@
     "message": "No address is saved twice.",
     "description": "The duplicates screen with nothing to show."
   },
-  "dupesCopies": {
+  "dupesCopies_one": {
+    "message": "1 copy",
+    "description": "How many bookmarks share one address. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "dupesCopies_other": {
     "message": "$COUNT$ copies",
-    "description": "How many bookmarks share one address.",
+    "description": "How many bookmarks share one address. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -874,9 +925,19 @@
     "message": "Tick all but the oldest",
     "description": "Per-group shortcut. A button rather than a default, so the user still sees what is ticked before anything is removed."
   },
-  "dupesRemoveSelected": {
+  "dupesRemoveSelected_one": {
+    "message": "Remove 1 ticked",
+    "description": "The one removal button. Spans every group, because cleaning forty addresses should be one undo rather than forty. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesRemoveSelected_other": {
     "message": "Remove $COUNT$ ticked",
-    "description": "The one removal button. Spans every group, because cleaning forty addresses should be one undo rather than forty.",
+    "description": "The one removal button. Spans every group, because cleaning forty addresses should be one undo rather than forty. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -884,9 +945,19 @@
       }
     }
   },
-  "dupesConfirmHeading": {
+  "dupesConfirmHeading_one": {
+    "message": "Remove 1 bookmark?",
+    "description": "Heading of the duplicates removal confirmation. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "dupesConfirmHeading_other": {
     "message": "Remove $COUNT$ bookmarks?",
-    "description": "Heading of the duplicates removal confirmation.",
+    "description": "Heading of the duplicates removal confirmation. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -894,9 +965,9 @@
       }
     }
   },
-  "dupesConfirmEmptied": {
-    "message": "$COUNT$ of these addresses would be left with no copy at all — those bookmarks leave the vault entirely.",
-    "description": "Warning when every copy of an address is ticked. Legitimate, but not what a screen called duplicates implies.",
+  "dupesConfirmEmptied_one": {
+    "message": "One of these addresses would be left with no copy at all — that bookmark leaves the vault entirely.",
+    "description": "Warning when every copy of an address is ticked. Legitimate, but not what a screen called duplicates implies. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -904,9 +975,15 @@
       }
     }
   },
-  "dupesConfirmEmptiedOne": {
-    "message": "One of these addresses would be left with no copy at all — that bookmark leaves the vault entirely.",
-    "description": "Singular of dupesConfirmEmptied."
+  "dupesConfirmEmptied_other": {
+    "message": "$COUNT$ of these addresses would be left with no copy at all — those bookmarks leave the vault entirely.",
+    "description": "Warning when every copy of an address is ticked. Legitimate, but not what a screen called duplicates implies. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
   },
   "dupesConfirmButton": {
     "message": "Remove",
@@ -932,9 +1009,9 @@
     "message": "Every bookmark has at least one tag.",
     "description": "Shown instead of the list when the Untagged filter finds nothing."
   },
-  "listCountBookmarks": {
-    "message": "$COUNT$ bookmarks",
-    "description": "Count of the bookmarks in the current view.",
+  "listCountBookmarks_one": {
+    "message": "1 bookmark",
+    "description": "Count of the bookmarks in the current view. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -942,9 +1019,15 @@
       }
     }
   },
-  "listCountOneBookmark": {
-    "message": "1 bookmark",
-    "description": "Singular of listCountBookmarks."
+  "listCountBookmarks_other": {
+    "message": "$COUNT$ bookmarks",
+    "description": "Count of the bookmarks in the current view. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
   },
   "listFolderCount": {
     "message": "$COUNT$ inside",
@@ -972,9 +1055,19 @@
     "message": "j and k move, Enter opens, e edits, p previews, Delete removes, Esc clears.",
     "description": "Keyboard hint under the manager's list."
   },
-  "selectionCount": {
+  "selectionCount_one": {
+    "message": "1 selected",
+    "description": "How many rows are selected. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "selectionCount_other": {
     "message": "$COUNT$ selected",
-    "description": "How many rows are selected.",
+    "description": "How many rows are selected. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -1010,9 +1103,19 @@
     "message": "Clear selection",
     "description": "Bulk action: deselect everything."
   },
-  "deletedCount": {
+  "deletedCount_one": {
+    "message": "Deleted 1 bookmark.",
+    "description": "Undo toast after a bulk delete. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "deletedCount_other": {
     "message": "Deleted $COUNT$ bookmarks.",
-    "description": "Undo toast after a bulk delete.",
+    "description": "Undo toast after a bulk delete. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -1020,19 +1123,25 @@
       }
     }
   },
-  "movedCount": {
-    "message": "Moved $COUNT$ items.",
-    "description": "Confirmation after bookmarks are dragged into a folder.",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "7"
-      }
-    }
-  },
-  "movedOne": {
+  "moved_one": {
     "message": "Moved 1 item.",
-    "description": "Confirmation after a single bookmark is dragged into a folder."
+    "description": "Confirmation after bookmarks are dragged into a folder. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "moved_other": {
+    "message": "Moved $COUNT$ items.",
+    "description": "Confirmation after bookmarks are dragged into a folder. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
   },
   "paneResizeSidebar": {
     "message": "Resize the sidebar",
@@ -1050,9 +1159,19 @@
     "message": "Select a bookmark to see and edit it.",
     "description": "Shown in the detail pane when nothing is selected."
   },
-  "detailMany": {
+  "detailMany_one": {
+    "message": "1 bookmark selected. Use the actions above the list to move, tag or delete it.",
+    "description": "Shown in the detail pane when more than one row is selected. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "detailMany_other": {
     "message": "$COUNT$ bookmarks selected. Use the actions above the list to move, tag or delete them together.",
-    "description": "Shown in the detail pane when more than one row is selected.",
+    "description": "Shown in the detail pane when more than one row is selected. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -1190,9 +1309,9 @@
     "message": "This is real browsing history and Chrome offers no undo.",
     "description": "Second line of the confirmation for deleting one page's history entries."
   },
-  "detailForgot": {
-    "message": "Removed $COUNT$ history entries for this page.",
-    "description": "Confirmation after deleting one page's history entries.",
+  "detailForgot_one": {
+    "message": "Removed 1 history entry for this page.",
+    "description": "Confirmation after deleting one page’s history entries. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -1200,17 +1319,37 @@
       }
     }
   },
-  "detailForgotOne": {
-    "message": "Removed 1 history entry for this page.",
-    "description": "Confirmation after deleting one page's history entries, when there was exactly one."
+  "detailForgot_other": {
+    "message": "Removed $COUNT$ history entries for this page.",
+    "description": "Confirmation after deleting one page’s history entries. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
   },
   "detailForgotNothing": {
     "message": "There was nothing left to remove for this page.",
     "description": "Confirmation after deleting one page's history entries, when the entries had already gone."
   },
-  "detailStats": {
+  "detailStats_one": {
+    "message": "Added $ADDED$ · opened once",
+    "description": "Timestamps and counters in the detail pane. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "12 March 2026"
+      },
+      "count": {
+        "content": "$2",
+        "example": "4"
+      }
+    }
+  },
+  "detailStats_other": {
     "message": "Added $ADDED$ · opened $COUNT$ times",
-    "description": "Timestamps and counters in the detail pane.",
+    "description": "Timestamps and counters in the detail pane. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "added": {
         "content": "$1",
@@ -1256,9 +1395,19 @@
       }
     }
   },
-  "folderDeleteQuestion": {
+  "folderDeleteQuestion_one": {
+    "message": "There is 1 bookmark inside. What should happen to it?",
+    "description": "The choice the delete-folder dialog asks for. There is no default: one answer loses a subtree and the other rearranges the tree. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "folderDeleteQuestion_other": {
     "message": "There are $COUNT$ bookmarks inside. What should happen to them?",
-    "description": "The choice the delete-folder dialog asks for. There is no default: one answer loses a subtree and the other rearranges the tree.",
+    "description": "The choice the delete-folder dialog asks for. There is no default: one answer loses a subtree and the other rearranges the tree. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -1322,9 +1471,19 @@
     "message": "Enter at least one tag to add or remove.",
     "description": "Shown when the bulk-tag dialog is submitted with both fields empty."
   },
-  "tagRenamed": {
+  "tagRenamed_one": {
+    "message": "Renamed on 1 bookmark.",
+    "description": "Confirmation after a tag rename. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "tagRenamed_other": {
     "message": "Renamed on $COUNT$ bookmarks.",
-    "description": "Confirmation after a tag rename.",
+    "description": "Confirmation after a tag rename. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -1376,9 +1535,9 @@
       }
     }
   },
-  "tagDeleteBodyCount": {
-    "message": "It comes off $COUNT$ bookmarks. Nothing is deleted but the tag itself, and this cannot be undone.",
-    "description": "Body of the delete-tag confirmation. Whole sentences per count, so a translator can reorder them.",
+  "tagDeleteBodyCount_one": {
+    "message": "It comes off one bookmark. Nothing is deleted but the tag itself, and this cannot be undone.",
+    "description": "Body of the delete-tag confirmation. Whole sentences per count, so a translator can reorder them. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "tag": {
         "content": "$1",
@@ -1390,13 +1549,17 @@
       }
     }
   },
-  "tagDeleteBodyOne": {
-    "message": "It comes off one bookmark. Nothing is deleted but the tag itself, and this cannot be undone.",
-    "description": "Body of the delete-tag confirmation when exactly one bookmark carries it.",
+  "tagDeleteBodyCount_other": {
+    "message": "It comes off $COUNT$ bookmarks. Nothing is deleted but the tag itself, and this cannot be undone.",
+    "description": "Body of the delete-tag confirmation. Whole sentences per count, so a translator can reorder them. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "tag": {
         "content": "$1",
         "example": "reading"
+      },
+      "count": {
+        "content": "$2",
+        "example": "12"
       }
     }
   },
@@ -1414,9 +1577,19 @@
     "message": "Delete the tag",
     "description": "Confirming button on the delete-tag confirmation. A verb, never “OK”."
   },
-  "tagDeleted": {
+  "tagDeleted_one": {
+    "message": "Removed from 1 bookmark.",
+    "description": "Confirmation after a tag deletion. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "tagDeleted_other": {
     "message": "Removed from $COUNT$ bookmarks.",
-    "description": "Confirmation after a tag deletion.",
+    "description": "Confirmation after a tag deletion. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -1440,7 +1613,7 @@
     "message": "Close",
     "description": "Close button, shared by every dialog."
   },
-  "deleteConfirmHeadingOne": {
+  "deleteConfirmHeadingTitled": {
     "message": "Delete “$TITLE$”?",
     "description": "Heading of the delete confirmation for a single bookmark or folder. Asked in the popup and in the manager alike.",
     "placeholders": {
@@ -1450,9 +1623,19 @@
       }
     }
   },
-  "deleteConfirmHeading": {
+  "deleteConfirmHeading_one": {
+    "message": "Delete 1 item?",
+    "description": "Heading of the delete confirmation for a selection counted rather than named. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "7"
+      }
+    }
+  },
+  "deleteConfirmHeading_other": {
     "message": "Delete $COUNT$ items?",
-    "description": "Heading of the delete confirmation for a multiple selection.",
+    "description": "Heading of the delete confirmation for a selection counted rather than named. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -1682,22 +1865,29 @@
     "message": "The synced vault stays exactly as it is. This computer joins it the way a second computer does: its bookmarks, folders, tags and notes appear here, and the two keep each other up to date from now on.",
     "description": "What joining the synced vault does."
   },
-  "syncMismatchAdoptLoses": {
-    "message": "The $COUNT$ bookmarks in this computer's own vault are erased. There is no undo.",
-    "description": "What the local vault loses when the synced one is adopted.",
-    "placeholders": {
-      "count": {
-        "content": "$1"
-      }
-    }
-  },
   "syncMismatchAdoptLosesNone": {
     "message": "This computer's own vault has no bookmarks in it, so nothing here is lost.",
     "description": "Shown instead of the warning when the local vault is empty."
   },
-  "syncMismatchAdoptLosesOne": {
-    "message": "The one bookmark in this computer's own vault is erased. There is no undo.",
-    "description": "Singular form of the warning about the local vault."
+  "syncMismatchAdoptLoses_one": {
+    "message": "The one bookmark in this computer’s own vault is erased. There is no undo.",
+    "description": "What the local vault loses when the synced one is adopted. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "syncMismatchAdoptLoses_other": {
+    "message": "The $COUNT$ bookmarks in this computer’s own vault are erased. There is no undo.",
+    "description": "What the local vault loses when the synced one is adopted. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
   },
   "syncMismatchAdoptBackupFirst": {
     "message": "To keep them, close this and back the vault up first under Import & export.",
@@ -1847,13 +2037,19 @@
     "message": "Chrome sync storage is full. New bookmarks stay on this device until you free some room.",
     "description": "Shown when sync storage passes 95% full."
   },
-  "conflictBannerOne": {
+  "conflictBanner_one": {
     "message": "One bookmark changed on two devices at once.",
-    "description": "Persistent banner shown when exactly one conflict is pending."
+    "description": "Persistent banner shown while conflicts are pending. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
   },
-  "conflictBannerMany": {
+  "conflictBanner_other": {
     "message": "$COUNT$ bookmarks changed on two devices at once.",
-    "description": "Persistent banner shown when several conflicts are pending.",
+    "description": "Persistent banner shown while conflicts are pending. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -1909,13 +2105,19 @@
     "message": "(conflicted copy)",
     "description": "Appended to the title of the duplicate created by “keep both”."
   },
-  "conflictResolvedOne": {
+  "conflictResolved_one": {
     "message": "Settled.",
-    "description": "Confirmation after resolving one conflict."
+    "description": "Confirmation after resolving conflicts. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "4"
+      }
+    }
   },
-  "conflictResolvedCount": {
+  "conflictResolved_other": {
     "message": "Settled $COUNT$ of them.",
-    "description": "Confirmation after resolving several conflicts.",
+    "description": "Confirmation after resolving conflicts. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -2067,81 +2269,49 @@
     "message": "What is in this backup",
     "description": "Heading of the import preview dialog."
   },
-  "ioPreviewCounts": {
-    "message": "$BOOKMARKS$ bookmarks in $FOLDERS$ folders.",
-    "description": "Line of the import preview. Both counts plural; the three keys after it are the singular forms.",
+  "ioPreviewCountsBookmarks_one": {
+    "message": "The file holds 1 bookmark.",
+    "description": "First half of the import preview count line: how many bookmarks the file holds. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "bookmarks": {
         "content": "$1",
         "example": "412"
-      },
+      }
+    }
+  },
+  "ioPreviewCountsBookmarks_other": {
+    "message": "The file holds $BOOKMARKS$ bookmarks.",
+    "description": "First half of the import preview count line: how many bookmarks the file holds. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "412"
+      }
+    }
+  },
+  "ioPreviewCountsFolders_one": {
+    "message": "They sit in 1 folder.",
+    "description": "Second half of the import preview count line. A whole sentence, so a language that puts the number elsewhere can. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
       "folders": {
-        "content": "$2",
+        "content": "$1",
         "example": "19"
       }
     }
   },
-  "ioPreviewCountsOneBookmark": {
-    "message": "$BOOKMARKS$ bookmark in $FOLDERS$ folders.",
-    "description": "Line of the import preview when the file holds exactly one bookmark.",
+  "ioPreviewCountsFolders_other": {
+    "message": "They sit in $FOLDERS$ folders.",
+    "description": "Second half of the import preview count line. A whole sentence, so a language that puts the number elsewhere can. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
-      "bookmarks": {
-        "content": "$1",
-        "example": "412"
-      },
       "folders": {
-        "content": "$2",
-        "example": "19"
-      }
-    }
-  },
-  "ioPreviewCountsOneFolder": {
-    "message": "$BOOKMARKS$ bookmarks in $FOLDERS$ folder.",
-    "description": "Line of the import preview when the file holds exactly one folder.",
-    "placeholders": {
-      "bookmarks": {
         "content": "$1",
-        "example": "412"
-      },
-      "folders": {
-        "content": "$2",
-        "example": "19"
-      }
-    }
-  },
-  "ioPreviewCountsOneEach": {
-    "message": "$BOOKMARKS$ bookmark in $FOLDERS$ folder.",
-    "description": "Line of the import preview when the file holds exactly one of each.",
-    "placeholders": {
-      "bookmarks": {
-        "content": "$1",
-        "example": "412"
-      },
-      "folders": {
-        "content": "$2",
         "example": "19"
       }
     }
   },
   "ioPreviewCountsNoFolders": {
-    "message": "$BOOKMARKS$ bookmarks and no folders.",
-    "description": "Line of the import preview when the file holds no folders at all.",
-    "placeholders": {
-      "bookmarks": {
-        "content": "$1",
-        "example": "412"
-      }
-    }
-  },
-  "ioPreviewCountsOneNoFolders": {
-    "message": "$BOOKMARKS$ bookmark and no folders.",
-    "description": "Line of the import preview when the file holds one bookmark and no folders.",
-    "placeholders": {
-      "bookmarks": {
-        "content": "$1",
-        "example": "1"
-      }
-    }
+    "message": "There are no folders in it.",
+    "description": "Stands in for ioPreviewCountsFolders when the file has no folders at all. Its own sentence rather than the family with a zero in it: \"They sit in 0 folders\" is grammatical and reads like a machine wrote it."
   },
   "ioPreviewCreated": {
     "message": "Saved $WHEN$ by $BY$.",
@@ -2179,9 +2349,9 @@
     "message": "This is a synced vault file. It does not say when it was last changed.",
     "description": "Line of the import preview for a synced vault file with no date."
   },
-  "ioPreviewKnown": {
-    "message": "$COUNT$ of them are already in this vault.",
-    "description": "Line of the import preview naming the overlap with the current vault.",
+  "ioPreviewKnown_one": {
+    "message": "One of them is already in this vault.",
+    "description": "Line of the import preview naming the overlap with the current vault. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -2189,9 +2359,15 @@
       }
     }
   },
-  "ioPreviewKnownOne": {
-    "message": "One of them is already in this vault.",
-    "description": "Line of the import preview when exactly one item overlaps."
+  "ioPreviewKnown_other": {
+    "message": "$COUNT$ of them are already in this vault.",
+    "description": "Line of the import preview naming the overlap with the current vault. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "38"
+      }
+    }
   },
   "ioPreviewAllNew": {
     "message": "None of them are in this vault yet.",
@@ -2221,30 +2397,62 @@
     "message": "Choose merge or replace first.",
     "description": "Refusal when the preview dialog is submitted with no mode chosen."
   },
-  "ioImportDone": {
-    "message": "Imported $ADDED$ bookmarks. The vault now holds $TOTAL$ items.",
-    "description": "Announced after a successful import with no conflicts.",
+  "ioImportDoneAdded_one": {
+    "message": "Imported 1 bookmark.",
+    "description": "Announced after a successful import: what came in. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "added": {
         "content": "$1",
         "example": "412"
-      },
+      }
+    }
+  },
+  "ioImportDoneAdded_other": {
+    "message": "Imported $ADDED$ bookmarks.",
+    "description": "Announced after a successful import: what came in. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "added": {
+        "content": "$1",
+        "example": "412"
+      }
+    }
+  },
+  "ioImportDoneHolds_one": {
+    "message": "The vault now holds 1 item.",
+    "description": "Second sentence after an import with no conflicts: what the vault holds now. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
       "total": {
-        "content": "$2",
+        "content": "$1",
         "example": "930"
       }
     }
   },
-  "ioImportDoneConflicts": {
-    "message": "Imported $ADDED$ bookmarks. $CONFLICTS$ differ from what you already had — open the conflicts banner to choose.",
-    "description": "Announced after an import that produced conflicts.",
+  "ioImportDoneHolds_other": {
+    "message": "The vault now holds $TOTAL$ items.",
+    "description": "Second sentence after an import with no conflicts: what the vault holds now. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
-      "added": {
+      "total": {
         "content": "$1",
-        "example": "412"
-      },
+        "example": "930"
+      }
+    }
+  },
+  "ioImportDoneDiffer_one": {
+    "message": "1 of them differs from what you already had — open the conflicts banner to choose.",
+    "description": "Second sentence after an import that produced conflicts. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
       "conflicts": {
-        "content": "$2",
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "ioImportDoneDiffer_other": {
+    "message": "$CONFLICTS$ of them differ from what you already had — open the conflicts banner to choose.",
+    "description": "Second sentence after an import that produced conflicts. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "conflicts": {
+        "content": "$1",
         "example": "3"
       }
     }
@@ -2253,9 +2461,23 @@
     "message": "Replace the whole vault?",
     "description": "Heading of the first replace-import confirmation."
   },
-  "importReplaceWarning": {
-    "message": "This removes all $CURRENT$ bookmarks currently in the vault and puts the backup's $INCOMING$ in their place.",
-    "description": "Warning in the replace-import confirmation.",
+  "importReplaceWarning_one": {
+    "message": "This removes the 1 bookmark currently in the vault and puts the backup’s $INCOMING$ in its place.",
+    "description": "Warning in the replace-import confirmation. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "930"
+      },
+      "incoming": {
+        "content": "$2",
+        "example": "412"
+      }
+    }
+  },
+  "importReplaceWarning_other": {
+    "message": "This removes all $CURRENT$ bookmarks currently in the vault and puts the backup’s $INCOMING$ in their place.",
+    "description": "Warning in the replace-import confirmation. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "current": {
         "content": "$1",
@@ -2311,9 +2533,19 @@
     "message": "Last chance",
     "description": "Heading of the second replace confirmation."
   },
-  "importReplaceLastBody": {
+  "importReplaceLastBody_one": {
+    "message": "1 bookmark is about to be replaced. Press once more to go ahead.",
+    "description": "Body of the second replace confirmation. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "930"
+      }
+    }
+  },
+  "importReplaceLastBody_other": {
     "message": "$COUNT$ bookmarks are about to be replaced. Press once more to go ahead.",
-    "description": "Body of the second replace confirmation.",
+    "description": "Body of the second replace confirmation. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -2383,20 +2615,62 @@
     "message": "Tick something first.",
     "description": "Shown when an import or delete is pressed with nothing selected."
   },
-  "ioNativeImported": {
-    "message": "Copied $BOOKMARKS$ bookmarks and $FOLDERS$ folders. $SKIPPED$ were skipped as duplicates or unsupported addresses.",
-    "description": "Announced after a native import.",
+  "ioNativeImportedBookmarks_one": {
+    "message": "Copied 1 bookmark.",
+    "description": "After a native import: how many bookmarks were copied. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "bookmarks": {
         "content": "$1",
         "example": "180"
-      },
+      }
+    }
+  },
+  "ioNativeImportedBookmarks_other": {
+    "message": "Copied $BOOKMARKS$ bookmarks.",
+    "description": "After a native import: how many bookmarks were copied. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "bookmarks": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeImportedFolders_one": {
+    "message": "Created 1 folder.",
+    "description": "After a native import: how many folders were created. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
       "folders": {
-        "content": "$2",
+        "content": "$1",
         "example": "12"
-      },
+      }
+    }
+  },
+  "ioNativeImportedFolders_other": {
+    "message": "Created $FOLDERS$ folders.",
+    "description": "After a native import: how many folders were created. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "folders": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "ioNativeImportedSkipped_one": {
+    "message": "1 was skipped as a duplicate or an unsupported address.",
+    "description": "After a native import: what was passed over. Omitted entirely when nothing was. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
       "skipped": {
-        "content": "$3",
+        "content": "$1",
+        "example": "4"
+      }
+    }
+  },
+  "ioNativeImportedSkipped_other": {
+    "message": "$SKIPPED$ were skipped as duplicates or unsupported addresses.",
+    "description": "After a native import: what was passed over. Omitted entirely when nothing was. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "skipped": {
+        "content": "$1",
         "example": "4"
       }
     }
@@ -2409,9 +2683,9 @@
     "message": "Deleting the Chrome copies is what removes those addresses from the address bar's suggestions. Nothing is deleted until you press the button above and confirm.",
     "description": "Hint under the native-import buttons."
   },
-  "ioNativeDeleteHeading": {
-    "message": "Delete $COUNT$ bookmarks from Chrome?",
-    "description": "Heading of the native-deletion confirmation.",
+  "ioNativeDeleteHeading_one": {
+    "message": "Delete 1 bookmark from Chrome?",
+    "description": "Heading of the native-deletion confirmation. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -2419,9 +2693,29 @@
       }
     }
   },
-  "ioNativeDeleteBody": {
-    "message": "$COUNT$ selected bookmarks and folders will be removed from Chrome's own bookmarks.",
-    "description": "Body of the native-deletion confirmation.",
+  "ioNativeDeleteHeading_other": {
+    "message": "Delete $COUNT$ bookmarks from Chrome?",
+    "description": "Heading of the native-deletion confirmation. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteBody_one": {
+    "message": "1 selected bookmark or folder will be removed from Chrome’s own bookmarks.",
+    "description": "Body of the native-deletion confirmation. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteBody_other": {
+    "message": "$COUNT$ selected bookmarks and folders will be removed from Chrome’s own bookmarks.",
+    "description": "Body of the native-deletion confirmation. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -2441,9 +2735,9 @@
     "message": "Delete from Chrome",
     "description": "Confirming button of the native-deletion dialog."
   },
-  "ioNativeDeleted": {
-    "message": "Removed $COUNT$ bookmarks from Chrome.",
-    "description": "Announced after a successful native deletion.",
+  "ioNativeDeleted_one": {
+    "message": "Removed 1 bookmark from Chrome.",
+    "description": "Announced after a native deletion. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -2451,16 +2745,32 @@
       }
     }
   },
-  "ioNativeDeletedPartial": {
-    "message": "Removed $COUNT$ bookmarks from Chrome. $FAILED$ could not be removed — Chrome's built-in folders cannot be deleted.",
-    "description": "Announced after a partially successful native deletion.",
+  "ioNativeDeleted_other": {
+    "message": "Removed $COUNT$ bookmarks from Chrome.",
+    "description": "Announced after a native deletion. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
-        "example": "178"
-      },
+        "example": "180"
+      }
+    }
+  },
+  "ioNativeDeleteFailed_one": {
+    "message": "1 could not be removed — Chrome’s built-in folders cannot be deleted.",
+    "description": "Second sentence when a native deletion was only partly possible. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
       "failed": {
-        "content": "$2",
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "ioNativeDeleteFailed_other": {
+    "message": "$FAILED$ could not be removed — Chrome’s built-in folders cannot be deleted.",
+    "description": "Second sentence when a native deletion was only partly possible. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "failed": {
+        "content": "$1",
         "example": "2"
       }
     }
@@ -2695,27 +3005,43 @@
     "message": "That did not work. Nothing has been deleted.",
     "description": "Shown when the dry run or the deletion fails."
   },
-  "historyDryRun": {
-    "message": "This will remove $ENTRIES$ history entries across $DOMAINS$ sites.",
-    "description": "The dry-run result.",
+  "historyDryRunEntries_one": {
+    "message": "This will remove 1 history entry.",
+    "description": "The dry-run result: how many history entries would go. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "entries": {
         "content": "$1",
         "example": "143"
-      },
+      }
+    }
+  },
+  "historyDryRunEntries_other": {
+    "message": "This will remove $ENTRIES$ history entries.",
+    "description": "The dry-run result: how many history entries would go. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyDryRunSites_one": {
+    "message": "One site is affected.",
+    "description": "The dry-run result: how many sites they are spread over. Its own sentence, because two counts in one sentence cannot be made to agree in every language. Plural family (src/ui/plural.ts), the \"one\" form.",
+    "placeholders": {
       "domains": {
-        "content": "$2",
+        "content": "$1",
         "example": "27"
       }
     }
   },
-  "historyDryRunOneDomain": {
-    "message": "This will remove $ENTRIES$ history entries, all from one site.",
-    "description": "The dry-run result when only one site matched.",
+  "historyDryRunSites_other": {
+    "message": "$DOMAINS$ sites are affected.",
+    "description": "The dry-run result: how many sites they are spread over. Its own sentence, because two counts in one sentence cannot be made to agree in every language. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
-      "entries": {
+      "domains": {
         "content": "$1",
-        "example": "143"
+        "example": "27"
       }
     }
   },
@@ -2733,9 +3059,9 @@
     "message": "Review the list",
     "description": "Expands the per-site breakdown of the dry run."
   },
-  "historyReviewEntries": {
-    "message": "$COUNT$ entries",
-    "description": "Per-site count in the review list.",
+  "historyReviewEntries_one": {
+    "message": "1 entry",
+    "description": "Per-site count in the review list. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -2743,9 +3069,15 @@
       }
     }
   },
-  "historyReviewOneEntry": {
-    "message": "1 entry",
-    "description": "Per-site count in the review list, singular."
+  "historyReviewEntries_other": {
+    "message": "$COUNT$ entries",
+    "description": "Per-site count in the review list. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
   },
   "historyReviewRemove": {
     "message": "Remove",
@@ -2773,23 +3105,29 @@
     "message": "Delete these history entries?",
     "description": "Confirmation dialog heading."
   },
-  "historyConfirmBody": {
-    "message": "$ENTRIES$ entries across $DOMAINS$ sites will be deleted from Chrome's browsing history.",
-    "description": "Confirmation dialog body.",
+  "historyConfirmEntries_one": {
+    "message": "1 entry will be deleted from Chrome’s browsing history.",
+    "description": "Confirmation dialog body: how many entries go. Paired with historyDryRunSites. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "entries": {
         "content": "$1",
         "example": "143"
-      },
-      "domains": {
-        "content": "$2",
-        "example": "27"
       }
     }
   },
-  "historyConfirmSite": {
-    "message": "$ENTRIES$ entries from $DOMAIN$ will be deleted from Chrome's browsing history.",
-    "description": "Confirmation dialog body when one site was picked out of the review list.",
+  "historyConfirmEntries_other": {
+    "message": "$ENTRIES$ entries will be deleted from Chrome’s browsing history.",
+    "description": "Confirmation dialog body: how many entries go. Paired with historyDryRunSites. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "entries": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
+  },
+  "historyConfirmSite_one": {
+    "message": "One entry from $DOMAIN$ will be deleted from Chrome’s browsing history.",
+    "description": "Confirmation dialog body when one site was picked out of the review list. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "domain": {
         "content": "$1",
@@ -2801,13 +3139,17 @@
       }
     }
   },
-  "historyConfirmSiteOne": {
-    "message": "One entry from $DOMAIN$ will be deleted from Chrome's browsing history.",
-    "description": "Confirmation dialog body when one site was picked out of the review list and it has a single entry.",
+  "historyConfirmSite_other": {
+    "message": "$ENTRIES$ entries from $DOMAIN$ will be deleted from Chrome’s browsing history.",
+    "description": "Confirmation dialog body when one site was picked out of the review list. Plural family (src/ui/plural.ts), the \"other\" form.",
     "placeholders": {
       "domain": {
         "content": "$1",
         "example": "example.com"
+      },
+      "entries": {
+        "content": "$2",
+        "example": "143"
       }
     }
   },
@@ -2815,9 +3157,9 @@
     "message": "This is real browsing history and Chrome offers no undo. Sites that are not in your vault are not touched.",
     "description": "Confirmation dialog caveat."
   },
-  "historyCleared": {
-    "message": "Removed $COUNT$ history entries.",
-    "description": "Announced after a cleanup.",
+  "historyCleared_one": {
+    "message": "Removed 1 history entry.",
+    "description": "Announced after a cleanup. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "count": {
         "content": "$1",
@@ -2825,9 +3167,15 @@
       }
     }
   },
-  "historyClearedOne": {
-    "message": "Removed 1 history entry.",
-    "description": "Announced after a cleanup, singular."
+  "historyCleared_other": {
+    "message": "Removed $COUNT$ history entries.",
+    "description": "Announced after a cleanup. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "143"
+      }
+    }
   },
   "settingsSectionShortcuts": {
     "message": "Keyboard shortcuts",
@@ -3092,15 +3440,31 @@
     "message": "There is already a different vault in that Drive folder. Not a different password, necessarily — a vault created a second time is a new vault whatever it was given to open it, so a computer that lost its copy and started again lands here too. The two cannot be merged and nothing was changed. Choose below which of them to keep.",
     "description": "Migration failed: the target holds another vault."
   },
-  "syncMigrateFailedTooLarge": {
-    "message": "This vault no longer fits in Chrome sync: it holds $ITEMS$ bookmarks and about $FITS$ would fit. Export a backup and remove some, or stay on Drive.",
-    "description": "Migration failed: the vault is too large for chrome.storage.sync.",
+  "syncMigrateFailedTooLarge_one": {
+    "message": "This vault no longer fits in Chrome sync: it holds 1 bookmark and about $FITS$ would fit. Export a backup and remove some, or stay on Drive.",
+    "description": "Migration failed: the vault is too large for chrome.storage.sync. Plural family (src/ui/plural.ts), the \"one\" form.",
     "placeholders": {
       "items": {
-        "content": "$1"
+        "content": "$1",
+        "example": "930"
       },
       "fits": {
-        "content": "$2"
+        "content": "$2",
+        "example": "600"
+      }
+    }
+  },
+  "syncMigrateFailedTooLarge_other": {
+    "message": "This vault no longer fits in Chrome sync: it holds $ITEMS$ bookmarks and about $FITS$ would fit. Export a backup and remove some, or stay on Drive.",
+    "description": "Migration failed: the vault is too large for chrome.storage.sync. Plural family (src/ui/plural.ts), the \"other\" form.",
+    "placeholders": {
+      "items": {
+        "content": "$1",
+        "example": "930"
+      },
+      "fits": {
+        "content": "$2",
+        "example": "600"
       }
     }
   },

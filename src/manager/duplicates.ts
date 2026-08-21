@@ -21,8 +21,9 @@
  */
 
 import { send, type DuplicateGroupView, type DuplicateRow } from '../shared/messages.js';
-import { confirmDialog, dialogText } from '../ui/dialog.js';
+import { confirmDialog, dialogPlural, dialogText } from '../ui/dialog.js';
 import { append, h, msg, render } from '../ui/dom.js';
+import { plural } from '../ui/plural.js';
 import { errorText } from '../ui/strings.js';
 
 export interface DuplicatesScreenDeps {
@@ -103,7 +104,7 @@ function contents(
 
   function paintRemove(): void {
     removeButton.disabled = selection.size === 0;
-    render(removeButton, msg('dupesRemoveSelected', [String(selection.size)]));
+    render(removeButton, plural('dupesRemoveSelected', selection.size, [String(selection.size)]));
   }
   paintRemove();
 
@@ -117,7 +118,7 @@ function contents(
     h(
       'div',
       { class: 'vm-dupes-intro' },
-      h('p', null, msg('dupesIntro', [String(groups.length)])),
+      h('p', null, plural('dupesIntro', groups.length, [String(groups.length)])),
       h('p', { class: 'vm-hint vm-small vm-muted' }, msg('dupesRule')),
     ),
     h('div', { class: 'vm-dupes-bar' }, removeButton),
@@ -163,7 +164,7 @@ function groupItem(
       'div',
       { class: 'vm-dupes-group-head' },
       h('p', { class: 'vm-dupes-address' }, address),
-      h('p', { class: 'vm-small vm-muted' }, msg('dupesCopies', [String(group.items.length)])),
+      h('p', { class: 'vm-small vm-muted' }, plural('dupesCopies', group.items.length, [String(group.items.length)])),
     ),
     h('ul', { class: 'vm-dupes-copies' }, ...copies),
     h(
@@ -259,15 +260,11 @@ async function confirmRemoval(
   }
 
   const confirmed = await confirmDialog({
-    heading: msg('dupesConfirmHeading', [String(ids.length)]),
+    heading: plural('dupesConfirmHeading', ids.length, [String(ids.length)]),
     body: [
       ...(emptied === 0
         ? []
-        : [
-            dialogText(emptied === 1 ? 'dupesConfirmEmptiedOne' : 'dupesConfirmEmptied', [
-              String(emptied),
-            ]),
-          ]),
+        : [dialogPlural('dupesConfirmEmptied', emptied, [String(emptied)])]),
       dialogText('deleteConfirmBody'),
     ],
     confirmLabel: msg('dupesConfirmButton'),

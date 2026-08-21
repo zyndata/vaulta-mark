@@ -21,8 +21,9 @@
  * messages to it.
  */
 
-import { confirmDialog, dialogText } from './dialog.js';
+import { confirmDialog, dialogPlural, dialogText } from './dialog.js';
 import { msg } from './dom.js';
+import { plural } from './plural.js';
 
 export interface TrackingCleanupDeps {
   /** How many saved bookmarks would change. `COUNT_TRACKING_PARAMS`. */
@@ -46,10 +47,7 @@ export async function offerTrackingCleanup(deps: TrackingCleanupDeps): Promise<v
   const confirmed = await confirmDialog({
     heading: msg('trackingCleanupHeading'),
     body: [
-      dialogText(
-        affected === 1 ? 'trackingCleanupBodyOne' : 'trackingCleanupBody',
-        [String(affected)],
-      ),
+      dialogPlural('trackingCleanupBody', affected, [String(affected)]),
       dialogText('trackingCleanupCaveat'),
     ],
     confirmLabel: msg('trackingCleanupButton'),
@@ -60,7 +58,5 @@ export async function offerTrackingCleanup(deps: TrackingCleanupDeps): Promise<v
   // Nothing changed means the strip failed and the caller has already said so, or another window
   // cleaned the vault while this dialog was open. Neither is worth "cleaned 0 bookmarks".
   if (changed <= 0) return;
-  deps.say(
-    changed === 1 ? msg('trackingCleanedOne') : msg('trackingCleaned', [String(changed)]),
-  );
+  deps.say(plural('trackingCleaned', changed, [String(changed)]));
 }

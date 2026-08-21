@@ -16,6 +16,7 @@
  */
 
 import { OPTIONAL_PERMISSIONS } from '../../build/manifest.js';
+import { resetPluralLocale } from '../../src/ui/plural.js';
 
 /** Chrome's documented `chrome.storage.sync` limits — docs/ARCHITECTURE.md §5.2. */
 export const SYNC_LIMITS = {
@@ -404,6 +405,11 @@ export interface ChromeMockOptions {
   grantedPermissions?: readonly string[];
   /** Whether "Allow in Incognito" starts on. Off by default, as it is on a fresh install. */
   incognitoAccess?: boolean;
+  /**
+   * The browser UI language, which `src/ui/plural.ts` resolves into a locale and asks
+   * `Intl.PluralRules` about. `en` unless a test is about a language with more than two forms.
+   */
+  uiLanguage?: string;
 }
 
 export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
@@ -708,6 +714,9 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     i18n: {
       // Returning the key keeps assertions readable and makes a missing string obvious.
       getMessage: (key: string) => key,
+      // Real, not a stub: `plural()` resolves this against SHIPPED_LOCALES and hands the answer to
+      // `Intl.PluralRules`, so a test that wants Polish's four forms sets it and gets them.
+      getUILanguage: () => options.uiLanguage ?? 'en',
     },
   };
 
@@ -928,4 +937,8 @@ export function installChromeMock(options: ChromeMockOptions = {}): ChromeMock {
 
 export function uninstallChromeMock(): void {
   delete (globalThis as { chrome?: typeof chrome }).chrome;
+  // `plural()` caches the resolved UI language for the life of the module, which in a browser is the
+  // life of the document and here is the life of the whole run. A test that installs a Polish mock
+  // would otherwise leave every test after it counting in Polish.
+  resetPluralLocale();
 }

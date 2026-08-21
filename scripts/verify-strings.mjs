@@ -6,7 +6,7 @@
  * looks identical to a translated one in the running extension and stays invisible until somebody
  * opens a translation PR and finds a third of the product missing from the file they were handed.
  *
- * Three checks:
+ * Four checks:
  *
  *   1. **Missing keys.** Every `msg('someKey')` names a key that exists. A key that does not is not
  *      an error at runtime: `chrome.i18n.getMessage` answers with the empty string, so the label
@@ -18,6 +18,13 @@
  *      `h()`, the right-hand side of `textContent =`, the value of a `title`/`placeholder`/
  *      `aria-label` attribute — and a regex over a codebase full of CSS class names and selectors
  *      would either miss all of it or drown the run in false positives.
+ *   4. **Key parity across locales** (Phase 18). Every locale under `public/_locales/` holds exactly
+ *      the keys `en` does — and, for a plural family, exactly the forms *that* language has, which
+ *      `Intl.PluralRules` is asked rather than told. This is the check the first three exist to
+ *      prescribe: while `en` was the only locale, a missing key could only come from a typo; with a
+ *      second one it comes from a translation that stopped halfway, and the symptom is the same
+ *      blank label with nobody left who can see it, because whoever reads that locale is not the
+ *      person who wrote the code.
  *
  * Run by `npm run verify:invariants`, and against `src/` rather than `dist/` — unlike the other two
  * scanners, what is being checked is authorship, and the bundler has thrown that seam away by then.
@@ -76,6 +83,40 @@ export function looksLikeProse(text) {
   return /[A-Za-z]{2,}\s+[A-Za-z]{2,}/u.test(trimmed);
 }
 
+/**
+ * Every CLDR plural category there is.
+ *
+ * The set a *language* uses is a subset, and is asked of `Intl.PluralRules` rather than listed
+ * anywhere — English has two, Polish four, Arabic six, and hard-coding any of those numbers is how
+ * the next locale arrives broken. This wider set exists only to recognise a key as a family member
+ * when reading `messages.json`: `historyCleared_many` is one, `syncMismatchAdoptLosesNone` is not.
+ */
+const PLURAL_CATEGORIES = ['zero', 'one', 'two', 'few', 'many', 'other'];
+
+/** The functions that take a family base rather than a key. See `src/ui/plural.ts`. */
+const PLURAL_CALLS = new Set(['plural', 'dialogPlural']);
+
+/**
+ * The locales this build ships, from the one list the running code also reads.
+ *
+ * Parsed out of `src/ui/plural.ts` rather than taken from the directory listing, so the two cannot
+ * drift: a `_locales/de/` nobody added to `SHIPPED_LOCALES` is a translation `plural()` will never
+ * pick categories for, and a tag in the list with no directory is a locale Chrome silently falls
+ * back out of. Both are reported below, which is the whole point of reading them from two places.
+ */
+export function shippedLocales(root = repoRoot) {
+  const source = readFileSync(join(root, 'src', 'ui', 'plural.ts'), 'utf8');
+  const list = /export const SHIPPED_LOCALES = \[([^\]]*)\]/u.exec(source);
+  if (list === null) throw new Error('SHIPPED_LOCALES is not where scripts/verify-strings.mjs looks for it.');
+  return [...list[1].matchAll(/'([a-z-]+)'/gu)].map((match) => match[1]);
+}
+
+/** The categories a language actually has, in a stable order. */
+export function categoriesOf(locale) {
+  const used = new Set(new Intl.PluralRules(locale).resolvedOptions().pluralCategories);
+  return PLURAL_CATEGORIES.filter((category) => used.has(category));
+}
+
 /** The string a node contributes, if it contributes a fixed one. */
 function literalOf(node) {
   if (node === undefined) return null;
@@ -96,6 +137,7 @@ function nameOf(node) {
 export function scanSource(file, text, defined = new Set()) {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.ESNext, true);
   const keys = new Set();
+  const families = new Set();
   const problems = [];
 
   const report = (node, message) => {
@@ -132,6 +174,31 @@ export function scanSource(file, text, defined = new Set()) {
           if (prefix.length > 0)
             for (const candidate of defined)
               if (candidate.startsWith(prefix)) keys.add(candidate);
+        }
+      }
+
+      /*
+       * (1, again) `plural(base, n)` and `dialogPlural(base, n)` name a *family*, not a key.
+       *
+       * The members are `base_one`, `base_few`, … and which of them exist is the locale's business,
+       * so the check here is only that the family is inhabited at all — a `plural('typo')` names
+       * nothing and would render as an empty string in every language at once. Parity between the
+       * locales is checked separately, against `Intl.PluralRules`, in `scanRepository`.
+       */
+      if (callee !== null && PLURAL_CALLS.has(callee)) {
+        const base = literalOf(node.arguments[0]);
+        if (base !== null) {
+          families.add(base);
+          let inhabited = false;
+          for (const category of PLURAL_CATEGORIES) {
+            const member = `${base}_${category}`;
+            if (defined.has(member)) {
+              keys.add(member);
+              inhabited = true;
+            }
+          }
+          if (defined.size > 0 && !inhabited)
+            report(node, `${callee}('${base}') has no plural family in _locales`);
         }
       }
 
@@ -181,7 +248,7 @@ export function scanSource(file, text, defined = new Set()) {
    */
   for (const match of text.matchAll(/['"]([A-Za-z][A-Za-z0-9_]*)['"]/gu)) keys.add(match[1]);
 
-  return { keys, problems };
+  return { keys, families, problems };
 }
 
 function walkFiles(dir, extension) {
@@ -202,12 +269,14 @@ export function scanRepository(root = repoRoot) {
   );
   const defined = new Set(Object.keys(messages));
   const referenced = new Set();
+  const families = new Set();
   const problems = [];
   const shortName = (file) => relative(root, file).split(sep).join('/');
 
   for (const file of walkFiles(src, '.ts')) {
     const result = scanSource(shortName(file), readFileSync(file, 'utf8'), defined);
     for (const key of result.keys) referenced.add(key);
+    for (const base of result.families) families.add(base);
     problems.push(...result.problems);
   }
 
@@ -228,7 +297,84 @@ export function scanRepository(root = repoRoot) {
   for (const key of defined)
     if (!referenced.has(key)) problems.push(`_locales/en/messages.json  "${key}" is never used`);
 
+  problems.push(...checkLocaleParity(root, messages, families));
+
   return { problems, defined };
+}
+
+/**
+ * Check 4: every locale holds exactly the keys `en` does, in exactly the forms its language has.
+ *
+ * Three kinds of finding, and the first is the one this was written for:
+ *
+ * - **Missing.** A key `en` has and this locale does not. Renders blank, and blank is invisible to
+ *   everyone who does not read that language — which is everyone who could fix it.
+ * - **Extra.** A key this locale has and `en` does not. Almost always a rename that went one way:
+ *   harmless to render, and a lie to the next translator, who will spend their evening on it.
+ * - **Wrong forms.** A family missing `_few` in Polish, or carrying a `_two` in English. Asked of
+ *   `Intl.PluralRules`, so adding a language adds no rule here and forgetting one is not possible.
+ *
+ * The `en` file is the reference for the *set* of keys, not for the forms: `listCountBookmarks` has
+ * two members in English and four in Polish, and neither file is wrong about the other.
+ */
+export function checkLocaleParity(root, englishMessages, families) {
+  const problems = [];
+  const locales = shippedLocales(root);
+  const localesDir = join(root, 'public', '_locales');
+  const onDisk = readdirSync(localesDir).filter((entry) =>
+    statSync(join(localesDir, entry)).isDirectory(),
+  );
+
+  for (const tag of onDisk)
+    if (!locales.includes(tag))
+      problems.push(`_locales/${tag}  is not in SHIPPED_LOCALES (src/ui/plural.ts)`);
+
+  /*
+   * `en` split into the plain keys and the family bases it defines. A key is a family member only
+   * if the code actually calls `plural()` on its base — `syncMismatchAdoptLosesNone` ends in a word
+   * that is not a category, but nothing stops a future key from ending in `_one` by accident.
+   */
+  const plain = new Set();
+  const inhabited = new Set();
+  for (const key of Object.keys(englishMessages)) {
+    const cut = key.lastIndexOf('_');
+    const base = cut === -1 ? null : key.slice(0, cut);
+    const category = cut === -1 ? null : key.slice(cut + 1);
+    if (base !== null && families.has(base) && PLURAL_CATEGORIES.includes(category)) {
+      inhabited.add(base);
+    } else {
+      plain.add(key);
+    }
+  }
+
+  for (const base of families)
+    if (!inhabited.has(base))
+      problems.push(`_locales/en/messages.json  plural family "${base}" has no members`);
+
+  for (const tag of locales) {
+    const file = join(localesDir, tag, 'messages.json');
+    let translated;
+    try {
+      translated = JSON.parse(readFileSync(file, 'utf8'));
+    } catch {
+      problems.push(`_locales/${tag}/messages.json  is missing or is not valid JSON`);
+      continue;
+    }
+    const have = new Set(Object.keys(translated));
+    // English is the reference for which families exist; the *language* decides the forms, so a
+    // family is expected here in full even where `en` itself carries only two of Polish's four.
+    const want = new Set(plain);
+    for (const base of inhabited)
+      for (const category of categoriesOf(tag)) want.add(`${base}_${category}`);
+
+    for (const key of want)
+      if (!have.has(key)) problems.push(`_locales/${tag}/messages.json  "${key}" is missing`);
+    for (const key of have)
+      if (!want.has(key))
+        problems.push(`_locales/${tag}/messages.json  "${key}" is not a key en defines`);
+  }
+
+  return problems;
 }
 
 function main() {

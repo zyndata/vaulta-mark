@@ -38,10 +38,12 @@ import {
   chooseDialog,
   confirmDialog,
   dialogField,
+  dialogPlural,
   dialogText,
   openDialog,
   promptText,
 } from '../ui/dialog.js';
+import { plural } from '../ui/plural.js';
 import { qrPanel } from '../ui/qr.js';
 import { ThumbPopover, type ThumbData } from '../ui/thumb.js';
 import { detailPane } from './detail.js';
@@ -657,10 +659,8 @@ export function mountManager(
     const bookmarks = rowsOf(state).filter((row) => row.type === 'bookmark').length;
     countSlot.textContent =
       state.selection.size > 0
-        ? msg('selectionCount', [String(state.selection.size)])
-        : bookmarks === 1
-          ? msg('listCountOneBookmark')
-          : msg('listCountBookmarks', [String(bookmarks)]);
+        ? plural('selectionCount', state.selection.size, [String(state.selection.size)])
+        : plural('listCountBookmarks', bookmarks, [String(bookmarks)]);
   }
 
   function paintActions(): void {
@@ -854,11 +854,7 @@ export function mountManager(
       warn(response.code);
       return;
     }
-    say(
-      response.count === 1
-        ? msg('conflictResolvedOne')
-        : msg('conflictResolvedCount', [String(response.count)]),
-    );
+    say(plural('conflictResolved', response.count, [String(response.count)]));
     await refreshSync();
     await reloadAll();
     // `refreshSync` may already have taken us back to the list, if that was the last one.
@@ -1093,7 +1089,7 @@ export function mountManager(
       return;
     }
     await reloadAll();
-    say(response.count === 1 ? msg('movedOne') : msg('movedCount', [String(response.count)]));
+    say(plural('moved', response.count, [String(response.count)]));
   }
 
   /**
@@ -1127,11 +1123,7 @@ export function mountManager(
     }
     await reloadAll();
     reselect(ids);
-    say(
-      response.count === 1
-        ? msg('reorderMovedOne')
-        : msg('reorderMovedCount', [String(response.count)]),
-    );
+    say(plural('reorderMoved', response.count, [String(response.count)]));
   }
 
   /**
@@ -1172,11 +1164,7 @@ export function mountManager(
       return;
     }
     await reloadAll();
-    say(
-      response.count === 1
-        ? msg('reorderMovedOne')
-        : msg('reorderMovedCount', [String(response.count)]),
-    );
+    say(plural('reorderMoved', response.count, [String(response.count)]));
   }
 
   /**
@@ -1245,7 +1233,7 @@ export function mountManager(
     }
     await reloadAll();
     reselect(ids);
-    say(ids.length === 1 ? msg('reorderMovedOne') : msg('reorderMovedCount', [String(ids.length)]));
+    say(plural('reorderMoved', ids.length, [String(ids.length)]));
   }
 
   /**
@@ -1385,9 +1373,7 @@ export function mountManager(
     say(
       response.count === 0
         ? msg('detailForgotNothing')
-        : response.count === 1
-          ? msg('detailForgotOne')
-          : msg('detailForgot', [String(response.count)]),
+        : plural('detailForgot', response.count, [String(response.count)]),
     );
   }
 
@@ -1496,7 +1482,7 @@ export function mountManager(
   }): Promise<void> {
     const mode = await chooseDialog<'reparent' | 'recursive'>({
       heading: msg('folderDeleteHeading', [item.title]),
-      body: [h('p', null, msg('folderDeleteQuestion', [String(item.descendants ?? 0)]))],
+      body: [dialogPlural('folderDeleteQuestion', item.descendants ?? 0, [String(item.descendants ?? 0)])],
       choices: [
         { label: msg('folderDeleteReparent'), value: 'reparent' },
         { label: msg('folderDeleteRecursive'), value: 'recursive', danger: true },
@@ -1601,7 +1587,7 @@ export function mountManager(
 
     const response = await send({ type: 'RENAME_TAG', from: tag, to: answer });
     if (response.type === 'ERROR') warn(response.code);
-    else say(msg('tagRenamed', [String(response.count)]));
+    else say(plural('tagRenamed', response.count, [String(response.count)]));
     await reloadAll();
   }
 
@@ -1618,14 +1604,9 @@ export function mountManager(
     const confirmed = await confirmDialog({
       heading: msg('tagDeleteHeading', [tag]),
       body: [
-        dialogText(
-          count === undefined
-            ? 'tagDeleteBody'
-            : count === 1
-              ? 'tagDeleteBodyOne'
-              : 'tagDeleteBodyCount',
-          count === undefined ? [tag] : [tag, String(count)],
-        ),
+        count === undefined
+          ? dialogText('tagDeleteBody', [tag])
+          : dialogPlural('tagDeleteBodyCount', count, [tag, String(count)]),
       ],
       confirmLabel: msg('tagDeleteConfirm'),
       danger: true,
@@ -1634,7 +1615,7 @@ export function mountManager(
 
     const response = await send({ type: 'DELETE_TAG', tag });
     if (response.type === 'ERROR') warn(response.code);
-    else say(msg('tagDeleted', [String(response.count)]));
+    else say(plural('tagDeleted', response.count, [String(response.count)]));
     // A tag filter that no longer matches anything would leave the list permanently empty, in the
     // same way standing inside a deleted folder does.
     if (state.query === tagQuery(tag)) {
@@ -1683,8 +1664,8 @@ export function mountManager(
     const confirmed = await confirmDialog({
       heading:
         ids.length === 1 && sole !== undefined
-          ? msg('deleteConfirmHeadingOne', [sole.title])
-          : msg('deleteConfirmHeading', [String(ids.length)]),
+          ? msg('deleteConfirmHeadingTitled', [sole.title])
+          : plural('deleteConfirmHeading', ids.length, [String(ids.length)]),
       body: [dialogText('deleteConfirmBody')],
       confirmLabel: msg('deleteConfirmButton'),
       danger: true,
@@ -1721,7 +1702,7 @@ export function mountManager(
         role: 'status',
         style: `--vm-undo-ms: ${String(UNDO_MS)}ms`,
       },
-      h('span', null, msg('deletedCount', [String(ids.length)])),
+      h('span', null, plural('deletedCount', ids.length, [String(ids.length)])),
       h(
         'button',
         {

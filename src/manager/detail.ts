@@ -14,6 +14,7 @@
  */
 
 import { h, msg, render } from '../ui/dom.js';
+import { plural } from '../ui/plural.js';
 import { inlinePreview, type ThumbData } from '../ui/thumb.js';
 import type { ItemDetail } from '../shared/messages.js';
 import { MAX_NOTE_LENGTH } from '../vault/types.js';
@@ -84,7 +85,7 @@ export function detailPane(deps: DetailDeps): HTMLElement {
         'p',
         { class: 'vm-muted' },
         deps.selectionCount > 1
-          ? msg('detailMany', [String(deps.selectionCount)])
+          ? plural('detailMany', deps.selectionCount, [String(deps.selectionCount)])
           : msg('detailNothing'),
       ),
     );
@@ -219,7 +220,7 @@ export function detailPane(deps: DetailDeps): HTMLElement {
       : h(
           'p',
           { class: 'vm-small vm-muted' },
-          msg('detailStats', [
+          plural('detailStats', item.openCount ?? 0, [
             new Date(item.createdAt).toLocaleDateString(),
             String(item.openCount ?? 0),
           ]),

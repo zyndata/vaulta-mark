@@ -85,7 +85,7 @@ describe('offerTrackingCleanup', () => {
     await pending;
 
     expect(strip).toHaveBeenCalledTimes(1);
-    expect(say).toHaveBeenCalledWith('trackingCleaned');
+    expect(say).toHaveBeenCalledWith('trackingCleaned_other');
   });
 
   it('changes nothing when the offer is declined', async () => {
@@ -103,7 +103,7 @@ describe('offerTrackingCleanup', () => {
     expect(say).not.toHaveBeenCalled();
   });
 
-  it('uses the singular wording for a single bookmark', async () => {
+  it('picks the "one" form of both families for a single bookmark', async () => {
     const say = vi.fn();
     const pending = offerTrackingCleanup({
       count: () => Promise.resolve(1),
@@ -113,11 +113,11 @@ describe('offerTrackingCleanup', () => {
     await vi.waitFor(() => {
       expect(dialogIsOpen()).toBe(true);
     });
-    expect(document.querySelector('dialog')?.textContent).toContain('trackingCleanupBodyOne');
+    expect(document.querySelector('dialog')?.textContent).toContain('trackingCleanupBody_one');
     confirm();
     await pending;
 
-    expect(say).toHaveBeenCalledWith('trackingCleanedOne');
+    expect(say).toHaveBeenCalledWith('trackingCleaned_one');
   });
 
   it('stays quiet when the strip itself changed nothing — the caller has already said why', async () => {

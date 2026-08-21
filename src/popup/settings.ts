@@ -27,6 +27,7 @@
 
 import type { StateResponse } from '../shared/messages.js';
 import { h, msg } from '../ui/dom.js';
+import { plural } from '../ui/plural.js';
 import {
   IDLE_TIMEOUT_CHOICES,
   IDLE_TIMEOUT_NEVER,
@@ -135,7 +136,7 @@ function section(headingKey: string, ...children: HTMLElement[]): HTMLElement {
 function idleChoiceLabel(minutes: number): string {
   return minutes === IDLE_TIMEOUT_NEVER
     ? msg('settingsIdleNever')
-    : msg('settingsIdleMinutes', [String(minutes)]);
+    : plural('settingsIdleMinutes', minutes, [String(minutes)]);
 }
 
 function autoLockText(unlockedUntil: number | null, settings: VaultSettings): string {

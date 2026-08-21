@@ -23,8 +23,9 @@ import {
   type ImportPreviewResponse,
   type NativeNodeView,
 } from '../shared/messages.js';
-import { confirmDialog, dialogField, dialogText, openDialog } from '../ui/dialog.js';
+import { confirmDialog, dialogField, dialogPlural, dialogText, openDialog } from '../ui/dialog.js';
 import { append, h, msg, render } from '../ui/dom.js';
+import { plural } from '../ui/plural.js';
 import { confirmReplaceImport } from '../ui/export-gate.js';
 import { errorText } from '../ui/strings.js';
 import { MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
@@ -341,12 +342,15 @@ async function runRestore(deps: Io, file: File, undoSlot: HTMLElement): Promise<
   // Straight to the screen that settles them, rather than a number on a page that cannot act on it.
   // The announcement still happens, because the live region is what a screen reader hears and the
   // navigation is not something it would otherwise be told about.
+  const added = plural('ioImportDoneAdded', result.added, [String(result.added)]);
   if (result.conflicts > 0) {
-    deps.say(msg('ioImportDoneConflicts', [String(result.added), String(result.conflicts)]));
+    deps.say(
+      `${added} ${plural('ioImportDoneDiffer', result.conflicts, [String(result.conflicts)])}`,
+    );
     deps.onConflicts();
     return;
   }
-  deps.say(msg('ioImportDone', [String(result.added), String(result.total)]));
+  deps.say(`${added} ${plural('ioImportDoneHolds', result.total, [String(result.total)])}`);
 }
 
 /**
@@ -437,39 +441,34 @@ async function chooseImportMode(
 }
 
 /**
- * "412 bookmarks in 19 folders", agreeing with both of its own numbers.
+ * "The file holds 412 bookmarks. They sit in 19 folders." — agreeing with both of its own numbers.
  *
- * Six whole sentences rather than a stem and a pluralized suffix, which is the shape the rest of
- * this project already uses (`listCountOneBookmark`, `movedOne`, `conflictResolvedOne`). A sentence
- * assembled at runtime out of fragments is one no translator can reorder, and the languages this
- * will eventually be read in do not all put the numbers where English does — or agree on how many
- * plural forms there are. Two counts in one sentence means enumerating the combinations; there are
- * only six, and each is legible on its own in the file.
+ * **Two sentences, one count each**, which is not what this was. Through Phase 17 it enumerated all
+ * six combinations of English's two forms in six whole keys, on the sound grounds that a sentence
+ * assembled at runtime out of fragments is one no translator can reorder. What that did not survive
+ * is a language with more than two forms: Polish has three that matter here, so the same
+ * enumeration is sixteen keys, and the next language moves the number again. Two counts in one
+ * sentence is the shape that does not scale, and splitting it at the sentence boundary is the only
+ * split that costs a translator nothing — each half is a whole sentence they can reorder inside,
+ * and the halves are read in the order they are written in every language this could ship in.
  *
- * "No folders" is its own pair rather than `$FOLDERS$ folders` with a zero in it: "2 bookmarks in
- * 0 folders" is grammatical and reads like a machine wrote it, which is not what someone about to
- * replace their vault wants to be reading.
+ * "There are no folders in it" is its own sentence rather than the family with a zero in it: "They
+ * sit in 0 folders" is grammatical and reads like a machine wrote it, which is not what someone
+ * about to replace their vault wants to be reading.
  *
  * Exported for the sake of the test that pins which key each combination picks. A wrong key here
  * renders as an empty string, which reads as a preview line that simply is not there.
  */
 export function countsLine(bookmarks: number, folders: number): string {
-  const counts = [String(bookmarks), String(folders)];
-  if (folders === 0) {
-    const key = bookmarks === 1 ? 'ioPreviewCountsOneNoFolders' : 'ioPreviewCountsNoFolders';
-    return msg(key, [String(bookmarks)]);
-  }
-  if (bookmarks === 1 && folders === 1) return msg('ioPreviewCountsOneEach', counts);
-  if (bookmarks === 1) return msg('ioPreviewCountsOneBookmark', counts);
-  if (folders === 1) return msg('ioPreviewCountsOneFolder', counts);
-  return msg('ioPreviewCounts', counts);
+  const first = plural('ioPreviewCountsBookmarks', bookmarks, [String(bookmarks)]);
+  if (folders === 0) return `${first} ${msg('ioPreviewCountsNoFolders')}`;
+  return `${first} ${plural('ioPreviewCountsFolders', folders, [String(folders)])}`;
 }
 
 /** How much of the file this vault already holds — "none", "one", or a number. */
 export function knownLine(known: number): string {
   if (known === 0) return msg('ioPreviewAllNew');
-  if (known === 1) return msg('ioPreviewKnownOne');
-  return msg('ioPreviewKnown', [String(known)]);
+  return plural('ioPreviewKnown', known, [String(known)]);
 }
 
 /** The two modes as radios with **neither** preselected — the choice has no safe default. */
@@ -712,12 +711,17 @@ async function runNativeImport(
     return;
   }
   deps.onVaultChanged();
+  const passedOver = response.duplicates + response.skipped;
   deps.say(
-    msg('ioNativeImported', [
-      String(response.bookmarks),
-      String(response.folders),
-      String(response.duplicates + response.skipped),
-    ]),
+    [
+      plural('ioNativeImportedBookmarks', response.bookmarks, [String(response.bookmarks)]),
+      plural('ioNativeImportedFolders', response.folders, [String(response.folders)]),
+      // Omitted rather than said with a zero in it: "0 were skipped" is a sentence about nothing,
+      // and this line is read after an import that went entirely to plan more often than not.
+      ...(passedOver === 0
+        ? []
+        : [plural('ioNativeImportedSkipped', passedOver, [String(passedOver)])]),
+    ].join(' '),
   );
   // Repainted so the *next* thing offered — deleting the originals — is asked for against a tree the
   // user is looking at rather than one they have already acted on.
@@ -746,9 +750,9 @@ async function runNativeDelete(
   // — and it counts every one of those as a failure it could not explain.
   const ids = topmostSelection(nodes, checked);
   const confirmed = await confirmDialog({
-    heading: msg('ioNativeDeleteHeading', [String(checked.size)]),
+    heading: plural('ioNativeDeleteHeading', checked.size, [String(checked.size)]),
     body: [
-      dialogText('ioNativeDeleteBody', [String(checked.size)]),
+      dialogPlural('ioNativeDeleteBody', checked.size, [String(checked.size)]),
       dialogText('ioNativeDeleteWhy'),
       dialogText('ioNativeDeleteNoUndo'),
     ],
@@ -762,10 +766,11 @@ async function runNativeDelete(
     deps.say(errorText(response.code), 'danger');
     return;
   }
+  const removed = plural('ioNativeDeleted', response.removed, [String(response.removed)]);
   deps.say(
     response.failed === 0
-      ? msg('ioNativeDeleted', [String(response.removed)])
-      : msg('ioNativeDeletedPartial', [String(response.removed), String(response.failed)]),
+      ? removed
+      : `${removed} ${plural('ioNativeDeleteFailed', response.failed, [String(response.failed)])}`,
   );
   await paintNative(deps, slot);
 }

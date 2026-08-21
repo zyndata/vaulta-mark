@@ -17,6 +17,7 @@
 
 import type { ConflictSide, ConflictView, SyncStatusResponse } from '../shared/messages.js';
 import { h, msg } from '../ui/dom.js';
+import { plural } from '../ui/plural.js';
 import { syncErrorText } from '../ui/strings.js';
 
 /* ------------------------------------------------------------------ the status button */
@@ -191,7 +192,7 @@ export function conflictBanner(count: number, onReview: () => void): HTMLElement
   return h(
     'div',
     { class: 'vm-conflict-banner', role: 'status' },
-    h('span', null, count === 1 ? msg('conflictBannerOne') : msg('conflictBannerMany', [String(count)])),
+    h('span', null, plural('conflictBanner', count, [String(count)])),
     h(
       'button',
       { type: 'button', class: 'vm-button vm-button--inline', onclick: onReview },

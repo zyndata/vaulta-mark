@@ -359,7 +359,7 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
     // target the pointer finds by accident on its way to the row itself, and the undo toast below
     // only helps someone who was looking at the popup when it happened.
     const confirmed = await confirmDialog({
-      heading: msg('deleteConfirmHeadingOne', [item.title]),
+      heading: msg('deleteConfirmHeadingTitled', [item.title]),
       body: [dialogText('deleteConfirmBody')],
       confirmLabel: msg('deleteConfirmButton'),
       danger: true,
