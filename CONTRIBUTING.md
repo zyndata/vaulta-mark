@@ -188,6 +188,48 @@ the extension's details page.
   pure: no I/O, no `chrome.*`.
 - Comments explain **why**, not what. Prettier decides formatting; do not argue with it.
 
+## Translations
+
+**This is the contribution the project most wants, and the one that needs the least setup.**
+`en` and `pl` ship today.
+
+1. Copy `public/_locales/en/messages.json` to `public/_locales/<tag>/messages.json`, where `<tag>`
+   is a language code Chrome knows — `de`, `fr`, `es`, `pt_BR`.
+2. Translate the `message` fields. Leave the keys, the `description` fields and the
+   `$PLACEHOLDER$` tokens exactly as they are: the tokens are where numbers, titles and file names
+   are substituted, and one dropped from a sentence is a number that silently is not on the screen.
+   Move them within the sentence as your language needs.
+3. Add the tag to `SHIPPED_LOCALES` in `src/ui/plural.ts`. Nothing checks a locale that is not
+   listed there.
+4. `npm run verify`. It will tell you exactly what is missing.
+
+**Plurals.** `chrome.i18n` has none, so VaultaMark uses `Intl.PluralRules` and a key suffix:
+`listCountBookmarks_one`, `_other` in English; `_one`, `_few`, `_many`, `_other` in Polish. **Your
+language's forms are whatever CLDR says they are**, and the check asks `Intl.PluralRules` rather
+than a list, so you do not have to tell anyone how many you need — you find out by running it. A
+family member may spell its number out in words where English does (`_one` is often "1 bookmark"
+rather than "$COUNT$ bookmark"); that is fine and normal.
+
+**Partial is mergeable.** Chrome falls back to English *per message* — measured, not assumed, in
+`test/e2e/locale-fallback.spec.ts` — so a half-finished translation shows English in the gaps
+rather than blank labels. What `npm run verify` will not let you do is *ship* a partial one, and
+that is deliberate: a gap nobody can see is a gap nobody fixes. Open the PR anyway and say what is
+left; finishing it together is easier than reviewing it twice.
+
+**Two sentences to be careful with**, because getting them a shade softer is a data-loss risk
+rather than a typo: `createNoRecoveryHeading` and `createNoRecoveryBody`. *There is no way to
+recover this password* has to land in your language as flatly as it does in English — a reader who
+takes it for a hedge chooses a weak password for a vault that genuinely cannot be recovered.
+
+**What is not in `_locales`, and does not need translating:** the Chrome Web Store listing's
+reviewer-facing fields, the privacy policy, and the screenshots. Those decisions live in
+[docs/STORE_LISTING.md §11](docs/STORE_LISTING.md).
+
+**There is no in-app language picker and there will not be one** — `chrome.i18n` takes its language
+from the browser and offers no supported override. The reasoning is in
+[ARCHITECTURE §18.4](docs/ARCHITECTURE.md#184-there-is-no-in-app-language-picker-and-there-will-not-be-one),
+so please read it before opening an issue asking for one.
+
 ## Pull-request checklist
 
 The [template](.github/PULL_REQUEST_TEMPLATE.md) asks you to confirm:

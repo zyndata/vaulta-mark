@@ -2057,13 +2057,35 @@ machinery that carries Polish carries the rest.
 - a11y: the axe pass runs against `pl` as well — an `aria-label` is a translated string too.
 
 **Definition of done**
-- [ ] Plurals go through `Intl.PluralRules`; no key pair encodes English's two forms.
-- [ ] The popup's settings screen fits in every shipped locale, measured, not reasoned about.
-- [ ] `npm run verify` fails on a missing key in any locale.
-- [ ] The `default_locale` fallback behaviour is measured and recorded.
-- [ ] Polish is complete and the Polish short description is ≤ 132 characters.
-- [ ] `docs/STORE_LISTING.md` carries every Polish field; the screenshot decision is recorded.
-- [ ] The absence of a language picker is documented with its reason.
+- [x] Plurals go through `Intl.PluralRules`; no key pair encodes English's two forms —
+      `src/ui/plural.ts`, **46 families**. Wider than the 17 the phase counted: a count key with no
+      English singular partner (`tagRenamed`, `dupesCopies`, `settingsIdleMinutes`) is the same
+      problem in Polish, which needs three forms where English needed one.
+- [x] The popup's settings screen fits in every shipped locale, measured, not reasoned about —
+      `test/e2e/locale-fit.spec.ts`, in `en`, `pl` and synthetic locales ×1.4 and ×3. **The phase's
+      premise did not survive the measurement**: the 589-px screen it budgeted eleven pixels for
+      lost a section in Phase 16, and the screen took English at 2.5× before anything reached the
+      fold. Rebuilt anyway, because "it happens to fit" is not a guarantee — the sections scroll in
+      a box of their own now, and the ×3 case fails against the old screen.
+- [x] `npm run verify` fails on a missing key in any locale — `verify-strings.mjs` check 4, which
+      asks `Intl.PluralRules` for each locale's categories rather than listing them. **Confirmed
+      failing** on a removed plain key, a removed `_few`, and an extra key.
+- [x] The `default_locale` fallback behaviour is measured and recorded — **per message**, not per
+      file. `test/e2e/locale-fallback.spec.ts`, ARCHITECTURE §18.3, DEVELOPMENT §5.7, with the date.
+      So a partial outside translation is mergeable, which is the policy the answer decided.
+- [x] Polish is complete and the Polish short description is ≤ 132 characters — 733 keys, and
+      **130 characters**, measured by `verify-manifest.mjs`, which now reads every locale in the
+      built package rather than only `en`.
+- [x] `docs/STORE_LISTING.md` carries every Polish field; the screenshot decision is recorded —
+      §11. The English screenshots are used, and §11.3 says what would change that.
+- [x] The absence of a language picker is documented with its reason — ARCHITECTURE §18.4, with
+      shorter versions in README and CONTRIBUTING, where the question will actually be asked.
+
+**One thing the phase did not plan for, and it was the sharpest finding.** The E2E suite took its
+browser language from the **operating system**, which was invisible while `en` was the only locale
+in the package. Adding `_locales/pl` turned twelve of thirteen specs red on a Polish-language
+machine while CI, which runs in English, stayed green — a failure with no signal on the branch that
+ships. Pinned in `test/e2e/harness.ts` and `playwright.config.ts`.
 
 **Git:** direct commits on `dev`. Tag `phase-18-done`.
 
