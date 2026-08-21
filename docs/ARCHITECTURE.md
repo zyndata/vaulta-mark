@@ -1667,12 +1667,23 @@ moment 2 above — "the user has since visited the site" — only ever fires for
 window. For a vault whose whole point is that its sites are not browsed normally, that is a large
 part of the second moment gone.
 
-Nothing in scope fixes it: the icon would have to come from the site, and an extension-origin
-request to a vaulted domain is refused by INV-4. The one shape that could work is the shape
-thumbnails already use — read `<link rel="icon">` and fetch it **in the page's own context**, at
-add time, under the `activeTab` grant (§14.1) — which is a different feature with a different
-permission story, and it starts with a PLAN change rather than with a patch here. Recorded so the
-idea does not come back without the question coming back with it.
+An **extension-origin** request for the site's icon is refused by INV-4 and stays refused: it would
+send every vaulted domain to its host from the user's own address. But the shape thumbnails already
+use is not that — read `<link rel="icon">` and fetch it **in the page's own context**, at add time,
+inside the existing `activeTab` injection (§14.1) — and it **breaks no invariant and needs no new
+permission**. An earlier draft of this section said it had "a different permission story", which was
+simply wrong: `activeTab` and `scripting` are already required (D25) and already used for exactly
+this, and the page's own origin already served that icon to draw the tab.
+
+What it costs is four decisions rather than four obstacles, and they are why this is a PLAN change
+and not a patch: it reaches only the two add gestures that act on a loaded tab, where `_favicon/`
+reaches all four; it must ride inside the existing OG injection to keep §14.4's rule that **nothing
+is injected when nothing would be kept**; `validate.ts` refuses `image/svg+xml` as a script vector
+and a great many modern favicons are SVG; and a page-declared icon would have to go through
+`process.ts`, so the bytes would no longer be "exactly what Chrome returned" — which is much of why
+storing them unexamined is defensible today. Written up as **#27**. *What this extension injects
+into a page, and when* is the product's central claim, so it is decided in the plan rather than
+discovered in a diff.
 
 So the honest statement of what this feature covers: **sites you have also browsed normally**. That
 is most of them, in most vaults, and it is not all of them.
