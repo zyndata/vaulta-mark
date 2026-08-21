@@ -469,8 +469,9 @@ master password (never stored, never transmitted, never logged)
       │
       │  HKDF-SHA256, salt = 32 zero bytes, info = "vaultamark/v2/<purpose>"
       ├──► k_items   — bucket payload encryption
-      ├──► k_thumbs  — thumbnail encryption
-      └──► k_hmac    — bucket integrity tags
+      ├──► k_thumbs  — thumbnail and stored-favicon encryption
+      ├──► k_hmac    — bucket integrity tags
+      └──► k_icons   — the stored name of a favicon, keyed by host (§10.1)
 ```
 
 **Why two levels.** Changing the master password re-derives the KEK and re-wraps 32 bytes. Nothing
@@ -479,6 +480,11 @@ half-converted. Phase 6 asserts this (bucket tags must be unchanged after a pass
 
 **Why HKDF subkeys.** No key is ever used for two purposes. A hypothetical weakness in the thumbnail
 path cannot be turned into an oracle against the item path.
+
+`k_icons` is the one subkey that names things rather than encrypting them: a favicon's file name is
+`HMAC-SHA256(k_icons, host)` truncated to 16 bytes, so the set of names on Drive cannot be matched
+against a list of guessed domains (§10.1). Its bytes are sealed under `k_thumbs` like any other
+heavy-tier blob — naming and sealing are two purposes, so they are two keys.
 
 **What each level is, concretely.** The KEK is a non-extractable `CryptoKey` — the raw bits never
 exist as JavaScript-reachable bytes, which costs us nothing because the KEK's only job is the DEK.
@@ -660,6 +666,8 @@ the list and decompresses the shipped asset, so the three artefacts cannot drift
 | — | *no key holds a bookmark's URL, host or title outside the sealed buckets* | — |
 | `vm.thumbs.<itemId>` | sealed thumbnail bytes | yes (`k_thumbs`) |
 | `vm.thumbsLru` | `{ itemId: lastViewedMs }` | no |
+| `vm.icons.<name>` | sealed favicon bytes, one per host; `name` is keyed (§10.1) | yes (`k_thumbs`) |
+| `vm.iconsLru` | `{ name: lastShownMs }` | no (the names are HMACs) |
 | `vm.conflicts` | sealed pending-conflict records | yes (`k_items`) |
 | `vm.rollback` | sealed pre-replace-import snapshot (§11) | yes (`k_items`) |
 | `vm.rollbackMeta` | `{ createdAt, expiresAt }` | no (no content) |
@@ -760,6 +768,12 @@ to keep it that way.
 is the system of record for thumbnails; the local copy is only a cache, so eviction costs a re-fetch,
 not data. If a future release adds `unlimitedStorage`, the cap becomes user-configurable
 (25 / 100 / 500 MB).
+
+The stored favicons (§10.1) get **1 MB** of the same budget, on the same terms and with their own
+LRU. Two caches rather than one shared cap, because they are not interchangeable: an evicted picture
+costs one round trip for one item, while an evicted icon costs one for every row on that host, and a
+vault whose pictures filled the cache would leave a restored profile looking exactly as it did
+before this feature existed.
 
 ### 5.2 `chrome.storage.sync` — the ChromeSyncProvider transport
 
@@ -1375,6 +1389,11 @@ on a profile the user touches often.
 5. **The OG image fetch at add-time** — the page's own origin serves the image to the page's own
    context. No new party learns anything, but the origin sees one more request from a browser that
    was already loading the page.
+6. **The number of stored favicons** (§10.1, Drive tier only) approximates the number of distinct
+   domains in the vault. Sharper than the bucket count and strictly weaker than the thumbnails
+   above, which are one file per *item*. The file names are HMACs under a key derived from the
+   master password, so they cannot be matched against a list of guessed domains, and the bytes are
+   sealed like everything else.
 
 ### 8.4 Non-negotiable invariants
 
@@ -1502,6 +1521,160 @@ what `verify-no-remote-code.mjs` exists to find — both would mean arguing with
 over a decoration. The colour goes on through CSSOM, which no CSP directive touches; `.vm-avatar` in
 `ui/styles.css` owns the geometry, so the fallback and a real favicon are the same size by
 construction.
+
+### 10.1 Icons that travel with the vault (Phase 17)
+
+Everything above is about one profile. The cost it documents — *a site this profile has never
+visited shows a generic globe* — is paid all at once on a **second computer**: restore a vault
+there and every row is a coloured initial, because that Chrome has browsed none of those sites yet.
+
+So the bytes `_favicon/` hands us are kept, sealed, in the heavy tier, and come back with the vault.
+One icon per **host**, not per item: fifty GitHub bookmarks share one file, which makes icons about
+two orders of magnitude cheaper than thumbnails (§14), where every page has a different picture and
+the file is therefore per item.
+
+**Drive tier only.** `chrome.storage.sync` is 100 KB in total and the heavy tier never touches it
+(INV-6, §5.2). On the default Chrome-sync tier nothing here happens at all — `_favicon/` plus the
+letter avatar, exactly as §10 describes — and that is also the only tier where the problem is not
+felt, because a vault that syncs through `chrome.storage.sync` is a vault on a profile Chrome is
+already syncing history and favicons to.
+
+#### The schema question, answered before the code was written
+
+Issue #6 assumed this needed a `SCHEMA_VERSION` bump with a migration and a fixture. **It does
+not**, and the difference matters more than the feature does: `Aad.v` *is* `SCHEMA_VERSION`
+(`storage/codec.ts`, `bucketAad`), read from the constant rather than from the header, so a bump
+re-seals **every bucket in the field** — a blob sealed at 2 fails to authenticate under 3,
+indistinguishably from corruption — pushes the whole vault again, and locks out every device whose
+Chrome has not yet taken the update (`repo.#readUnlockableHeader` throws `UnsupportedSchemaError`
+for a vault newer than the build, and never writes to it).
+
+Three things make it avoidable, all of them read out of the code rather than argued:
+
+1. **Nothing about the decrypted payload changes.** `SCHEMA_VERSION`'s own contract is
+   *"bumped whenever the decrypted payload shape changes"* (`vault/types.ts`). No item gains a
+   field, no bucket payload gains a key, and the icon store is not in the vault format at all: it is
+   a set of sealed blobs beside it, exactly as thumbnails are.
+2. **`purpose` is a separate AAD field from `v`.** A new `AadPurpose` — `'icon'` — produces sealed
+   values that no existing reader asks for and leaves every existing seal byte-for-byte valid.
+3. **Phase 10's synced settings are the precedent**: an additive optional field, deliberately with
+   no bump.
+
+The one consequence worth writing down is a *future* bump's effect here: an icon sealed at v2 will
+not open under v3's AAD. That is not data loss — the icon store is a cache of something Chrome
+still holds locally, and a blob that will not open is treated as a miss and re-captured on the next
+opportunistic upgrade (below). It is the reason this store can be that casual, and the reason it is
+worth saying so out loud.
+
+#### The stored name is an HMAC, never an unkeyed hash of the host
+
+```
+name = base64url( HMAC-SHA256(k_icons, host)[0..16] )      // 22 characters
+```
+
+`k_icons` is a fourth HKDF subkey off the DEK (§4.1), so no key is used for two purposes.
+
+**The unkeyed version of this would be a serious leak, and it is the leak D28 refuses a third-party
+favicon service over.** The set of hosts a vault could contain is *enumerable*: anyone holding the
+Drive folder could hash the top million domains and read off which files are present, turning
+*how many domains are in the vault* into *which domains are in the vault*. Under a key derived from
+the master password, the file names are 22 characters of nothing to anyone who cannot already
+decrypt the vault.
+
+The host is the URL's `host` — lowercased by `URL`, with a leading `www.` dropped, port included if
+there is one — the same string the row displays under the title. A URL that will not parse has no
+icon and keeps its letter.
+
+#### The bytes
+
+Sealed under **`k_thumbs`**, through `repo.iconCipher()`, with AAD `{ v, purpose: 'icon', id: name }`
+— so an icon cannot be served back as another host's icon, and neither can a bucket. The module that
+stores them (`src/thumbs/favicons.ts`) never holds a key, exactly as `src/thumbs/store.ts` does not.
+
+They are stored as Chrome returned them, at the size the row asks for (32 px). Nothing is decoded,
+re-encoded or resized: these bytes came from Chrome's own cache, not from a page, so the
+hostile-input pipeline thumbnails go through (§14.2) has no subject here. A response larger than
+**64 KB** is refused anyway — a favicon is 1–3 KB, and a cache answering with something else is a
+thing to decline rather than to store.
+
+#### Detecting the placeholder
+
+Chrome answers `_favicon/` for a site it knows nothing about with a **generic globe**, at HTTP 200,
+and two never-visited hosts get byte-identical bytes. Storing those would fill a vault with hundreds
+of copies of one picture, so the response is hashed and compared against the placeholder's hash
+before anything is stored.
+
+**The placeholder's hash is measured at runtime, not committed.** The globe is a Chrome asset: it
+differs per requested size and is free to change with a Chrome version or a theme. So the worker
+asks `_favicon/` for `about:blank` once per worker lifetime and hashes that — `about:blank` can
+never have a favicon, so whatever comes back is this browser's "I have nothing" answer by
+construction.
+
+Measured against the real `dist/` in a real Chromium on 2026-08-21, in the throwaway spike shape
+issue #6 used (not committed):
+
+| `pageUrl` | size 16 | size 32 | size 64 |
+| --- | --- | --- | --- |
+| `about:blank` | 383 B, `23f0e422…` | 646 B, `be31fb35…` | 1,262 B, `e5c321f5…` |
+| a never-visited `https://` host | identical | identical | identical |
+
+Two further measurements from the same run, both of which changed a decision:
+
+- A `chrome-extension://` page URL answers with **1,195 bytes** — our own icon, not the globe — so
+  an extension URL cannot be the sentinel. `about:blank` can.
+- **The automation profile's favicon database never answers with a real icon.** A page served from
+  `127.0.0.1` with a valid, decodable 32 × 32 `<link rel="icon">`, visited, reloaded and waited on
+  for twenty seconds, still reads back as the placeholder. So the E2E suite asserts *"the
+  placeholder is never stored"* against the real browser, and the "there is a real icon" half is
+  driven through the fetch seam — the same kind of harness limit `thumbs.spec.ts` documents for
+  `activeTab`, recorded here so the next person does not spend the afternoon this cost.
+
+#### Three moments, and no fourth
+
+Reading `_favicon/` costs no network request — it is our own origin and a local cache read, INV-4 is
+untouched, and the E2E route trap re-asserts it — but it is still work, and work at browse time is
+what D27/§14 forbids for thumbnails. The same rule here, for the same reason:
+
+1. **On add.** All four add gestures, not just the two that can inject: `_favicon/` needs no
+   `activeTab` grant, so unlike a thumbnail an icon can be captured for a URL that arrived from a
+   context menu. Only for a genuine add — a `duplicate` captures nothing, or the toolbar button
+   becomes a hidden refresh button.
+2. **On an opportunistic upgrade**, when we hold nothing for a host and Chrome's cache now has a
+   real icon — that is, the user has since visited the site. Checked **only while that row was being
+   rendered anyway**, at most once per host per page.
+3. **On an explicit *Refresh icon***, in the manager's detail pane, mirroring §14.5's manual
+   thumbnail refresh. It is the only one that **replaces**: it writes down what Chrome holds now,
+   including that it now holds nothing.
+
+No timer, no startup sweep, no fetch for rows nobody is looking at, and nothing on import — a
+thousand imported bookmarks get their icons the first time somebody looks at them, one host at a
+time, rather than as a burst of uploads nobody asked for.
+
+An upgrade never overwrites. A stored icon is replaced only by *Refresh icon*, because "Chrome's
+cache changed" is not evidence that the site's icon did — that cache is evicted, re-populated and
+resized by a browser with its own reasons.
+
+#### Where they are kept, and how they leave
+
+`vm.icons.<name>` in `storage.local` (base64url, like every sealed value there, §5.1) and
+`VaultaMark/icons/f_<name>.vmi` on Drive (§13.3). Drive is the system of record and the local copy is
+a cache, capped at **1 MB** and evicted least-recently-shown first — the same arrangement as the
+thumbnail cache and a much smaller number, because an icon is 1–3 KB where a picture is up to 40.
+
+**Deletion happens at purge, not at delete**, through the housekeeping alarm that already sweeps
+orphaned thumbnails (§14.6): the live hosts are keyed and compared against the stored names, and the
+difference goes. Sweeping by comparison rather than by list is also what catches the orphans a merge,
+an import or a rollback leaves behind — and a bookmark's *host* can stop being in the vault without
+any delete running at all, which is not true of an item id.
+
+#### What it leaks, and what it costs
+
+The number of icon files approximates the number of distinct domains in the vault — a new entry in
+§8.3. It is sharper than the bucket count and strictly weaker than the one-file-per-item thumbnails
+already listed there; the names say nothing without the key, and the bytes stay encrypted.
+
+Roughly 1–3 KB per domain. A 600-bookmark vault across 200 domains is about 400 KB on Drive, beside
+a thumbnail budget measured in megabytes.
 
 ---
 
@@ -1921,10 +2094,17 @@ builds — the Store assigns the real ID.
 My Drive/
 └─ VaultaMark/
    ├─ vaultamark-vault.vmv          appProperties: { vmRev: "137", vmSchema: "2" }
-   └─ thumbs/
-      ├─ t_<itemId>.vmt             appProperties: { vmItem: "<id>", vmSha: "<sha256>" }
+   ├─ thumbs/
+   │  ├─ t_<itemId>.vmt             appProperties: { vmItem: "<id>", vmSha: "<sha256>" }
+   │  └─ …
+   └─ icons/
+      ├─ f_<name>.vmi               one favicon per host; <name> is keyed, §10.1
       └─ …
 ```
+
+The icons are in their own folder rather than beside the thumbnails, because the two are keyed by
+different things — an item id and a host — and a folder whose names mean two things is a folder that
+cannot be swept by comparison.
 
 The folder and files are ordinary, user-visible Drive objects. Their *contents* are ciphertext.
 
@@ -2172,6 +2352,10 @@ evicted least-recently-viewed first. Evicted thumbnails are re-fetched from Driv
 `capabilities.heavyTier` is true; on the Chrome tier eviction is genuinely lossy, which is part of
 what the opt-in in §14.4 is asking about. A thumbnail with no LRU entry sorts as never-viewed and
 goes first — the only way to have bytes and no entry is a write interrupted between the two.
+
+The favicon cache (§10.1) is swept by the same alarm and on the same rule, one step removed: it
+compares the *hosts* of the live items against the stored names rather than the ids, because a host
+leaves the vault whenever its last bookmark does and no delete ever mentions it.
 
 `vm.thumbsLru` tracks last-viewed times and is **plaintext**, which is defensible for exactly one
 reason: the item ids it holds are already visible beside it, because §5.1 stores each picture under

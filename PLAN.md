@@ -1898,6 +1898,14 @@ Write the answer into ARCHITECTURE whichever way it falls. **If a bump is genuin
 phase stops there** and the bump becomes a phase of its own, with its migration, its fixture, and
 its own decision about when to make every other device wait for Chrome.
 
+> **Answered 2026-08-21, before the first line of code: no bump.** All three reasons hold, and were
+> checked by reading the code rather than by argument — `bucketAad` seals with the `SCHEMA_VERSION`
+> constant, so the cost of a bump is exactly as described above; no item field and no bucket payload
+> key changes, which is the contract the constant carries; and `'icon'` is a new `AadPurpose`, a
+> field of its own, which leaves every existing seal valid. Written up in
+> [ARCHITECTURE §10.1](docs/ARCHITECTURE.md), including what a *future* bump does to this store.
+> Consequence for the release: 14–18 still ship as **1.2.0**, a minor bump, with no schema change.
+
 **In scope**
 
 - **Keyed by host, not by item.** One icon serves every bookmark on the host — fifty GitHub
@@ -1953,7 +1961,8 @@ Anything on the Chrome-sync tier.
 - On the Chrome-sync tier, behaviour is byte-for-byte unchanged.
 
 **Definition of done**
-- [ ] The schema question is answered in ARCHITECTURE before the first commit.
+- [x] The schema question is answered in ARCHITECTURE before the first commit — §10.1, and
+      the answer is *no bump*.
 - [ ] Every acceptance criterion in issue #6 is met; #6 closed.
 - [ ] Stored names are keyed, and a test proves an unkeyed guess cannot find one.
 - [ ] Restoring a vault on a second profile with Drive connected shows real icons — **the
