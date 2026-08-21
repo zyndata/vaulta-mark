@@ -1859,7 +1859,8 @@ suggest deleting things. Close **#22** in this phase, recording the split.
       §3.5.1, which is also where the *two* keys and their asymmetry are written down.
 - [x] Any removal is atomic and undoable — through `DELETE_ITEMS`, asserted as exactly one
       `vaultRev` for a group of *n* in `test/unit/background/organize.test.ts`.
-- [ ] #22 closed, recording that dead links were refused and why.
+- [x] #22 closed, recording that dead links were refused and why — and recording the accepted
+      half too, so the issue reads as a decision rather than a deletion.
 
 **Git:** direct commits on `dev`. Tag `phase-16-done`.
 
