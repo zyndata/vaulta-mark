@@ -2,7 +2,7 @@
  * The DEK and its HKDF subkeys — the middle and bottom of the key hierarchy (ARCHITECTURE §4.1).
  *
  * ```
- * KEK  ──AES-256-GCM unwrap──►  DEK  ──HKDF-SHA256──►  k_items | k_thumbs | k_hmac
+ * KEK  ──AES-256-GCM unwrap──►  DEK  ──HKDF-SHA256──►  k_items | k_thumbs | k_hmac | k_icons
  * ```
  *
  * **Why two levels.** Changing the master password re-derives the KEK and re-wraps 32 bytes.
@@ -26,8 +26,14 @@ import { zero } from './wipe.js';
 /** DEK length, in bytes. */
 export const DEK_BYTES = 32;
 
-/** The purposes that get their own key. Adding one means adding an entry here, deliberately. */
-export const SUBKEY_PURPOSES = ['items', 'thumbs', 'hmac'] as const;
+/**
+ * The purposes that get their own key. Adding one means adding an entry here, deliberately.
+ *
+ * `icons` is the odd one out: it does not encrypt anything. It keys the HMAC that *names* a stored
+ * favicon (ARCHITECTURE §10.1), whose bytes are sealed under `thumbs` like any other heavy-tier
+ * blob. Naming and sealing are two purposes, so they are two keys.
+ */
+export const SUBKEY_PURPOSES = ['items', 'thumbs', 'hmac', 'icons'] as const;
 
 export type SubkeyPurpose = (typeof SUBKEY_PURPOSES)[number];
 
@@ -116,7 +122,7 @@ export async function subkey(dek: Bytes, purpose: SubkeyPurpose): Promise<Crypto
   }
   const bits = await hkdfSha256(dek, HKDF_SALT, utf8(SUBKEY_INFO_PREFIX + purpose), 32);
   try {
-    return purpose === 'hmac'
+    return purpose === 'hmac' || purpose === 'icons'
       ? await crypto.subtle.importKey('raw', bits, { name: 'HMAC', hash: 'SHA-256' }, false, [
           'sign',
           'verify',
