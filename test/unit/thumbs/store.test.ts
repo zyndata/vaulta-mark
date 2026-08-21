@@ -33,53 +33,11 @@ import {
   type ThumbStoreDeps,
 } from '../../../src/thumbs/store.js';
 import type { SyncProvider } from '../../../src/sync/provider.js';
+import { chromeTier, fakeDrive } from '../../helpers/provider.js';
 
 const PASSWORD = 'a reasonably long master password';
 
 let repo: VaultRepository;
-
-/** A provider that keeps thumbnails in a map, and counts what it was asked to do. */
-function fakeDrive(): SyncProvider & {
-  readonly blobs: Map<string, Uint8Array>;
-  readonly deleted: string[];
-} {
-  const blobs = new Map<string, Uint8Array>();
-  const deleted: string[] = [];
-  return {
-    blobs,
-    deleted,
-    id: 'drive',
-    capabilities: { heavyTier: true, maxLightBytes: 10_000_000 },
-    init: () => Promise.resolve(),
-    peek: () => Promise.resolve(null),
-    pullLight: () => Promise.resolve(null),
-    pushLight: () => Promise.reject(new Error('not used here')),
-    getThumb: (id) => Promise.resolve(blobs.get(id) ?? null),
-    putThumb: (id, blob) => {
-      blobs.set(id, blob);
-      return Promise.resolve();
-    },
-    deleteThumb: (id) => {
-      deleted.push(id);
-      blobs.delete(id);
-      return Promise.resolve();
-    },
-    usage: () => Promise.resolve({ usedBytes: 0, quotaBytes: 0 }),
-    disconnect: () => Promise.resolve(),
-  };
-}
-
-/** The Chrome tier: no heavy tier, and every thumbnail call refuses. */
-function chromeTier(): SyncProvider {
-  return {
-    ...fakeDrive(),
-    id: 'chrome',
-    capabilities: { heavyTier: false, maxLightBytes: 102_400 },
-    getThumb: () => Promise.reject(new Error('no heavy tier')),
-    putThumb: () => Promise.reject(new Error('no heavy tier')),
-    deleteThumb: () => Promise.reject(new Error('no heavy tier')),
-  };
-}
 
 function deps(provider: SyncProvider | null, now?: () => number): ThumbStoreDeps {
   return { cipher: repo.thumbCipher(), provider, ...(now === undefined ? {} : { now }) };
@@ -152,7 +110,7 @@ describe('what reaches storage', () => {
     const drive = fakeDrive();
     await saveThumb(deps(drive), 'item-a', webp(4_000));
 
-    const pushed = drive.blobs.get('item-a');
+    const pushed = drive.thumbs.get('item-a');
     expect(pushed).toBeDefined();
     const local = await readThumb('item-a');
     expect(local).toEqual(pushed);
@@ -245,8 +203,8 @@ describe('the Drive tier', () => {
     await dropThumbs(deps(drive), ['item-a']);
 
     expect(await readThumb('item-a')).toBeNull();
-    expect(drive.deleted).toEqual(['item-a']);
-    expect(drive.blobs.has('item-a')).toBe(false);
+    expect(drive.deletedThumbs).toEqual(['item-a']);
+    expect(drive.thumbs.has('item-a')).toBe(false);
   });
 
   it('still deletes locally when the provider refuses', async () => {
@@ -342,7 +300,7 @@ describe('the LRU cap', () => {
     await saveThumb(deps(drive), 'a', webp(2_000));
     await evictThumbs(100);
     expect(await readThumb('a')).toBeNull();
-    expect(drive.blobs.has('a')).toBe(true);
-    expect(drive.deleted).toEqual([]);
+    expect(drive.thumbs.has('a')).toBe(true);
+    expect(drive.deletedThumbs).toEqual([]);
   });
 });

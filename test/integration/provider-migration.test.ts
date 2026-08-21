@@ -214,6 +214,9 @@ describe('chrome → drive', () => {
               getThumb: () => Promise.resolve(null),
               putThumb: () => Promise.resolve(),
               deleteThumb: () => Promise.resolve(),
+              getIcon: () => Promise.resolve(null),
+              putIcon: () => Promise.resolve(),
+              deleteIcon: () => Promise.resolve(),
               usage: () => drives.usage(),
               disconnect: () => Promise.resolve(),
             } satisfies SyncProvider)

@@ -57,6 +57,18 @@ export interface SyncProvider {
   putThumb(itemId: string, blob: Uint8Array): Promise<void>;
   deleteThumb(itemId: string): Promise<void>;
 
+  /**
+   * The heavy tier's second kind of file: one favicon per host (Phase 17, ARCHITECTURE §10.1).
+   *
+   * Three methods rather than a `kind` parameter on the three above, because the two are keyed by
+   * different things — an item id and a *keyed host name* — and a provider that filed them under
+   * one name shape could no longer sweep either by comparison. `name` is already an HMAC when it
+   * gets here; nothing below this line knows what a host is.
+   */
+  getIcon(name: string): Promise<Uint8Array | null>;
+  putIcon(name: string, blob: Uint8Array): Promise<void>;
+  deleteIcon(name: string): Promise<void>;
+
   usage(): Promise<ProviderUsage>;
   /** Stop using this backend. Does not delete what is already there unless the provider says so. */
   disconnect(): Promise<void>;

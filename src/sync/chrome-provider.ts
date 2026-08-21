@@ -184,6 +184,19 @@ export class ChromeSyncProvider implements SyncProvider {
     return Promise.reject(new HeavyTierUnsupported('chrome'));
   }
 
+  /** Favicons are heavy tier too (§10.1), and answer on exactly the same terms. */
+  getIcon(): Promise<Uint8Array | null> {
+    return Promise.resolve(null);
+  }
+
+  putIcon(): Promise<void> {
+    return Promise.reject(new HeavyTierUnsupported('chrome'));
+  }
+
+  deleteIcon(): Promise<void> {
+    return Promise.reject(new HeavyTierUnsupported('chrome'));
+  }
+
   /* -------------------------------------------------------------- housekeeping */
 
   async usage(): Promise<ProviderUsage> {

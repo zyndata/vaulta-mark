@@ -40,6 +40,7 @@ export interface DriveRecord {
   readonly folderId: string | null;
   readonly fileId: string | null;
   readonly thumbsFolderId: string | null;
+  readonly iconsFolderId: string | null;
   /** Drive's own "open this file" address, learned from the API. Absent until we have created it. */
   readonly webViewLink: string | null;
   /** base64url of the sealed refresh token. `web` mode only; `null` under `identity`. */
@@ -52,6 +53,7 @@ export const EMPTY_DRIVE_RECORD: DriveRecord = {
   folderId: null,
   fileId: null,
   thumbsFolderId: null,
+  iconsFolderId: null,
   webViewLink: null,
   refreshToken: null,
 };
@@ -73,6 +75,7 @@ export async function readDriveRecord(): Promise<DriveRecord> {
     folderId: text(stored.folderId),
     fileId: text(stored.fileId),
     thumbsFolderId: text(stored.thumbsFolderId),
+    iconsFolderId: text(stored.iconsFolderId),
     webViewLink: text(stored.webViewLink),
     refreshToken: text(stored.refreshToken),
   };
