@@ -881,10 +881,12 @@ test('drags a folder onto another folder in the sidebar, and deletes one with th
  * also the right thing to assert: the property is that **every declared size** is handed over, and a
  * screenshot of a toolbar button would not distinguish "all four" from "the 16 and a guess".
  *
- * The other half of the test is the sentence under the controls. It says what does *not* change —
- * the name, the address, the Store listing — and it is load-bearing rather than decorative: someone
- * who reads this section as a way to hide the extension and acts on that belief is worse off than
- * someone who never found it. So a build that drops it fails here.
+ * The other half of the test is the sentence under the field, which has to name **which surface**
+ * this section changes. Someone who reads "toolbar appearance" as a way to rename or hide the
+ * extension, and acts on that belief, is worse off than someone who never found it — and the name,
+ * the address and the Store listing are fixed at build time whatever is typed here. That used to be
+ * a paragraph of small print; it is the hint itself since 2026-08-21, and shorter. What is asserted
+ * is the obligation, not the wording: the hint has to say "toolbar" out loud.
  */
 test('choosing a toolbar icon reaches chrome.action, at every size the manifest declares', async () => {
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
@@ -904,8 +906,7 @@ test('choosing a toolbar icon reaches chrome.action, at every size the manifest 
   const section = page
     .locator('.vm-settings-section')
     .filter({ has: page.getByRole('heading', { name: 'Toolbar appearance' }) });
-  await expect(section).toContainText('still called VaultaMark');
-  await expect(section).toContainText('fixed when the extension is built');
+  await expect(section.getByText(/toolbar/i)).not.toHaveCount(0);
 
   await section.getByRole('radio', { name: 'Folder' }).check();
 

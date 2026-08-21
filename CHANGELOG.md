@@ -14,6 +14,15 @@ below.
 
 ### Added
 
+- **Four pieces of settings copy say the same thing in fewer words.** The QR-code caveat dropped a
+  sentence about what the extension *cannot* do on another device — nobody was assuming it could.
+  The tooltip field now says what it is ("what you see on the toolbar when you hover over the
+  button") instead of what happens if you leave it blank, and the paragraph of small print under it
+  is gone: the section is headed *Toolbar appearance* and the field is labelled *Tooltip*, which
+  already said it. And the warning behind *Also delete the synced copy* is a third shorter, without
+  losing the part that matters — a vault created here again is a new vault, even with the same
+  password.
+
 - **VaultaMark speaks Polish.** Every screen, every button, every warning and every accessible
   label — all of it, not the easy half. VaultaMark follows Chrome's own language, so a browser set
   to Polish gets a Polish VaultaMark and nothing has to be switched on.

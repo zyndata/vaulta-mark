@@ -12,7 +12,7 @@
     "message": "Dodaj bieżącą kartę do sejfu"
   },
   "cmdLock": {
-    "message": "Zamknij sejf teraz"
+    "message": "Zablokuj sejf teraz"
   },
   "cmdManager": {
     "message": "Otwórz menedżera VaultaMark"
@@ -153,22 +153,22 @@
     "message": "Hasło główne"
   },
   "unlockButton": {
-    "message": "Otwórz"
+    "message": "Odblokuj"
   },
   "lockedManual": {
-    "message": "Sejf został zamknięty."
+    "message": "Sejf został zablokowany."
   },
   "lockedPanic": {
-    "message": "Sejf został zamknięty natychmiast."
+    "message": "Sejf został natychmiast zablokowany."
   },
   "lockedExpired": {
-    "message": "Sejf zamknął się sam po okresie bezczynności."
+    "message": "Sejf zablokował się sam po okresie bezczynności."
   },
   "lockedIdle": {
-    "message": "Sejf zamknął się sam, bo komputer przeszedł w stan bezczynności."
+    "message": "Sejf zablokował się sam, bo komputer przeszedł w stan bezczynności."
   },
   "lockedBlur": {
-    "message": "Sejf zamknął się sam, gdy przełączyłeś się poza Chrome."
+    "message": "Sejf zablokował się sam, gdy przełączyłeś się poza Chrome."
   },
   "vaultAddButton": {
     "message": "Dodaj tę stronę"
@@ -250,10 +250,10 @@
     "message": "Cofnij"
   },
   "unlockedHeading": {
-    "message": "Sejf otwarty"
+    "message": "Sejf odblokowany"
   },
   "unlockedAutoLockIn": {
-    "message": "Zamknie się sam po około $MINUTES$ min bezczynności.",
+    "message": "Zablokuje się sam po około $MINUTES$ min bezczynności.",
     "placeholders": {
       "minutes": {
         "content": "$1",
@@ -262,13 +262,13 @@
     }
   },
   "unlockedAutoLockNever": {
-    "message": "Pozostanie otwarty, dopóki go nie zamkniesz albo nie zamkniesz Chrome."
+    "message": "Pozostanie odblokowany, dopóki go nie zablokujesz albo nie zamkniesz Chrome."
   },
   "unlockedLockButton": {
-    "message": "Zamknij teraz"
+    "message": "Zablokuj"
   },
   "settingsIdleTimeout": {
-    "message": "Zamknij po bezczynności"
+    "message": "Zablokuj po bezczynności"
   },
   "settingsIdleMinutes_one": {
     "message": "1 minuta",
@@ -310,10 +310,10 @@
     "message": "Nigdy"
   },
   "settingsLockOnBlur": {
-    "message": "Zamykaj, gdy przełączam się do innej aplikacji"
+    "message": "Blokuj, gdy przełączam się do innej aplikacji"
   },
   "settingsLockOnBlurHint": {
-    "message": "Zamyka w chwili, gdy Chrome traci fokus, więc przy każdym powrocie wpisujesz hasło od nowa. Przechodzenie między oknami Chrome nie zamyka sejfu."
+    "message": "Blokuje w chwili, gdy Chrome traci fokus, więc przy każdym powrocie wpisujesz hasło od nowa. Przechodzenie między oknami Chrome nie blokuje sejfu."
   },
   "settingsReuseWindow": {
     "message": "Używaj ponownie okna incognito, które już mam otwarte"
@@ -511,7 +511,7 @@
     "message": "Wyczyść potem tę witrynę z mojej historii"
   },
   "incognitoFallbackClearHistoryHint": {
-    "message": "Czyszczone przy najbliższym zamknięciu sejfu, jeśli zezwolisz na dostęp do historii. Lista jest trzymana wyłącznie w pamięci i nigdy nie trafia na dysk."
+    "message": "Czyszczone przy najbliższym zablokowaniu sejfu, jeśli zezwolisz na dostęp do historii. Lista jest trzymana wyłącznie w pamięci i nigdy nie trafia na dysk."
   },
   "incognitoFallbackButton": {
     "message": "Otwórz w zwykłym oknie"
@@ -535,7 +535,7 @@
     "message": "Ten sejf powstał w nowszej wersji VaultaMark. Zaktualizuj rozszerzenie, aby go otworzyć."
   },
   "errorVaultLocked": {
-    "message": "Sejf jest zamknięty."
+    "message": "Sejf jest zablokowany."
   },
   "errorVaultState": {
     "message": "To nie zgadza się ze stanem sejfu na tym urządzeniu."
@@ -565,10 +565,10 @@
     "message": "Coś poszło nie tak."
   },
   "managerLoading": {
-    "message": "Otwieranie sejfu…"
+    "message": "Odblokowywanie sejfu…"
   },
   "managerLocked": {
-    "message": "Sejf jest zamknięty. Otwórz okienko VaultaMark, aby go otworzyć."
+    "message": "Sejf jest zablokowany. Otwórz okienko VaultaMark, aby go odblokować."
   },
   "managerNoVault": {
     "message": "Na tym urządzeniu nie ma jeszcze sejfu. Otwórz okienko VaultaMark, aby go utworzyć."
@@ -649,7 +649,7 @@
     "message": "Ustawienia"
   },
   "managerLockButton": {
-    "message": "Zamknij"
+    "message": "Zablokuj"
   },
   "navSidebarLabel": {
     "message": "Foldery i etykiety"
@@ -1278,7 +1278,7 @@
     "message": "Kod QR z adresem tej zakładki"
   },
   "qrOrdinaryTab": {
-    "message": "Zeskanowanie tego otworzy adres w zwykłej karcie na telefonie i trafi on do historii tego telefonu. Nic tutaj nie potrafi otworzyć karty prywatnej na innym urządzeniu. Jeśli to ma znaczenie, skopiuj adres i wklej go w karcie prywatnej samodzielnie."
+    "message": "Zeskanowanie QR otworzy adres w zwykłej karcie na telefonie i trafi on do historii tego telefonu. Jeśli to ma znaczenie, skopiuj adres i wklej go w karcie prywatnej samodzielnie."
   },
   "qrTooLong": {
     "message": "Ten adres jest za długi, aby zmieścić go w kodzie QR."
@@ -1293,7 +1293,7 @@
     }
   },
   "detailAtTopLevel": {
-    "message": "Na najwyższym poziomie"
+    "message": "Poza folderami"
   },
   "detailInHistory": {
     "message": "Ta strona wciąż jest w historii przeglądania Chrome."
@@ -1772,7 +1772,7 @@
     "message": "Motyw"
   },
   "themeSystem": {
-    "message": "Jak w systemie"
+    "message": "Systemowy"
   },
   "themeLight": {
     "message": "Jasny"
@@ -1805,13 +1805,10 @@
     "message": "Etykieta podpowiedzi"
   },
   "settingsToolbarTitleHint": {
-    "message": "To, co mówi przycisk na pasku narzędzi, gdy najedziesz na niego kursorem. Zostaw puste, aby zachować to, z czym przyszedł."
-  },
-  "settingsToolbarUnchanged": {
-    "message": "To zmienia przycisk i jego podpowiedź, nic więcej. Rozszerzenie nadal nazywa się VaultaMark na stronie rozszerzeń, w swoim adresie i w Chrome Web Store — ta nazwa jest ustalana przy budowaniu rozszerzenia i nic nie może jej nadpisać w trakcie działania."
+    "message": "To, co widać na pasku narzędzi, gdy najedziesz na niego kursorem. Zostaw puste, aby użyć tekstu domyślnego."
   },
   "settingsSectionLock": {
-    "message": "Zamykanie"
+    "message": "Blokowanie"
   },
   "settingsSectionBrowsing": {
     "message": "Otwieranie i zapisywanie"
@@ -1835,7 +1832,7 @@
     "message": "Zmień hasło"
   },
   "settingsPasswordChanged": {
-    "message": "Hasło zmienione. Twoje zakładki nie zostały zaszyfrowane od nowa — na nowo opakowano jedynie klucz, który je otwiera."
+    "message": "Hasło zmienione. Twoje zakładki nie zostały zaszyfrowane od nowa — na nowo opakowano jedynie klucz, który je odblokowuje."
   },
   "settingsDestroyWarning": {
     "message": "To kasuje sejf i wszystko, co w nim jest, z tego urządzenia. Nie ma kopii zapasowej ani odzyskiwania — ani przez nas, ani przez nikogo."
@@ -1859,7 +1856,7 @@
     "message": "Usuń także zsynchronizowaną kopię"
   },
   "settingsDestroyRemoteHint": {
-    "message": "Włączone, żeby zniszczenie naprawdę znaczyło zniszczenie. Zostaw włączone, chyba że inny komputer wciąż korzysta z tego sejfu i chcesz, aby jego zsynchronizowana kopia przetrwała — nowy sejf utworzony tutaj później nie otworzy tamtej kopii nawet tym samym hasłem, a oba będą odmawiać synchronizacji, dopóki jeden nie zniknie."
+    "message": "Domyślnie włączone: zniszczenie ma znaczyć zniszczenie. Wyłącz tylko wtedy, gdy inny komputer nadal korzysta z tego sejfu. Wtedy ten komputer już nie dołączy do tamtej kopii — sejf utworzony tu ponownie to nowy sejf, nawet z tym samym hasłem."
   },
   "settingsDestroyButton": {
     "message": "Zniszcz ten sejf"
@@ -1901,7 +1898,7 @@
     "message": "Zsynchronizowana kopia należy do innego sejfu. Dwa sejfy nie mogą dzielić jednego obszaru synchronizacji — otwórz Ustawienia → Synchronizacja, aby wybrać, który go zatrzyma."
   },
   "syncMismatchExplain": {
-    "message": "Nic tutaj nie potrafi scalić tych dwóch — są zamknięte różnymi kluczami, i jest tak nawet wtedy, gdy obu nadano to samo hasło główne: sejf utworzony po raz drugi to nowy sejf. Więc jeden z nich synchronizuje się dalej, a drugi nie. Obie odpowiedzi są poniżej; żadna nie następuje bez drugiego potwierdzenia."
+    "message": "Nic tutaj nie potrafi scalić tych dwóch — są zablokowane różnymi kluczami, i jest tak nawet wtedy, gdy obu nadano to samo hasło główne: sejf utworzony po raz drugi to nowy sejf. Więc jeden z nich synchronizuje się dalej, a drugi nie. Obie odpowiedzi są poniżej; żadna nie następuje bez drugiego potwierdzenia."
   },
   "syncMismatchKeepRemote": {
     "message": "Użyj zsynchronizowanego sejfu na tym komputerze"
@@ -1985,7 +1982,7 @@
     "message": "Zsynchronizowana kopia to teraz ten sejf."
   },
   "syncErrorVaultLocked": {
-    "message": "Otwórz sejf, aby go zsynchronizować."
+    "message": "Odblokuj sejf, aby go zsynchronizować."
   },
   "syncErrorUnknown": {
     "message": "Synchronizacja nie powiodła się. Zostanie ponowiona."
@@ -2003,7 +2000,7 @@
     "message": "Użyj tego sejfu tutaj"
   },
   "adoptWorking": {
-    "message": "Otwieranie…"
+    "message": "Odblokowywanie…"
   },
   "adoptCreateInstead": {
     "message": "Utwórz zamiast tego osobny sejf"
@@ -2223,7 +2220,7 @@
     "message": "Zapisz kopię zapasową…"
   },
   "ioBackupPasswordIntro": {
-    "message": "Wybierz hasło, którym ten plik kopii zostanie zamknięty."
+    "message": "Wybierz hasło, którym ten plik kopii zostanie zabezpieczony."
   },
   "ioBackupUseVaultPassword": {
     "message": "Użyj hasła mojego sejfu"
@@ -3463,13 +3460,13 @@
     "message": "O programie"
   },
   "settingsHistoryIntro": {
-    "message": "Włożenie strony do sejfu nie usuwa jej z historii Chrome, a historia sama zasila podpowiedzi paska adresu."
+    "message": "Włożenie strony do sejfu nie usuwa jej z historii Chrome, a historia sama wypełnia podpowiedzi paska adresu."
   },
   "settingsClearHistoryOnLock": {
-    "message": "Czyść witryny z sejfu z historii przy każdym zamknięciu sejfu"
+    "message": "Czyść witryny z sejfu z historii przy każdym zablokowaniu sejfu"
   },
   "settingsClearHistoryOnLockHint": {
-    "message": "Uruchamia to samo czyszczenie automatycznie, bez pytania, za każdym razem gdy sejf się zamyka. Usuwa prawdziwą historię przeglądania witryn z Twojego sejfu — łącznie z wizytami, które nie miały nic wspólnego z VaultaMark."
+    "message": "Uruchamia to samo czyszczenie automatycznie, bez pytania, za każdym razem, gdy sejf się blokuje. Usuwa prawdziwą historię przeglądania witryn z Twojego sejfu — łącznie z wizytami, które nie miały nic wspólnego z VaultaMark."
   },
   "settingsQuickClose": {
     "message": "Szybkie zamknięcie (Ctrl+Shift+X)"
@@ -3478,10 +3475,10 @@
     "message": "Zamyka bieżącą kartę i usuwa historię tej witryny jednym skrótem. Usuwa prawdziwą historię przeglądania witryny, nie tylko wpisy związane z VaultaMark, i robi to bez względu na to, czy witryna jest w Twoim sejfie."
   },
   "settingsRestartLock": {
-    "message": "Sejf zawsze zamyka się przy ponownym uruchomieniu Chrome."
+    "message": "Sejf zawsze blokuje się przy ponownym uruchomieniu Chrome."
   },
   "settingsRestartLockHint": {
-    "message": "Otwarty klucz trzymany jest wyłącznie w pamięci i znika, gdy Chrome się kończy, więc nie ma tu czego włączać ani wyłączać."
+    "message": "Klucz odblokowanego sejfu trzymany jest wyłącznie w pamięci i znika, gdy Chrome się kończy, więc nie ma tu czego włączać ani wyłączać."
   },
   "settingsAboutVersion": {
     "message": "VaultaMark $VERSION$",
@@ -3636,7 +3633,7 @@
     "message": "Nie ma połączenia, więc nic nie zostało zmienione."
   },
   "syncMigrateFailedLocked": {
-    "message": "Najpierw otwórz sejf."
+    "message": "Najpierw odblokuj sejf."
   },
   "syncMigrateFailedVerify": {
     "message": "Kopia nie odczytała się jako to, co zostało wysłane, więc nic nie zostało zmienione. Twój sejf jest dokładnie tam, gdzie był."

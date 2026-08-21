@@ -1258,7 +1258,7 @@
     "description": "Accessible name of the canvas the QR code is drawn on. Deliberately not the address itself: a screen reader cannot scan a QR code, and a long query string read aloud is not a name."
   },
   "qrOrdinaryTab": {
-    "message": "Scanning this opens the address in an ordinary tab on the phone, and it will be in that phone's history. Nothing here can open a private tab on another device. If that matters, copy the address and paste it into a private tab yourself.",
+    "message": "Scanning this opens the address in an ordinary tab on the phone, and it will be in that phone's history. If that matters, copy the address and paste it into a private tab yourself.",
     "description": "The one line under the QR code. It exists to make sure nobody reads the feature as private on the receiving device."
   },
   "qrTooLong": {
@@ -1720,12 +1720,8 @@
     "description": "Label for the field that sets the toolbar button's tooltip."
   },
   "settingsToolbarTitleHint": {
-    "message": "What the toolbar button says when you hover over it. Leave it empty to keep the one it came with.",
+    "message": "What you see on the toolbar when you hover over the button. Leave it empty for the default text.",
     "description": "Hint under the toolbar tooltip field."
-  },
-  "settingsToolbarUnchanged": {
-    "message": "This changes the button and its tooltip, nothing else. The extension is still called VaultaMark on the extensions page, in its address, and in the Chrome Web Store — that name is fixed when the extension is built and nothing can rewrite it while it runs.",
-    "description": "The honesty sentence under the toolbar-appearance controls. It must stay: someone who reads this section as a way to hide the extension and acts on that belief is worse off than someone who never found it."
   },
   "settingsSectionLock": {
     "message": "Locking",
@@ -1790,7 +1786,7 @@
     "description": "Checkbox in the danger zone. On by default."
   },
   "settingsDestroyRemoteHint": {
-    "message": "On, so that destroying really means destroying. Leave it on unless another computer is still using this vault and you want its synced copy to survive — a new vault made here afterwards cannot open that copy, even with the same password, and the two will refuse to sync until one of them goes.",
+    "message": "On by default: destroying should mean destroying. Turn it off only if another computer still uses this vault. If you do, this computer cannot rejoin that copy later — a vault created here again is a new vault, even with the same password.",
     "description": "Explains the consequence of leaving the synced copy behind."
   },
   "settingsDestroyButton": {

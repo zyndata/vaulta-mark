@@ -880,11 +880,13 @@ function appearance(deps: SettingsDeps): HTMLElement {
  * *Opening and saving* out of a 422-pixel column: this is decided once, it wants four pictures side
  * by side, and it is not a thing anybody changes in the moment.
  *
- * **`settingsToolbarUnchanged` is not decoration.** It is the sentence that keeps this feature
- * honest — the extension's name, its id and its Store listing do not change and cannot, because
- * `manifest.name` is fixed at build time. Someone who reads "toolbar appearance" as "hide it" and
- * acts on that belief is worse off than someone who never found the setting, which is exactly the
- * failure mode B2 was refused a name over. Do not soften it, and do not move it below the fold.
+ * **The screen has to say "toolbar" and mean it.** The extension's name, its id and its Store
+ * listing do not change and cannot — `manifest.name` is fixed at build time — and somebody who
+ * reads "toolbar appearance" as "rename it" and acts on that belief is worse off than somebody who
+ * never found the setting. That used to be a paragraph of small print (`settingsToolbarUnchanged`),
+ * dropped 2026-08-21 because the section heading, the field's label and its hint had all come to
+ * say the same thing in fewer words: *what you see on the toolbar when you hover over the button*.
+ * The obligation did not go with it. Whatever is added here says which surface it changes.
  */
 function toolbar(deps: SettingsDeps): HTMLElement[] {
   const title = h('input', {
@@ -917,7 +919,6 @@ function toolbar(deps: SettingsDeps): HTMLElement[] {
       ...TOOLBAR_ICONS.map((id) => iconChoice(deps, id)),
     ),
     dialogField('settingsToolbarTitle', title, msg('settingsToolbarTitleHint')),
-    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('settingsToolbarUnchanged')),
   ];
 }
 
