@@ -33,6 +33,7 @@ const FULL: Diagnostics = {
   localBytes: 2_400_000,
   buckets: 16,
   thumbnailCacheBytes: 5_120_000,
+  storedIcons: 37,
 
   providerId: 'drive',
   syncPhase: 'idle',

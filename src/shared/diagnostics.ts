@@ -54,6 +54,14 @@ export interface Diagnostics {
   readonly localBytes: number;
   readonly buckets: number;
   readonly thumbnailCacheBytes: number;
+  /**
+   * How many hosts this device holds a stored favicon for (§10.1).
+   *
+   * A count, never a name: the names are HMACs and the hosts are the thing this report may not
+   * carry. It is here because it is the one number that answers "did the icons arrive?" on a second
+   * computer, which is the whole of what the feature claims.
+   */
+  readonly storedIcons: number;
 
   /* --- sync -------------------------------------------------------------- */
   readonly providerId: 'chrome' | 'drive';
@@ -131,6 +139,7 @@ export function formatDiagnostics(diagnostics: Diagnostics): string {
     `local bytes: ${show(diagnostics.localBytes)}`,
     `buckets: ${show(diagnostics.buckets)}`,
     `thumbnail cache bytes: ${show(diagnostics.thumbnailCacheBytes)}`,
+    `stored icons: ${show(diagnostics.storedIcons)}`,
     '',
     '[sync]',
     `provider: ${diagnostics.providerId}`,

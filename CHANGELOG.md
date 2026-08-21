@@ -14,6 +14,30 @@ below.
 
 ### Added
 
+- **Site icons now travel with the vault, so a second computer shows them.** Until now a bookmark's
+  icon came only from Chrome's own cache on the machine you were looking at — which is exactly right
+  for privacy, and means a vault restored on a new computer showed a column of coloured initials,
+  because that browser has visited none of those sites. With **Google Drive connected**, VaultaMark
+  now keeps an encrypted copy of the icon Chrome already has, and the other computer gets the real
+  thing.
+  - **Nothing new is downloaded, from anyone.** The icons are read out of Chrome's own local cache,
+    the same source as before. VaultaMark never asks a site — or a favicon service — for an icon;
+    that would hand every domain in your vault to somebody else, which is the thing this extension
+    exists not to do.
+  - **One icon per site, not per bookmark.** Fifty bookmarks on one site keep one small file, so a
+    600-bookmark vault costs a few hundred kilobytes of your Drive.
+  - **The file names give nothing away.** Each icon is filed under a name derived from your master
+    password, so the list of files in your Drive folder cannot be matched against a list of guessed
+    domains.
+  - Icons are picked up at three moments and no others: when you save a page, when a row you are
+    looking at turns out to have gained an icon since — because you have since visited the site —
+    and when you press **Refresh icon** in the detail pane. There is no background task, nothing on
+    a timer, and nothing happens for rows you are not looking at.
+  - **On Chrome sync — the default — nothing changes.** That 100 KB of storage has no room for
+    pictures, and it is a browser profile Chrome is already syncing favicons to.
+  - *Copy diagnostics* now reports **stored icons**: how many sites this device holds an icon for.
+    A count, never a name.
+
 - **A screen that finds the same page saved twice, and lets you pick which copy to keep.**
   *Duplicates* in the sidebar, beside *Untagged*, counts the addresses your vault holds more than
   once; opening it lists the copies side by side with their title, folder, tags, note and the date

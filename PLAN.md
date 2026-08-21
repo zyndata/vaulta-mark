@@ -1963,12 +1963,16 @@ Anything on the Chrome-sync tier.
 **Definition of done**
 - [x] The schema question is answered in ARCHITECTURE before the first commit — §10.1, and
       the answer is *no bump*.
-- [ ] Every acceptance criterion in issue #6 is met; #6 closed.
-- [ ] Stored names are keyed, and a test proves an unkeyed guess cannot find one.
+- [x] Every acceptance criterion in issue #6 is met; #6 closed — with the one it *asked for* and
+      did not need, the `SCHEMA_VERSION` bump, recorded as answered rather than skipped.
+- [x] Stored names are keyed, and a test proves an unkeyed guess cannot find one —
+      `test/unit/thumbs/favicons.test.ts` checks the host, its SHA-256, its base64 and two
+      truncations against the name on disk.
 - [ ] Restoring a vault on a second profile with Drive connected shows real icons — **the
       maintainer's manual pass**, for the same reason Phases 10 and 11 have one: Playwright cannot
-      sign into Google. Procedure alongside DEVELOPMENT §5.4/§5.5.
-- [ ] §8.3 records the leak.
+      sign into Google. Procedure written up as DEVELOPMENT §5.5.1, nine steps; **not yet run.**
+- [x] §8.3 records the leak — entry 6, with the reason the keyed names make it weaker than it
+      sounds.
 
 **Git:** direct commits on `dev`. Tag `phase-17-done`.
 
@@ -2068,8 +2072,8 @@ machinery that carries Polish carries the rest.
 ### Releasing 14–18
 
 These five land on `dev` and ship together as **1.2.0** — features, so a minor bump by RELEASE §4's
-table; no schema change unless Phase 17's first question answers otherwise, in which case that
-becomes its own decision.
+table. **Phase 17's first question is answered and the answer is no schema change** (§ Phase 17), so
+1.2.0 is an ordinary minor release and no device is asked to wait for a Chrome update.
 
 Two things to raise at the release itself:
 

@@ -330,6 +330,44 @@ So, with `dist/` loaded unpacked and Drive connected (§5.4):
 6. **Check nothing leaks.** `chrome://extensions` → service worker → Application → Storage: every
    `vm.thumbs.*` value is base64 that does not begin `iVBOR`, `/9j/` or `UklGR`.
 
+
+### 5.5.1 Stored favicons, on a second computer, by hand
+
+The thing Phase 17 promises is not something one profile can show you: **a vault restored on a
+second computer displays real icons instead of a column of coloured initials** (ARCHITECTURE §10.1).
+Playwright cannot sign into Google, so the Drive half is a manual pass for the same reason §5.4 is —
+and the automation profile's favicon database never answers with a real icon at all, so even the
+local half cannot be seen there.
+
+Two profiles, Drive connected on both (§5.4), `dist/` loaded unpacked in each:
+
+1. **On profile A**, visit half a dozen sites normally — the favicon database is populated by
+   browsing and by nothing else — then vault a page on each with the toolbar button.
+2. Vault one page on a site you have **never** visited in that profile (paste the address into the
+   manager's add form). Its row keeps its letter avatar, and that is correct.
+3. Manager → any bookmark → *Copy diagnostics*. **`stored icons`** is the count of hosts this device
+   holds an icon for. It should be the number of sites from step 1, not the number of bookmarks —
+   one icon serves every bookmark on a host, which is the whole reason this is affordable.
+4. Wait for the sync to settle, then look in **Drive → VaultaMark → icons/**. One `f_<name>.vmi` per
+   host, and **not one of those names may resemble a domain**. If a file is called anything you can
+   read, the keyed name has regressed and that is a leak, not a cosmetic bug (§10.1).
+5. **On profile B** — a profile that has browsed none of those sites — connect Drive to the same
+   vault and open the manager. The rows show the real icons. This is the whole feature; if it does
+   not happen here, nothing else in this section matters.
+6. **The opportunistic upgrade.** Back on profile B, visit one of the never-visited sites from step
+   2 in an ordinary tab, then reopen the manager. That row now has a real icon and
+   `stored icons` has gone up by one — captured while the row was being rendered, with no timer
+   anywhere.
+7. **Refresh.** Select a bookmark → *Refresh icon*. It answers "Saved this site's icon." when
+   Chrome's cache has one and "Chrome has no icon for this site yet." when it does not — and in the
+   second case the stored copy is **removed**, because a refresh writes down what is there now.
+8. **Check nothing leaks.** `chrome://extensions` → service worker → Application → Storage: every
+   `vm.icons.*` key is 22 characters of base64url that says nothing about a domain, and every value
+   is base64 that does not begin `iVBOR`. `vm.iconsLru` holds the same names and no host.
+9. **Check the Chrome tier is untouched.** On a profile syncing through `chrome.storage.sync`,
+   `stored icons` stays `0` and no `vm.icons.*` key ever appears. The heavy tier does not go near
+   the 100 KB area, and on that tier this feature does not exist.
+
 ### 5.6 The QR code, against a real phone
 
 `test/unit/ui/qr.test.ts` reads every symbol back with a decoder written from ISO/IEC 18004 rather
