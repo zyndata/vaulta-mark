@@ -40,6 +40,9 @@ let lastLockReason: LockReason | null = null;
  */
 let unlockedScreen: 'vault' | 'settings' = 'vault';
 
+/** Whether the stored-icon lookup is in place for this unlocked session (§10.1). */
+let iconsInstalled = false;
+
 /* ------------------------------------------------------------------ shared pieces */
 
 function field(labelKey: string, input: HTMLElement): HTMLElement {
@@ -229,6 +232,7 @@ async function refresh(): Promise<void> {
   } else if (response.locked) {
     unlockedScreen = 'vault';
     forgetStoredIcons();
+    iconsInstalled = false;
     render(root, unlockScreen());
   } else if (unlockedScreen === 'settings') {
     render(
@@ -252,7 +256,12 @@ async function refresh(): Promise<void> {
       }),
     );
   } else {
-    useStoredIcons(storedIconLookup());
+    // Installed once per unlock, not once per repaint: installing again clears the per-host cache,
+    // and the popup repaints itself on every add, delete and undo.
+    if (!iconsInstalled) {
+      useStoredIcons(storedIconLookup());
+      iconsInstalled = true;
+    }
     render(
       root,
       vaultScreen({
