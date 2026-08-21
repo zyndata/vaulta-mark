@@ -30,9 +30,13 @@ below.
     password, so the list of files in your Drive folder cannot be matched against a list of guessed
     domains.
   - Icons are picked up at three moments and no others: when you save a page, when a row you are
-    looking at turns out to have gained an icon since — because you have since visited the site —
-    and when you press **Refresh icon** in the detail pane. There is no background task, nothing on
-    a timer, and nothing happens for rows you are not looking at.
+    looking at turns out to have gained an icon since — because you have since visited the site in
+    an **ordinary window** — and when you press **Refresh icon** in the detail pane. There is no
+    background task, nothing on a timer, and nothing happens for rows you are not looking at.
+  - **An incognito visit leaves Chrome no icon to copy**, so a site you have only ever opened in
+    incognito — including through VaultaMark, which opens every bookmark that way — keeps the
+    generic globe until you open it once in an ordinary window. The icons come from Chrome's cache
+    and nowhere else, and incognito deliberately does not fill that cache.
   - **On Chrome sync — the default — nothing changes.** That 100 KB of storage has no room for
     pictures, and it is a browser profile Chrome is already syncing favicons to.
   - *Copy diagnostics* now reports **stored icons**: how many sites this device holds an icon for.

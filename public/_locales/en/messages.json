@@ -422,7 +422,7 @@
     "description": "Status line after Refresh icon found an icon in Chrome's cache."
   },
   "iconRefreshedNone": {
-    "message": "Chrome has no icon for this site yet. Visit it once and try again.",
+    "message": "Chrome has no icon for this site yet. Open the site once in an ordinary window and try again — an incognito visit leaves Chrome nothing to copy.",
     "description": "Status line after Refresh icon found only Chrome's generic placeholder."
   },
   "thumbRefreshed": {

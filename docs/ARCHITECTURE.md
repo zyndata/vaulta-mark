@@ -1654,6 +1654,29 @@ An upgrade never overwrites. A stored icon is replaced only by *Refresh icon*, b
 cache changed" is not evidence that the site's icon did — that cache is evicted, re-populated and
 resized by a browser with its own reasons.
 
+**Incognito browsing populates no favicon database, and that has a sharper consequence here than
+anywhere else in this product** (maintainer-reported, 2026-08-21). An incognito profile is
+in-memory: a page visited there leaves no entry in the on-disk favicon database, and the service
+worker is `spanning` (D29), so `_favicon/` answers it from the *regular* profile — which has never
+seen the site. Adding a bookmark from an incognito window therefore stores no icon, correctly and
+by construction.
+
+The sharper consequence is that **VaultaMark's own way of opening a bookmark is an incognito
+window** (§9). A site the user only ever reaches *through the vault* never populates the cache, so
+moment 2 above — "the user has since visited the site" — only ever fires for a visit in an ordinary
+window. For a vault whose whole point is that its sites are not browsed normally, that is a large
+part of the second moment gone.
+
+Nothing in scope fixes it: the icon would have to come from the site, and an extension-origin
+request to a vaulted domain is refused by INV-4. The one shape that could work is the shape
+thumbnails already use — read `<link rel="icon">` and fetch it **in the page's own context**, at
+add time, under the `activeTab` grant (§14.1) — which is a different feature with a different
+permission story, and it starts with a PLAN change rather than with a patch here. Recorded so the
+idea does not come back without the question coming back with it.
+
+So the honest statement of what this feature covers: **sites you have also browsed normally**. That
+is most of them, in most vaults, and it is not all of them.
+
 #### Where they are kept, and how they leave
 
 `vm.icons.<name>` in `storage.local` (base64url, like every sealed value there, §5.1) and
