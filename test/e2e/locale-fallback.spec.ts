@@ -30,6 +30,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, expect, test, type BrowserContext } from '@playwright/test';
 
+import { extensionArgs } from './harness.js';
+
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
 /** Translated in the incomplete locale. Any key with no placeholders would do. */
@@ -79,12 +81,9 @@ test.beforeAll(async () => {
     // See lock.spec.ts: the default headless build does not run extensions at all.
     channel: 'chromium',
     headless: true,
-    args: [
-      `--disable-extensions-except=${packageDir}`,
-      `--load-extension=${packageDir}`,
-      // `--lang` is what picks the `_locales` directory. It is the browser's *application* locale.
-      '--lang=pl',
-    ],
+    // `--lang` is what picks the `_locales` directory: the browser's *application* locale. This is
+    // one of the two specs that wants something other than `harness.ts`'s pinned English.
+    args: extensionArgs(packageDir, 'pl'),
     /*
      * …and `locale` is what `chrome.i18n.getUILanguage()` answers with, which is a different thing.
      *

@@ -31,6 +31,7 @@ import {
 } from '@playwright/test';
 
 import { expectNoA11yViolations } from './a11y.js';
+import { extensionArgs } from './harness.js';
 
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
@@ -110,7 +111,7 @@ test.beforeAll(async () => {
     // See lock.spec.ts: the default headless build does not run extensions at all.
     channel: 'chromium',
     headless: true,
-    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+    args: extensionArgs(DIST),
   });
 
   // INV-4, enforced rather than observed: anything that tries to reach the network is recorded and

@@ -42,6 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium, expect, test, type BrowserContext, type Page } from '@playwright/test';
 
 import { expectNoA11yViolations } from './a11y.js';
+import { extensionArgs } from './harness.js';
 
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
@@ -101,8 +102,9 @@ async function launch(language: string, packageDir: string | null): Promise<Harn
     // See lock.spec.ts: the default headless build does not run extensions at all.
     channel: 'chromium',
     headless: true,
-    // `--lang` picks the `_locales` directory: it is the browser's *application* locale.
-    args: [`--disable-extensions-except=${load}`, `--load-extension=${load}`, `--lang=${language}`],
+    // `--lang` picks the `_locales` directory: it is the browser's *application* locale, and this
+    // is one of the two specs that wants something other than `harness.ts`'s pinned English.
+    args: extensionArgs(load, language),
     // And `locale` is what a page reports for `chrome.i18n.getUILanguage()`, which `plural()`
     // resolves into the locale it asks `Intl.PluralRules` about. Playwright emulates `en-US` unless
     // told otherwise, so setting only `--lang` gives a browser rendering one language and reporting

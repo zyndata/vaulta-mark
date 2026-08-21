@@ -405,6 +405,13 @@ can answer. Two harness facts cost an afternoon each and are not guessable:
   rendering Polish while every page in it reports `en-US`, which is not a state a real browser can
   be in and which makes `src/ui/plural.ts` pick English's categories for Polish text. Pass
   `locale: 'pl-PL'` alongside `--lang=pl`, always.
+- **Unset, `--lang` comes from the operating system — which made the whole suite machine-dependent
+  the day a second locale shipped.** Every assertion in the E2E specs names an English sentence.
+  While `en` was the only locale in the package that was safe by accident: whatever the machine's
+  language, English was all Chrome could render. Adding `_locales/pl` turned twelve of thirteen
+  specs red on a Polish-language Windows box while CI, which runs in English, stayed green. Launch
+  through `extensionArgs()` in `test/e2e/harness.ts`, which pins it, rather than writing an `args`
+  array by hand.
 - **A synthetic locale goes into a copy of `dist/`, never into `dist/`.** Every other spec loads the
   same directory and `npm run zip` packages it.
 

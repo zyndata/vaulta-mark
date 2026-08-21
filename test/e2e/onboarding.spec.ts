@@ -25,6 +25,7 @@ import { join } from 'node:path';
 import { chromium, expect, test, type BrowserContext, type Page, type Worker } from '@playwright/test';
 
 import { expectNoA11yViolations } from './a11y.js';
+import { extensionArgs } from './harness.js';
 
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
@@ -56,7 +57,7 @@ test.beforeAll(async () => {
     // `channel: 'chromium'`: the default headless build does not run extensions at all.
     channel: 'chromium',
     headless: true,
-    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+    args: extensionArgs(DIST),
   });
   const worker = await serviceWorker();
   extensionId = new URL(worker.url()).host;
