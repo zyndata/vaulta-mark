@@ -474,8 +474,9 @@ Consequences every phase must respect:
 
 # 9. The phased plan
 
-Fourteen phases, 0 → 13. Each ends on a green `dev`, tagged `phase-N-done`. One focused conversation
-per phase.
+Twenty-one phases, 0 → 20. Each ends on a green `dev`, tagged `phase-N-done`. One focused
+conversation per phase. Phases 0–13 carried the product to 1.0.0; 14–18 ship together as 1.2.0;
+19 and 20 follow it.
 
 **Dependency graph:**
 
@@ -485,6 +486,9 @@ per phase.
                                     7 ──────► 10 (merge engine reused)
                                    10 ──────► 11 (heavy tier needs Drive)
 ```
+
+The spine above is 0 → 13. Phases 14–20 are independent of each other and declare their own
+dependencies in place.
 
 ---
 
@@ -2104,6 +2108,236 @@ Two things to raise at the release itself:
 - **Check `gh run list` before the release merge.** 1.0.0 was tagged while CI on `dev` was red and
   the fix was sitting uncommitted in the working tree — a local `verify` that is green *because* of
   an unsaved file is green about nothing.
+
+---
+
+## Phase 19 — The icon of a site you only ever open through the vault
+
+**Goal:** a bookmark whose site the user reaches *only* through VaultaMark gets a real icon, not a
+coloured initial. Phase 17 stores what Chrome's favicon database holds; this phase covers the case
+Chrome's database structurally cannot hold, because VaultaMark opens every bookmark in an incognito
+window and an incognito profile writes no favicon entry (§10.1, maintainer-reported 2026-08-21).
+
+**Depends on:** Phase 11 (the OG injection this rides inside), Phase 17 (the icon store it writes
+to). **Ships after 1.2.0** — 14–18 are tagged and owed a release, and this is a decoration that must
+not delay one.
+
+**Specs to read:** [ARCHITECTURE §10.1](docs/ARCHITECTURE.md) in full, and its incognito paragraph
+twice — it is the statement of the problem and already contains the shape of the answer; §14.1
+(pipeline), §14.2 (hostile input), §14.4 (tier gating and the *nothing is injected* rule), §8.3
+(accepted leaks). Issue **#27**, which is the specification this phase implements. D25, D26, D27.
+
+> **The phase's own title is half wrong, and finding that out is the first task.** #27 asks for
+> `<link rel="icon">` to be parsed in page context. It probably should not be. **`tab.favIconUrl`
+> is already populated under an `activeTab` grant** — `activeTab` confers host permission for that
+> tab, which is what unlocks the sensitive `Tab` fields — and `src/background/thumbs.ts` holds that
+> exact `Tab` at the moment it injects. Chrome has already done the resolution: `rel="icon"` versus
+> `rel="shortcut icon"`, `sizes=`, `media=`, `type=`, the `apple-touch-icon` fallbacks, and the
+> implicit `/favicon.ico` when the page declares nothing at all.
+>
+> So the shape is **worker reads `tab.favIconUrl` → passes the URL into the existing injection →
+> the page fetches it from its own origin → bytes return on the existing `CaptureResult`**. That is
+> a pile of parsing this phase does not write, and it guarantees the stored icon is *the one Chrome
+> is drawing in the tab strip*, which is the promise the feature is actually making. Confirm
+> `favIconUrl` is present under `activeTab` against the real `dist/` before building on it; a
+> `<link>` walk stays available as a fallback and is **not** built until something needs it.
+
+**Three measurements before any code, each of which can shrink the phase.**
+
+1. **Does `createImageBitmap` decode ICO in a service worker** — `image/x-icon`,
+   `image/vnd.microsoft.icon`, and a multi-size `.ico`? #27 flags this as unmeasured and it is
+   load-bearing: `/favicon.ico` is what `favIconUrl` points at for a large share of the web. If ICO
+   does not decode, coverage drops sharply and that number belongs in this section, not in a
+   retrospective.
+2. **Does `createImageBitmap` decode SVG in a worker?** Decides the SVG question below outright. The
+   expectation is *no* — SVG decoding is document-bound in Blink — in which case there is nothing to
+   decide.
+3. **How often does a page-context fetch of a same-origin favicon actually succeed?** Better odds
+   than `og:image`, which is usually on a CDN, but `connect-src` still governs it. A handful of real
+   sites, recorded as a dated table the way §10.1's `_favicon/` measurements are.
+
+Write all three into ARCHITECTURE before the first commit, whichever way they fall — the same rule
+Phase 17 applied to the schema question, for the same reason.
+
+**In scope**
+
+- **A new decision, D37**, written into §2 before the code: *page-declared favicon bytes are fetched
+  by the content script, in the page's own context, inside the existing add-time OG injection.* It
+  is D27 applied to a second kind of image, and it needs saying separately because *what this
+  extension injects into a page, and when* is the product's central claim.
+- **It rides inside the existing injection and inherits its gate.** One extra field on
+  `CaptureResult`, no second injection, and §14.4's *nothing is injected when nothing would be kept*
+  survives untouched — `test/unit/background/thumbs.test.ts` asserts it and must not be edited. The
+  practical intersection is the Drive tier, which is where stored icons live anyway, so the gate
+  costs nothing real.
+- **`captureOnAdd` stays exactly where it is.** `_favicon/` is free and reaches all four add
+  gestures; the injection reaches two. So the page-sourced bytes are an **upgrade applied only when
+  `captureOnAdd` stored nothing**, which preserves §10.1's rule that an upgrade never overwrites.
+- **A page-sourced icon goes through a `processIcon` beside `processThumb`**: decode → 32 px →
+  WebP/PNG → the existing 64 KB cap, with the 5 MB fetch ceiling on input. This is the pipeline
+  §14.2 exists for, because these bytes came from a page.
+- **Provenance is recorded** — one byte in the sealed plaintext, or a field in the icon AAD — so the
+  two sources are distinguishable at read time. The icon store is a cache and a blob that will not
+  parse is a miss, so this costs nothing to introduce.
+- **`refreshIcon`'s semantics change, and this is the defect this phase exists to avoid shipping.**
+  It currently *drops* a stored icon when `_favicon/` answers with the globe, deliberately — "this
+  is what the icon is now, including that it is nothing". With page-sourced icons in the store, a
+  refresh on a vault-only site would **delete a perfectly good icon** because the regular profile has
+  never seen the host. So: refresh tries the page first when the active tab is on that URL (the
+  `samePage` check already exists for the preview refresh), and a Chrome miss never overwrites a
+  page-sourced hit. **Write this into §10.1 in the same commit as the code.**
+- **A fourth moment, and it is the only one that reaches the case the phase is named for:** the
+  popup, open on a vaulted page in an incognito window, offering *use this page's icon*. The worker
+  is `spanning` (D29) so it sees that tab, and the popup's own gesture grants `activeTab` on it — no
+  new permission, and it is user-invoked, which is what every moment in §10.1 has to be. Add-time
+  capture alone still misses a bookmark that arrived from a context menu and was thereafter only
+  ever opened through the vault.
+- **The honest ceiling, stated in ARCHITECTURE rather than discovered later:** this fires where
+  *Drive tier ∧ added from a loaded tab ∧ capture enabled ∧ the icon fetches and decodes*. §10.1's
+  closing sentence — "what this feature covers is sites you have also browsed normally" — gets
+  rewritten, not deleted.
+
+**Out of scope:** capturing when *VaultaMark itself* opens the bookmark in incognito — `tabs.create`
+grants no `activeTab`, so injecting there needs a host permission (D26, INV-9); write the refusal
+down so it stops being re-proposed. An extension-origin fetch of any icon, which stays refused under
+INV-4 for the reason §10.1 gives. Anything on the Chrome-sync tier. Preferring `apple-touch-icon`,
+or any other second-guessing of the icon Chrome resolved. A `<link rel="icon">` DOM walk, unless
+measurement 1 or the `favIconUrl` confirmation forces one. Any background, scheduled or
+browse-time capture — the rule D27/§14 imposes, unchanged.
+
+**The SVG question, and the shape of its answer.** `thumbs/validate.ts` refuses `image/svg+xml`
+outright, with its own reason string, as a script vector. If measurement 2 says a worker cannot
+decode SVG, that refusal stands and nothing is decided. If it can, the only acceptable form is
+**rasterise and never store the SVG**: `createImageBitmap` runs no script and loads no external
+reference, and what reaches an `<img>` is a WebP bitmap. Storing an SVG and rendering it is not on
+the table, whatever the measurement says.
+
+**Tests**
+- A page-sourced icon is stored **only** when `captureOnAdd` stored nothing — table test over the
+  four combinations of (Chrome has an icon) × (the page declares one).
+- Refresh on a host with a page-sourced icon and no Chrome entry **keeps the icon**. This is the
+  regression the phase is written around; write it before the code that makes it pass.
+- Nothing is injected on the Chrome-sync tier with the opt-in off — the existing §14.4 assertion,
+  re-run unchanged, and it must not need editing.
+- A page-sourced icon goes through `processIcon`: hostile-input table over content type, declared
+  size, actual size, dimensions and decodability, mirroring `test/unit/thumbs/validate.test.ts`.
+- INV-4: the E2E route trap stays empty through an add, a browse and a refresh. The page's fetch is
+  in the page, so a request appearing at the extension origin is the failure this asserts.
+- **Capture happens at the four moments and no other**, asserted against the injection seam rather
+  than against stored state — the claim is about what is not done.
+- E2E: `thumbs.spec.ts`'s harness limit applies here too (the automation profile's favicon database
+  never returns a real icon), so the page-sourced half is driven through the fetch seam and that is
+  recorded, not worked around.
+
+**Definition of done**
+- [ ] The three measurements are in ARCHITECTURE, dated, before the first commit — including a
+      *no* that shrinks the phase.
+- [ ] `favIconUrl` under `activeTab` is confirmed against the real `dist/`, or the phase falls back
+      to a `<link>` walk and says so.
+- [ ] D37 is in PLAN §2 and §14.1 describes the second image the injection now carries.
+- [ ] §10.1's refresh semantics are rewritten, and a test proves a page-sourced icon survives a
+      refresh on a profile that has never visited the host.
+- [ ] The popup's *use this page's icon* works from an incognito window on a vaulted page —
+      **maintainer's manual pass**, for the same reason Phases 10, 11 and 17 have one.
+- [ ] §10.1's coverage sentence tells the truth about the new ceiling.
+- [ ] Issue #27 closed against what was built, including the parts it asked for and this phase
+      declined.
+
+**Git:** direct commits on `dev`. Tag `phase-19-done`.
+
+---
+
+## Phase 20 — Pictures on Drive are a choice, not a consequence
+
+**Goal:** connecting Drive should not, by itself, decide that a picture for every bookmark and an
+icon for every domain get uploaded to the user's own Drive. One checkbox in Settings — visible only
+while Drive is connected, **off by default** — governs the whole heavy tier.
+
+**Depends on:** Phase 10 (Drive), Phase 11 (thumbnails), Phase 17 (icons). **Nothing in Phase 19**,
+and if only one of the two gets built, build this one: it changes what Phase 19's default *means*,
+and a gate fitted after the thing it gates has shipped is the more awkward edit.
+
+**Specs to read:** [ARCHITECTURE §14.4](docs/ARCHITECTURE.md) — the tier-gating table, which this
+phase rewrites; §10.1 (*Drive tier only*, which stops being the whole rule); §6.7 (settings that
+travel, and why some deliberately do not); §8.3 (accepted leaks); §13.3 (Drive file layout).
+
+**Why, and the third reason is the real one.**
+
+1. **Quota and traffic in a folder the user pays for.** A 600-bookmark vault is measured in
+   megabytes of thumbnails against a light tier measured in kilobytes.
+2. **The leak §8.3 already records.** One file per item and one per domain means the Drive folder's
+   file count approximates *how many bookmarks* and *how many distinct domains* the vault holds.
+   A user who wants the smallest possible footprint in their own Drive should be able to keep a
+   light-tier-only vault there — and today, connecting Drive decides otherwise on their behalf.
+3. **Consent.** *"I connected Drive so my bookmarks reach my other computer"* is not the same
+   statement as *"upload a picture of each of them"*, and this product does not get to treat the
+   first as the second. That is the reason; the other two are the arithmetic.
+
+**In scope**
+
+- **One setting, working name `driveMedia`, governing icons and thumbnails together.** Not two
+  checkboxes: they are the same question about the same folder, and a user who does not want
+  pictures on Drive does not want half of them there either.
+- **It travels.** `localThumbnails` is deliberately per-device because it is a statement about *this
+  computer's disk* (§6.7). This one is a statement about *the vault's Drive folder*, which every
+  device shares — so it belongs in `SYNCED_SETTING_KEYS`, and one device turning it off must stop
+  another device uploading. Last-writer-wins per field, like the rest of §6.7; no new merge rule.
+- **Visible only while `providerId === 'drive'`.** The value persists while the control is hidden
+  and survives a disconnect and reconnect — a hidden setting that silently resets is a setting that
+  answers a question the user did not get asked twice.
+- **Default off on a fresh Drive connection.** *Settled: the maintainer's call, 2026-08-22.*
+- **The upgrade question is a different question and the phase must settle it before any code.** A
+  vault whose Drive folder already holds `t_*.vmt` and `f_*.vmi` belongs to somebody who has been
+  living with the feature working. Two options, decided in ARCHITECTURE first:
+  **(a)** off for everyone, one rule, and existing users silently lose pictures they had;
+  **(b)** off for new connections, on for a vault whose Drive folder already holds heavy-tier files —
+  a one-time read at migration. **Recommendation is (b):** the setting exists to prevent a surprise,
+  and switching off something somebody already has is the same surprise pointed the other way.
+- **Turning it off stops future uploads and deletes nothing by itself.** Deleting a user's Drive
+  files on the strength of a checkbox is a hard-to-reverse action taken on an ambiguous gesture.
+  What is offered instead is an explicit, separately-confirmed **remove pictures from Drive** action
+  beside the checkbox, which reuses the sweep the housekeeping alarm already has (§14.6).
+- **Two switches about pictures is one too many.** `localThumbnails` exists for the Chrome tier and
+  `offersThumbnails` already asks a question about it (§14.4). Decide before the code whether the
+  two collapse into one control with three states — *never* / *this device only* / *this device and
+  Drive* — or stay separate, and write the answer into §14.4's table, which this phase rewrites
+  either way.
+- **The local cache is untouched.** `storage.local`'s 8 MB of thumbnails and 1 MB of icons are this
+  computer's disk, not the user's Drive, and this checkbox says nothing about them.
+- New strings in `en` **and** `pl`, complete — INV-10 and `verify-strings.mjs` check 4.
+
+**Out of scope:** a per-item or per-folder choice, which is a different feature with a different UI.
+Any quota display or size budget. Changing anything the Chrome-sync tier does — §14.4 settles that
+and this phase does not reopen it. Changing what the **light** tier stores: items, titles, tags,
+notes and folders always sync, and this checkbox never touches them. Making Drive itself opt-out.
+
+**Tests**
+- With Drive connected and the setting off, an add captures nothing and writes no heavy-tier file —
+  asserted against the capture seam *and* against the provider, because "did not upload" and "did
+  not capture" are two claims.
+- Turning it off stops uploads and leaves the existing Drive files exactly where they are.
+- The explicit removal action deletes every `t_*.vmt` and `f_*.vmi` and nothing else — the light
+  tier's buckets and header survive it, asserted by name.
+- The setting is in `SYNCED_SETTING_KEYS` and two devices converge on it, through the existing §6.7
+  table tests rather than a new mechanism.
+- The control is absent on the Chrome tier, and its value survives a disconnect and reconnect.
+- Migration: a vault whose Drive folder already holds heavy-tier files arrives with the setting set
+  the way the answer above decided, asserted against a fixture rather than against a live Drive.
+- `npm run verify` green with `pl` complete.
+
+**Definition of done**
+- [ ] §14.4's table is rewritten and §10.1's "Drive tier only" sentence tells the truth about the
+      new gate.
+- [ ] The upgrade question is answered in ARCHITECTURE, dated, before the first commit.
+- [ ] The `localThumbnails` overlap is resolved one way or the other, and the settings screen shows
+      one comprehensible set of choices rather than two overlapping ones.
+- [ ] Removing pictures from Drive is explicit, confirmed, and reversible only by re-capture — and
+      says so in the confirmation.
+- [ ] The setting travels, and a second computer arrives with the answer rather than the default.
+- [ ] `en` and `pl` complete; the popup and manager settings screens still fit in both
+      (`test/e2e/locale-fit.spec.ts`).
+
+**Git:** direct commits on `dev`. Tag `phase-20-done`.
 
 ---
 
