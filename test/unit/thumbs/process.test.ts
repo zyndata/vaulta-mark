@@ -13,12 +13,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   FALLBACK_TYPE,
+  ICON_FALLBACK_TYPE,
+  ICON_MAX_BYTES,
+  ICON_MAX_EDGE,
+  ICON_QUALITY_STEPS,
   PREFERRED_TYPE,
   QUALITY_STEPS,
   THUMB_FALLBACK_EDGE,
   THUMB_MAX_BYTES,
   THUMB_MAX_EDGE,
   fitWithin,
+  processIcon,
   processThumb,
   type DecodedImage,
   type ImageOps,
@@ -231,5 +236,136 @@ describe('processThumb', () => {
       'undecodable',
     );
     expect(decode).toHaveBeenCalledWith(SOME_BYTES, 'image/png');
+  });
+});
+
+/* ------------------------------------------------------------------ icons (§10.1, D37) */
+
+describe('processIcon', () => {
+  it('fits a big icon inside 32 px, preserving the aspect ratio', async () => {
+    const calls: EncodeCall[] = [];
+    const icon = await processIcon(SOME_BYTES, 'image/x-icon', fakeOps({
+      width: 256,
+      height: 256,
+      scale: 0.0001,
+      calls,
+    }));
+
+    expect(icon.width).toBe(ICON_MAX_EDGE);
+    expect(icon.height).toBe(ICON_MAX_EDGE);
+    expect(calls[0]).toMatchObject({ width: 32, height: 32 });
+  });
+
+  it('never upscales a 16 px favicon into a blurred 32', async () => {
+    // A great many sites still serve 16 × 16. Blowing it up costs bytes to make it worse, and the
+    // row scales it back down anyway.
+    const icon = await processIcon(SOME_BYTES, 'image/png', fakeOps({
+      width: 16,
+      height: 16,
+      scale: 0.0001,
+    }));
+    expect(icon).toMatchObject({ width: 16, height: 16 });
+  });
+
+  it('keeps the odd aspect ratio real favicons come in', async () => {
+    // Measured on 2026-08-22: web.dev serves a 33 × 32. It is one pixel over the edge, so it is
+    // fitted rather than kept — but it is fitted, not squared. A 32 × 32 here would mean the
+    // pipeline had stretched a real icon to make the arithmetic tidier.
+    const icon = await processIcon(SOME_BYTES, 'image/png', fakeOps({
+      width: 33,
+      height: 32,
+      scale: 0.0001,
+    }));
+    expect(icon).toMatchObject({ width: 32, height: 31 });
+  });
+
+  it('takes the first quality step, which is all the measurements ever needed', async () => {
+    const calls: EncodeCall[] = [];
+    await processIcon(SOME_BYTES, 'image/x-icon', fakeOps({
+      width: 48,
+      height: 48,
+      scale: 0.0001,
+      calls,
+    }));
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ type: PREFERRED_TYPE, quality: ICON_QUALITY_STEPS[0] });
+  });
+
+  it('walks the ladder when the first step will not fit', async () => {
+    const calls: EncodeCall[] = [];
+    // Sized so that only the last quality step comes in under the cap.
+    const scale = (ICON_MAX_BYTES * 1.2) / (32 * 32 * ICON_QUALITY_STEPS[0]!);
+    await processIcon(SOME_BYTES, 'image/png', fakeOps({ width: 64, height: 64, scale, calls }));
+
+    expect(calls.map((call) => call.quality)).toEqual([...ICON_QUALITY_STEPS].slice(0, calls.length));
+    expect(calls.length).toBeGreaterThan(1);
+  });
+
+  it('falls back to PNG, not JPEG — a favicon has an alpha channel', async () => {
+    // JPEG cannot carry transparency, and a flattened favicon is a black square on every row of
+    // that host: worse than the lettered avatar it replaced.
+    const calls: EncodeCall[] = [];
+    const icon = await processIcon(SOME_BYTES, 'image/x-icon', fakeOps({
+      width: 32,
+      height: 32,
+      scale: 0.0001,
+      produces: ICON_FALLBACK_TYPE,
+      calls,
+    }));
+
+    expect(icon.type).toBe(ICON_FALLBACK_TYPE);
+    expect(ICON_FALLBACK_TYPE).not.toBe(FALLBACK_TYPE);
+    expect(calls.map((call) => call.type)).toEqual([PREFERRED_TYPE, ICON_FALLBACK_TYPE]);
+  });
+
+  it('stops the ladder as soon as PNG is the answer', async () => {
+    // PNG encoders ignore `quality`, so the rest of the ladder would be byte-identical work.
+    const calls: EncodeCall[] = [];
+    await reasonOf(() =>
+      processIcon(SOME_BYTES, 'image/png', fakeOps({
+        width: 32,
+        height: 32,
+        scale: ICON_MAX_BYTES,
+        produces: ICON_FALLBACK_TYPE,
+        calls,
+      })),
+    );
+
+    // The WebP probe, the PNG it actually produced, and then nothing more.
+    expect(calls).toHaveLength(2);
+  });
+
+  it('refuses an icon that will not decode', async () => {
+    const ops: ImageOps = { decode: () => Promise.reject(new Error('not an image')) };
+    expect(await reasonOf(() => processIcon(SOME_BYTES, 'image/x-icon', ops))).toBe('undecodable');
+  });
+
+  it('refuses a decompression bomb dressed as a favicon', async () => {
+    const ops = fakeOps({ width: 20_000, height: 20_000, scale: 0.0001 });
+    expect(await reasonOf(() => processIcon(SOME_BYTES, 'image/png', ops))).toBe('dimensions');
+  });
+
+  it('refuses a zero-sized decode', async () => {
+    const ops = fakeOps({ width: 0, height: 0, scale: 1 });
+    expect(await reasonOf(() => processIcon(SOME_BYTES, 'image/png', ops))).toBe('undecodable');
+  });
+
+  it('gives up rather than store something enormous', async () => {
+    const ops = fakeOps({ width: 32, height: 32, scale: ICON_MAX_BYTES });
+    expect(await reasonOf(() => processIcon(SOME_BYTES, 'image/png', ops))).toBe('unencodable');
+  });
+
+  it('closes the bitmap even when it gives up', async () => {
+    const closed = { value: false };
+    await reasonOf(() =>
+      processIcon(SOME_BYTES, 'image/png', fakeOps({
+        width: 32,
+        height: 32,
+        scale: ICON_MAX_BYTES,
+        closed,
+      })),
+    );
+    expect(closed.value).toBe(true);
   });
 });

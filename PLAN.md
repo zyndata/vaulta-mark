@@ -145,6 +145,7 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | D34 | **Store upload is gated behind `workflow_dispatch` input `publish: true`** | A tag push builds and creates a GitHub Release with the zip attached, but never publishes to the Store by itself. |
 | D35 | **Versioning: SemVer**, `manifest.json` version generated from `package.json` at build time | Chrome versions must be `1.2.3` numeric-only; pre-release tags (`1.2.0-rc.1`) map to `1.2.0.1` via a documented rule in `build/version.ts`. |
 | D36 | **Repository visibility: public, single maintainer.** Decided 2026-08-15; private from the first commit until then. | Licensing and publishing are different things, and for this product the gap between them was a real cost: GPL-3.0-only (D31) governs the terms under which the code is distributed, but a security tool nobody can read is one whose claims cannot be checked, which `SECURITY.md` said in as many words while the repository was private. Publishing settles that, and unblocks four GitHub features the docs had to work around — private vulnerability reporting, CodeQL upload, secret-scanning push protection, and GitHub Pages, which is where the Store's privacy-policy URL now comes from ([docs/RELEASE.md](docs/RELEASE.md) §8). Branch protection, which the Free plan refused outright on a private repository (measured 2026-08-14), becomes available with it and is applied — see [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md). **Public is not the same as shared.** There is one maintainer, so D32 stands unchanged: no pull-request requirement, no approval gate, direct commits to `dev`. Issues, Discussions and pull requests are open; a pull request is judged on its merits, and none is solicited by a roadmap. **What was true while it was private stays true:** §8.1 is not relaxed by publication but *settled* by it — the history is readable in full now, so the rule about what may never enter it no longer has an undo. |
+| D37 | **Page-declared favicon bytes are fetched by the content script, in the page’s own context, inside the existing add-time OG injection.** Decided 2026-08-22 (Phase 19); `tab.favIconUrl` is a hint and the page’s own `<link rel="icon">` set is the list, corrected 2026-08-23. | This is D27 applied to a second kind of image, and it needs saying separately because *what this extension injects into a page, and when* is the product’s central claim. The problem it solves is structural: VaultaMark opens every bookmark in an incognito window, an incognito profile writes no favicon entry, so a site reached only through the vault can never get an icon out of `_favicon/` — the source [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §10.1 otherwise relies on. **It adds no permission and no second injection**: `activeTab` + `scripting` are already required (D25) and already used for exactly this, and `favIconUrl` is gated on the same per-tab host permission as `tab.url`, which `background/thumbs.ts` already reads. It rides inside the OG injection and inherits its tier gate, so §14.4’s rule that *nothing is injected when nothing would be kept* is untouched. An **extension-origin** fetch of an icon stays refused under INV-4 for the reason §10.1 gives, and so does capturing when VaultaMark itself opens a bookmark in incognito — `tabs.create` grants no `activeTab`, so that would need a host permission (D26, INV-9). **The first draft took `favIconUrl` alone and that was corrected on 2026-08-23**, before the phase was tagged: the field is *empty* for a site the regular profile has never resolved an icon for — precisely the site this decision exists for — and points at an SVG for about a quarter of the rest. So the content script reads the page’s declared set and orders it (Chrome’s answer first when it is not a vector, then rasters nearest 32 px, then `/favicon.ico`, then vectors), and **rasterises an SVG in the page**, where a canvas exists. Measured before the code, 2026-08-22: ICO decodes in a service worker and **SVG does not**, so §14.2’s refusal stands and the worker never sees one — what it is handed is a PNG the page drew. 18 of 18 page-context favicon fetches across 20 real sites succeeded; 13 reached a stored icon then, and the 5 that did not were all SVG and now do. |
 
 ---
 
@@ -2119,8 +2120,11 @@ Chrome's database structurally cannot hold, because VaultaMark opens every bookm
 window and an incognito profile writes no favicon entry (§10.1, maintainer-reported 2026-08-21).
 
 **Depends on:** Phase 11 (the OG injection this rides inside), Phase 17 (the icon store it writes
-to). **Ships after 1.2.0** — 14–18 are tagged and owed a release, and this is a decoration that must
-not delay one.
+to). **Ships *in* 1.2.0** — decided 2026-08-22 by the maintainer, reversing this section's original
+"ships after". The release had not been cut yet, and folding the phase in costs one more item in a
+release that is already five, against publishing 1.2.0 and then immediately owing a 1.2.1 for a
+decoration. What does not change is that it must not *delay* the release: if this phase is not done
+when 1.2.0 is otherwise ready, it comes out again and ships next.
 
 **Specs to read:** [ARCHITECTURE §10.1](docs/ARCHITECTURE.md) in full, and its incognito paragraph
 twice — it is the statement of the problem and already contains the shape of the answer; §14.1
@@ -2186,12 +2190,20 @@ Phase 17 applied to the schema question, for the same reason.
   never seen the host. So: refresh tries the page first when the active tab is on that URL (the
   `samePage` check already exists for the preview refresh), and a Chrome miss never overwrites a
   page-sourced hit. **Write this into §10.1 in the same commit as the code.**
-- **A fourth moment, and it is the only one that reaches the case the phase is named for:** the
-  popup, open on a vaulted page in an incognito window, offering *use this page's icon*. The worker
-  is `spanning` (D29) so it sees that tab, and the popup's own gesture grants `activeTab` on it — no
-  new permission, and it is user-invoked, which is what every moment in §10.1 has to be. Add-time
-  capture alone still misses a bookmark that arrived from a context menu and was thereafter only
-  ever opened through the vault.
+- **A third moment reaching the case the phase is named for:** the popup, open on a vaulted page in
+  an incognito window. The worker is `spanning` (D29) so it sees that tab, and the popup's own
+  gesture grants `activeTab` on it — no new permission, and it is user-invoked, which is what every
+  moment in §10.1 has to be. Add-time capture alone still misses a bookmark that arrived from a
+  context menu and was thereafter only ever opened through the vault.
+
+  **This shipped as a separate *use this page's icon* button and that was wrong** — corrected
+  2026-08-23, before the phase was tagged. The preview refresh and the icon capture are one script
+  in one page with two concurrent fetches; two buttons meant two injections for one gesture, and on
+  the vault-only site the icon button existed for, its whole answer was a paragraph telling the user
+  to press it. `REFRESH_THUMB` now carries both halves and `USE_PAGE_ICON` is gone. The manager's
+  pane likewise has one button, which re-reads `_favicon/` *before* it opens the page, so the click
+  is an action rather than a note. §10.1 says so under *One button, because it was always one
+  request*.
 - **The honest ceiling, stated in ARCHITECTURE rather than discovered later:** this fires where
   *Drive tier ∧ added from a loaded tab ∧ capture enabled ∧ the icon fetches and decodes*. §10.1's
   closing sentence — "what this feature covers is sites you have also browsed normally" — gets
@@ -2200,17 +2212,27 @@ Phase 17 applied to the schema question, for the same reason.
 **Out of scope:** capturing when *VaultaMark itself* opens the bookmark in incognito — `tabs.create`
 grants no `activeTab`, so injecting there needs a host permission (D26, INV-9); write the refusal
 down so it stops being re-proposed. An extension-origin fetch of any icon, which stays refused under
-INV-4 for the reason §10.1 gives. Anything on the Chrome-sync tier. Preferring `apple-touch-icon`,
-or any other second-guessing of the icon Chrome resolved. A `<link rel="icon">` DOM walk, unless
-measurement 1 or the `favIconUrl` confirmation forces one. Any background, scheduled or
+INV-4 for the reason §10.1 gives. Anything on the Chrome-sync tier. Any background, scheduled or
 browse-time capture — the rule D27/§14 imposes, unchanged.
 
+**The `<link rel="icon">` walk was out of scope "unless something forces one", and something did**
+— corrected 2026-08-23, before the phase was tagged. Two things, in fact: `tab.favIconUrl` is
+**empty** for a site the regular profile has never resolved an icon for, which is precisely the site
+this phase is named for; and it points at an SVG for about a quarter of the web. So the walk is
+built, in the page, in `content/og.ts` — Chrome's answer first when it is not a vector, then the
+declared rasters nearest 32 px, then `/favicon.ico`, then anything vector-shaped, at most four
+attempts. `apple-touch-icon` is included as the last raster rather than preferred, and `mask-icon`
+is skipped.
+
 **The SVG question, and the shape of its answer.** `thumbs/validate.ts` refuses `image/svg+xml`
-outright, with its own reason string, as a script vector. If measurement 2 says a worker cannot
-decode SVG, that refusal stands and nothing is decided. If it can, the only acceptable form is
-**rasterise and never store the SVG**: `createImageBitmap` runs no script and loads no external
-reference, and what reaches an `<img>` is a WebP bitmap. Storing an SVG and rendering it is not on
-the table, whatever the measurement says.
+outright, with its own reason string, as a script vector. Measurement 2 said a worker cannot decode
+SVG, and the phase took that as the end of it — **which was reading "document-bound" as
+"impossible"**, corrected 2026-08-23 before the tag. The capture already runs *in a document*; that
+is the whole reason the fetch is legal (§14.1). So the answer is the one this bullet always named as
+the only acceptable one: **rasterise and never store the SVG.** An `<img>` from a blob URL minted in
+that same page runs no script and resolves no external reference, the canvas it draws into is not
+tainted, and what crosses back to the worker is a PNG. The worker's refusal stands and it now never
+sees an SVG at all. Storing an SVG and rendering it was never on the table and still is not.
 
 **Tests**
 - A page-sourced icon is stored **only** when `captureOnAdd` stored nothing — table test over the
@@ -2223,25 +2245,43 @@ the table, whatever the measurement says.
   size, actual size, dimensions and decodability, mirroring `test/unit/thumbs/validate.test.ts`.
 - INV-4: the E2E route trap stays empty through an add, a browse and a refresh. The page's fetch is
   in the page, so a request appearing at the extension origin is the failure this asserts.
-- **Capture happens at the four moments and no other**, asserted against the injection seam rather
-  than against stored state — the claim is about what is not done.
+- **Capture happens at the three moments and no other**, asserted against the injection seam rather
+  than against stored state — the claim is about what is not done. The seam now distinguishes the
+  *ask* (`icon: true`) from the *hint* (`iconUrl`): an unusable `favIconUrl` suppresses the hint and
+  must not suppress the ask.
+- **The candidate ordering is a table test** over the shapes real pages have — an SVG hint beside a
+  declared PNG, sizes above and below 32, `apple-touch-icon`, `mask-icon`, a `data:` href — and the
+  rasteriser is injected, because jsdom has no canvas. That a document *can* draw an SVG and read
+  the canvas back is measured in Chromium in `test/e2e/thumbs.spec.ts`, beside the worker's refusal
+  to decode the same bytes.
 - E2E: `thumbs.spec.ts`'s harness limit applies here too (the automation profile's favicon database
   never returns a real icon), so the page-sourced half is driven through the fetch seam and that is
   recorded, not worked around.
 
 **Definition of done**
-- [ ] The three measurements are in ARCHITECTURE, dated, before the first commit — including a
+- [x] The three measurements are in ARCHITECTURE, dated, before the first commit — including a
       *no* that shrinks the phase.
-- [ ] `favIconUrl` under `activeTab` is confirmed against the real `dist/`, or the phase falls back
+- [x] `favIconUrl` under `activeTab` is confirmed against the real `dist/`, or the phase falls back
       to a `<link>` walk and says so.
-- [ ] D37 is in PLAN §2 and §14.1 describes the second image the injection now carries.
-- [ ] §10.1's refresh semantics are rewritten, and a test proves a page-sourced icon survives a
+- [x] D37 is in PLAN §2 and §14.1 describes the second image the injection now carries.
+- [x] §10.1's refresh semantics are rewritten, and a test proves a page-sourced icon survives a
       refresh on a profile that has never visited the host.
-- [ ] The popup's *use this page's icon* works from an incognito window on a vaulted page —
-      **maintainer's manual pass**, for the same reason Phases 10, 11 and 17 have one.
-- [ ] §10.1's coverage sentence tells the truth about the new ceiling.
+- [ ] The popup's *Refresh preview and icon* works from an incognito window on a vaulted page,
+      **including on a site whose only icon is an SVG** — **maintainer's manual pass**, for the same
+      reason Phases 10, 11 and 17 have one. **Written up as DEVELOPMENT §5.5.2, not yet run** —
+      Playwright can neither click the toolbar button that grants `activeTab` nor sign into Google,
+      so both seams this rides on are outside the harness. Everything downstream of them is covered
+      by `test/unit/background/page-icon.test.ts`.
+- [x] §10.1's coverage sentence tells the truth about the new ceiling.
 - [ ] Issue #27 closed against what was built, including the parts it asked for and this phase
-      declined.
+      declined. **Open** — the code and docs are done; closing it is a GitHub action for the
+      maintainer. What to say: the `<link rel="icon">` walk it asked for **was** built, in the page,
+      after `tab.favIconUrl` turned out to be empty for exactly the sites this is for and to point at
+      an SVG for a quarter of the rest — it is a hint at the head of the list now, not the list. Its
+      SVG question is answered by rasterising in the page: ICO decodes in a worker and SVG does not,
+      but a document draws one, so nothing is written off. And capturing when VaultaMark itself opens
+      a bookmark in incognito is refused for good — `tabs.create` grants no `activeTab`
+      (D26, INV-9).
 
 **Git:** direct commits on `dev`. Tag `phase-19-done`.
 

@@ -91,8 +91,14 @@ export async function addActiveTab(): Promise<AddResult> {
   const repo = await requireVault();
   const result = await addActiveTabTo(repo, await addOptions());
   if (result.status === 'added') {
-    await icons.captureOnAdd(repo, result.item.url);
-    await thumbs.capture(repo, result.item.id);
+    /*
+     * The icon first, from `_favicon/`, which is free and reaches all four add gestures. What it
+     * came to then decides whether the injection below is also asked for the icon the *page*
+     * declares (§10.1, D37) — so "an upgrade never overwrites" is honoured by not asking, and the
+     * store is not read a second time to find out something we have just been told.
+     */
+    const outcome = await icons.captureOnAdd(repo, result.item.url);
+    await thumbs.capture(repo, result.item.id, { wantIcon: icons.wantsPageIcon(outcome) });
   }
   await announce(result);
   return result;
@@ -253,10 +259,15 @@ export async function thumb(id: string): Promise<ThumbResponse> {
 }
 
 /**
- * Re-capture the preview from the page in the active tab.
+ * Re-capture the preview **and the icon** from the page in the active tab (§14.5, §10.1).
  *
- * Broadcasts on the way out, because a capture that succeeded changed the item — and the row that
- * gains an eye icon is usually in a manager window, not in the popup that asked.
+ * Broadcasts on the way out, because a capture that succeeded changed something an open manager is
+ * showing — the row that gains an eye icon is usually in a manager window, not in the popup that
+ * asked. A stored icon counts: it is keyed by host, so one refresh can change every row on that
+ * site, and the list has no cheaper way to hear about it.
+ *
+ * The icon is not vault content and costs no revision, so it is broadcast without a sync being
+ * scheduled — the bytes went to Drive under their own key (§10.1), not into the light tier.
  */
 export async function refreshThumb(id: string): Promise<ThumbResponse> {
   const repo = await requireVault();
@@ -265,6 +276,8 @@ export async function refreshThumb(id: string): Promise<ThumbResponse> {
   if (result.state === 'ready') {
     await broadcast({ type: 'VAULT_CHANGED' });
     scheduleSync();
+  } else if (result.icon === 'stored') {
+    await broadcast({ type: 'VAULT_CHANGED' });
   }
   return result;
 }
@@ -284,7 +297,7 @@ export async function icon(url: string): Promise<IconResponse> {
   return await icons.iconFor(repo, url);
 }
 
-/** Re-read one host's icon from Chrome's cache and write down what is there now. */
+/** Work out what one host's icon is now — the page, then Chrome — and write that down. */
 export async function refreshIcon(url: string): Promise<IconResponse> {
   const repo = await requireVault();
   await session.touch();

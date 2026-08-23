@@ -14,6 +14,35 @@ below.
 
 ### Added
 
+- **A site you only ever open through VaultaMark can finally have its own icon.** Until now the
+  icon beside a bookmark came from Chrome's own store of them, which Chrome fills in while you
+  browse. Opening a bookmark from VaultaMark opens it in an incognito window, and incognito windows
+  deliberately remember nothing — so for a site you *only* reach through the vault, that store stays
+  empty for ever and the row kept showing a coloured letter no matter how often you visited.
+  VaultaMark now takes the icon the page itself declares, at the moment you save the page, and keeps
+  it with the bookmark like every other icon.
+  - **Nothing new is asked of you, and nothing new is sent anywhere.** The icon is fetched **by the
+    page, from the page's own address** — the same address that just served it to draw your tab —
+    on the same visit that already looks for a preview picture. No new permission, no second visit
+    to the page, and no request that VaultaMark itself makes. Browsing the vault still makes zero
+    requests.
+  - **It only fills a gap, never overwrites.** If Chrome already has an icon for that site, that one
+    is kept and the page is not asked at all.
+  - **Icons drawn as SVG work too** — about a quarter of the web, and until now the whole of what
+    this feature missed. Chrome will not decode a vector picture in the background, so VaultaMark
+    draws it on the page itself and keeps the result. Nothing is fetched twice to do it.
+  - **A site whose icon Chrome has never seen at all is no longer a dead end.** VaultaMark reads
+    what the page declares about itself and picks the one nearest the size a row shows, so a
+    right-clicked bookmark on a site you have never opened normally still gets its icon the first
+    time you refresh it from the page.
+  - **One button, not two: *Refresh preview and icon*.** For a bookmark saved from a right-click,
+    or saved before this arrived: open the page, open VaultaMark from the toolbar, and press it.
+    The preview picture and the icon are read on the same visit, because they always were — there
+    is no reason to ask twice, and the second button used to answer with instructions to press the
+    first one. The same button in the bookmark manager now refreshes the icon before it opens the
+    page, so pressing it always does something.
+  - Requires Google Drive sync, like every other picture the vault stores.
+
 - **Four pieces of settings copy say the same thing in fewer words.** The QR-code caveat dropped a
   sentence about what the extension *cannot* do on another device — nobody was assuming it could.
   The tooltip field now says what it is ("what you see on the toolbar when you hover over the
@@ -107,6 +136,17 @@ below.
   that name is fixed when the package is built.
 
 ### Fixed
+
+- **"Refresh icon" could delete a good icon and leave nothing behind.** It re-read Chrome's store
+  and wrote down the answer, including an empty one — which was right when that store was the only
+  source. For a site you only open through VaultaMark that store is empty **permanently**, so the
+  button would have thrown away the page's own icon every time it was pressed. It now asks the page
+  first when you are looking at it, and never replaces a page's own icon with nothing.
+
+- **Two lines of on-screen advice described a limitation that no longer exists.** "Open the site
+  once in an ordinary window and try again" was the only remedy there used to be; it is not any
+  more, and the text now says what actually works. The explanation above the button said no page is
+  ever opened and nothing is downloaded, which stopped being true in the same release.
 
 - **Lock-on-focus-loss locked when it should not have, and did not lock when it should.** Opening
   the quick menu locked the vault behind it — and leaving Chrome with the quick menu open, or with

@@ -10,11 +10,21 @@
  * domain to its host from the user's own address, which is the traffic this product exists to
  * avoid (D28, INV-4).
  *
+ * **`_favicon/` is no longer the only source** (Phase 19, D37). A site the user reaches *only*
+ * through the vault is opened in an incognito window, an incognito profile writes no favicon entry,
+ * and so `_favicon/` will answer with the globe for that host for ever. For those, the page's own
+ * declared icon is fetched **in the page** by the OG injection — never from this origin, which
+ * would send every vaulted domain to its host and is what INV-4 forbids. That capture lives in
+ * `background/thumbs.ts`, which owns the injection; what lives here is the policy about when it may
+ * run and what it is allowed to replace.
+ *
  * Three rules this module exists to keep in one place:
  *
  * - **Three moments, and no fourth**: an add, an opportunistic upgrade while a row was being
  *   rendered anyway, and an explicit refresh. No timer, no startup sweep, no fetch for rows nobody
- *   is looking at — the rule §14 imposes on thumbnails, for the same reason.
+ *   is looking at — the rule §14 imposes on thumbnails, for the same reason. The popup's refresh is
+ *   the third of those and reaches this module through `background/thumbs.ts`, because there it
+ *   rides on the same injection as the preview.
  * - **Chrome's placeholder is never stored.** Two never-visited hosts get byte-identical globes, so
  *   without the check the vault fills with hundreds of copies of one picture. What the placeholder
  *   *is* gets measured at runtime, against a page URL that can never have an icon.
@@ -34,11 +44,18 @@ import {
   loadIcon,
   saveIcon,
   sweepIcons,
+  type IconSource,
   type IconStoreDeps,
 } from '../thumbs/favicons.js';
 import { hasHeavyTier } from '../thumbs/store.js';
 import { isBookmark } from '../vault/types.js';
-import { activeProvider } from './thumbs.js';
+import {
+  forgetIconMiss,
+  iconKnownMissing,
+  markIconMissing,
+  resetIconMisses,
+} from './icon-cache.js';
+import { activeProvider, capturePageIcon } from './thumbs.js';
 
 /**
  * The size asked of `_favicon/`, which must match `DEFAULT_FAVICON_SIZE` in `ui/favicon.ts`.
@@ -69,20 +86,10 @@ const PLACEHOLDER_PAGE_URL = 'about:blank';
  */
 let placeholder: Promise<Bytes | null> | null = null;
 
-/**
- * Hosts this worker has already looked for and not found, anywhere.
- *
- * Without it, a row on a host that has no stored icon costs a Drive lookup **every time a list is
- * rendered** — and the common case for that is a vault whose owner has not visited the site, which
- * is a great many rows. One negative answer per host per worker lifetime is enough: a capture in
- * this same module is the only thing that can make it wrong, and each of those clears the entry.
- */
-const notStored = new Set<string>();
-
 /** Forget what this worker has learned. Tests only; the worker's own lifetime does it for free. */
 export function resetIconState(): void {
   placeholder = null;
-  notStored.clear();
+  resetIconMisses();
 }
 
 /**
@@ -130,24 +137,38 @@ export async function iconFor(repo: VaultRepository, url: string): Promise<IconR
     // when we hold nothing, because a cache changing is not evidence that a site's icon did.
     if (!(await hasIcon(deps, host))) {
       await saveIcon(deps, host, fetched);
-      notStored.delete(host);
+      forgetIconMiss(host);
     }
     return answer(url, null);
   }
 
-  if (notStored.has(host)) return answer(url, null);
+  if (iconKnownMissing(host)) return answer(url, null);
   const stored = await loadIcon(deps, host);
-  if (stored === null) notStored.add(host);
-  return answer(url, stored);
+  if (stored === null) markIconMissing(host);
+  return answer(url, stored?.bytes ?? null);
 }
 
 /**
- * Re-read what Chrome holds for this host now, and write that down — including an absence.
+ * Work out what this host's icon is now, and write that down — including an absence.
  *
- * The only path that replaces. A refresh is the user saying "this is what the icon is now", so a
- * host whose icon Chrome has forgotten loses its stored copy here too; the alternative is a button
- * that reports nothing and leaves the old picture on screen, which is how the thumbnail refresh was
- * reported as broken (§14.5).
+ * A refresh is the user saying "this is what the icon is now", so it is the path that replaces; the
+ * alternative is a button that reports nothing and leaves the old picture on screen, which is how
+ * the thumbnail refresh was reported as broken (§14.5).
+ *
+ * **What it is allowed to destroy changed in Phase 19, and that is the defect this exists to
+ * avoid.** Until then a Chrome miss dropped the stored icon, deliberately — "including that it is
+ * nothing". With page-sourced icons in the store that rule deletes good data every time it runs: a
+ * vault-only site is by definition one the regular profile has never visited, so `_favicon/` will
+ * answer with the globe for it for ever. So the order is the page, then Chrome, then *keep what we
+ * have if the page put it there*:
+ *
+ * 1. The page, when the active tab is on this bookmark — it is the authority on its own icon, and
+ *    `_favicon/` is a cache of what some earlier visit saw. The manager's own tab is never the
+ *    bookmark's page, so from there this step is a no-op and step 2 is what runs; the popup reaches
+ *    the page half through `background/thumbs.ts` instead, on the preview's injection.
+ * 2. Chrome, unchanged: a real answer is stored and returned.
+ * 3. Neither: a `chrome`-sourced icon is cleared, which is the original behaviour and the case it
+ *    was written for. A **`page`-sourced icon is kept**, because nothing here contradicts it.
  */
 export async function refreshIcon(repo: VaultRepository, url: string): Promise<IconResponse> {
   const provider = await activeProvider();
@@ -157,15 +178,34 @@ export async function refreshIcon(repo: VaultRepository, url: string): Promise<I
   if (host === null) return answer(url, null);
 
   const deps = storeDeps(repo, provider);
+
+  const fromPage = await capturePageIcon(url, provider);
+  if (fromPage !== null) return await keep(deps, url, host, fromPage, 'page');
+
   const fetched = await readFavicon(url);
-  if (fetched === null || classifyIcon(fetched, await placeholderBytes()) !== 'store') {
-    await dropIcons(deps, [host]);
-    notStored.add(host);
-    return answer(url, null);
+  if (fetched !== null && classifyIcon(fetched, await placeholderBytes()) === 'store') {
+    return await keep(deps, url, host, fetched, 'chrome');
   }
-  await saveIcon(deps, host, fetched);
-  notStored.delete(host);
-  return answer(url, fetched);
+
+  const stored = await loadIcon(deps, host);
+  if (stored?.source === 'page') return answer(url, stored.bytes);
+
+  await dropIcons(deps, [host]);
+  markIconMissing(host);
+  return answer(url, null);
+}
+
+/** Store one host's icon and answer with it. The tail every capturing path here shares. */
+async function keep(
+  deps: IconStoreDeps,
+  url: string,
+  host: string,
+  bytes: Bytes,
+  source: IconSource,
+): Promise<IconResponse> {
+  await saveIcon(deps, host, bytes, source);
+  forgetIconMiss(host);
+  return answer(url, bytes);
 }
 
 /**
@@ -191,6 +231,21 @@ export async function sweepOrphans(repo: VaultRepository): Promise<readonly stri
 /** What one capture attempt came to. Reported to tests and to nobody else. */
 export type IconOutcome = 'stored' | 'placeholder' | 'unreadable' | 'held' | 'off' | 'unusable';
 
+/**
+ * Whether, after {@link captureOnAdd}, it is worth asking the page for its own icon (§10.1, D37).
+ *
+ * Exactly the two outcomes that mean *the tier is on, the host is usable, and we still hold
+ * nothing*: Chrome answered with the globe, or would not answer at all. `stored` and `held` are an
+ * icon we have — and an upgrade never overwrites. `off` is the Chrome tier, where the heavy tier
+ * does not exist. `unusable` is a URL with no host, which has nowhere to file an icon.
+ *
+ * It lives here rather than at the call site because it is a statement about what these outcomes
+ * mean, and they are this module's vocabulary.
+ */
+export function wantsPageIcon(outcome: IconOutcome): boolean {
+  return outcome === 'placeholder' || outcome === 'unreadable';
+}
+
 /* ------------------------------------------------------------------ plumbing */
 
 async function capture(deps: IconStoreDeps, host: string, url: string): Promise<IconOutcome> {
@@ -198,7 +253,7 @@ async function capture(deps: IconStoreDeps, host: string, url: string): Promise<
   if (bytes === null) return 'unreadable';
   if (classifyIcon(bytes, await placeholderBytes()) !== 'store') return 'placeholder';
   await saveIcon(deps, host, bytes);
-  notStored.delete(host);
+  forgetIconMiss(host);
   return 'stored';
 }
 

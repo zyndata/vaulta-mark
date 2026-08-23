@@ -464,6 +464,16 @@ describe('parseSettingsPatch', () => {
     expect(parseSettingsPatch(null)).toBeNull();
   });
 
+  it.each(['GET_ICON', 'REFRESH_ICON'])('takes a url on %s', (type) => {
+    expect(parseRequest({ type, url: 'https://example.com/' })).toEqual({
+      type,
+      url: 'https://example.com/',
+    });
+    expect(parseRequest({ type })).toBeNull();
+    expect(parseRequest({ type, url: '' })).toBeNull();
+    expect(parseRequest({ type, url: 7 })).toBeNull();
+  });
+
   it('rides along on SET_SETTINGS', () => {
     expect(parseRequest({ type: 'SET_SETTINGS', settings: { theme: 'light' } })).toEqual({
       type: 'SET_SETTINGS',
@@ -494,6 +504,8 @@ describe('parseResponse / parseBroadcast', () => {
       'NATIVE_TREE_STATE',
       'NATIVE_IMPORT',
       'NATIVE_DELETE',
+      'ICON',
+      'THUMB',
       'ERROR',
     ]) {
       expect(parseResponse({ type })).toEqual({ type });

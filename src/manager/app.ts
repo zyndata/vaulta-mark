@@ -580,10 +580,6 @@ export function mountManager(
         refreshPreview: (item) => {
           void refreshPreview(item);
         },
-        iconsStored: syncState?.providerId === 'drive',
-        refreshIcon: (item) => {
-          void refreshIcon(item);
-        },
         open: (id) => {
           void openItem(id);
         },
@@ -1301,42 +1297,34 @@ export function mountManager(
   }
 
   /**
-   * "Refresh preview", from the detail pane.
+   * "Refresh preview and icon", from the detail pane (§14.5, §10.1).
    *
-   * It opens the page and says what to do next, and that is the whole of it — re-capturing needs a
-   * script in the page, `chrome.scripting` needs either a host permission or an `activeTab` grant,
-   * and `activeTab` is only ever granted by a gesture *on that tab*. VaultaMark asks for no host
-   * permission at install and adding one for a decoration would be the wrong trade (INV-9, D25), so
-   * the manager cannot finish the job from here. The toolbar button on the page it just opened can,
-   * and the popup offers exactly that when the page in front of it is already vaulted.
+   * **It does what it can here, then opens the page.** The icon half has a source this window can
+   * reach — `_favicon/` is the extension's own origin, so it needs no page open and no `activeTab`
+   * grant — and running it first is what makes this button an action rather than a note. The
+   * preview half cannot be finished from here at all: re-capturing needs a script in the page,
+   * `chrome.scripting` needs either a host permission or an `activeTab` grant, and `activeTab` is
+   * only ever granted by a gesture *on that tab*. VaultaMark asks for no host permission at install
+   * and adding one for a decoration would be the wrong trade (INV-9, D25). So the page is opened,
+   * and the toolbar button on it finishes both halves in one injection.
+   *
+   * The icon step is skipped where nothing would be stored — the Chrome tier keeps no icons — and
+   * its failure is not reported: this button's answer is about the page it just opened.
+   *
+   * The list is repainted rather than the row patched: an icon is keyed by host, so one refresh can
+   * change every row on that site, and there is no cheaper way to say that.
    */
   async function refreshPreview(item: ItemDetail): Promise<void> {
+    if (syncState?.providerId === 'drive' && item.url !== undefined) {
+      const response = await send({ type: 'REFRESH_ICON', url: item.url });
+      if (response.type !== 'ERROR' && response.image !== null) {
+        forgetStoredIcons();
+        useStoredIcons(storedIconLookup());
+        paintList();
+      }
+    }
     await openItem(item.id);
     say(msg('thumbRefreshOpened'));
-  }
-
-  /**
-   * "Refresh icon", from the detail pane (§10.1).
-   *
-   * The one refresh in this window that can finish: `_favicon/` is the extension's own origin, so
-   * there is no page to open and no `activeTab` grant to wait for. It **replaces**, an absence
-   * included — a site whose icon Chrome has forgotten loses its stored copy, because a refresh is
-   * the user saying "this is what it is now".
-   *
-   * The list is repainted afterwards rather than the row patched: the icon is keyed by host, so one
-   * refresh can change every row on that site, and there is no cheaper way to say that.
-   */
-  async function refreshIcon(item: ItemDetail): Promise<void> {
-    if (item.url === undefined) return;
-    const response = await send({ type: 'REFRESH_ICON', url: item.url });
-    if (response.type === 'ERROR') {
-      warn(response.code);
-      return;
-    }
-    forgetStoredIcons();
-    useStoredIcons(storedIconLookup());
-    say(msg(response.image === null ? 'iconRefreshedNone' : 'iconRefreshed'));
-    paintList();
   }
 
   /**

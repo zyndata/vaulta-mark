@@ -26,28 +26,19 @@ export interface DetailDeps {
   /** The preview, fetched when the pane is built. Not part of `ItemDetail`: it is 40 KB. */
   readonly loadThumb: (id: string) => Promise<ThumbData>;
   /**
-   * "Refresh preview" was clicked.
+   * "Refresh preview and icon" was clicked (§14.5, §10.1).
    *
-   * Named for what it is rather than for what it does, because what it does is open the page —
-   * re-capturing needs the page loaded and needs the `activeTab` grant that only a gesture on that
-   * tab creates. The pane says so in words before the button is pressed (§14.5).
+   * Named for what it is rather than for what it does, because what it *finishes* by doing is open
+   * the page — re-capturing needs the page loaded and needs the `activeTab` grant that only a
+   * gesture on that tab creates, and this window is not that tab. It still does everything it can
+   * from here first, so the click is an action rather than an instruction. The pane says so in
+   * words before the button is pressed.
+   *
+   * One button rather than two, matching the popup: the preview and the icon are one question —
+   * "this row is showing the wrong thing, fix it" — and splitting them meant a second button whose
+   * whole answer, on the site it existed for, was a paragraph telling you to press the first one.
    */
   readonly refreshPreview: (item: ItemDetail) => void;
-  /**
-   * Whether this profile stores site icons at all (§10.1).
-   *
-   * The Drive tier does and the Chrome tier does not, and the difference has to reach the pane:
-   * a *Refresh icon* button on a profile that keeps no icons would be a button that reads Chrome's
-   * cache and throws the answer away.
-   */
-  readonly iconsStored: boolean;
-  /**
-   * "Refresh icon" was clicked.
-   *
-   * Unlike {@link DetailDeps.refreshPreview} this one finishes the job here: `_favicon/` is our own
-   * origin, so it needs no page open and no `activeTab` grant (§10.1).
-   */
-  readonly refreshIcon: (item: ItemDetail) => void;
   readonly save: (patch: {
     title: string;
     url?: string;
@@ -304,33 +295,6 @@ function previewSection(item: ItemDetail, deps: DetailDeps): HTMLElement {
         },
       },
       msg('thumbRefresh'),
-    ),
-    ...(deps.iconsStored ? [iconRefresh(item, deps)] : []),
-  );
-}
-
-/**
- * *Refresh icon*, the small sibling of *Refresh preview* (§10.1).
- *
- * It sits in the same section because it answers the same question — "this row is showing the wrong
- * thing, fix it" — and it is deliberately worded to say what it reads: Chrome's own cache, which is
- * why it needs no page open. What it writes down is what is there *now*, an absence included.
- */
-function iconRefresh(item: ItemDetail, deps: DetailDeps): HTMLElement {
-  return h(
-    'div',
-    { class: 'vm-detail-icon' },
-    h('p', { class: 'vm-hint vm-small vm-muted' }, msg('iconRefreshExplain')),
-    h(
-      'button',
-      {
-        type: 'button',
-        class: 'vm-button vm-button--quiet vm-button--inline',
-        onclick: () => {
-          deps.refreshIcon(item);
-        },
-      },
-      msg('iconRefresh'),
     ),
   );
 }

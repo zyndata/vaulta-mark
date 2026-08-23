@@ -235,10 +235,6 @@
     "message": "This page is already in your vault.",
     "description": "Shown when adding a page whose address is already vaulted."
   },
-  "vaultOpenItButton": {
-    "message": "Open it",
-    "description": "Button beside the already-vaulted notice; opens the existing bookmark."
-  },
   "vaultFilterLabel": {
     "message": "Filter your vault",
     "description": "Accessible name for the filter box on the unlocked popup."
@@ -404,36 +400,28 @@
     "description": "Shown when an item has a preview whose bytes this device cannot reach."
   },
   "thumbRefresh": {
-    "message": "Refresh preview",
-    "description": "Button that re-captures a bookmark's preview picture."
+    "message": "Refresh preview and icon",
+    "description": "Button that re-captures a bookmark's preview picture and the site's icon from the page itself. One button because both come off a single visit to the page (ARCHITECTURE §14.5, §10.1)."
   },
   "thumbRefreshExplain": {
-    "message": "Re-capturing means loading the page again. This button opens it in an incognito window; there, open VaultaMark from the toolbar and press Refresh preview on the notice at the top.",
-    "description": "Explanation above the manager's Refresh preview button (ARCHITECTURE §14.5)."
+    "message": "Re-capturing means loading the page again. This button opens it in an incognito window; there, open VaultaMark from the toolbar and press Refresh preview and icon on the notice at the top.",
+    "description": "Explanation above the manager's Refresh preview and icon button (ARCHITECTURE §14.5)."
   },
   "thumbRefreshOpened": {
-    "message": "Opened the page in an incognito window. Open VaultaMark from its toolbar there and press Refresh preview on the notice at the top.",
-    "description": "Status line after the manager's Refresh preview button opened the page."
+    "message": "Opened the page in an incognito window. Open VaultaMark from its toolbar there and press Refresh preview and icon on the notice at the top.",
+    "description": "Status line after the manager's button opened the page. The manager cannot inject into a page, so this is what it can honestly promise; the site's icon has already been re-read from Chrome's cache by the time it appears."
   },
   "thumbRefreshing": {
     "message": "Reading the page…",
     "description": "Popup notice while a preview is being re-captured."
   },
-  "iconRefresh": {
-    "message": "Refresh icon",
-    "description": "Button that re-reads a site's icon from Chrome's own cache (ARCHITECTURE §10.1)."
-  },
-  "iconRefreshExplain": {
-    "message": "Site icons come from Chrome's own cache, and this vault keeps a copy so your other computers can show them too. This re-reads it — no page is opened and nothing is downloaded.",
-    "description": "Explanation above the manager's Refresh icon button."
-  },
   "iconRefreshed": {
-    "message": "Saved this site's icon.",
-    "description": "Status line after Refresh icon found an icon in Chrome's cache."
+    "message": "Icon updated.",
+    "description": "Second half of the popup's refresh notice, after the preview sentence, when the page's icon was stored (ARCHITECTURE §10.1). A whole sentence on its own because the two halves succeed and fail independently."
   },
-  "iconRefreshedNone": {
-    "message": "Chrome has no icon for this site yet. Open the site once in an ordinary window and try again — an incognito visit leaves Chrome nothing to copy.",
-    "description": "Status line after Refresh icon found only Chrome's generic placeholder."
+  "iconRefreshFailed": {
+    "message": "This page offered no icon this vault can keep.",
+    "description": "Second half of the popup's refresh notice when nothing usable came back. Rare since the page-side capture reads the page's whole set of declared icons and rasterises an SVG one; it now means the page declares none, or its own CSP refused the fetch."
   },
   "thumbRefreshed": {
     "message": "Preview updated.",

@@ -47,6 +47,14 @@ export interface MockInjection {
   readonly files?: readonly string[];
   /** Whether this was the `func:` reader injection rather than the `files:` one. */
   readonly hasFunc: boolean;
+  /**
+   * What was passed to the `func:` injection — the worker's `CaptureRequest` since Phase 19.
+   *
+   * Recorded because *what the worker asked the page for* is now a claim worth testing on its own:
+   * "an icon was not stored" and "an icon was never asked for" are different products, and only the
+   * second one honours §10.1's rule that an upgrade never overwrites.
+   */
+  readonly args?: readonly unknown[];
 }
 export type StorageSnapshot = Record<string, StoredValue>;
 
@@ -302,7 +310,14 @@ export interface ChromeMock {
   /** Tabs created via `chrome.tabs.create`, in order. */
   readonly createdTabs: { url?: string; windowId?: number }[];
   /** The tabs `chrome.tabs.query` answers with. Replace the contents to change the active tab. */
-  readonly openTabs: { id: number; url?: string; title?: string; active?: boolean }[];
+  readonly openTabs: {
+    id: number;
+    url?: string;
+    title?: string;
+    active?: boolean;
+    /** What Chrome resolved as this page's icon. Sensitive: present only under `activeTab` (§10.1). */
+    favIconUrl?: string;
+  }[];
   /** Tab ids passed to `chrome.tabs.remove`, in order. */
   readonly removedTabs: number[];
   /**
@@ -592,7 +607,13 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   const createdWindows: { url?: string | string[]; incognito?: boolean }[] = [];
   const createdTabs: { url?: string; windowId?: number }[] = [];
   const removedTabs: number[] = [];
-  const openTabs: { id: number; url?: string; title?: string; active?: boolean }[] = [];
+  const openTabs: {
+    id: number;
+    url?: string;
+    title?: string;
+    active?: boolean;
+    favIconUrl?: string;
+  }[] = [];
   const injections: MockInjection[] = [];
   let captureResult: unknown = null;
   let injectionFails = false;
@@ -775,17 +796,28 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
         target?: { tabId?: number };
         files?: readonly string[];
         func?: unknown;
+        args?: readonly unknown[];
       }) => {
         injections.push({
           ...(options.target?.tabId === undefined ? {} : { tabId: options.target.tabId }),
           ...(options.files === undefined ? {} : { files: [...options.files] }),
           hasFunc: options.func !== undefined,
+          ...(options.args === undefined ? {} : { args: [...options.args] }),
         });
         if (injectionFails) {
           return Promise.reject(new Error('Cannot access contents of the page.'));
         }
+        /*
+         * A function models a page that answers differently depending on what it was asked for —
+         * which is the whole of Phase 19's icon half, where the worker either passes an `iconUrl`
+         * or does not. A plain value keeps every test written before that unchanged.
+         */
+        const answer =
+          typeof captureResult === 'function'
+            ? (captureResult as (...args: readonly unknown[]) => unknown)(...(options.args ?? []))
+            : captureResult;
         return Promise.resolve([
-          { frameId: 0, result: options.func === undefined ? undefined : captureResult },
+          { frameId: 0, result: options.func === undefined ? undefined : answer },
         ]);
       },
     },

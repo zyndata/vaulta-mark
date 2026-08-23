@@ -358,15 +358,65 @@ Two profiles, Drive connected on both (§5.4), `dist/` loaded unpacked in each:
    2 in an ordinary tab, then reopen the manager. That row now has a real icon and
    `stored icons` has gone up by one — captured while the row was being rendered, with no timer
    anywhere.
-7. **Refresh.** Select a bookmark → *Refresh icon*. It answers "Saved this site's icon." when
-   Chrome's cache has one and "Chrome has no icon for this site yet." when it does not — and in the
-   second case the stored copy is **removed**, because a refresh writes down what is there now.
+7. **Refresh.** Select a bookmark → *Refresh preview and icon*. From the manager that re-reads
+   Chrome's cache and then opens the page in incognito to finish the preview half; the icon half is
+   silent about its outcome, so judge it by the row. When Chrome's cache has an icon it is stored.
+   When it does not, the stored copy is **removed** — a refresh writes down what is there now —
+   **unless the icon came from the page itself**, which since Phase 19 it may have (§5.5.2 below,
+   ARCHITECTURE §10.1). Those survive, because for a vault-only site Chrome's answer is empty
+   permanently and deleting on it would destroy the icon every single time.
 8. **Check nothing leaks.** `chrome://extensions` → service worker → Application → Storage: every
    `vm.icons.*` key is 22 characters of base64url that says nothing about a domain, and every value
    is base64 that does not begin `iVBOR`. `vm.iconsLru` holds the same names and no host.
 9. **Check the Chrome tier is untouched.** On a profile syncing through `chrome.storage.sync`,
    `stored icons` stays `0` and no `vm.icons.*` key ever appears. The heavy tier does not go near
    the 100 KB area, and on that tier this feature does not exist.
+
+### 5.5.2 The page's own icon, from an incognito window, by hand
+
+Phase 19's promise is the one case the automated suite structurally cannot reach: **a bookmark whose
+site you only ever open through VaultaMark gets a real icon** (ARCHITECTURE §10.1, D37). Playwright
+cannot click the toolbar button, so it cannot create the `activeTab` grant this rides on, and it
+cannot sign into Google, so it cannot reach the tier the icons live in. Everything downstream of
+those two is covered by `test/unit/background/page-icon.test.ts`; the two seams themselves are here.
+
+One profile is enough, Drive connected (§5.4), `dist/` loaded unpacked — and it must be the
+**development** build, or the extension id is wrong and Drive answers `redirect_uri_mismatch`.
+
+1. **Pick a site this profile has never visited**, and make sure of it: `chrome://history` shows
+   nothing for it. `python.org`, `wikipedia.org` and `arxiv.org` all work. An **SVG-only** site is
+   no longer excluded — `github.com` and `developer.mozilla.org` are the ones to use in step 6,
+   where the vector is rasterised in the page.
+2. **Vault it from an incognito window.** Open it there, press the VaultaMark toolbar button, *Add
+   this page*. This is the whole scenario in one step: incognito writes no favicon entry, so
+   `_favicon/` has nothing and the page's own icon is the only source.
+3. Open the manager. **The row shows the site's real icon**, not a coloured letter. If it shows a
+   letter, nothing else below matters — check the tier first (`Copy diagnostics` → the provider must
+   be Drive), then that the site's icon is not an SVG.
+4. **Refresh must not destroy it.** Select that bookmark → *Refresh preview and icon*, with the
+   manager in front rather than the site. Chrome still knows nothing about the host, so the old
+   behaviour would have deleted the icon here. The icon must still be there afterwards. **This
+   is the regression the phase was written around**; if the row falls back to a letter, stop
+   and report it.
+5. **The third moment, from the popup.** Vault a *second* never-visited site from a right-click on
+   a link — "Add link to VaultaMark" — so nothing was ever injected for it. Its row shows a letter,
+   correctly. Now open that site in an incognito window, press the toolbar button, and press
+   **"Refresh preview and icon"** on the *You already have this page* notice. The notice answers
+   with two sentences — one about the preview, one reading "Icon updated." — and the row has the
+   icon from then on. There is **one** button on that notice; if there are two, or if one of them
+   says *Open it*, the build is older than this pass.
+6. **An SVG-only site now works.** Repeat step 5 on `github.com` or `developer.mozilla.org`, whose
+   icons are vectors. It must answer "Icon updated." and the row must show the real mark, not a
+   letter. This is the step that proves the rasterising path: the worker cannot decode SVG at all,
+   so a stored icon here can only have been drawn in the page.
+7. **Nothing left this origin.** `chrome://extensions` → service worker → Network, cleared before
+   step 5. Pressing the button must show **no request to the site** from the extension — the fetch
+   happens in the page, under the page's own origin, and is not ours (INV-4). A request here is the
+   failure this whole design exists to avoid.
+8. **What is stored is a bitmap this browser drew.** Application → Storage → `vm.icons.*`: the names
+   are still 22 characters that say nothing about a domain, and the values are still base64 that
+   does not begin `iVBOR`. A page-sourced icon is a WebP re-encoded through a canvas, never the
+   file the site served.
 
 ### 5.6 The QR code, against a real phone
 

@@ -271,12 +271,25 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
   }
 
   /**
-   * "You already have this page" — with the two things worth doing about it.
+   * "You already have this page" — with the one thing worth doing about it.
    *
-   * **This is where re-capturing a preview lives** (§14.5). The page is in the tab in front of us
-   * and opening this popup was a gesture on it, so `activeTab` covers the injection — the one
-   * arrangement in the whole extension where a refresh is possible without a host permission. The
-   * manager's button can only open the page and point here.
+   * **This is where re-capturing lives** (§14.5), the preview and the page's own icon together
+   * (§10.1, D37). The page is in the tab in front of us and opening this popup was a gesture on it,
+   * so `activeTab` covers the injection — the one arrangement in the whole extension where either
+   * is possible without a host permission. The manager's button can only open the page and point
+   * here.
+   *
+   * **One button, because there was only ever one request.** The preview and the icon come off the
+   * same script in the same page on the same visit; offering them separately meant two injections
+   * and two labels for one gesture, and the icon one was the only place in the product that
+   * answered a click with instructions for a different click. It is also the moment that reaches a
+   * site the user opens exclusively through the vault: those open in incognito, an incognito
+   * profile writes no favicon entry, and `_favicon/` will answer with the generic globe for that
+   * host for ever.
+   *
+   * **No "open it" here.** This notice is only ever shown about the page in the tab behind the
+   * popup, from either of its two entry points, so the page is already open — and the row for it is
+   * in the list below, which is where opening anything belongs.
    *
    * Shown from two places: after an add that turned out to be a duplicate, and on open, from
    * `LOOKUP_ACTIVE_TAB`. The second is what makes the refresh reachable in two clicks instead of
@@ -286,17 +299,6 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
   function showAlreadySaved(item: ItemSummary): void {
     showNoticeWith(
       msg('vaultAlreadySaved'),
-      h(
-        'button',
-        {
-          class: 'vm-button vm-button--quiet vm-button--inline',
-          type: 'button',
-          onclick: () => {
-            void openItem(item);
-          },
-        },
-        msg('vaultOpenItButton'),
-      ),
       h(
         'button',
         {
@@ -326,7 +328,16 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
     showAlreadySaved(response.item);
   }
 
-  /** Re-capture the preview for the page in front of us. */
+  /**
+   * Re-capture the preview and the icon for the page in front of us, from one visit to it.
+   *
+   * **Two sentences, assembled rather than enumerated.** The two halves fail independently — the
+   * common page has an icon and no `og:image` — so a single key per combination would be six
+   * strings in English and more in languages with more of them, each saying the same two things in
+   * a different order. Each half contributes one finished sentence, and the icon contributes none
+   * at all on a tier that keeps no icons: telling somebody a feature they have not turned on did
+   * not happen is noise, not an answer.
+   */
   async function refreshPreview(item: ItemSummary): Promise<void> {
     showNotice(msg('thumbRefreshing'));
     const response = await send({ type: 'REFRESH_THUMB', id: item.id });
@@ -334,7 +345,14 @@ export function vaultScreen(deps: VaultScreenDeps): HTMLElement {
       showNotice(deps.errorText(response.code), 'danger');
       return;
     }
-    showNotice(msg(response.state === 'ready' ? 'thumbRefreshed' : 'thumbRefreshFailed'));
+    const preview = msg(response.state === 'ready' ? 'thumbRefreshed' : 'thumbRefreshFailed');
+    const icon =
+      response.icon === 'stored'
+        ? msg('iconRefreshed')
+        : response.icon === 'none'
+          ? msg('iconRefreshFailed')
+          : '';
+    showNotice(icon === '' ? preview : `${preview} ${icon}`);
   }
 
   /**

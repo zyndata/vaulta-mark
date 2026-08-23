@@ -22,7 +22,13 @@ import { fakeDrive, chromeTier } from '../../helpers/provider.js';
 import { VaultRepository } from '../../../src/storage/repo.js';
 import { toBase64Url, utf8, type Bytes } from '../../../src/crypto/codec.js';
 import { sha256 } from '../../../src/crypto/hash.js';
-import { LOCAL_KEYS, iconBytesInUse, listIconNames, readIcon } from '../../../src/storage/local.js';
+import {
+  LOCAL_KEYS,
+  deleteIcons,
+  iconBytesInUse,
+  listIconNames,
+  readIcon,
+} from '../../../src/storage/local.js';
 import {
   ICON_CACHE_BYTES,
   MAX_ICON_BYTES,
@@ -35,6 +41,8 @@ import {
   saveIcon,
   sweepIcons,
   type IconStoreDeps,
+  frameIcon,
+  unframeIcon,
 } from '../../../src/thumbs/favicons.js';
 import type { SyncProvider } from '../../../src/sync/provider.js';
 
@@ -190,7 +198,7 @@ describe('what reaches storage (INV-6)', () => {
     const drive = fakeDrive();
     const bytes = png(1_100, 13);
     await saveIcon(deps(drive), 'github.com', bytes);
-    expect(await loadIcon(deps(drive), 'github.com')).toEqual(bytes);
+    expect(await loadIcon(deps(drive), 'github.com')).toEqual({ source: 'chrome', bytes });
   });
 });
 
@@ -322,5 +330,74 @@ describe('letting go', () => {
   it('leaves a cache that is under the cap alone', async () => {
     await saveIcon(deps(fakeDrive()), 'a.example', png());
     expect(await evictIcons(ICON_CACHE_BYTES)).toEqual([]);
+  });
+});
+
+/* ------------------------------------------------ where an icon came from (§10.1, D37) */
+
+describe('the provenance frame', () => {
+  const BYTES = png(300, 5);
+
+  it.each(['chrome', 'page'] as const)('round-trips a %s icon', (source) => {
+    expect(unframeIcon(frameIcon(source, BYTES))).toEqual({ source, bytes: BYTES });
+  });
+
+  it('reads an unframed blob as chrome, which is what every pre-Phase-19 icon is', () => {
+    // The whole reason this was free to introduce: nothing already in a vault is invalidated and
+    // nothing is re-uploaded on upgrade. The alternative — treating an unframed blob as a miss —
+    // would have re-captured and re-pushed every icon in every vault.
+    expect(unframeIcon(BYTES)).toEqual({ source: 'chrome', bytes: BYTES });
+  });
+
+  it.each([
+    ['PNG', [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+    ['JPEG', [0xff, 0xd8, 0xff, 0xe0]],
+    ['GIF', [0x47, 0x49, 0x46, 0x38]],
+    ['BMP', [0x42, 0x4d, 0x00, 0x00]],
+    ['WebP', [0x52, 0x49, 0x46, 0x46]],
+    ['ICO', [0x00, 0x00, 0x01, 0x00]],
+    ['AVIF', [0x00, 0x00, 0x00, 0x20]],
+  ])('cannot be confused with a real %s header', (_label, magic) => {
+    // 0xF0 is the whole trick: no image format this store can hold begins with it, so an unframed
+    // blob is never ambiguous.
+    const bytes = new Uint8Array([...magic, 1, 2, 3, 4]);
+    expect(unframeIcon(bytes)).toEqual({ source: 'chrome', bytes });
+  });
+
+  it('reads a frame carrying an unknown source as chrome', () => {
+    // A stranger writer, or a build from the future. `chrome` is the reading that cannot lose
+    // anything a refresh would then delete.
+    const bytes = new Uint8Array([0xf0, 0x56, 0x4d, 0x5a, 9, 9, 9]);
+    expect(unframeIcon(bytes)).toEqual({ source: 'chrome', bytes });
+  });
+
+  it('costs four bytes', () => {
+    expect(frameIcon('page', BYTES)).toHaveLength(BYTES.length + 4);
+  });
+
+  it('survives the real cipher and comes back as a page icon', async () => {
+    const drive = fakeDrive();
+    await saveIcon(deps(drive), 'vault-only.example', BYTES, 'page');
+    expect(await loadIcon(deps(drive), 'vault-only.example')).toEqual({
+      source: 'page',
+      bytes: BYTES,
+    });
+  });
+
+  it('travels to the provider and back, not only through the local cache', async () => {
+    const drive = fakeDrive();
+    await saveIcon(deps(drive), 'vault-only.example', BYTES, 'page');
+    // Empty the local half, so the answer can only have come from the backend.
+    await deleteIcons(await listIconNames());
+    expect(await loadIcon(deps(drive), 'vault-only.example')).toEqual({
+      source: 'page',
+      bytes: BYTES,
+    });
+  });
+
+  it('defaults to chrome when a caller does not say', async () => {
+    const drive = fakeDrive();
+    await saveIcon(deps(drive), 'github.com', BYTES);
+    expect((await loadIcon(deps(drive), 'github.com'))?.source).toBe('chrome');
   });
 });

@@ -185,9 +185,6 @@
   "vaultAlreadySaved": {
     "message": "Ta strona już jest w Twoim sejfie."
   },
-  "vaultOpenItButton": {
-    "message": "Otwórz ją"
-  },
   "vaultFilterLabel": {
     "message": "Filtruj sejf"
   },
@@ -343,28 +340,22 @@
     "message": "Podgląd przechowywany na Dysku."
   },
   "thumbRefresh": {
-    "message": "Odśwież podgląd"
+    "message": "Odśwież podgląd i ikonę"
   },
   "thumbRefreshExplain": {
-    "message": "Ponowne pobranie oznacza ponowne wczytanie strony. Ten przycisk otwiera ją w oknie incognito; tam otwórz VaultaMark z paska narzędzi i naciśnij Odśwież podgląd na komunikacie u góry."
+    "message": "Ponowne pobranie oznacza ponowne wczytanie strony. Ten przycisk otwiera ją w oknie incognito; tam otwórz VaultaMark z paska narzędzi i naciśnij Odśwież podgląd i ikonę na komunikacie u góry."
   },
   "thumbRefreshOpened": {
-    "message": "Otwarto stronę w oknie incognito. Otwórz tam VaultaMark z paska narzędzi i naciśnij Odśwież podgląd na komunikacie u góry."
+    "message": "Otwarto stronę w oknie incognito. Otwórz tam VaultaMark z paska narzędzi i naciśnij Odśwież podgląd i ikonę na komunikacie u góry."
   },
   "thumbRefreshing": {
     "message": "Czytanie strony…"
   },
-  "iconRefresh": {
-    "message": "Odśwież ikonę"
-  },
-  "iconRefreshExplain": {
-    "message": "Ikony witryn pochodzą z własnej pamięci podręcznej Chrome, a ten sejf trzyma ich kopię, aby Twoje inne komputery też mogły je pokazać. To odczytuje ją na nowo — żadna strona nie jest otwierana i nic nie jest pobierane."
-  },
   "iconRefreshed": {
-    "message": "Zapisano ikonę tej witryny."
+    "message": "Ikona zaktualizowana."
   },
-  "iconRefreshedNone": {
-    "message": "Chrome nie ma jeszcze ikony tej witryny. Otwórz ją raz w zwykłym oknie i spróbuj ponownie — wizyta w incognito nie zostawia Chrome niczego do skopiowania."
+  "iconRefreshFailed": {
+    "message": "Ta strona nie udostępniła ikony, którą sejf mógłby zachować."
   },
   "thumbRefreshed": {
     "message": "Podgląd zaktualizowany."

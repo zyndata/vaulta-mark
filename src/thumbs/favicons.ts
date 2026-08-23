@@ -52,6 +52,77 @@ export const ICON_CACHE_BYTES = 1024 * 1024;
  */
 export const MAX_ICON_BYTES = 64 * 1024;
 
+/* -------------------------------------------------- where an icon came from (§10.1, D37) */
+
+/**
+ * The two sources an icon can have.
+ *
+ * `chrome` is `_favicon/` — the browser's own database, free to read and stored exactly as returned.
+ * `page` is Phase 19's: the bytes the page itself served for `tab.favIconUrl`, fetched in page
+ * context and put through `processIcon`. The distinction is not bookkeeping — it decides what a
+ * refresh is allowed to destroy, because a Chrome miss is permanent for a site the user only ever
+ * opens through the vault.
+ */
+export type IconSource = 'chrome' | 'page';
+
+/**
+ * The frame that carries {@link IconSource} inside the sealed plaintext: `0xF0 'V' 'M' <source>`.
+ *
+ * **`0xF0` is the whole trick.** No image format this store can hold begins with it — PNG is `0x89`,
+ * JPEG `0xFF 0xD8`, GIF `'G'`, BMP `'B'`, WebP `'R'`, ICO and AVIF `0x00` — so a stored blob that
+ * does not start with this frame cannot be an ambiguous case. It is an icon written **before Phase
+ * 19**, and every one of those is a `_favicon/` response. {@link unframeIcon} reads it as `chrome`
+ * and hands back the bytes untouched.
+ *
+ * That is what makes this free to introduce: nothing already in a vault is invalidated, nothing is
+ * re-uploaded on upgrade, and no `SCHEMA_VERSION` is involved — the icon store is not part of the
+ * vault format (§10.1).
+ *
+ * It lives in the plaintext rather than in the AAD because the AAD has to be built *before* the blob
+ * opens; a provenance field there would mean sealing under one of two AADs and, at read time,
+ * trying both to see which authenticates.
+ */
+const FRAME_MAGIC = Object.freeze([0xf0, 0x56, 0x4d]); // 0xF0 'V' 'M'
+
+/** The byte that names the source, and the only part of the frame that varies. */
+const SOURCE_BYTE: Readonly<Record<IconSource, number>> = { chrome: 0x63, page: 0x70 }; // 'c', 'p'
+
+/** Wrap icon bytes for storage. The inverse of {@link unframeIcon}. */
+export function frameIcon(source: IconSource, bytes: Bytes): Bytes {
+  const framed = new Uint8Array(FRAME_MAGIC.length + 1 + bytes.length);
+  framed.set(FRAME_MAGIC, 0);
+  framed[FRAME_MAGIC.length] = SOURCE_BYTE[source];
+  framed.set(bytes, FRAME_MAGIC.length + 1);
+  return framed;
+}
+
+/**
+ * Read a stored blob back into its source and its image bytes.
+ *
+ * An unframed blob — or one carrying a source byte this build does not know — is `chrome` with the
+ * bytes as they are. Both are the same judgement: this is an older or stranger writer's icon, it is
+ * a cache of something re-capturable, and treating it as the browser's own is the reading that
+ * cannot lose anything a refresh would then delete.
+ */
+export function unframeIcon(stored: Bytes): { readonly source: IconSource; readonly bytes: Bytes } {
+  const framed =
+    stored.length > FRAME_MAGIC.length &&
+    FRAME_MAGIC.every((byte, at) => stored[at] === byte) &&
+    stored[FRAME_MAGIC.length] === SOURCE_BYTE.page;
+  return framed
+    ? { source: 'page', bytes: stored.subarray(FRAME_MAGIC.length + 1) }
+    : { source: 'chrome', bytes: unframeChrome(stored) };
+}
+
+/** Strip a `chrome` frame if there is one; hand back an unframed blob as it stands. */
+function unframeChrome(stored: Bytes): Bytes {
+  const framed =
+    stored.length > FRAME_MAGIC.length &&
+    FRAME_MAGIC.every((byte, at) => stored[at] === byte) &&
+    stored[FRAME_MAGIC.length] === SOURCE_BYTE.chrome;
+  return framed ? stored.subarray(FRAME_MAGIC.length + 1) : stored;
+}
+
 export interface IconStoreDeps {
   readonly cipher: IconCipher;
   /** The active provider, or `null` when there is no backend to reach. */
@@ -98,14 +169,20 @@ export function classifyIcon(bytes: Bytes, placeholder: Bytes | null): IconVerdi
   return 'store';
 }
 
-/** Seal one host's icon, write both copies, then bring the cache back under its cap. */
+/**
+ * Seal one host's icon, write both copies, then bring the cache back under its cap.
+ *
+ * `source` is stamped into the plaintext by {@link frameIcon} before sealing, so it travels with the
+ * bytes to Drive and back and costs no second read to recover.
+ */
 export async function saveIcon(
   deps: IconStoreDeps,
   host: string,
   bytes: Bytes,
+  source: IconSource = 'chrome',
 ): Promise<{ readonly name: string; readonly pushed: boolean }> {
   const name = await deps.cipher.name(host);
-  const sealed = await deps.cipher.seal(name, bytes);
+  const sealed = await deps.cipher.seal(name, frameIcon(source, bytes));
   await writeIcon(name, sealed);
   await touchIcon(deps, name);
 
@@ -132,7 +209,7 @@ export async function saveIcon(
  * every icon the vault has. It happens for a host whose row is on screen, never for the vault at
  * large (§10.1, "three moments").
  */
-export async function loadIcon(deps: IconStoreDeps, host: string): Promise<Bytes | null> {
+export async function loadIcon(deps: IconStoreDeps, host: string): Promise<StoredIcon | null> {
   const name = await deps.cipher.name(host);
 
   const cached = await readIcon(name);
@@ -140,7 +217,7 @@ export async function loadIcon(deps: IconStoreDeps, host: string): Promise<Bytes
     const bytes = await openQuietly(deps, name, cached);
     if (bytes !== null) {
       await touchIcon(deps, name);
-      return bytes;
+      return unframeIcon(bytes);
     }
     // Sealed bytes that will not open belong to another vault, or to an older schema (§10.1). Drop
     // them so the miss path can replace them; an icon is a cache of something re-capturable.
@@ -167,7 +244,13 @@ export async function loadIcon(deps: IconStoreDeps, host: string): Promise<Bytes
   await writeIcon(name, fetched);
   await touchIcon(deps, name);
   await evictIcons();
-  return bytes;
+  return unframeIcon(bytes);
+}
+
+/** One stored icon: the image bytes, and where they came from. */
+export interface StoredIcon {
+  readonly source: IconSource;
+  readonly bytes: Bytes;
 }
 
 /** Whether this device already holds an icon for a host, without opening it. */

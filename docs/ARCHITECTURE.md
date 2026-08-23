@@ -1702,17 +1702,24 @@ what D27/§14 forbids for thumbnails. The same rule here, for the same reason:
 2. **On an opportunistic upgrade**, when we hold nothing for a host and Chrome's cache now has a
    real icon — that is, the user has since visited the site. Checked **only while that row was being
    rendered anyway**, at most once per host per page.
-3. **On an explicit *Refresh icon***, in the manager's detail pane, mirroring §14.5's manual
-   thumbnail refresh. It is the only one that **replaces**: it writes down what Chrome holds now,
-   including that it now holds nothing.
+3. **On an explicit *Refresh preview and icon***, which is one button in both windows and reaches
+   two different sources depending on which one it was pressed in. From the manager it re-reads
+   `_favicon/`, which needs no page and no grant, and then opens the page. From the popup it rides
+   §14.5's preview injection into the page the user is looking at — the only path that reaches the
+   case this whole section is about: a bookmark opened only ever through the vault, in an incognito
+   window, whose host the regular profile has therefore never seen. The worker is `spanning` (D29)
+   so it sees that tab, and opening the popup is itself the gesture that grants `activeTab` on it —
+   no new permission, and user-invoked, which is what every moment here has to be. It is the only
+   moment that **replaces** — see *What a refresh may destroy* below, which is not the rule it was
+   before Phase 19.
 
 No timer, no startup sweep, no fetch for rows nobody is looking at, and nothing on import — a
 thousand imported bookmarks get their icons the first time somebody looks at them, one host at a
 time, rather than as a burst of uploads nobody asked for.
 
-An upgrade never overwrites. A stored icon is replaced only by *Refresh icon*, because "Chrome's
-cache changed" is not evidence that the site's icon did — that cache is evicted, re-populated and
-resized by a browser with its own reasons.
+An upgrade never overwrites. A stored icon is replaced only by moment 3, because "Chrome's cache
+changed" is not evidence that the site's icon did — that cache is evicted, re-populated and resized
+by a browser with its own reasons.
 
 **Incognito browsing populates no favicon database, and that has a sharper consequence here than
 anywhere else in this product** (maintainer-reported, 2026-08-21). An incognito profile is
@@ -1729,24 +1736,185 @@ part of the second moment gone.
 
 An **extension-origin** request for the site's icon is refused by INV-4 and stays refused: it would
 send every vaulted domain to its host from the user's own address. But the shape thumbnails already
-use is not that — read `<link rel="icon">` and fetch it **in the page's own context**, at add time,
-inside the existing `activeTab` injection (§14.1) — and it **breaks no invariant and needs no new
-permission**. An earlier draft of this section said it had "a different permission story", which was
-simply wrong: `activeTab` and `scripting` are already required (D25) and already used for exactly
-this, and the page's own origin already served that icon to draw the tab.
+use is not that — fetch the icon **in the page's own context**, at add time, inside the existing
+`activeTab` injection (§14.1) — and it **breaks no invariant and needs no new permission**. An
+earlier draft of this section said it had "a different permission story", which was simply wrong:
+`activeTab` and `scripting` are already required (D25) and already used for exactly this, and the
+page's own origin already served that icon to draw the tab.
 
-What it costs is four decisions rather than four obstacles, and they are why this is a PLAN change
-and not a patch: it reaches only the two add gestures that act on a loaded tab, where `_favicon/`
-reaches all four; it must ride inside the existing OG injection to keep §14.4's rule that **nothing
-is injected when nothing would be kept**; `validate.ts` refuses `image/svg+xml` as a script vector
-and a great many modern favicons are SVG; and a page-declared icon would have to go through
-`process.ts`, so the bytes would no longer be "exactly what Chrome returned" — which is much of why
-storing them unexamined is defensible today. Written up as **#27**. *What this extension injects
-into a page, and when* is the product's central claim, so it is decided in the plan rather than
-discovered in a diff.
+That is what **Phase 19** built, as **D37**, and issue **#27** is its specification. The rest of this
+subsection is what was measured first, and what the shape turned out to be.
 
-So the honest statement of what this feature covers: **sites you have also browsed normally**. That
-is most of them, in most vaults, and it is not all of them.
+#### Page-declared icons (Phase 19, D37)
+
+**`tab.favIconUrl` is a hint, and the page's own `<link rel="icon">` set is the list.** The first
+draft of this section said the opposite — that Chrome had already done the resolution, so taking its
+answer was a pile of parsing this codebase did not have to write — and shipping it found two holes
+that the field cannot fill:
+
+- **It is empty for exactly the site this feature is for.** A bookmark the user only ever opens
+  through the vault opens in incognito, so the regular profile never resolves an icon for it and
+  `favIconUrl` is simply absent. The old code read that as "do not ask", which meant the one case
+  the phase existed for was the one case that got nothing.
+- **It very often points at an SVG**, which the worker cannot decode — five of the eighteen icons
+  measured below, about a quarter of the web. A site that publishes both an SVG and a PNG was being
+  handed the half that loses.
+
+So `content/og.ts` reads the page's whole declared set and orders it, in the page, where the DOM is:
+Chrome's answer first when it is not a vector, then declared rasters nearest 32 px (downscaling
+beats upscaling, so 180 px beats 16 px), then `/favicon.ico`, then anything vector-shaped. At most
+`MAX_ICON_CANDIDATES` are tried, which bounds the work done inside somebody else's page. A 200 that
+turns out not to be an image does not end the walk — `/favicon.ico` answering with an HTML error
+page is routine, and stopping there would mean never reaching the icon the page actually declared.
+`rel="mask-icon"` is skipped: Safari's pinned-tab icon is a silhouette meant to be tinted, and
+rasterising one gives a black square.
+
+**An SVG is rasterised in the page.** A document has an `<img>`, and an `<img>` renders SVG — no
+script in it runs, no external reference in it resolves, and because the blob URL is minted in that
+same document the canvas is not tainted, so `toBlob` answers with PNG bytes. The draw is bounded at
+64 px, and a decode that has not finished in three seconds is abandoned. That is what closes the
+quarter of the web this section used to write off; the worker still refuses SVG bytes, and now never
+sees any.
+
+`favIconUrl` is one of the sensitive `Tab` fields — with `url` and `title` — and they are gated
+together on a host permission **for that tab**. `activeTab` is exactly that grant, which is why this
+needs no new permission: `background/thumbs.ts` already holds the granted `Tab` at the moment it
+injects, and already reads `tab.url` off it in `refresh()`. Measured against the real `dist/` on
+2026-08-22: with no host permission `chrome.tabs.query` still lists every tab, but the objects it
+returns **omit `url`, `title`, `favIconUrl` and `pendingUrl` from their keys entirely** — not
+present-and-empty, absent. With a host permission all four are there.
+
+#### The three things measured before the code (2026-08-22)
+
+Chromium 151, Windows 10, in the real service worker of the real build. Each of these could have
+shrunk the phase, and the second one did.
+
+**1. `createImageBitmap` decodes ICO in a service worker — every form tried.** This was the
+load-bearing unknown: `/favicon.ico` is what `favIconUrl` points at for a large share of the web.
+
+| Blob type | Payload | Result |
+| --- | --- | --- |
+| `image/x-icon` | one 32 px PNG frame | 32 × 32 |
+| `image/vnd.microsoft.icon` | one 32 px PNG frame | 32 × 32 |
+| `image/ico` | one 32 px PNG frame | 32 × 32 |
+| `image/x-icon` | **multi-size**, 16 + 32 + 48 | 48 × 48 — the **largest** frame |
+| `image/x-icon` | classic 32 px BMP DIB | 32 × 32 |
+| `''`, `image/png`, `text/html` | real ICO bytes | 32 × 32 |
+
+The last row is the one with a consequence: **the decoder sniffs the bytes and ignores the Blob's
+type**. So the content-type allowlist in §14.2 is a *policy* filter — what we are willing to accept
+— and never a guard on what the decoder will attempt. It has to stay strict on its own account.
+
+**2. `createImageBitmap` does not decode SVG in a worker.** `image/svg+xml` answers
+`InvalidStateError: The source image could not be decoded.`, with or without a resize hint — SVG
+decoding is document-bound in Blink. So the refusal `thumbs/validate.ts` carries stands, and the
+worker will never store an SVG.
+
+**"Document-bound" was read as "impossible" and it is not.** The phase shipped on that reading and a
+quarter of the web got no icon. The capture already runs *in a document* — that is the whole of why
+the fetch is legal (§14.1) — so the vector is drawn there, on the same visit, and what crosses back
+to the worker is a PNG. `test/e2e/thumbs.spec.ts` measures both halves: the worker still refuses, and
+a page still draws.
+
+**3. A page-context fetch of the declared favicon essentially always succeeds — and SVG is the only
+thing that then loses.** Twenty real sites, the whole pipeline (page fetch → worker decode → 32 px
+→ WebP), 2026-08-22:
+
+| Outcome | Sites |
+| --- | --- |
+| Stored an icon | **13** |
+| Fetched, then refused — **all of them SVG** | 5 |
+| Declared no `favIconUrl` at all | 1 |
+| Would not load in the harness | 1 |
+
+**Not one fetch was blocked**: 18 of 18 declared icons came back, three of them from a different
+origin than the page (a CDN), because favicon hosts serve permissive CORS and no `connect-src`
+objected. That is a different world from `og:image`, which is usually on a CDN that does not. Content
+types seen: `image/png` 6, `image/svg+xml` 5, `image/vnd.microsoft.icon` 4, `image/x-icon` 3.
+Decoded sizes ran 32 × 32 to 72 × 72; fetched bodies ran 315 B to 15 KB; and **every stored result
+re-encoded to between 740 and 1,558 bytes**, which is why the byte cap below is never the binding
+constraint.
+
+#### What a page-sourced icon goes through, and what marks it
+
+Unlike a `_favicon/` response, **these bytes came from a page**, so they take the pipeline §14.2
+exists for rather than being stored as returned. `processIcon` sits beside `processThumb`: decode →
+fit within 32 px, never upscaling → WebP (PNG where WebP is unavailable) → the same 64 KB ceiling
+`_favicon/` responses are held to, with the 5 MB fetch ceiling on input. The content-type allowlist
+is the icon's own, and it is **not** §14.2's: it adds `image/x-icon`, `image/vnd.microsoft.icon` and
+`image/ico`, which are 7 of the 18 icons measured above and none of which a page would ever offer as
+an `og:image`.
+
+Re-encoding through a canvas strips metadata by construction, exactly as §14.3 describes, and it is
+worth slightly more here than there: a favicon is a file a site serves to every visitor, and the
+version that reaches the vault is a bitmap this browser drew.
+
+**Provenance is one byte in the sealed plaintext.** A stored blob is framed
+`0xF0 'V' 'M' <source>` ahead of the image bytes, and a blob with no such frame is read as
+`chrome` — which is what every icon stored before Phase 19 is. So nothing already in a vault is
+invalidated, nothing is re-uploaded on upgrade, and the two sources are distinguishable at read time
+without a second read. It is in the plaintext rather than in the AAD because the AAD has to be built
+*before* the blob opens, and a provenance field there would mean trying both values and seeing which
+one authenticates.
+
+#### What a refresh may destroy — and this changed in Phase 19
+
+Before Phase 19, *Refresh icon* re-read `_favicon/` and wrote down the answer including an absence:
+Chrome returning the globe **dropped** the stored icon, deliberately — "this is what the icon is
+now, including that it is nothing".
+
+With page-sourced icons in the store that rule destroys data. A vault-only site is precisely one the
+regular profile has never visited, so `_favicon/` will answer with the globe **for ever**, and a
+refresh would delete a perfectly good icon every time it ran. So:
+
+1. A refresh **tries the page first** when the active tab is on that bookmark's URL — the same
+   `samePage` check §14.5's preview refresh already makes. A page-sourced hit is stored and returned.
+2. Otherwise it reads `_favicon/`. A real answer is stored as before.
+3. **A Chrome miss never overwrites a page-sourced icon.** It still clears a `chrome`-sourced one,
+   which is the original behaviour and the one it was written for.
+
+#### One button, because it was always one request
+
+The popup offered *Refresh preview* and *Use this page's icon* side by side, and they were the same
+gesture: one script, injected into one page, whose two fetches already run concurrently (§14.1). The
+second button meant a second injection for something the first was in a position to bring back
+anyway — and on the vault-only site it existed for, the *icon* button's answer was a paragraph of
+instructions telling the user to press it, which is not an answer.
+
+So `REFRESH_THUMB` carries both halves and `ThumbResponse.icon` says what became of the icon
+(`stored` / `none` / `unavailable`); `USE_PAGE_ICON` is gone. The refresh **replaces** the stored
+icon, matching what `replace` already meant for the picture: the user is looking at the page and
+saying that this is what it shows now. An add still only fills an absence.
+
+The popup's notice is assembled from one finished sentence per half rather than one key per
+combination — the halves fail independently, and enumerating them would be six strings in English
+and more in languages with more plural forms. On a tier that keeps no icons the icon half
+contributes nothing at all: telling somebody that a feature they have not turned on did not happen
+is noise.
+
+The manager's pane has one button for the same reason, and it now **acts before it explains**: it
+re-reads `_favicon/` — which needs no page and no grant — and only then opens the page and says
+where to finish. The old *Refresh icon* button's failure message named a different button; a button
+whose entire answer is "press another button" is a defect, not a limitation.
+
+**No "open it" on the already-saved notice.** That notice is only ever shown about the page in the
+tab behind the popup, from both of its entry points, so the page is open by construction. The row
+for it is in the list below, which is where opening anything belongs.
+
+#### The honest ceiling
+
+A page-sourced icon happens where **Drive tier ∧ added from a loaded tab ∧ capture enabled ∧ the
+icon fetches and decodes** — or, later, wherever the user presses *Refresh preview and icon* with
+the page in front of them. Of those conjuncts the third is the tier gate (§14.4) and the fourth is
+measured above at 13 of 20 sites — of which SVG was 5, and SVG now rasterises, so on that sample the
+reachable set is 18 of 20 and the remaining two are a page that declared nothing and a page the
+harness could not load.
+
+So the statement of coverage this section used to make — **"sites you have also browsed normally"**
+— is no longer the whole of it, and is not deleted either. `_favicon/` still reaches all four add
+gestures and still needs no injection; page-declared bytes reach the two gestures that act on a
+loaded tab, plus the popup button. What the two together do *not* reach: a bookmark that arrived
+from a context menu, on a site never browsed normally, whose owner never opens the popup on it.
 
 #### Where they are kept, and how they leave
 
@@ -2264,12 +2432,23 @@ add-time, user gesture, activeTab granted
   │    fetch(imageUrl, { credentials: 'omit', mode: 'cors', signal: AbortSignal.timeout(8000) })
   │      ↳ IN PAGE CONTEXT: the page's origin already served this image to this page
   │      ↳ abort above 5 MB
-  │    returns { image?: base64url, contentType?, declaredBytes?, ogTitle?, ogDescription? }
+  │    AND, when the worker asked for one, fetch the page's icon — CONCURRENTLY (§10.1, D37)
+  │      ↳ candidates: tab.favIconUrl unless vector, <link rel=icon> nearest 32 px,
+  │        /favicon.ico, then anything vector-shaped — at most 4 tried
+  │      ↳ an SVG is drawn into a canvas HERE and leaves as PNG; a worker cannot decode one
+  │      ↳ asked for only when the vault holds no icon for this host yet
+  │    returns { image?, contentType?, declaredBytes?, ogTitle?, ogDescription?,
+  │              icon?, iconContentType?, iconDeclaredBytes?, iconReason? }
   │
   ├─ SW: validate.ts   (§14.2)
   ├─ SW: process.ts    createImageBitmap → OffscreenCanvas → ≤320 px → WebP q0.75 → ≤40 KB
   ├─ SW: seal(k_thumbs, bytes, aad{v:2, purpose:'thumb', id:itemId})
-  └─ SW: store.ts      storage.local (LRU-capped) + provider.putThumb() when heavyTier
+  ├─ SW: store.ts      storage.local (LRU-capped) + provider.putThumb() when heavyTier
+  │
+  └─ the icon half, when there is one:
+       SW: validate.ts  icon allowlist — §14.2's plus image/x-icon, image/vnd.microsoft.icon
+       SW: process.ts   processIcon → ≤32 px → WebP → ≤64 KB
+       SW: favicons.ts  framed 0xF0 'V' 'M' 'p', sealed, one file per HOST not per item (§10.1)
 ```
 
 **Why two injections.** A `files:` injection reports the completion value of the *program*, and a
@@ -2299,6 +2478,21 @@ INV-4 and is asserted by a Playwright route-interception test.
 
 **Never a screenshot.** No `captureVisibleTab`, no `tabs.captureVisibleTab`, no offscreen rendering
 of the page. If there is no OG/Twitter image, there is no thumbnail.
+
+**The injection carries two images since Phase 19, and it is still one injection.** The favicon the
+page declares rides in the same `executeScript` pair as the OG picture (D37, §10.1) — one extra
+argument out, four extra fields back, no second injection and no new permission. It inherits the
+tier gate wholesale, so §14.4's rule that **nothing is injected when nothing would be kept** is
+untouched: on the Chrome tier with the opt-in off, nothing runs, and no icon is fetched either. The
+practical intersection is the Drive tier, which is where stored icons live anyway, so the gate costs
+nothing real.
+
+Two things about it are deliberate. The worker asks for an icon **only when the vault holds none for
+that host**, so `_favicon/` — which is free and reaches all four add gestures — always wins, and a
+page-sourced icon is strictly an upgrade applied to an absence (§10.1's *an upgrade never
+overwrites*). And the two fetches run **concurrently** inside the page rather than one after the
+other: they are independent, and serialising them would put two 8-second timeouts end to end on the
+last thing that happens during an add.
 
 ### 14.2 Validation — everything from the page is hostile
 

@@ -325,12 +325,17 @@ export interface GetThumbRequest {
 }
 
 /**
- * Re-capture the preview for an item, from the page in the active tab.
+ * Re-capture the preview **and the icon** for an item, from the page in the active tab.
  *
  * Only ever an explicit click, never automatic and never on a timer (§14.5). The tab is not named:
  * the worker reads the active one itself, under the `activeTab` grant the click that produced this
  * message just created — the same reasoning as {@link AddActiveTabRequest}, and the reason this can
  * exist at all without a host permission.
+ *
+ * **It carries the icon because the two were always one request.** Both halves come off a single
+ * injection into a single page, fetched concurrently; the separate *Use this page's icon* message
+ * this replaces meant a second injection for a second button that named the same gesture. The
+ * answer says what became of each ({@link ThumbResponse.icon}).
  */
 export interface RefreshThumbRequest {
   readonly type: 'REFRESH_THUMB';
@@ -803,6 +808,16 @@ export interface ThumbResponse {
    */
   readonly ogTitle: string | null;
   readonly ogDescription: string | null;
+
+  /**
+   * What became of the icon, when this answer is a refresh rather than a read (§10.1).
+   *
+   * Absent for {@link GetThumbRequest}, which asks nothing about icons. Present for
+   * {@link RefreshThumbRequest}, which reaches the page once and brings both halves back:
+   * `'stored'` — the icon in the store is now the one this page declares; `'none'` — the page
+   * offered nothing this vault can keep; `'unavailable'` — this tier keeps no icons at all.
+   */
+  readonly icon?: 'stored' | 'none' | 'unavailable';
 }
 
 /**
