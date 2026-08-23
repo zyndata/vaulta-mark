@@ -1856,7 +1856,7 @@
     "message": "Usuń także zsynchronizowaną kopię"
   },
   "settingsDestroyRemoteHint": {
-    "message": "Domyślnie włączone: zniszczenie ma znaczyć zniszczenie. Wyłącz tylko wtedy, gdy inny komputer nadal korzysta z tego sejfu. Wtedy ten komputer już nie dołączy do tamtej kopii — sejf utworzony tu ponownie to nowy sejf, nawet z tym samym hasłem."
+    "message": "Wyłącz tylko wtedy, gdy inny komputer nadal korzysta z tego sejfu. Sejf utworzony tu ponownie to nowy sejf, nawet z tym samym hasłem."
   },
   "settingsDestroyButton": {
     "message": "Zniszcz ten sejf"
@@ -3039,7 +3039,7 @@
     "message": "Zakładki, które nie trafiają do paska adresu"
   },
   "onboardingIntroBody": {
-    "message": "Chrome podpowiada wszystko, co dodasz do zakładek. Zaczynasz pisać w pasku adresu i już tam jest, na oczach każdego, kto patrzy na Twój ekran. VaultaMark trzyma swoje zakładki tam, gdzie Chrome nie sięga."
+    "message": "Chrome podpowiada wszystko, co dodasz do zakładek. Zaczynasz pisać w pasku adresu i adres już tam jest, na oczach każdego, kto patrzy na Twój ekran. VaultaMark trzyma swoje zakładki tam, gdzie Chrome nie sięga."
   },
   "onboardingIntroPointOmnibox": {
     "message": "Zakładki z sejfu nigdy nie trafiają do zakładek Chrome, więc nigdy nie pojawiają się w podpowiedziach."
@@ -3126,10 +3126,10 @@
     "message": "Pamięć synchronizacji Twojego profilu Chrome."
   },
   "onboardingSyncDriveWhere": {
-    "message": "Jeden plik na Twoim własnym Dysku Google."
+    "message": "Jeden folder VaultaMark na Twoim własnym Dysku Google."
   },
   "onboardingSyncActive": {
-    "message": "Synchronizacja Chrome jest włączona i niczego od Ciebie nie potrzebuje. Dysk Google możesz podłączyć w każdej chwili w Ustawienia → Synchronizacja i nic z tego, co teraz zapiszesz, nie zginie przy przełączeniu."
+    "message": "Synchronizacja Chrome jest włączona i niczego od Ciebie nie potrzebuje. Dysk Google możesz podłączyć w każdej chwili w Ustawienia → Synchronizacja i żadna zakładka, którą zapiszesz, nie zginie przy przełączeniu."
   },
   "onboardingSyncChangeLater": {
     "message": "Możesz to zmienić w każdej chwili w Ustawieniach."
@@ -3138,7 +3138,7 @@
     "message": "Jedna rzecz, którą Chrome wciąż pamięta"
   },
   "onboardingChromeBody": {
-    "message": "Sejf trzyma adresy poza zakładkami Chrome. Nie sięga do zapisu, który Chrome prowadzi o odwiedzonych stronach, a udawanie inaczej byłoby gorsze niż powiedzenie tego wprost."
+    "message": "Twoje adresy nie trafiają do zakładek Chrome. Ale odwiedzone strony nadal trafiają do historii Chrome, a sejf tego nie zmieni."
   },
   "onboardingHistoryHeading": {
     "message": "Strony odwiedzone, zanim trafiły do sejfu"

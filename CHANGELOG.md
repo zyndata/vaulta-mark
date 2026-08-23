@@ -126,6 +126,13 @@ below.
 
 ### Changed
 
+- **Four more sentences say the same thing in fewer words**, including the one an earlier entry
+  already promised. The warning behind *Also delete the synced copy* is the third shorter it was
+  described as being — that edit had been written down and not made. Onboarding now says Drive holds
+  a **folder**, not "one file", which is what is actually there; and the page about Chrome's history
+  says plainly that visited pages land in it and the vault cannot reach them, instead of explaining
+  at length why saying so is better than not.
+
 - **"Lock when I switch to another app" is now "Lock when this window loses focus", and means it.**
   It used to promise that moving between Chrome windows would not lock, which was a promise about a
   detail nobody asked for and one the code could not keep reliably. It now locks whenever the window

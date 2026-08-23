@@ -1786,7 +1786,7 @@
     "description": "Checkbox in the danger zone. On by default."
   },
   "settingsDestroyRemoteHint": {
-    "message": "On by default: destroying should mean destroying. Turn it off only if another computer still uses this vault. If you do, this computer cannot rejoin that copy later — a vault created here again is a new vault, even with the same password.",
+    "message": "Turn it off only if another computer still uses this vault. A vault created here again is a new vault, even with the same password.",
     "description": "Explains the consequence of leaving the synced copy behind."
   },
   "settingsDestroyButton": {
@@ -2938,7 +2938,7 @@
     "description": "Chrome tier, destination row."
   },
   "onboardingSyncDriveWhere": {
-    "message": "One file in your own Google Drive.",
+    "message": "One VaultaMark folder in your own Google Drive.",
     "description": "Drive tier, destination row."
   },
   "onboardingSyncActive": {
@@ -2954,7 +2954,7 @@
     "description": "Heading of onboarding step 5."
   },
   "onboardingChromeBody": {
-    "message": "A vault keeps addresses out of Chrome's bookmarks. It cannot reach the record Chrome keeps of the pages you visited, and pretending otherwise would be worse than saying so.",
+    "message": "Your addresses stay out of Chrome's bookmarks. But the pages you visit still land in Chrome's history, and the vault cannot reach it.",
     "description": "Body of onboarding step 5."
   },
   "onboardingHistoryHeading": {
