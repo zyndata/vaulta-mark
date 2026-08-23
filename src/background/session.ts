@@ -39,9 +39,12 @@ import type { EncryptedVault, OnboardingRecord, VaultSettings } from '../vault/t
 import {
   applyIdleDetection,
   armAutolock,
+  armFocusWatch,
   clearAutolock,
+  clearFocusWatch,
   deadlineFrom,
   neverExpires,
+  owningWindowId,
 } from './autolock.js';
 import { forgetIncognitoAccess } from './incognito.js';
 
@@ -54,6 +57,15 @@ interface SessionRecord {
   readonly dek: string;
   readonly unlockedUntil: number;
   readonly providerId: VaultSettings['providerId'];
+  /**
+   * The window this session was opened in, for "lock when the window loses focus" (§7.3).
+   *
+   * A browser window id and nothing else — it says where the user was, never anything about what
+   * the vault holds. Here rather than in module scope because MV3 kills the worker every thirty
+   * seconds and a policy that forgot which window it was watching would have to re-adopt whichever
+   * one it woke up to, which is the same as having no policy.
+   */
+  readonly focusWindowId: number | null;
 }
 
 export interface SessionState {
@@ -122,6 +134,7 @@ async function readRecord(): Promise<SessionRecord | null> {
     dek: record.dek,
     unlockedUntil: record.unlockedUntil,
     providerId: record.providerId === 'drive' ? 'drive' : 'chrome',
+    focusWindowId: typeof record.focusWindowId === 'number' ? record.focusWindowId : null,
   };
 }
 
@@ -220,15 +233,25 @@ async function startSession(repo: VaultRepository): Promise<number> {
   const now = Date.now();
   const unlockedUntil = deadlineFrom(settings, now);
 
+  // Which window the vault was unlocked in, asked for before the key is written so the answer is
+  // part of the session rather than something bolted on after it (§7.3).
+  const focusWindowId = settings.lockOnBrowserBlur ? await owningWindowId() : null;
+
   const dek = repo.exportDek();
   try {
-    await writeRecord({ dek: toBase64Url(dek), unlockedUntil, providerId: settings.providerId });
+    await writeRecord({
+      dek: toBase64Url(dek),
+      unlockedUntil,
+      providerId: settings.providerId,
+      focusWindowId,
+    });
   } finally {
     // The base64url string is what `storage.session` keeps; this buffer was only a courier.
     zero(dek);
   }
 
   await armAutolock(unlockedUntil, now);
+  await armFocusWatch(settings);
   applyIdleDetection(settings);
   await broadcast({ type: 'SESSION_UNLOCKED', unlockedUntil });
   return unlockedUntil;
@@ -269,6 +292,7 @@ export async function settingsArrived(): Promise<void> {
     const unlockedUntil = deadlineFrom(settings, now);
     await writeRecord({ ...record, unlockedUntil });
     await armAutolock(unlockedUntil, now);
+    await armFocusWatch(settings);
   }
   await broadcast({ type: 'SETTINGS_CHANGED', settings });
 }
@@ -305,6 +329,7 @@ export async function lock(options: LockOptions = {}): Promise<void> {
   // written by a later phase cannot survive a lock by being forgotten here.
   await chrome.storage.session.clear();
   await clearAutolock();
+  await clearFocusWatch();
   // "Cached per session" (§9) means per *unlocked* session: the next unlock re-reads the toggle
   // rather than inheriting an answer from before the user was last sent to fix it.
   forgetIncognitoAccess();
@@ -399,6 +424,37 @@ export async function state(): Promise<SessionState> {
     return { exists, adoptable, locked: true, unlockedUntil: null };
   }
   return { exists, adoptable, locked: false, unlockedUntil: record.unlockedUntil };
+}
+
+/**
+ * Whether a session is open, cheaply.
+ *
+ * `state()` answers this too, but it pays for a header read and — on an empty profile — a
+ * `storage.sync` peek, which is far too much for something the focus watch asks twice a minute.
+ * The deadline is honoured rather than enforced: a caller that finds it passed is told "locked",
+ * and the lock itself happens on the next `currentRepository()` or alarm, which is where the
+ * flushing and the history hygiene belong.
+ */
+export async function isUnlocked(): Promise<boolean> {
+  const record = await readRecord();
+  return record !== null && record.unlockedUntil > Date.now();
+}
+
+/** The window the open session belongs to, or `null` — including when nothing is open. */
+export async function focusHolder(): Promise<number | null> {
+  return (await readRecord())?.focusWindowId ?? null;
+}
+
+/**
+ * Record which window the session belongs to.
+ *
+ * Only ever called for a session that has none — either because the vault was unlocked while the
+ * toolbar popup covered every window, or because the setting was switched on mid-session.
+ */
+export async function rememberFocusHolder(windowId: number): Promise<void> {
+  const record = await readRecord();
+  if (record === null || record.focusWindowId === windowId) return;
+  await writeRecord({ ...record, focusWindowId: windowId });
 }
 
 /**
@@ -591,8 +647,13 @@ export async function updateSettings(patch: SettingsPatch): Promise<VaultSetting
   if (record !== null) {
     const now = Date.now();
     const unlockedUntil = deadlineFrom(next, now);
-    await writeRecord({ ...record, unlockedUntil, providerId: next.providerId });
     await armAutolock(unlockedUntil, now);
+    // Switching the blur lock on has to start the watch that implements it, and bind the session to
+    // the window it was switched on in — the toggle is a live one, not something that waits for the
+    // next unlock.
+    const focusWindowId = next.lockOnBrowserBlur ? await owningWindowId() : null;
+    await writeRecord({ ...record, unlockedUntil, providerId: next.providerId, focusWindowId });
+    await armFocusWatch(next);
   }
 
   await broadcast({ type: 'SETTINGS_CHANGED', settings: next });

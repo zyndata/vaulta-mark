@@ -360,12 +360,12 @@
     "description": "The idle-timeout choice that disables auto-locking."
   },
   "settingsLockOnBlur": {
-    "message": "Lock when I switch to another app",
+    "message": "Lock when this window loses focus",
     "description": "Label for the lock-on-browser-blur toggle. Must not read as 'when Chrome closes' — it fires on focus loss, which is a very different promise."
   },
   "settingsLockOnBlurHint": {
-    "message": "Locks the moment Chrome loses focus, so you re-enter your password on every switch back. Moving between Chrome windows does not lock.",
-    "description": "Explanation under the lock-on-browser-blur toggle."
+    "message": "Locks as soon as the window you are in stops being the one in front — another application, or another Chrome window. Opening a bookmark in incognito counts, so you will be asked for your password again. The quick menu does not.",
+    "description": "Explanation under the lock-on-browser-blur toggle. Says plainly that another Chrome window locks too, because that is the part people are surprised by."
   },
   "settingsReuseWindow": {
     "message": "Reuse the incognito window I already have open",

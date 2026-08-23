@@ -15,6 +15,7 @@
 import '../ui/styles.css';
 import './popup.css';
 
+import { startFocusBeacon } from '../shared/focus-beacon.js';
 import { onBroadcast, send, type LockReason } from '../shared/messages.js';
 import { createVaultForm } from '../ui/create-form.js';
 import { applyTheme, h, msg, qs, render } from '../ui/dom.js';
@@ -26,6 +27,17 @@ import { vaultScreen } from './vault.js';
 
 const root = qs(document, '#vm-root');
 const headerAction = qs(document, '#vm-header-action');
+
+/*
+ * Tell the worker that this popup, and not another application, has the user (§7.3).
+ *
+ * The popup is the reason the beacon exists. Chrome's window model has no entry for it, so an open
+ * popup reports exactly what a browser the user has walked away from reports — no focused window at
+ * all — and "lock when this window loses focus" used to lock the vault the moment its own quick
+ * menu opened. Started before the first render, because the lock it prevents can arrive
+ * before the first paint.
+ */
+startFocusBeacon();
 
 /** Why the vault locked while the popup was open. Shown once on the unlock screen, then cleared. */
 let lastLockReason: LockReason | null = null;

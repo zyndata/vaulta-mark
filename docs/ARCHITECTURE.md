@@ -1304,15 +1304,75 @@ memory-backed, never written to disk, cleared on browser exit, and restricted to
 We combine it with a real idle timeout (default 10 min), an explicit lock command, lock-on-blur as an
 option, and "require password after browser restart" (free — session storage clears anyway).
 
-**Lock-on-blur is off by default**, and its name in the UI matters more than it looks. It fires on
-`WINDOW_ID_NONE` — no Chrome window has focus at all — which means *every switch to another
-application*, not "when Chrome closes". At 600,000 PBKDF2 iterations that is a password prompt per
-alt-tab: a defensible posture to offer, a bad one to impose, and a worse one to imply with a label
-like "lock when I leave Chrome". The UI says "switch to another app" and spells out the consequence
-next to the toggle.
+**Lock-on-blur is off by default**, and its name in the UI matters more than it looks. It locks when
+the window the vault was unlocked in stops being the one in front — *every* switch to another
+application, and every switch to another Chrome window. At 600,000 PBKDF2 iterations that is a
+password prompt per alt-tab: a defensible posture to offer, a bad one to impose, and a worse one to
+imply with a label like "lock when I leave Chrome". The UI says "lock when this window loses focus"
+and spells out both consequences next to the toggle — including that opening a bookmark in incognito
+(§9) puts a new window in front and therefore locks.
 
-Focus moving *between* Chrome windows must never lock, or opening a bookmark in incognito (§9) would
-lock the vault behind it.
+**The focus state is sampled, never awaited, because Chrome's focus event does not report what this
+setting is about.** Measured 2026-08-22 on Windows 10 against the real `dist/`, with a listener
+recording `chrome.windows.onFocusChanged` in the service worker:
+
+| What the user did | What `onFocusChanged` said | What `getAll()` said |
+| --- | --- | --- |
+| Switched to another application | **nothing at all** | no window focused |
+| Minimised the last window | **nothing at all** | no window focused |
+| Opened the toolbar popup | the window's id, then `-1`, 1 ms apart | no window focused |
+| Came back to Chrome | the window's id (sometimes then `-1`) | that window focused |
+
+Two things follow. The event is not a signal — it is missing exactly when the user leaves, and it
+arrives when they have not — so it is treated as nothing more than a reason to go and look. And an
+open toolbar popup is *indistinguishable* from a browser nobody is in front of: Chrome's window model
+has no entry for a popup, so "the quick menu is open" and "the user is in another program" are the
+same state, which is why the 1.2.0 build locked the vault the moment its own quick menu opened.
+
+So the policy asks two questions, from state rather than from events:
+
+1. **Does one of our own pages hold the keyboard focus?** The popup and the manager each keep a
+   `vm.focus` port open (`src/shared/focus-beacon.ts`) and report `document.hasFocus()` over it. A
+   port rather than a message because the interesting event is the page *going away*, which
+   `onDisconnect` reports for it. A focused page rebuilds the port when the worker is torn down under
+   it; an unfocused one has no claim to restate and stays quiet. A connect that never opened at all
+   is a third case, told apart by `runtime.lastError` and retried with a backoff rather than at once:
+   reloading an unpacked build reloads the open extension pages a few milliseconds before the new
+   worker has registered `onConnect`, and a page whose single connect failed is in no beacon set, so
+   it can be neither heard nor asked. **A claim is never trusted at the
+   moment a lock is decided — it is re-asked for.** Minimising a window fires no `blur` in the page
+   inside it (measured the same day, which is how this was found: the vault stayed unlocked behind a
+   minimised browser because the manager tab was still claiming a focus it had lost), so the worker
+   drops every claim and pings each beacon, and the settle below is the window the answers arrive in.
+2. **Is the focused window the one this session belongs to?** `SessionRecord.focusWindowId` is
+   recorded when the vault is unlocked (from `getLastFocused()`, because the popup that unlocked it
+   is covering every window at that moment) and never moves afterwards — under this policy, the focus
+   leaving that window ends the session, so there is nothing to move it to.
+
+A "no" to both starts a **750 ms settle** and asks again. The settle is not a tolerance for switching
+windows; it is there because the popup's claim and Chrome's focus event are two messages in flight at
+once, and a sample taken between them reads "nobody has it" for a browser that is perfectly in use.
+
+Three triggers lead to that sample: any focus event, any page reporting its own blur, and the
+`vm.focuswatch` alarm — periodic at Chrome's 30-second floor, armed only while the vault is unlocked
+and the setting is on. The alarm is what covers the case Chrome reports nothing at all for: leaving
+the browser while an ordinary web page is on screen locks within half a minute of the switch, while
+leaving with the popup or the manager in front locks within the settle, because those pages say so
+themselves.
+
+Three things were confirmed against the real `dist/` before this was called fixed: an open toolbar
+popup does not lock, another Chrome window taking the focus locks within about a second, and a
+browser sent to the background with an ordinary page in front locks at the alarm's 30 seconds.
+**Note for anyone testing this in Playwright:** it emulates focus on the pages it drives, so any
+extension page it can see — the onboarding tab included — reports `document.hasFocus() === true` for
+ever and claims the focus for ever. Close every extension page before testing the window half of the
+policy, or measure the page half by hand.
+
+One case is genuinely indistinguishable: an incognito window opened while "Allow in Incognito" is
+off. Chrome hides that window from the extension completely, so no window appears focused and nothing
+contradicts it. VaultaMark refuses to open a vaulted link in that state (§9), so reaching it means the
+user opened incognito by hand — and locking is the right reading of a window we are not permitted to
+see.
 
 ### 7.2 Cold-start budget
 

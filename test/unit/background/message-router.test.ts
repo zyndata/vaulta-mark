@@ -5,7 +5,11 @@
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AUTOLOCK_ALARM, HOUSEKEEPING_ALARM } from '../../../src/background/autolock.js';
+import {
+  AUTOLOCK_ALARM,
+  BLUR_SETTLE_MS,
+  HOUSEKEEPING_ALARM,
+} from '../../../src/background/autolock.js';
 import { VaultRepository } from '../../../src/storage/repo.js';
 import { DEFAULT_SETTINGS, ROOT_ID } from '../../../src/vault/types.js';
 import { budgetMs } from '../../helpers/budget.js';
@@ -301,6 +305,8 @@ describe('listeners registered during initial evaluation', () => {
   }, 30_000);
 
   it('locks on blur only once the setting is on', async () => {
+    // A window for the session to belong to. Chrome always has one; the mock does not until asked.
+    const home = await chrome.windows.create({ url: 'https://example.com/', focused: true });
     await mock.sendMessage({ type: 'UNLOCK', password: PASSWORD });
 
     // Default is off, so losing focus changes nothing. Give the handler a turn to prove it.
@@ -308,18 +314,49 @@ describe('listeners registered during initial evaluation', () => {
     await Promise.resolve();
     expect(mock.storage.session.snapshot()['vm.session']).toBeDefined();
 
+    mock.triggerFocusChanged(home?.id ?? 0);
     await mock.sendMessage({ type: 'SET_SETTINGS', settings: { lockOnBrowserBlur: true } });
 
-    // Even switched on, focus moving to another Chrome *window* must not lock, or every
-    // open-in-incognito would lock the vault behind it.
-    mock.triggerFocusChanged(7);
-    await Promise.resolve();
-    expect(mock.storage.session.snapshot()['vm.session']).toBeDefined();
+    // Fake timers for the settle, so the file does not spend real seconds waiting for it — and so
+    // no stray timer of the worker's own outlives the mock this test installed.
+    vi.useFakeTimers();
+    try {
+      // The focus coming back to the window the session belongs to is not a blur, whatever
+      // `onFocusChanged` says on the way: the popup opening and closing is exactly this pair.
+      mock.triggerFocusChanged(chrome.windows.WINDOW_ID_NONE);
+      mock.triggerFocusChanged(home?.id ?? 0);
+      await vi.advanceTimersByTimeAsync(BLUR_SETTLE_MS + 250);
+      expect(mock.storage.session.snapshot()['vm.session']).toBeDefined();
 
-    mock.triggerFocusChanged(chrome.windows.WINDOW_ID_NONE);
-    await vi.waitFor(() => {
+      // Leaving that window is what locks — here by leaving Chrome altogether.
+      mock.triggerFocusChanged(chrome.windows.WINDOW_ID_NONE);
+      await vi.advanceTimersByTimeAsync(BLUR_SETTLE_MS + 250);
       expect(mock.storage.session.snapshot()).toEqual({});
-    });
+    } finally {
+      vi.useRealTimers();
+    }
+  }, 30_000);
+
+  /*
+   * The other Chrome window is not an exception, which is the whole difference from how this
+   * behaved before 2026-08-22: the setting says "lock when the current window loses focus", and a
+   * second Chrome window is something the current window lost focus to.
+   */
+  it('locks when the focus moves to another Chrome window', async () => {
+    const home = await chrome.windows.create({ url: 'https://example.com/', focused: true });
+    await mock.sendMessage({ type: 'UNLOCK', password: PASSWORD });
+    mock.triggerFocusChanged(home?.id ?? 0);
+    await mock.sendMessage({ type: 'SET_SETTINGS', settings: { lockOnBrowserBlur: true } });
+
+    vi.useFakeTimers();
+    try {
+      const other = await chrome.windows.create({ incognito: true, focused: true });
+      mock.triggerFocusChanged(other?.id ?? 0);
+      await vi.advanceTimersByTimeAsync(BLUR_SETTLE_MS + 250);
+      expect(mock.storage.session.snapshot()).toEqual({});
+    } finally {
+      vi.useRealTimers();
+    }
   }, 30_000);
 });
 

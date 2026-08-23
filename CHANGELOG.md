@@ -108,6 +108,16 @@ below.
 
 ### Fixed
 
+- **Lock-on-focus-loss locked when it should not have, and did not lock when it should.** Opening
+  the quick menu locked the vault behind it — and leaving Chrome with the quick menu open, or with
+  the manager on screen, did not lock at all. Both come from the same thing, measured in a real
+  browser: Chrome tells an extension **nothing** when you switch to another application, and when
+  you open the quick menu it says the same thing it says when you have walked away — that no window
+  is in front. So the extension stopped believing the event. It now looks at where the focus
+  actually is, and the quick menu and the manager say for themselves when they are the ones holding
+  it. Leaving with either of them in front locks within a second; leaving with an ordinary page in
+  front locks within half a minute, which is as often as Chrome will wake an extension to look.
+
 - **Destroying the vault said it had failed, when it had worked.** *Destroy vault* really did erase
   everything, but the screen then reported "Something went wrong.", re-enabled the button and left
   the old page up — because the reply's name was missing from the list the extension checks replies
@@ -115,6 +125,14 @@ below.
   by a new check that puts every service-worker reply through the same parsing the real screens use.
 
 ### Changed
+
+- **"Lock when I switch to another app" is now "Lock when this window loses focus", and means it.**
+  It used to promise that moving between Chrome windows would not lock, which was a promise about a
+  detail nobody asked for and one the code could not keep reliably. It now locks whenever the window
+  you unlocked in stops being the one in front, whatever took its place — another program or another
+  Chrome window. **Opening a bookmark in incognito is another window**, so with this setting on you
+  will be asked for your password when you come back; the toggle's own explanation says so. The
+  quick menu is not another window and does not lock. The setting remains off by default.
 
 - **Counted sentences now agree with their numbers in any language, not only in English.** Every
   line that says how many of something there are — "3 bookmarks", "12 entries", "5 minutes" — used

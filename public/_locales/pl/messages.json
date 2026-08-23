@@ -310,10 +310,10 @@
     "message": "Nigdy"
   },
   "settingsLockOnBlur": {
-    "message": "Blokuj, gdy przełączam się do innej aplikacji"
+    "message": "Blokuj, gdy to okno traci fokus"
   },
   "settingsLockOnBlurHint": {
-    "message": "Blokuje w chwili, gdy Chrome traci fokus, więc przy każdym powrocie wpisujesz hasło od nowa. Przechodzenie między oknami Chrome nie blokuje sejfu."
+    "message": "Blokuje, gdy okno, w którym jesteś, przestaje być tym na wierzchu — inna aplikacja albo inne okno Chrome. Otwarcie zakładki w incognito też się liczy, więc hasło trzeba będzie wpisać ponownie. Szybkie menu nie blokuje."
   },
   "settingsReuseWindow": {
     "message": "Używaj ponownie okna incognito, które już mam otwarte"

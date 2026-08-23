@@ -393,6 +393,9 @@ registerLifecycleListeners({
   wake: () => probe(),
   lock: (reason) => session.lock({ reason }),
   settings: () => session.settings(),
+  unlocked: () => session.isUnlocked(),
+  focusHolder: () => session.focusHolder(),
+  rememberFocusHolder: (windowId) => session.rememberFocusHolder(windowId),
 });
 
 /**

@@ -17,6 +17,7 @@
 import '../ui/styles.css';
 import './manager.css';
 
+import { startFocusBeacon } from '../shared/focus-beacon.js';
 import { send } from '../shared/messages.js';
 import { applyTheme, h, localize, msg, qs, render } from '../ui/dom.js';
 import { incognitoPrompt } from '../ui/incognito-prompt.js';
@@ -28,6 +29,15 @@ const INCOGNITO_HASH = /^#incognito(?:=(.*))?$/u;
 const SETTINGS_HASH = '#settings';
 
 localize(document);
+
+/*
+ * The manager's half of the focus beacon (§7.3, `shared/focus-beacon.ts`).
+ *
+ * A tab is a window Chrome does report on, so this is not the load-bearing case the popup is — but
+ * it is what makes "lock when this window loses focus" prompt rather than up to half a minute late
+ * for someone who left the manager on screen.
+ */
+startFocusBeacon();
 
 const root = qs(document, '#vm-root');
 
