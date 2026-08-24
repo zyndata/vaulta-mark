@@ -140,8 +140,7 @@ Full threat model: [docs/ARCHITECTURE.md §8](docs/ARCHITECTURE.md#8-threat-mode
 
 **There is no password recovery. None.** Not by us, not by Google, not by anyone. The master password
 is never stored or transmitted, and no recovery key exists. If you forget it, your vault is
-permanently unreadable — that is the design, not a limitation. It is also the reason nobody can be
-compelled to hand your bookmarks over.
+permanently unreadable — that is the design, not a limitation.
 
 Use the encrypted export as your backup. Keep the password somewhere you trust.
 

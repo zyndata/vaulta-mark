@@ -339,6 +339,12 @@ Playwright cannot sign into Google, so the Drive half is a manual pass for the s
 and the automation profile's favicon database never answers with a real icon at all, so even the
 local half cannot be seen there.
 
+> **Run on 2026-08-24, and the feature holds: the icons arrive on the second computer.** That is
+> step 5, which is the one the whole section exists for. The maintainer reported the outcome, not a
+> step-by-step; treat the checks that are about *how* rather than *whether* — the keyed filenames in
+> step 4, the storage inspection in step 8 — as still worth a look next time this is opened, and
+> anything below that is not reported here as unconfirmed rather than failed.
+
 Two profiles, Drive connected on both (§5.4), `dist/` loaded unpacked in each:
 
 1. **On profile A**, visit half a dozen sites normally — the favicon database is populated by

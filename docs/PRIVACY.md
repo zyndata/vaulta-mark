@@ -5,7 +5,7 @@ title: Privacy Policy
 # VaultaMark Privacy Policy
 
 **Applies to:** the VaultaMark Chrome extension (all versions)
-**Last updated:** 2026-08-05
+**Last updated:** 2026-08-24
 
 *Published at <https://zyndata.github.io/vaulta-mark/PRIVACY>, which is the URL given to the Chrome
 Web Store and must stay stable across releases. GitHub Pages serves it from this file on the `main`
@@ -166,11 +166,10 @@ VaultaMark is not directed at children and knowingly collects no information fro
 
 There is **no password recovery**. The master password is never stored or transmitted, and no
 recovery key exists — not held by the developer, not by Google, not by anyone. If you forget it, your
-vault is permanently unreadable. That is the design, and it is the reason nobody can be compelled to
-hand over your bookmarks. Use the encrypted export as your backup.
+vault is permanently unreadable. That is the design. Use the encrypted export as your backup.
 
-VaultaMark is licensed GPL-3.0-only and its cryptography is fully documented, but the source is not
-published yet and it has not had a formal third-party security audit. Report vulnerabilities
+VaultaMark is licensed GPL-3.0-only, its cryptography is fully documented and its source is public.
+It has not had a formal third-party security audit. Report vulnerabilities
 privately: see [SECURITY.md](../SECURITY.md).
 
 ## Changes to this policy

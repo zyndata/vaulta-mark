@@ -187,7 +187,7 @@ Your master password is stretched with PBKDF2-HMAC-SHA256 (600,000 iterations) i
 
 THERE IS NO PASSWORD RECOVERY
 
-None. Not by the developer, not by Google, not by anyone. No recovery key exists and no backdoor exists. If you forget your master password, your vault is permanently unreadable. That is the design, and it is the reason nobody can be compelled to hand over your bookmarks. Use the built-in encrypted export as your backup.
+None. Not by the developer, not by Google, not by anyone. No recovery key exists and no backdoor exists. If you forget your master password, your vault is permanently unreadable. That is the design. Use the built-in encrypted export as your backup.
 
 PRIVACY
 
@@ -427,7 +427,7 @@ Twoje hasło główne jest rozciągane algorytmem PBKDF2-HMAC-SHA256 (600 000 it
 
 NIE MA ODZYSKIWANIA HASŁA
 
-Żadnego. Ani przez autora, ani przez Google, ani przez nikogo. Nie istnieje klucz odzyskiwania i nie istnieje tylne wejście. Jeśli zapomnisz hasła głównego, Twój sejf będzie trwale nie do odczytania. Taki jest projekt i to dlatego nikogo nie da się zmusić do wydania Twoich zakładek. Jako kopii zapasowej używaj wbudowanego zaszyfrowanego eksportu.
+Żadnego. Ani przez autora, ani przez Google, ani przez nikogo. Nie istnieje klucz odzyskiwania i nie istnieje tylne wejście. Jeśli zapomnisz hasła głównego, Twój sejf będzie trwale nie do odczytania. Takie jest założenie projektu. Jako kopii zapasowej używaj wbudowanego zaszyfrowanego eksportu.
 
 PRYWATNOŚĆ
 

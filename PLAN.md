@@ -1974,9 +1974,11 @@ Anything on the Chrome-sync tier.
 - [x] Stored names are keyed, and a test proves an unkeyed guess cannot find one —
       `test/unit/thumbs/favicons.test.ts` checks the host, its SHA-256, its base64 and two
       truncations against the name on disk.
-- [ ] Restoring a vault on a second profile with Drive connected shows real icons — **the
+- [x] Restoring a vault on a second profile with Drive connected shows real icons — **the
       maintainer's manual pass**, for the same reason Phases 10 and 11 have one: Playwright cannot
-      sign into Google. Procedure written up as DEVELOPMENT §5.5.1, nine steps; **not yet run.**
+      sign into Google. Procedure written up as DEVELOPMENT §5.5.1, nine steps. **Run on
+      2026-08-24 across two computers: the icons arrive.** That is the claim the phase makes, and
+      the last thing about it that no test could reach.
 - [x] §8.3 records the leak — entry 6, with the reason the keyed names make it weaker than it
       sounds.
 
