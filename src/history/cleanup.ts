@@ -10,11 +10,11 @@
  * The one rule that matters here: **`chrome.history.search` over-matches.** It is a substring search
  * over URL and title, so asking it for `example.com` answers with `notexample.community`, with
  * `evil.com/?ref=example.com`, and with a blog post whose *title* mentions the domain. Every result
- * is therefore re-checked with {@link urlBelongsTo} before it can reach `deleteUrl`. Nothing in this
- * file deletes a URL it has not re-derived the registrable domain of.
+ * is therefore re-checked with the domain matcher's `urlBelongsTo` before it can reach
+ * `deleteUrl`. Nothing in this file deletes a URL it has not re-derived the registrable domain of.
  */
 
-import { registrableDomain, urlBelongsTo } from './domain.js';
+import { publicSuffixMatcher } from './public-suffix.js';
 
 /** The optional permission this needs. Requested in context, never at install (D26). */
 export const HISTORY_PERMISSION = 'history';
@@ -96,6 +96,9 @@ export interface HistoryScan {
  * out.
  */
 export async function scanHistory(domains: readonly string[]): Promise<HistoryScan> {
+  // Read once, before the loop: the list is a packaged asset now, and the re-check below runs per
+  // history result rather than per domain (`history/public-suffix.ts`).
+  const psl = await publicSuffixMatcher();
   const seen = new Set<string>();
   const counts: DomainMatches[] = [];
 
@@ -111,7 +114,7 @@ export async function scanHistory(domains: readonly string[]): Promise<HistorySc
       const url = item.url;
       // A history item without a URL is not something we could delete, and Chrome types it as
       // optional. The `belongs to this domain` check is the one that matters.
-      if (url === undefined || !urlBelongsTo(url, domain)) continue;
+      if (url === undefined || !psl.urlBelongsTo(url, domain)) continue;
       entries++;
       seen.add(url);
     }
@@ -143,23 +146,3 @@ export async function deleteHistory(urls: readonly string[]): Promise<number> {
   return removed;
 }
 
-/**
- * The distinct registrable domains of a set of URLs, in first-seen order.
- *
- * Order is stable so a dry run and the run after it list the same domains in the same places — a
- * review list that reshuffles between the two is one nobody can compare.
- */
-export function domainsOf(urls: Iterable<string>): string[] {
-  const domains = new Set<string>();
-  for (const url of urls) {
-    let host: string;
-    try {
-      host = new URL(url).hostname;
-    } catch {
-      continue;
-    }
-    const domain = registrableDomain(host);
-    if (domain !== null) domains.add(domain);
-  }
-  return [...domains];
-}

@@ -19,7 +19,7 @@ npm run verify  # the gate: lint + type-check + test + build + invariant scan
 | `npm run dev` | Vite build in watch mode. Rebuilds `dist/` on every save. |
 | `npm run build` | Production build → `dist/`. |
 | `npm run zip` | Packages `dist/` → `release/vaulta-mark-<version>.zip` and prints its SHA-256. |
-| `npm run update-psl` | Refetches the Public Suffix List into `src/history/public-suffix.ts`. **Manual, and deliberately so** — that list decides which history entries a cleanup deletes, so it is never fetched at runtime and every refresh is a reviewed diff (ARCHITECTURE §12.1). |
+| `npm run update-psl` | Refetches the Public Suffix List into `public/public-suffix-list.txt`, the package asset the worker reads at first use. **Manual, and deliberately so** — that list decides which history entries a cleanup deletes, so it is never fetched at runtime and every refresh is a reviewed diff (ARCHITECTURE §12.1). |
 | `npm run test` | Vitest unit + integration, with coverage and its thresholds. |
 | `npm run test:watch` | Vitest in watch mode, no coverage. |
 | `npm run test:e2e` | Playwright, against a **built** `dist/`. See §5. |

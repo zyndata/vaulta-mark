@@ -20,6 +20,13 @@ below.
   bookmarks" claimed more than the design can carry. Encryption protects the vault from someone who
   has the file; it does not protect you from someone who can make you type the password. The
   sentence that survives says what is true and stops there.
+- **VaultaMark wakes up faster, and has room to grow again.** Chrome shuts the extension's
+  background worker down every half minute and rebuilds it on the next thing you do, reading the
+  whole of it each time — and 144 KB of that was a list of the world's domain suffixes, which is
+  only ever needed if you ask to clean your browsing history. It now sits beside the code as a file
+  and is read the once, if and when something needs it. The worker is 45 % smaller. Nothing is
+  fetched from anywhere: the file is part of the download you already installed.
+
 - **The privacy policy no longer says the source is unpublished.** It has been public since
   2026-08-15 and the policy had not caught up. It still says plainly that there has been no
   third-party security audit, because there has not been one.

@@ -1392,6 +1392,11 @@ origin — which D26's permission table does not contain. Building it starts wit
   `fetch(chrome.runtime.getURL(…))` at first use, which is an extension-origin read and not network
   traffic (INV-4 is unaffected). Deliberately not done in this phase, which hardens rather than
   reworks proven Phase 9 code.
+  **Done on 2026-08-24, after 1.2.0.** The paragraph above wrote the escape hatch and the release
+  spent the room it was holding: 1.2.0 shipped the worker at 327.7 KB with 12 KB to spare, having
+  cost 16 KB itself. The list moved to `public/public-suffix-list.txt`, the worker measures
+  **178.8 KB**, and the ceiling is ratcheted to **220 KB** — the same ~40 KB of room 340 KB was
+  drawn to leave. ARCHITECTURE §12.1 carries the three properties that make it safe.
 - Bundle analysis committed as a report artifact; tree-shaking verified; dead code removed.
 - Drag-and-drop reordering and re-parenting in the folder tree and list (the one optional feature
   promoted into 1.0 because the manager feels incomplete without it), with full keyboard equivalents.
