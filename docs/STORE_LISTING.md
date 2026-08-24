@@ -41,10 +41,10 @@ retake is a command rather than an afternoon:
 | Screenshots | 1280 × 800 PNG, five of them | `docs/store/screenshot-{1..5}-*.png` |
 | Small promo tile | 440 × 280 PNG | `docs/store/promo-440x280.png` |
 | Marquee promo tile | 1400 × 560 PNG — only needed if the listing is ever considered for featuring | not produced; optional |
-| Short description | ≤ 132 characters | §2 below (129) — rewritten 2026-08-18, reaches the listing with the 1.1.0 package |
+| Short description | ≤ 132 characters | §2 below (129) — rewritten 2026-08-18, still unpublished; reaches the listing only in a package, and 1.2.0 is the one that carries it |
 | Detailed description | Leads with the differentiators; states the no-recovery warning; explains both sync tiers | §3 below — one bullet edited 2026-08-18, editable in the dashboard without a package |
 | Category | **Privacy & Security** | chosen 2026-08-15 — see below |
-| Language | English (United States) | fixed |
+| Language | English (United States), plus Polish from 1.2.0 | §11 — the name never translates, the short description ships in the package, the detailed description is pasted in the dashboard |
 | Privacy policy URL | <https://zyndata.github.io/vaulta-mark/PRIVACY> | Pages, from `main`/`docs` — [PRIVACY.md](PRIVACY.md) |
 | Single-purpose statement | one sentence | §4 below |
 | Permission justifications | one or two sentences each | §5 below |
@@ -115,8 +115,10 @@ Light mode for 1–4 and dark for 5, so both themes appear in the strip.
 short description and the toolbar tooltip's subtitle, so there is one place to change it:
 `public/_locales/en/messages.json`.
 
-> **⚠️ Pending upload since 2026-08-18.** This is *not* what the published 1.0.0 listing says, and
-> unlike §3 it **cannot be fixed in the dashboard** — the short description is the manifest's
+> **⚠️ Pending upload since 2026-08-18.** The 1.1.0 package went up only as a **draft**, to prove
+> the automation, and was never submitted — so 1.2.0 is the upload that carries this text. It is
+> *not* what the published 1.0.0 listing says, and unlike §3 it **cannot be fixed in the
+> dashboard** — the short description is the manifest's
 > `description`, so it reaches the Store only in a new package. The published text is the previous
 > wording, kept here so the two can be told apart:
 >

@@ -33,6 +33,11 @@ same thing twice. The privacy policy is served at <https://zyndata.github.io/vau
 - **Discord-style link previews.** The page's Open Graph image is captured **once**, when you save the
   bookmark, then encrypted. Browsing your vault makes **zero** network requests, ever.
 - **Every vaulted link opens in an incognito window.** No history, no cache, no trace.
+- **Site icons that survive the incognito habit.** Because every vaulted link opens in incognito,
+  Chrome never learns those sites' icons — so VaultaMark takes the icon the page declares about
+  itself when you save it, and, with Drive connected, keeps an encrypted copy so a second computer
+  shows it too. One small file per site, filed under a name derived from your password. No favicon
+  service is ever asked, because that would hand somebody a list of every domain in your vault.
 - **A QR code, for moving one address to a phone** without retyping it or mailing it to yourself.
   It is drawn only when you ask for it, and it says plainly what it cannot do: no browser on either
   mobile platform lets a scanned link open in a private tab, so the page opens in an ordinary one.
@@ -52,7 +57,7 @@ same thing twice. The privacy policy is served at <https://zyndata.github.io/vau
 | | |
 | --- | --- |
 | ![The vault list, with folders, tags and an inline preview](docs/store/screenshot-1-vault.png) | ![Searching with tag:crypto](docs/store/screenshot-3-search.png) |
-| **The vault** — folders, tags, favicons from Chrome's local cache, and the page's own preview drawn in the detail pane. | **Search** — `tag:`, `folder:`, `host:` and `in:` prefixes, reaching into folders. |
+| **The vault** — folders, tags, site icons the vault carries itself, and the page's own preview drawn in the detail pane. | **Search** — `tag:`, `folder:`, `host:` and `in:` prefixes, reaching into folders. |
 | ![Sync settings, with both tiers and the quota bar](docs/store/screenshot-4-sync.png) | ![Setup step 2, stating that there is no password recovery](docs/store/screenshot-5-no-recovery.png) |
 | **Sync** — Chrome sync by default with its quota in view; Drive is one button and a permission screen. | **Setup** — the constraint stated before you can get past it, and a phrase you have to type. |
 
