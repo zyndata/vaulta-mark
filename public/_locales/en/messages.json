@@ -1839,18 +1839,18 @@
   },
   "syncMismatchKeepRemoteHint": {
     "message": "This is the answer when the synced vault is the one with your bookmarks in it — after a reinstall, say, or on a computer that has only just been set up. You need the master password that opens it.",
-    "description": "Hint under the button that joins the synced vault."
+    "description": "Hint under the button that imports the synced vault."
   },
   "syncMismatchAdoptHeading": {
     "message": "Use the synced vault",
     "description": "Heading of the dialog that joins the synced vault."
   },
   "syncMismatchAdoptExplain": {
-    "message": "The synced vault stays exactly as it is. This computer joins it the way a second computer does: its bookmarks, folders, tags and notes appear here, and the two keep each other up to date from now on.",
-    "description": "What joining the synced vault does."
+    "message": "The synced vault stays exactly as it is, and everything in it is imported here: every bookmark, folder, tag and note, along with the preferences the vault carries. Its master password comes with it too — from now on that is the password that opens this vault, and it is the one to type below. The two copies keep each other up to date from then on.",
+    "description": "What using the synced vault does."
   },
   "syncMismatchAdoptLosesNone": {
-    "message": "This computer's own vault has no bookmarks in it, so nothing here is lost.",
+    "message": "The vault on this computer has no bookmarks in it, so nothing will be lost.",
     "description": "Shown instead of the warning when the local vault is empty."
   },
   "syncMismatchAdoptLoses_one": {
@@ -1882,7 +1882,7 @@
     "description": "Password field in the adopt-the-synced-vault dialog."
   },
   "syncMismatchAdoptConfirm": {
-    "message": "Erase this vault and join the synced one",
+    "message": "Erase this vault and import the synced one",
     "description": "Confirming button in the adopt-the-synced-vault dialog."
   },
   "syncMismatchAdoptNeedsPassword": {
@@ -1922,11 +1922,11 @@
     "description": "Sync error: anything not otherwise classified."
   },
   "adoptHeading": {
-    "message": "There is already a vault on your other computer",
+    "message": "There is already a synced vault",
     "description": "Heading of the screen shown when a profile has no vault but the sync area does."
   },
   "adoptBody": {
-    "message": "Chrome has synced it here, still encrypted. Type the master password you use for it and this computer joins the same vault — there is nothing to export or copy across.",
+    "message": "Chrome has synced it here, still encrypted. Type the master password you use for it and this computer will use that same vault — there is nothing to export or copy across.",
     "description": "Explanation on the adopt-a-synced-vault screen."
   },
   "adoptFieldPassword": {

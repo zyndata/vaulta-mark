@@ -183,6 +183,14 @@ below.
 
 ### Changed
 
+- **The screen that takes on a synced vault now says what taking it on brings with it.** It said
+  this computer "joins" the vault "the way a second computer does" — which is not what the common
+  case is: most people reading it have just reinstalled. It now says plainly that everything in the
+  synced vault is imported here — every bookmark, folder, tag and note, and the settings it carries
+  — and that its master password comes with it and is the one that opens the vault from then on.
+  The screen offering the same thing on a fresh install no longer claims there is a second computer
+  either.
+
 - **Four more sentences say the same thing in fewer words**, including the one an earlier entry
   already promised. The warning behind *Also delete the synced copy* is the third shorter it was
   described as being — that edit had been written down and not made. Onboarding now says Drive holds

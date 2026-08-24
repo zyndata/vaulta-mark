@@ -102,7 +102,7 @@ test('a second profile joins the synced vault with the master password alone', a
   /* --- profile two: offered the password, not the create form -------------- */
 
   await second.reload();
-  await expect(second.getByText('There is already a vault on your other computer')).toBeVisible();
+  await expect(second.getByText('There is already a synced vault')).toBeVisible();
   const join = second.getByRole('button', { name: 'Use this vault here' });
   await expect(join).toBeVisible();
 

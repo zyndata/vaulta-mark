@@ -1901,10 +1901,10 @@
     "message": "Użyj zsynchronizowanego sejfu"
   },
   "syncMismatchAdoptExplain": {
-    "message": "Zsynchronizowany sejf zostaje dokładnie taki, jaki jest. Ten komputer dołącza do niego tak, jak robi to drugi komputer: jego zakładki, foldery, etykiety i notatki pojawiają się tutaj, a od teraz oba trzymają się nawzajem w aktualnym stanie."
+    "message": "Zsynchronizowany sejf zostaje dokładnie taki, jaki jest, a wszystko, co w nim jest, zostaje tutaj zaimportowane: każda zakładka, każdy folder, etykieta i notatka, razem z ustawieniami, które sejf ze sobą niesie. Jego hasło główne przechodzi razem z nimi — od tej chwili to ono otwiera ten sejf i to je wpisujesz poniżej. Od tego momentu obie kopie trzymają się nawzajem w aktualnym stanie."
   },
   "syncMismatchAdoptLosesNone": {
-    "message": "Własny sejf tego komputera nie ma w sobie żadnych zakładek, więc nic tutaj nie ginie."
+    "message": "Sejf na tym komputerze nie ma w sobie żadnych zakładek, więc nic nie zostanie stracone."
   },
   "syncMismatchAdoptLoses_one": {
     "message": "Jedyna zakładka we własnym sejfie tego komputera zostanie skasowana. Nie ma cofnięcia.",
@@ -1949,7 +1949,7 @@
     "message": "Hasło główne zsynchronizowanego sejfu"
   },
   "syncMismatchAdoptConfirm": {
-    "message": "Skasuj ten sejf i dołącz do zsynchronizowanego"
+    "message": "Skasuj ten sejf i zaimportuj zsynchronizowany"
   },
   "syncMismatchAdoptNeedsPassword": {
     "message": "Wpisz hasło główne zsynchronizowanego sejfu."
@@ -1979,10 +1979,10 @@
     "message": "Synchronizacja nie powiodła się. Zostanie ponowiona."
   },
   "adoptHeading": {
-    "message": "Na Twoim drugim komputerze już jest sejf"
+    "message": "Zsynchronizowany sejf już tu jest"
   },
   "adoptBody": {
-    "message": "Chrome zsynchronizował go tutaj, wciąż zaszyfrowany. Wpisz hasło główne, którego do niego używasz, a ten komputer dołączy do tego samego sejfu — nie ma nic do eksportowania ani przenoszenia."
+    "message": "Chrome zsynchronizował go tutaj, wciąż zaszyfrowany. Wpisz hasło główne, którego do niego używasz, a ten komputer zacznie korzystać z tego samego sejfu — nie ma nic do eksportowania ani przenoszenia."
   },
   "adoptFieldPassword": {
     "message": "Hasło główne"
