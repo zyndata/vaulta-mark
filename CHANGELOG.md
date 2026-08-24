@@ -12,6 +12,18 @@ below.
 
 ## [Unreleased]
 
+### Changed
+
+- **One sentence about coercion is gone from the privacy policy, the README and the Store listing.**
+  Forgetting the master password still makes the vault permanently unreadable, and that is still the
+  design rather than a limitation — but "it is the reason nobody can be compelled to hand over your
+  bookmarks" claimed more than the design can carry. Encryption protects the vault from someone who
+  has the file; it does not protect you from someone who can make you type the password. The
+  sentence that survives says what is true and stops there.
+- **The privacy policy no longer says the source is unpublished.** It has been public since
+  2026-08-15 and the policy had not caught up. It still says plainly that there has been no
+  third-party security audit, because there has not been one.
+
 ## [1.2.0] - 2026-08-24
 
 ### Added

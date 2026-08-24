@@ -87,11 +87,21 @@ part a person recognises in a toolbar.
 | 4 | `screenshot-4-sync.png` | Settings: both tiers, Drive disconnected, the quota bar. Light. |
 | 5 | `screenshot-5-no-recovery.png` | Setup step 2 — the no-recovery warning, and the phrase you have to type. Dark. |
 
-**Retaken for 1.1.0: shots 1 and 3, and only those two.** Folder rows in the sidebar gained the
-pencil that tag rows have had since Phase 6, so the two shots showing the sidebar were out of date
-and the other three came back byte-identical from the same script. That is worth knowing about the
-capture: it is deterministic, so a rerun that changes a file is telling you the UI changed, and a
-rerun that changes nothing is not a wasted afternoon.
+**Retaken for 1.2.0: shots 1, 3 and 4.** Both sidebar shots gained the *Duplicates* row, shot 1
+gained the *Show QR code* button in the detail pane, and shot 4 was the one that had to be retaken
+rather than merely could be: it showed a *Locking* checkbox reading **"Lock when I switch to another
+app"**, which is a sentence the shipped product no longer contains, and it predated the whole
+*Toolbar appearance* section. Shots 2 and 5 came back byte-identical. (For 1.1.0 it was 1 and 3, when
+folder rows gained the pencil tag rows have had since Phase 6.)
+
+That is worth knowing about the capture: it is deterministic, so a rerun that changes a file is
+telling you the UI changed, and a rerun that changes nothing is not a wasted afternoon. **Two things
+it is not deterministic about**, both worth a second run before believing a diff: the favicon warm-up
+is best-effort over the network, so a flaky run swaps a real icon for Chrome's generic globe — one
+run here lost `seat61.com` and the next brought it back — and until 1.2.0 the script took its
+**language from the operating system**, which on a Polish machine meant it did not run at all. Pinned
+now, the way `test/e2e/harness.ts` pins it, and for the same reason: these are the English listing's
+pictures.
 
 **Everything in them is invented.** Real, well-known destinations, so the favicons and domains look
 like a person's vault rather than a lorem-ipsum one, with titles, folders, tags and notes written
@@ -177,7 +187,7 @@ Your master password is stretched with PBKDF2-HMAC-SHA256 (600,000 iterations) i
 
 THERE IS NO PASSWORD RECOVERY
 
-None. Not by the developer, not by Google, not by anyone. No recovery key exists and no backdoor exists. If you forget your master password, your vault is permanently unreadable. That is the design, and it is the reason nobody can be compelled to hand over your bookmarks. Use the built-in encrypted export as your backup.
+None. Not by the developer, not by Google, not by anyone. No recovery key exists and no backdoor exists. If you forget your master password, your vault is permanently unreadable. That is the design. Use the built-in encrypted export as your backup.
 
 PRIVACY
 
@@ -417,7 +427,7 @@ Twoje hasło główne jest rozciągane algorytmem PBKDF2-HMAC-SHA256 (600 000 it
 
 NIE MA ODZYSKIWANIA HASŁA
 
-Żadnego. Ani przez autora, ani przez Google, ani przez nikogo. Nie istnieje klucz odzyskiwania i nie istnieje tylne wejście. Jeśli zapomnisz hasła głównego, Twój sejf będzie trwale nie do odczytania. Taki jest projekt i to dlatego nikogo nie da się zmusić do wydania Twoich zakładek. Jako kopii zapasowej używaj wbudowanego zaszyfrowanego eksportu.
+Żadnego. Ani przez autora, ani przez Google, ani przez nikogo. Nie istnieje klucz odzyskiwania i nie istnieje tylne wejście. Jeśli zapomnisz hasła głównego, Twój sejf będzie trwale nie do odczytania. Takie jest założenie projektu. Jako kopii zapasowej używaj wbudowanego zaszyfrowanego eksportu.
 
 PRYWATNOŚĆ
 

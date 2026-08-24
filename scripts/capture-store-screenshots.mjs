@@ -39,6 +39,9 @@ const OUT = resolve(repoRoot, 'docs/store');
 const PASSWORD = 'correct horse battery staple';
 const CONFIRM_PHRASE = 'I understand';
 
+/** The listing these pictures belong to. Matches `E2E_LANGUAGE` in test/e2e/harness.ts. */
+const LANGUAGE = 'en-US';
+
 const SHOT = { width: 1280, height: 800 };
 /** `#vm-root` is 26.4rem × 37.5rem; the extra pixel keeps the fractional width off a scrollbar. */
 const POPUP = { width: 423, height: 600 };
@@ -353,7 +356,17 @@ async function main() {
     channel: 'chromium',
     headless: true,
     viewport: SHOT,
-    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+    // Both halves of the language pin, for the reason test/e2e/harness.ts gives at length: `--lang`
+    // picks which `_locales/<tag>/messages.json` Chrome renders and comes from the *operating
+    // system* when unset, and `locale` is what a page gets back from `chrome.i18n.getUILanguage()`.
+    // These are the English listing's pictures, and every selector below names an English word, so
+    // on a Polish machine this script fails at the first `Next` — which is how the pin was missed.
+    locale: LANGUAGE,
+    args: [
+      `--disable-extensions-except=${DIST}`,
+      `--load-extension=${DIST}`,
+      `--lang=${LANGUAGE}`,
+    ],
   });
 
   try {
