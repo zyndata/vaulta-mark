@@ -2097,16 +2097,22 @@ ships. Pinned in `test/e2e/harness.ts` and `playwright.config.ts`.
 
 ---
 
-### Releasing 14–18
+### Releasing 14–19
 
-These five land on `dev` and ship together as **1.2.0** — features, so a minor bump by RELEASE §4's
+These six land on `dev` and ship together as **1.2.0** — features, so a minor bump by RELEASE §4's
 table. **Phase 17's first question is answered and the answer is no schema change** (§ Phase 17), so
 1.2.0 is an ordinary minor release and no device is asked to wait for a Chrome update.
 
+**Cut on 2026-08-24**: version bumped on `dev`, the CHANGELOG's `[Unreleased]` closed as
+`[1.2.0]`, and `dev` merged into `main` with `--no-ff`. The tag, the GitHub Release and the Store
+upload follow RELEASE §4 steps 6–9 and are each a deliberate act.
+
 Two things to raise at the release itself:
 
-- **The rewritten Store short description is still unpublished.** It has been on `dev` since before
-  1.1.0 and only a package upload can publish it.
+- **The rewritten Store short descriptions are still unpublished** — the English one (129
+  characters) and the Polish one (130). Both have been on `dev` since before 1.1.0, whose package
+  went up only as a never-submitted draft, so 1.2.0 is the upload that publishes them. Only a
+  package can: the short description is the manifest's `description`.
 - **Check `gh run list` before the release merge.** 1.0.0 was tagged while CI on `dev` was red and
   the fix was sitting uncommitted in the working tree — a local `verify` that is green *because* of
   an unsaved file is green about nothing.

@@ -12,6 +12,8 @@ below.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-24
+
 ### Added
 
 - **A site you only ever open through VaultaMark can finally have its own icon.** Until now the
@@ -1060,6 +1062,7 @@ The first release. Everything below is new, because there was nothing before it.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
-[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.1.0...dev
+[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.2.0...dev
+[1.2.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.0
 [1.1.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.1.0
 [1.0.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.0.0
