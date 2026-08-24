@@ -32,7 +32,7 @@ const file = (name: string, bytes: number) => ({ name, bytes, zipped: Math.round
 const fits: Measurement = {
   zipBytes: 150 * 1024,
   files: [
-    file('background.js', 300 * 1024),
+    file('background.js', 180 * 1024),
     file('assets/manager-abc.js', 80 * 1024),
     file('manifest.json', 2 * 1024),
   ],
@@ -58,12 +58,12 @@ describe('the ceilings', () => {
   it('holds the service worker to its own, larger ceiling', () => {
     /*
      * Two numbers rather than one, and this is the pair of cases that says why. `background.js` at
-     * 300 KB is fine and any other file at 300 KB is not: the worker cannot be split (a service
-     * worker that code-splits will `import()` after being torn down) and 153 KB of it is two
-     * bundled data sets whose evaluation cost is measured separately. See PLAN §9 Phase 12.
+     * 180 KB is fine and any other file at 180 KB is not: the worker cannot be split (a service
+     * worker that code-splits will `import()` after being torn down), so it is the one file whose
+     * size is not a statement about what a document parses before it paints. See PLAN §9 Phase 12.
      */
-    expect(checkBudgets({ ...fits, files: [file('background.js', 300 * 1024)] })).toEqual([]);
-    expect(checkBudgets({ ...fits, files: [file('other.js', 300 * 1024)] })).not.toEqual([]);
+    expect(checkBudgets({ ...fits, files: [file('background.js', 180 * 1024)] })).toEqual([]);
+    expect(checkBudgets({ ...fits, files: [file('other.js', 180 * 1024)] })).not.toEqual([]);
 
     const over = { ...fits, files: [file('background.js', BUDGETS.workerBytes + 1)] };
     expect(checkBudgets(over)[0]).toContain('service-worker budget');

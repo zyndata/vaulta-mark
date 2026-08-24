@@ -54,7 +54,8 @@ src/
 ├─ thumbs/              validate.ts  process.ts  store.ts
 ├─ import/              native-bookmarks.ts
 ├─ history/             domain.ts (registrable domains)  cleanup.ts (chrome.history)
-│                       public-suffix.ts  ← generated, `npm run update-psl`
+│                       public-suffix.ts  ← loads public/public-suffix-list.txt
+│                                            (generated, `npm run update-psl`)
 ├─ io/                  export-encrypted.ts  import-encrypted.ts  rollback.ts
 ├─ content/             og-capture.ts   (injected on demand, never declared in the manifest)
 ├─ popup/               popup.ts (shell + create/unlock)  vault.ts (the unlocked screen)
@@ -2074,8 +2075,10 @@ through.
 
 ### 12.1 Registrable-domain extraction
 
-**Decision:** bundle the Public Suffix List (~10,200 rules, ~140 KB of source text, ~43 KB gzipped),
-committed as a generated asset with a documented regeneration script. A naive "last two labels"
+**Decision:** ship the Public Suffix List (~10,200 rules, ~140 KB of text, ~43 KB gzipped) inside
+the package, committed as a generated asset with a documented regeneration script.
+**Amended 2026-08-24: it is a package *asset*, not a bundled string** — see the implementation note
+below. A naive "last two labels"
 heuristic is wrong for `co.uk`, `com.au`, `github.io`, and several hundred other common suffixes —
 and being wrong here means either failing to clean a domain the user asked to clean, or cleaning a
 *different* site's history. Both are unacceptable, so the bytes are worth it.
@@ -2088,16 +2091,34 @@ and being wrong here means either failing to clean a domain the user asked to cl
 > section exists to prevent. Both sections are bundled. (The "~9,000 entries" figure in the original
 > text already described the whole list rather than the ICANN section, which has 6,949.)
 
-Implementation: `src/history/public-suffix.ts` (generated), `src/history/domain.ts` (the algorithm).
-Rules are **punycoded at generation time**, because `URL.hostname` is always in its ASCII form and a
-rule kept in Unicode could never match anything the extension sees. The three rule kinds — plain,
-`*.` wildcard, `!` exception — are stored as three newline-joined strings and turned into sets
-lazily, on the first lookup: the module is reachable from the service worker's initial evaluation,
-and the cold-start budget is 50 ms (§7.2). Measured cost of evaluating the literals: 0.06 ms.
+Implementation: `public/public-suffix-list.txt` (generated), `src/history/public-suffix.ts` (reads
+and parses it), `src/history/domain.ts` (the algorithm, pure and handed its rules). Rules are
+**punycoded at generation time**, because `URL.hostname` is always in its ASCII form and a rule kept
+in Unicode could never match anything the extension sees. The file keeps publicsuffix.org's own
+syntax — `*.` for wildcards, `!` for exceptions — so it can be diffed against the source it came
+from, and the parser is the only thing that has to agree with `update-psl.mjs`.
 
-The list is a static asset, never fetched at runtime. Regeneration is a manual `npm run update-psl`
-that writes a dated file and requires a reviewed diff — no auto-updating from a URL (that would be
-remote data influencing a security-relevant decision).
+> **It stopped being three bundled strings on 2026-08-24, and that was a budget decision.** The
+> worker may not code-split (§2), so the list sat inside `background.js`: 144 KB of a 327.7 KB file
+> parsed every time Chrome wakes the worker, against a 340 KB ceiling that 1.2.0 had left 12 KB of.
+> Read as an asset instead, the worker is **178.8 KB** and the ceiling came down to 220 KB
+> (`scripts/check-budgets.mjs`). Nothing about the list's content or its authority changed.
+>
+> Three properties survive the move and are the reason it is safe:
+>
+> - **`fetch(chrome.runtime.getURL(…))` is an extension-origin read**, not network traffic. INV-3
+>   and INV-4 are untouched, and browsing the vault still makes zero requests — nothing loads this
+>   until someone asks to delete history.
+> - **A failed read refuses.** There is no "last two labels" fallback, because that answer is wrong
+>   in the direction that deletes a stranger's history. `PublicSuffixListError` propagates and the
+>   operation does not happen. A parse that yields under 1,000 plain rules counts as failure.
+> - **It is still off the cold-start path.** The module loads nothing at import; the first history
+>   operation pays for the read and the parse, and the 50 ms cold-start budget (§7.2) never sees it.
+>   The old lazy `Set` construction was measured at 0.06 ms and this replaces it, not the reverse.
+
+The list is a static asset, read only from the installed package and never fetched from a network.
+Regeneration is a manual `npm run update-psl` that writes a dated file and requires a reviewed diff
+— no auto-updating from a URL (that would be remote data influencing a security-relevant decision).
 
 An IP literal has no registrable domain in the PSL sense and is answered with **itself**, so a
 bookmark on a NAS or a dev box can still be cleaned; equality is the right containment test for
@@ -2698,9 +2719,11 @@ Everything we need is in the platform:
 | UI | `src/ui/dom.ts` (~150 LOC, in-repo) |
 | Virtualized list | `src/ui/components/virtual-list.ts` (~120 LOC, in-repo) |
 
-**Static data assets** (not code) that we do bundle: the trimmed Public Suffix List (§12.1) and the
+**Static data assets** (not code) that we do ship: the Public Suffix List (§12.1) and the
 common-password list (§4.6). Both are generated by a committed script, reviewed as a diff, and never
-fetched at runtime.
+fetched from a network. The password list is a module the worker bundles; the suffix list is a file
+in the package the worker reads at first use, because it is 144 KB and the worker is parsed every
+time Chrome wakes it (§12.1).
 
 **Exception process.** Adding a runtime dependency requires: an issue stating what it does and why
 the platform cannot; a bundle-size measurement; a look at its own dependency tree (transitive

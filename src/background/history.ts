@@ -25,11 +25,10 @@
 import {
   HistoryPermissionError,
   deleteHistory,
-  domainsOf,
   hasHistoryPermission,
   scanHistory,
 } from '../history/cleanup.js';
-import { registrableDomain, registrableDomainOf } from '../history/domain.js';
+import { publicSuffixMatcher } from '../history/public-suffix.js';
 import { isSamePage, pageIndex } from '../history/match.js';
 import type {
   CountResponse,
@@ -48,8 +47,9 @@ import * as session from './session.js';
  * Tombstones are already gone by the time `getAll` answers, which is the behaviour we want: a
  * bookmark deleted last week is not a domain the user is asking us to keep clean.
  */
-export function vaultDomains(repo: VaultRepository): string[] {
-  return domainsOf(
+export async function vaultDomains(repo: VaultRepository): Promise<string[]> {
+  const psl = await publicSuffixMatcher();
+  return psl.domainsOf(
     repo
       .getAll()
       .filter(isBookmark)
@@ -72,7 +72,7 @@ export async function previewCleanup(): Promise<HistoryPreviewResponse> {
     return { type: 'HISTORY_PREVIEW', granted: false, domains: [], searched: 0, entries: 0 };
   }
 
-  const domains = vaultDomains(repo);
+  const domains = await vaultDomains(repo);
   const scan = await scanHistory(domains);
   return {
     type: 'HISTORY_PREVIEW',
@@ -101,7 +101,7 @@ export async function runCleanup(only?: readonly string[]): Promise<CountRespons
   await session.touch();
   if (!(await hasHistoryPermission())) throw new HistoryPermissionError('clearing history');
 
-  const vaulted = vaultDomains(repo);
+  const vaulted = await vaultDomains(repo);
   const wanted = only === undefined ? vaulted : vaulted.filter((domain) => only.includes(domain));
   if (wanted.length === 0) return { type: 'COUNT', count: 0 };
 
@@ -135,7 +135,8 @@ export async function historyPresence(): Promise<HistoryPresenceResponse> {
   }
 
   const bookmarks = repo.getAll().filter(isBookmark);
-  const scan = await scanHistory(domainsOf(bookmarks.map((item) => item.url)));
+  const psl = await publicSuffixMatcher();
+  const scan = await scanHistory(psl.domainsOf(bookmarks.map((item) => item.url)));
   const index = pageIndex(scan.urls);
   return {
     type: 'HISTORY_PRESENCE',
@@ -164,7 +165,8 @@ export async function forgetItemHistory(id: string): Promise<CountResponse> {
   const item = repo.getAll().find((candidate) => candidate.id === id);
   if (item === undefined || !isBookmark(item)) return { type: 'COUNT', count: 0 };
 
-  const domain = registrableDomainOf(item.url);
+  const psl = await publicSuffixMatcher();
+  const domain = psl.registrableDomainOf(item.url);
   if (domain === null) return { type: 'COUNT', count: 0 };
 
   const scan = await scanHistory([domain]);
@@ -193,13 +195,14 @@ export async function cleanOnLock(repo: VaultRepository, settings: VaultSettings
     if (!(await hasHistoryPermission())) return;
 
     const queued = await readHistoryQueue();
+    const psl = await publicSuffixMatcher();
     const domains = new Set<string>();
     for (const host of queued) {
-      const domain = registrableDomain(host);
+      const domain = psl.registrableDomain(host);
       if (domain !== null) domains.add(domain);
     }
     if (settings.clearHistoryOnLock) {
-      for (const domain of vaultDomains(repo)) domains.add(domain);
+      for (const domain of await vaultDomains(repo)) domains.add(domain);
     }
     if (domains.size === 0) return;
 
@@ -247,7 +250,8 @@ export async function quickClose(): Promise<QuickCloseOutcome> {
   const tabId = tab?.id;
   if (url === undefined || tabId === undefined) return 'refused';
 
-  const domain = registrableDomain(new URL(url).hostname);
+  const psl = await publicSuffixMatcher();
+  const domain = psl.registrableDomain(new URL(url).hostname);
   if (domain === null) return 'refused';
 
   const scan = await scanHistory([domain]);

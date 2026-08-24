@@ -6,27 +6,31 @@
  * over-matches Chrome would really return and then asserts that none of them was deleted.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   HistoryPermissionError,
   deleteHistory,
-  domainsOf,
   dropHistoryPermission,
   hasHistoryPermission,
   requestHistoryPermission,
   scanHistory,
 } from '../../../src/history/cleanup.js';
+import { stubPublicSuffixAsset } from '../../helpers/psl.js';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../../mocks/chrome.js';
 
 let mock: ChromeMock;
 
-beforeEach(() => {
+beforeEach(async () => {
   mock = installChromeMock({ grantedPermissions: ['history'] });
+  // `scanHistory` re-checks every result against the public suffix list, which the worker reads out
+  // of its own package rather than carrying in the bundle (src/history/public-suffix.ts).
+  await stubPublicSuffixAsset();
 });
 
 afterEach(() => {
   uninstallChromeMock();
+  vi.unstubAllGlobals();
 });
 
 function seed(...urls: readonly (string | { url: string; title: string })[]): void {
@@ -130,21 +134,3 @@ describe('deleteHistory', () => {
   });
 });
 
-describe('domainsOf', () => {
-  it('reduces URLs to distinct registrable domains, in first-seen order', () => {
-    expect(
-      domainsOf([
-        'https://news.bbc.co.uk/a',
-        'https://www.bbc.co.uk/b',
-        'https://example.com/c',
-        'https://sub.example.com/d',
-      ]),
-    ).toEqual(['bbc.co.uk', 'example.com']);
-  });
-
-  it('drops anything with no host to reason about', () => {
-    expect(domainsOf(['not a url', 'about:blank', 'https://example.com/ok'])).toEqual([
-      'example.com',
-    ]);
-  });
-});
