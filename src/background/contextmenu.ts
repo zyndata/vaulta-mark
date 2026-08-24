@@ -7,7 +7,8 @@
  *
  * Menus are **recreated from scratch** on every install and browser start. `contextMenus.create`
  * fails with "duplicate id" rather than replacing, and an MV3 worker restarts constantly, so
- * `removeAll()` first is the only shape that is safe to run twice.
+ * `removeAll()` first is the only shape that is safe to run twice — *in sequence*. Two rebuilds
+ * running at once are a different matter, and {@link installContextMenus} is where that is handled.
  *
  * Handlers are injected, as in `commands.ts`: this module has no idea what a vault is, and a test
  * can assert what a click dispatches to without unlocking one.
@@ -28,14 +29,40 @@ export interface ContextMenuDeps {
 }
 
 /**
- * (Re)create the entries. Safe to call on every worker start.
+ * The tail of the rebuilds asked for so far. See {@link installContextMenus}.
+ *
+ * Module scope in an MV3 worker is per-worker-lifetime, which is exactly the scope that needs
+ * covering: the overlap this guards against is two events delivered to the *same* worker.
+ */
+let rebuilding: Promise<void> = Promise.resolve();
+
+/**
+ * (Re)create the entries. Safe to call on every worker start, and safe to call twice at once.
+ *
+ * **Rebuilds are queued rather than run side by side**, which is not decoration. `onInstalled` and
+ * `onStartup` both fire when a browser starts up on an extension that was updated while it was
+ * closed, and both call this. Interleaved, the two runs go: remove, remove, create, create,
+ * *create* — because the second `removeAll()` was already in flight when the first run's items
+ * were made, so it removed nothing and its creates landed on top of them. Chrome answers the
+ * second pair with `Unchecked runtime.lastError: Cannot create item with duplicate id vm.add-page`
+ * (maintainer-reported 2026-08-23) and the menus are left as whichever run won. Sequenced, the
+ * later `removeAll()` sees the earlier run's items and clears them, which is the shape the
+ * `removeAll`-first design assumed all along.
  *
  * `documentUrlPatterns` is deliberately absent: the entries appear everywhere, including on the
  * pages we refuse to vault, and the refusal explains itself when clicked. Hiding the entry on a
  * `chrome://` page would be tidier and would also make the extension look broken exactly where a
  * new user first tries it.
  */
-export async function installContextMenus(): Promise<void> {
+export function installContextMenus(): Promise<void> {
+  // A failed rebuild must not poison the queue: the next caller's job is to rebuild the menus, and
+  // it can do that whatever happened to the one before it.
+  const run = rebuilding.then(rebuildMenus, rebuildMenus);
+  rebuilding = run.catch(() => undefined);
+  return run;
+}
+
+async function rebuildMenus(): Promise<void> {
   await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({
     id: MENU_IDS.addPage,

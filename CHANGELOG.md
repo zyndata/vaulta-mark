@@ -148,6 +148,12 @@ below.
   from the quick menu showed the whole vault for a moment first, while the settings screen was still
   asking about sync. The manager now goes straight there.
 
+- **A duplicate-menu error in the console on some browser starts.** When Chrome started up on a
+  VaultaMark that had been updated while the browser was closed, two separate events each rebuilt
+  the right-click menu at the same time, and one of them lost the race —
+  `Cannot create item with duplicate id`. The rebuilds now queue behind each other. The menu
+  entries themselves always worked; the error was noise, but it was real.
+
 - **"Refresh icon" could delete a good icon and leave nothing behind.** It re-read Chrome's store
   and wrote down the answer, including an empty one — which was right when that store was the only
   source. For a site you only open through VaultaMark that store is empty **permanently**, so the
