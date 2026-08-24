@@ -41,15 +41,21 @@ const CHROME = ONBOARDING_STEPS.indexOf('chrome');
 
 describe('the step list', () => {
   it('is the five screens PLAN §9 names, in that order', () => {
-    expect([...ONBOARDING_STEPS]).toEqual(['intro', 'password', 'incognito', 'sync', 'chrome']);
+    expect([...ONBOARDING_STEPS]).toEqual(['intro', 'password', 'sync', 'chrome', 'incognito']);
     expect(LAST_STEP).toBe(4);
+  });
+
+  it('ends on incognito, because that screen closes the tab it is rendered in', () => {
+    // Ticking "Allow in Incognito" reloads the extension and Chrome takes every extension page
+    // down with it. Last is the only position where that costs the user nothing.
+    expect(ONBOARDING_STEPS[LAST_STEP]).toBe('incognito');
   });
 
   it('clamps an index from storage rather than rendering nothing', () => {
     expect(stepAt(0)).toBe('intro');
-    expect(stepAt(4)).toBe('chrome');
+    expect(stepAt(4)).toBe('incognito');
     expect(stepAt(-3)).toBe('intro');
-    expect(stepAt(99)).toBe('chrome');
+    expect(stepAt(99)).toBe('incognito');
     expect(stepAt(Number.NaN)).toBe('intro');
   });
 });
@@ -62,7 +68,7 @@ describe('the no-recovery gate', () => {
 
   it('opens the moment a vault exists, and only then', () => {
     expect(canAdvance(at(PASSWORD, { vaultExists: true }))).toBe(true);
-    expect(next(at(PASSWORD, { vaultExists: true }))).toBe(INCOGNITO);
+    expect(next(at(PASSWORD, { vaultExists: true }))).toBe(SYNC);
   });
 
   it('cannot be walked around by an incognito answer', () => {
@@ -93,8 +99,9 @@ describe('the ungated steps', () => {
   });
 
   it('stops advancing at the last step', () => {
-    expect(isLastStep(CHROME)).toBe(true);
-    expect(next(at(CHROME, { vaultExists: true, incognitoAllowed: true }))).toBe(CHROME);
+    expect(isLastStep(INCOGNITO)).toBe(true);
+    expect(isLastStep(CHROME)).toBe(false);
+    expect(next(at(INCOGNITO, { vaultExists: true, incognitoAllowed: true }))).toBe(INCOGNITO);
   });
 });
 
@@ -103,7 +110,7 @@ describe('going back', () => {
     // Rewinding to re-read the introduction cannot un-create a vault, and a flow you can only go
     // forwards through is one people click through without reading.
     expect(back(at(PASSWORD))).toBe(INTRO);
-    expect(back(at(INCOGNITO, { vaultExists: true }))).toBe(PASSWORD);
+    expect(back(at(INCOGNITO, { vaultExists: true }))).toBe(CHROME);
   });
 
   it('stops at the first step', () => {
@@ -132,11 +139,11 @@ describe('resumeStep', () => {
   it('holds a vault-less profile back to the password step', () => {
     // A record saying "step 4" beside a profile with no vault is a half-finished flow whose vault
     // was destroyed since, or a corrupted number. Both want the same answer.
-    expect(resumeStep(record({ step: CHROME }), false)).toBe(PASSWORD);
+    expect(resumeStep(record({ step: INCOGNITO }), false)).toBe(PASSWORD);
   });
 
   it('clamps a step from a build with a different number of screens', () => {
-    expect(resumeStep(record({ step: 99 }), true)).toBe(CHROME);
+    expect(resumeStep(record({ step: 99 }), true)).toBe(INCOGNITO);
     expect(resumeStep(record({ step: -1 }), true)).toBe(INTRO);
   });
 });

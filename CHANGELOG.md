@@ -137,6 +137,13 @@ below.
 
 ### Fixed
 
+- **Setup lost its last two screens to the very step it asked you to complete.** Turning on *Allow
+  in Incognito* restarts VaultaMark, and Chrome closes every VaultaMark page that is open — the
+  setup tab included. So doing the thing the screen asked for ended setup two screens early. That
+  screen is now the **last** one, and it says the tab is about to close before you go and do it, so
+  there is nothing left to lose when it does. Skipping it from there finishes setup instead of
+  leaving you on a dead page.
+
 - **"Refresh icon" could delete a good icon and leave nothing behind.** It re-read Chrome's store
   and wrote down the answer, including an empty one — which was right when that store was the only
   source. For a site you only open through VaultaMark that store is empty **permanently**, so the

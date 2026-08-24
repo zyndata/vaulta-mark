@@ -11,7 +11,9 @@
  * - **Incognito is either on or explicitly skipped.** Half the promise of the product is that vaulted
  *   links open in incognito, and it needs a checkbox on a page we are not allowed to navigate to
  *   (ARCHITECTURE §9). Nobody may be swept past it without noticing, and nobody may be trapped on it
- *   either — so "skip for now" is a real answer that leaves a real reminder.
+ *   either — so "skip for now" is a real answer that leaves a real reminder. It is also the *last*
+ *   screen now, because ticking the checkbox reloads the extension out from under this tab; see
+ *   {@link ONBOARDING_STEPS}.
  *
  * Everything here is a pure function of a snapshot, so the whole of it is testable without a
  * browser, a vault or a clock.
@@ -22,11 +24,15 @@ import type { OnboardingRecord } from '../../vault/types.js';
 /**
  * The five screens, in order (PLAN §9).
  *
- * Order is load-bearing. The password comes before incognito because a vault has to exist before
- * "open a vaulted link" means anything, and the two things Chrome still does come last because they
- * are the ones you only care about once everything else is working.
+ * Order is load-bearing, and incognito is last for a reason that is not about reading order.
+ * **Ticking "Allow in Incognito" reloads the extension, and Chrome closes every extension page it
+ * has open — this wizard's tab included** (maintainer-reported 2026-08-23). Nothing can survive
+ * that: the reload fires no `onInstalled` and no `onStartup`, so there is no event to reopen the
+ * tab from, and the page is gone before any of its own code could run. Which leaves one honest
+ * answer — put the step that kills the tab where there is nothing after it to lose. The password
+ * still comes first, because a vault has to exist before "open a vaulted link" means anything.
  */
-export const ONBOARDING_STEPS = ['intro', 'password', 'incognito', 'sync', 'chrome'] as const;
+export const ONBOARDING_STEPS = ['intro', 'password', 'sync', 'chrome', 'incognito'] as const;
 
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
@@ -58,10 +64,11 @@ export function stepAt(index: number): OnboardingStep {
 /**
  * Whether the flow may leave the step it is on.
  *
- * `intro` and `sync` are always passable — they are things to read, and a reader who disagrees with
+ * `intro`, `sync` and `chrome` are always passable — they are things to read, plus one offer
+ * (clean history) that is not ours to make on the user's behalf, and a reader who disagrees with
  * the sync tier can change it in Settings. The other two are the gates described at the top.
- * `chrome` is the last step, so "advancing" from it means finishing, which is always allowed: its
- * two offers (clean history, turn off URL prediction) are ones we cannot make on the user's behalf.
+ * `incognito` is the last step, so "advancing" from it means finishing — and its gate still holds
+ * there, because the only ways off the screen are the thing itself and an explicit skip.
  */
 export function canAdvance(progress: OnboardingProgress): boolean {
   switch (stepAt(progress.step)) {
@@ -107,6 +114,11 @@ export function isLastStep(step: number): boolean {
  * A stored step is clamped *and* held back to the password step when there is no vault: a record
  * saying "step 4" beside a profile with no vault is either a half-finished flow whose vault was
  * destroyed since, or a corrupted number. Both want the same answer.
+ *
+ * A record left mid-flow is not a failure state and nothing nags about one: the wizard is opened by
+ * `onInstalled` and by "Replay onboarding", which resets `step` first. That matters more since the
+ * incognito step moved last — the tab is *expected* to die there, so the successful path is the one
+ * that leaves the record unstamped.
  */
 export function resumeStep(record: OnboardingRecord, vaultExists: boolean): number | null {
   if (record.completedAt !== null) return null;

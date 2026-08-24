@@ -138,10 +138,12 @@ test('a fresh profile, from first run to a restored backup, without touching the
 
   // Creating the vault carries the flow forward on its own: the thing the user came for happened.
   await expect(setup.getByText('Step 3 of 5')).toBeVisible();
-  await setup.getByRole('button', { name: 'Skip for now' }).click();
   await setup.getByRole('button', { name: 'Next' }).click();
+  await setup.getByRole('button', { name: 'Next' }).click();
+  // Incognito is the last screen — ticking its checkbox reloads the extension and closes this tab,
+  // so nothing may follow it. Skipping from there finishes setup rather than advancing.
   await expect(setup.getByText('Step 5 of 5')).toBeVisible();
-  await setup.getByRole('button', { name: 'Finish setup' }).click();
+  await setup.getByRole('button', { name: 'Skip for now' }).click();
 
   // Finishing lands on the manager, with a vault that really exists.
   await expect(setup.getByRole('button', { name: 'New folder' })).toBeVisible();

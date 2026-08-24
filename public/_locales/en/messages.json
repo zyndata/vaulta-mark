@@ -2845,6 +2845,10 @@
     "message": "This profile already has a vault, so there is nothing to create here. You can change the master password later in Settings.",
     "description": "Shown on onboarding step 2 when a vault already exists."
   },
+  "onboardingIncognitoTabCloses": {
+    "message": "Turning it on restarts VaultaMark, which closes this tab. This is the last step, so nothing is lost — everything before it is already saved.",
+    "description": "Warns that ticking the checkbox on chrome://extensions takes this page down with it."
+  },
   "onboardingIncognitoSkip": {
     "message": "Skip for now",
     "description": "Passes the incognito step without turning the setting on."

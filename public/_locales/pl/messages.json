@@ -3056,6 +3056,9 @@
   "onboardingPasswordExists": {
     "message": "Ten profil ma już sejf, więc nie ma tu czego tworzyć. Hasło główne możesz później zmienić w Ustawieniach."
   },
+  "onboardingIncognitoTabCloses": {
+    "message": "Włączenie tej opcji przeładowuje VaultaMark, co zamyka tę kartę. To ostatni krok, więc nic nie przepada — wszystko przed nim jest już zapisane."
+  },
   "onboardingIncognitoSkip": {
     "message": "Pomiń na razie"
   },

@@ -5,8 +5,8 @@
  * and reports what happened, and the only thing that decides whether Next moves is `canAdvance`.
  *
  * It lives on the manager page rather than in the popup for the same reason the incognito prompt
- * does: step 3 sends the user to a `chrome://` tab and waits for them to come back, and a popup is
- * gone the moment focus leaves it (ARCHITECTURE §9).
+ * does: the incognito step sends the user to a `chrome://` tab and waits for them to come back, and
+ * a popup is gone the moment focus leaves it (ARCHITECTURE §9).
  *
  * **Every step re-reads the world instead of remembering it.** Whether a vault exists and whether
  * incognito access is on are both facts a user can change in another window — one by finishing the
@@ -260,71 +260,7 @@ export function mountOnboarding(root: HTMLElement, options: OnboardingOptions): 
     );
   }
 
-  /* ---------------------------------------------------------------- 3. incognito */
-
-  function incognitoStep(): HTMLElement {
-    const allowed = progress.incognitoAllowed;
-    const result = h('p', {
-      class: `vm-notice${allowed ? ' vm-notice--ok' : ' vm-notice--warning'}`,
-      role: 'status',
-    });
-    result.textContent = msg(allowed ? 'incognitoNowOn' : 'incognitoStillOff');
-
-    const recheck = h(
-      'button',
-      {
-        type: 'button',
-        class: 'vm-button',
-        onclick: () => {
-          void (async () => {
-            const rechecked = await send({ type: 'INCOGNITO_ACCESS', recheck: true });
-            if (rechecked.type === 'ERROR') {
-              say(errorText(rechecked.code), 'danger');
-              return;
-            }
-            progress.incognitoAllowed = rechecked.allowed;
-            paint();
-          })();
-        },
-      },
-      msg('incognitoRecheck'),
-    );
-
-    const skip = h(
-      'button',
-      {
-        type: 'button',
-        class: 'vm-button vm-button--quiet',
-        onclick: () => {
-          void (async () => {
-            progress.incognitoSkipped = true;
-            await send({ type: 'SET_ONBOARDING', patch: { incognitoSkipped: true } });
-            say(msg('onboardingIncognitoSkipped'));
-            await goTo(next(progress));
-          })();
-        },
-      },
-      msg('onboardingIncognitoSkip'),
-    );
-
-    return h(
-      'div',
-      { class: 'vm-onboarding-step' },
-      h('h2', null, msg('incognitoHeading')),
-      h('p', null, msg('incognitoWhy')),
-      // The same three steps as the guided prompt, from the same function: two screens asking for
-      // the same thing in two sets of words is how one of them ends up out of date.
-      incognitoSteps(() => {
-        void chrome.tabs.create({ url: settingsUrl });
-      }),
-      result,
-      h('div', { class: 'vm-onboarding-actions' }, recheck, allowed ? null : skip),
-      // Only worth saying while it is still off — after that the nudge is not coming.
-      allowed ? null : h('p', { class: 'vm-small vm-muted' }, msg('onboardingIncognitoSkipHint')),
-    );
-  }
-
-  /* ---------------------------------------------------------------- 4. the sync tier */
+  /* ---------------------------------------------------------------- 3. the sync tier */
 
   /**
    * The two tiers, side by side.
@@ -407,7 +343,7 @@ export function mountOnboarding(root: HTMLElement, options: OnboardingOptions): 
     );
   }
 
-  /* ---------------------------------------------------------------- 5. what Chrome still does */
+  /* ---------------------------------------------------------------- 4. what Chrome still does */
 
   /**
    * The leak a vault cannot close on its own: history.
@@ -452,5 +388,85 @@ export function mountOnboarding(root: HTMLElement, options: OnboardingOptions): 
       render(slot, historyCleanupPanel({ ...historyDeps(say), granted: await hasHistoryPermission() }));
     })();
     return slot;
+  }
+
+  /* ---------------------------------------------------------------- 5. incognito */
+
+  /**
+   * The last screen, and the only one that ends with the page being destroyed.
+   *
+   * Ticking "Allow in Incognito" reloads the extension, and Chrome takes every extension page down
+   * with it — reported 2026-08-23, and unrecoverable from in here: the reload fires neither
+   * `onInstalled` nor `onStartup`, so nothing can reopen this tab, and no code of ours runs between
+   * the tick and the close. So the step moved to the end (`steps.ts`) and says what is about to
+   * happen. A record left unstamped by a tab that died here is the *successful* path, not a fault.
+   */
+  function incognitoStep(): HTMLElement {
+    const allowed = progress.incognitoAllowed;
+    const result = h('p', {
+      class: `vm-notice${allowed ? ' vm-notice--ok' : ' vm-notice--warning'}`,
+      role: 'status',
+    });
+    result.textContent = msg(allowed ? 'incognitoNowOn' : 'incognitoStillOff');
+
+    const recheck = h(
+      'button',
+      {
+        type: 'button',
+        class: 'vm-button',
+        onclick: () => {
+          void (async () => {
+            const rechecked = await send({ type: 'INCOGNITO_ACCESS', recheck: true });
+            if (rechecked.type === 'ERROR') {
+              say(errorText(rechecked.code), 'danger');
+              return;
+            }
+            progress.incognitoAllowed = rechecked.allowed;
+            paint();
+          })();
+        },
+      },
+      msg('incognitoRecheck'),
+    );
+
+    const skip = h(
+      'button',
+      {
+        type: 'button',
+        class: 'vm-button vm-button--quiet',
+        onclick: () => {
+          void (async () => {
+            progress.incognitoSkipped = true;
+            await send({ type: 'SET_ONBOARDING', patch: { incognitoSkipped: true } });
+            say(msg('onboardingIncognitoSkipped'));
+            // `advance`, not `goTo(next(...))`: this is the last screen now, and `next` at the end
+            // answers "stay here". Skipping has to be able to *finish* the flow, or the only way
+            // off the last step would be a Finish button pressed straight after saying "not now".
+            await advance();
+          })();
+        },
+      },
+      msg('onboardingIncognitoSkip'),
+    );
+
+    return h(
+      'div',
+      { class: 'vm-onboarding-step' },
+      h('h2', null, msg('incognitoHeading')),
+      h('p', null, msg('incognitoWhy')),
+      // The same three steps as the guided prompt, from the same function: two screens asking for
+      // the same thing in two sets of words is how one of them ends up out of date.
+      incognitoSteps(() => {
+        void chrome.tabs.create({ url: settingsUrl });
+      }),
+      // Said before the thing happens, because it looks exactly like a crash otherwise: ticking the
+      // checkbox reloads the extension and Chrome closes every page it has open, this tab included.
+      // Only worth saying while the toggle is still off — afterwards this tab is already gone.
+      allowed ? null : h('p', { class: 'vm-small vm-muted' }, msg('onboardingIncognitoTabCloses')),
+      result,
+      h('div', { class: 'vm-onboarding-actions' }, recheck, allowed ? null : skip),
+      // Only worth saying while it is still off — after that the nudge is not coming.
+      allowed ? null : h('p', { class: 'vm-small vm-muted' }, msg('onboardingIncognitoSkipHint')),
+    );
   }
 }

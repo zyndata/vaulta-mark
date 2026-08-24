@@ -1507,7 +1507,7 @@ It lives on the **manager page** (`manager.html#incognito=<itemId>`, built by
 `src/ui/incognito-prompt.ts`) rather than in the popup, because it sends the user to another tab and
 waits for them to come back, and because the fallback below it — a warning, a history checkbox and a
 button — is not a popup's worth of screen. The three steps are exported as `incognitoSteps()` and
-rendered by onboarding's step 3 as well (§12.5): two screens asking for the same thing in two sets of
+rendered by onboarding's incognito step as well (§12.5): two screens asking for the same thing in two sets of
 words is how one of them ends up out of date.
 
 > **Corrected 2026-08-17, and it was not a detail.** Step 2 used to show the address with a **Copy**
@@ -1528,7 +1528,7 @@ words is how one of them ends up out of date.
 > got to. And nothing here can turn the toggle on: there is still no API for that, which is why steps
 > 3–5 are unchanged.
 >
-> Applied in the same pass: this prompt, onboarding step 3, and Settings → *Keyboard shortcuts*
+> Applied in the same pass: this prompt, onboarding's incognito step, and Settings → *Keyboard shortcuts*
 > (§2, under the generated manifest), which opens `chrome://extensions/shortcuts`. Each has an E2E
 > that asserts a real tab appears at the real address, so a future Chrome closing the door shows up
 > as a failing test rather than as a button nobody can explain. `src/ui/address.ts` survives for the
@@ -2194,21 +2194,33 @@ carried into the Google Cloud console, a place nothing we ship can open at all.
 A five-step flow on `manager.html?onboarding=1`, opened once by `chrome.runtime.onInstalled` with
 reason `install` — never on an *update*, because a browser that updated four extensions overnight
 and greeted the user with four tabs is how a flow teaches people to close it unread. It lives on the
-manager page rather than in the popup because step 3 sends the user to a `chrome://` tab and waits
-for them to come back, and a popup is gone the moment focus leaves it.
+manager page rather than in the popup because the incognito step sends the user to a `chrome://` tab
+and waits for them to come back, and a popup is gone the moment focus leaves it.
 
-The five screens are: what VaultaMark is · create your master password · allow in incognito · choose
-your sync tier · two things Chrome still does. The gates are pure functions in
+The five screens are: what VaultaMark is · create your master password · choose your sync tier · one
+thing Chrome still does · allow in incognito. The gates are pure functions in
 `src/manager/onboarding/steps.ts`, and there are exactly two:
 
 - **The password step is gated on `vaultExists`**, not on "the form said so". Nothing can set that
   but a `CREATE_VAULT` that succeeded, and nothing can send one but a form whose typed no-recovery
-  phrase matched (`src/ui/create-form.ts`). There is no path from Next to step 3 that does not go
-  through a real vault. This is the Definition-of-done item.
+  phrase matched (`src/ui/create-form.ts`). There is no path from Next to the rest of the flow that
+  does not go through a real vault. This is the Definition-of-done item.
 - **The incognito step is gated on "allowed **or** explicitly skipped"**. Nobody may be swept past it
   without noticing, and nobody may be trapped on it either — there is no API that can turn the
   setting on. A skip is recorded in `vm.onboarding` and leaves a persistent banner in the manager,
-  which clears itself the moment the toggle goes on.
+  which clears itself the moment the toggle goes on. On the last screen a skip *finishes* the flow
+  rather than advancing it, because there is nowhere left to advance to.
+
+**Incognito is the last screen, and the order is what makes the flow survivable.** Ticking "Allow in
+Incognito" reloads the extension, and Chrome closes every extension page it has open — the wizard's
+own tab included (maintainer-reported 2026-08-23). Nothing in here can recover from that: the reload
+fires neither `onInstalled` nor `onStartup`, so no event exists to reopen the tab from, and no code
+of ours runs between the tick and the close. The only answer available is to put the screen that
+kills the tab where there is nothing after it to lose, and to say so on the screen before it happens
+— the alternative, which shipped until 2026-08-23, cost the user the two screens that followed. A
+record left mid-flow by a tab that died there is therefore the *successful* path, and nothing nags
+about one: the flow is opened by `onInstalled` and by "Replay the setup guide", which resets `step`
+first.
 
 Going *back* is always allowed, including out of a step whose gate is shut: rewinding to re-read the
 introduction cannot un-create a vault, and a flow you can only go forwards through is one people

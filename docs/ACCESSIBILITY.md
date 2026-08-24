@@ -42,10 +42,13 @@ sense.
 3. Step 2 is a form. Tab reaches password, repeat, the strength meter's description, and the typed
    confirmation. *Create vault* stays disabled until the phrase is typed — and pressing *Next*
    instead says why, in the live region, rather than doing nothing.
-4. Step 3 cannot be completed from here by anybody: the "Allow in Incognito" checkbox is on a Chrome
-   page no extension can reach. The address is selectable text with a **Copy** button, and *Skip for
-   now* is a real answer that leaves a persistent nudge in the manager.
-5. Steps 4 and 5 are read-only and a permission button respectively. **Enter** on *Finish setup*.
+4. Steps 3 and 4 are read-only and a permission button respectively.
+5. Step 5 cannot be completed from here by anybody: the "Allow in Incognito" checkbox is on a Chrome
+   page no extension can reach. **Open that page** is a button that really opens it, *Re-check* asks
+   the API rather than the tab, and *Skip for now* is a real answer that finishes setup and leaves a
+   persistent nudge in the manager. **Enter** on *Finish setup* once the toggle is on — though
+   turning it on reloads the extension and closes this tab first, which the screen says before it
+   happens. It is the last step, so nothing is lost.
 
 ### 2.2 The popup
 

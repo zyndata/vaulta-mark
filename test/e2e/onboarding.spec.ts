@@ -13,9 +13,10 @@
  *   what actually matters — is that the URL it opens shows the flow, and that the same URL stops
  *   showing it once the flow is finished. Both are asserted below.
  * - **"Allow in Incognito" cannot be turned on.** It is a checkbox on `chrome://extensions` and no
- *   API reaches it, which is the entire reason step 3 exists. So the incognito gate is exercised
+ *   API reaches it, which is the entire reason the incognito step exists. So its gate is exercised
  *   through the answer a real user in this situation gives: "skip for now" — and the nudge it leaves
- *   in the manager is asserted afterwards.
+ *   in the manager is asserted afterwards. That step is *last* since 2026-08-23, because ticking the
+ *   checkbox reloads the extension and Chrome closes the wizard's own tab: nothing may follow it.
  */
 
 import { fileURLToPath } from 'node:url';
@@ -100,12 +101,38 @@ test('walks a fresh profile through setup, and then never appears again', async 
   await expectNoA11yViolations(page, 'onboarding, step 2 (the password form)');
   await create.click();
 
-  // ---------------------------------------------------------------- 3. incognito
+  // ---------------------------------------------------------------- 3. the sync tier
   // Creating the vault carries the flow forward on its own — the thing the user came for happened.
   await expect(page.getByText('Step 3 of 5')).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /Chrome sync/ })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /Google Drive/ })).toBeVisible();
+  // Drive is present and marked, rather than hidden: nobody should pick Chrome sync believing it is
+  // the only option and then find their vault capped at a thousand bookmarks. Since Phase 10 it is a
+  // thing you can switch on today, so the badge says "Optional" rather than promising a release.
+  await expect(page.getByText('Optional')).toBeVisible();
+  // The only real table in the product, which is where a header cell that scopes nothing hides.
+  await expectNoA11yViolations(page, 'onboarding, step 3 (the sync comparison table)');
+  await next(page).click();
+
+  // ---------------------------------------------------------------- 4. what Chrome still does
+  await expect(page.getByText('Step 4 of 5')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'One thing Chrome still remembers' })).toBeVisible();
+  // The "Autocomplete searches and URLs" card was removed (ARCHITECTURE §12.4): it was the one card
+  // in the flow with no control on it, and it sent people to a settings page we cannot verify.
+  await expect(page.getByText('chrome://settings/?search=autocomplete')).toHaveCount(0);
+  // The history tool asks for a permission first and explains why, rather than reaching for it.
+  await expect(page.getByRole('button', { name: 'Allow history access' })).toBeVisible();
+  await expectNoA11yViolations(page, 'onboarding, step 4 (the history tool)');
+  await next(page).click();
+
+  // ---------------------------------------------------------------- 5. incognito, and last
+  await expect(page.getByText('Step 5 of 5')).toBeVisible();
   await expect(
     page.getByRole('heading', { name: 'VaultaMark needs permission to open incognito windows' }),
   ).toBeVisible();
+  // The reason this screen is last, said on the screen: ticking the checkbox reloads the extension
+  // and takes this tab down with it.
+  await expect(page.getByText(/closes this tab/)).toBeVisible();
 
   /*
    * Step 1 is a button, and it really opens the page.
@@ -121,37 +148,15 @@ test('walks a fresh profile through setup, and then never appears again', async 
   expect(settingsTab.url()).toBe(`chrome://extensions/?id=${extensionId}`);
   await settingsTab.close();
 
-  // Nothing can turn the toggle on from here, so Next is refused until the user answers.
-  await next(page).click();
-  await expect(page.getByText(/Turn on "Allow in Incognito"/)).toBeVisible();
-  await expect(page.getByText('Step 3 of 5')).toBeVisible();
-
-  await expectNoA11yViolations(page, 'onboarding, step 3 (the incognito instruction)');
-  await page.getByRole('button', { name: 'Skip for now' }).click();
-
-  // ---------------------------------------------------------------- 4. the sync tier
-  await expect(page.getByText('Step 4 of 5')).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: /Chrome sync/ })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: /Google Drive/ })).toBeVisible();
-  // Drive is present and marked, rather than hidden: nobody should pick Chrome sync believing it is
-  // the only option and then find their vault capped at a thousand bookmarks. Since Phase 10 it is a
-  // thing you can switch on today, so the badge says "Optional" rather than promising a release.
-  await expect(page.getByText('Optional')).toBeVisible();
-  // The only real table in the product, which is where a header cell that scopes nothing hides.
-  await expectNoA11yViolations(page, 'onboarding, step 4 (the sync comparison table)');
-  await next(page).click();
-
-  // ---------------------------------------------------------------- 5. what Chrome still does
-  await expect(page.getByText('Step 5 of 5')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'One thing Chrome still remembers' })).toBeVisible();
-  // The "Autocomplete searches and URLs" card was removed (ARCHITECTURE §12.4): it was the one card
-  // in the flow with no control on it, and it sent people to a settings page we cannot verify.
-  await expect(page.getByText('chrome://settings/?search=autocomplete')).toHaveCount(0);
-  // The history tool asks for a permission first and explains why, rather than reaching for it.
-  await expect(page.getByRole('button', { name: 'Allow history access' })).toBeVisible();
-  await expectNoA11yViolations(page, 'onboarding, step 5 (the history tool)');
-
+  // Nothing can turn the toggle on from here, so Finish is refused until the user answers.
   await page.getByRole('button', { name: 'Finish setup' }).click();
+  await expect(page.getByText(/Turn on "Allow in Incognito"/)).toBeVisible();
+  await expect(page.getByText('Step 5 of 5')).toBeVisible();
+
+  await expectNoA11yViolations(page, 'onboarding, step 5 (the incognito instruction)');
+  // Skipping the last step *finishes* — there is nowhere left to advance to, and a Finish button
+  // pressed straight after saying "not now" would be a second click for one decision.
+  await page.getByRole('button', { name: 'Skip for now' }).click();
 
   // ---------------------------------------------------------------- it is over
   // Finishing lands on the manager, with a vault that really exists.
