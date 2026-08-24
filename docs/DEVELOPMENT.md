@@ -380,6 +380,10 @@ cannot click the toolbar button, so it cannot create the `activeTab` grant this 
 cannot sign into Google, so it cannot reach the tier the icons live in. Everything downstream of
 those two is covered by `test/unit/background/page-icon.test.ts`; the two seams themselves are here.
 
+**Run clean on 2026-08-23**, all eight steps including the SVG-only site in step 6. Repeat it before
+any release that changes `src/background/page-icon.ts`, the add-time injection, or §10.1's refresh
+semantics.
+
 One profile is enough, Drive connected (§5.4), `dist/` loaded unpacked — and it must be the
 **development** build, or the extension id is wrong and Drive answers `redirect_uri_mismatch`.
 

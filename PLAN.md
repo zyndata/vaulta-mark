@@ -476,8 +476,9 @@ Consequences every phase must respect:
 # 9. The phased plan
 
 Twenty-one phases, 0 → 20. Each ends on a green `dev`, tagged `phase-N-done`. One focused
-conversation per phase. Phases 0–13 carried the product to 1.0.0; 14–18 ship together as 1.2.0;
-19 and 20 follow it.
+conversation per phase. Phases 0–13 carried the product to 1.0.0; **14–19 ship together as 1.2.0**
+(19 was folded into that release on 2026-08-22). **Phase 20 is suspended** — see the note at its
+head; it is not started until the maintainer asks for it.
 
 **Dependency graph:**
 
@@ -2266,16 +2267,15 @@ sees an SVG at all. Storing an SVG and rendering it was never on the table and s
 - [x] D37 is in PLAN §2 and §14.1 describes the second image the injection now carries.
 - [x] §10.1's refresh semantics are rewritten, and a test proves a page-sourced icon survives a
       refresh on a profile that has never visited the host.
-- [ ] The popup's *Refresh preview and icon* works from an incognito window on a vaulted page,
+- [x] The popup's *Refresh preview and icon* works from an incognito window on a vaulted page,
       **including on a site whose only icon is an SVG** — **maintainer's manual pass**, for the same
-      reason Phases 10, 11 and 17 have one. **Written up as DEVELOPMENT §5.5.2, not yet run** —
-      Playwright can neither click the toolbar button that grants `activeTab` nor sign into Google,
-      so both seams this rides on are outside the harness. Everything downstream of them is covered
-      by `test/unit/background/page-icon.test.ts`.
+      reason Phases 10, 11 and 17 have one. Written up as DEVELOPMENT §5.5.2 and **run clean on
+      2026-08-23**. Playwright can neither click the toolbar button that grants `activeTab` nor sign
+      into Google, so both seams this rides on are outside the harness; everything downstream of
+      them is covered by `test/unit/background/page-icon.test.ts`.
 - [x] §10.1's coverage sentence tells the truth about the new ceiling.
-- [ ] Issue #27 closed against what was built, including the parts it asked for and this phase
-      declined. **Open** — the code and docs are done; closing it is a GitHub action for the
-      maintainer. What to say: the `<link rel="icon">` walk it asked for **was** built, in the page,
+- [x] Issue #27 closed against what was built, including the parts it asked for and this phase
+      declined. **Closed 2026-08-23.** What it says: the `<link rel="icon">` walk it asked for **was** built, in the page,
       after `tab.favIconUrl` turned out to be empty for exactly the sites this is for and to point at
       an SVG for a quarter of the rest — it is a hint at the head of the list now, not the list. Its
       SVG question is answered by rasterising in the page: ICO decodes in a worker and SVG does not,
@@ -2288,6 +2288,15 @@ sees an SVG at all. Storing an SVG and rendering it was never on the table and s
 ---
 
 ## Phase 20 — Pictures on Drive are a choice, not a consequence
+
+> **Suspended on 2026-08-23, by the maintainer, before any of it was built.** Not cancelled and not
+> superseded — the reasoning below still holds and the phase is written up well enough to pick up
+> whole. It is simply not what this repository does next: 1.2.0 is cut first, and nothing in the
+> release depends on this. Nothing is half-done, so there is no state to clean up; §14.4's
+> tier-gating table stands as written and Phase 19's default keeps the meaning it shipped with.
+> **The dependency note below — "if only one of the two gets built, build this one" — is spent**:
+> Phase 19 shipped, so the awkward edit it warned about is the edit this phase now *is*, whenever it
+> is taken up. Do not start it without the maintainer saying so.
 
 **Goal:** connecting Drive should not, by itself, decide that a picture for every bookmark and an
 icon for every domain get uploaded to the user's own Drive. One checkbox in Settings — visible only
