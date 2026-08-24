@@ -21,8 +21,8 @@ pointer can perform and a keyboard cannot.** Dragging is a shortcut throughout, 
 
 **A "page" here means a document, not a URL.** VaultaMark ships two HTML files and about a dozen
 documents: the popup alone is create, unlock, unlocked and settings; the manager is the list, a
-selection, a modal, settings, import/export, the conflict screen, the incognito prompt and five
-onboarding steps. Each is a different tree to assistive technology, and testing "the page" would
+selection, a modal, the QR dialog, settings, import/export, the conflict screen, the incognito
+prompt and five onboarding steps. Each is a different tree to assistive technology, and testing "the page" would
 reach only the first of each pair. The axe assertions are therefore spread through the specs, at the
 point where each document is already on screen — see the note at the top of `test/e2e/a11y.ts`.
 
@@ -42,10 +42,13 @@ sense.
 3. Step 2 is a form. Tab reaches password, repeat, the strength meter's description, and the typed
    confirmation. *Create vault* stays disabled until the phrase is typed — and pressing *Next*
    instead says why, in the live region, rather than doing nothing.
-4. Step 3 cannot be completed from here by anybody: the "Allow in Incognito" checkbox is on a Chrome
-   page no extension can reach. The address is selectable text with a **Copy** button, and *Skip for
-   now* is a real answer that leaves a persistent nudge in the manager.
-5. Steps 4 and 5 are read-only and a permission button respectively. **Enter** on *Finish setup*.
+4. Steps 3 and 4 are read-only and a permission button respectively.
+5. Step 5 cannot be completed from here by anybody: the "Allow in Incognito" checkbox is on a Chrome
+   page no extension can reach. **Open that page** is a button that really opens it, *Re-check* asks
+   the API rather than the tab, and *Skip for now* is a real answer that finishes setup and leaves a
+   persistent nudge in the manager. **Enter** on *Finish setup* once the toggle is on — though
+   turning it on reloads the extension and closes this tab first, which the screen says before it
+   happens. It is the last step, so nothing is lost.
 
 ### 2.2 The popup
 
@@ -147,6 +150,11 @@ says the permission set does not grow for a convenience.
   `treeitem` *may* hold a button, but the tree is deliberately one tab stop rather than one per
   folder, and a tabbable control on every row would undo that. **→ / ←** are the twisty's equivalent
   and **F2** is the pencil's. All three are the real operation, not a workaround.
+- **A QR code cannot be read by a screen reader, and nothing here pretends otherwise.** The canvas
+  is `role="img"` with a name saying what it is, not the address itself: reading a hundred
+  characters of query string aloud is not an accessible name, and the address is in the detail
+  pane's URL field behind the dialog, where it can be read, edited and copied. The feature's
+  audience is a camera.
 - **Screen readers have not been tested by a screen-reader user.** The automated pass proves the
   markup is right; it does not prove the experience is good. That remains open, and saying so is
   more honest than a claim the test suite does not support.

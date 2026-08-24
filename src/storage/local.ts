@@ -24,6 +24,8 @@ import {
   VAULT_MAGIC,
   clampPaneWidth,
   isSortKey,
+  isToolbarIconId,
+  normalizeToolbarTitle,
   type BaseMeta,
   type BucketMeta,
   type OnboardingRecord,
@@ -42,6 +44,9 @@ export const LOCAL_KEYS = {
   settings: 'vm.settings',
   thumbPrefix: 'vm.thumbs.',
   thumbsLru: 'vm.thumbsLru',
+  /** One host's favicon, under its keyed name — never under the host (§10.1). */
+  iconPrefix: 'vm.icons.',
+  iconsLru: 'vm.iconsLru',
   conflicts: 'vm.conflicts',
   /** The one-shot undo behind a replace-mode import. Sealed; expires after 24 hours (Phase 8). */
   rollback: 'vm.rollback',
@@ -339,6 +344,74 @@ export async function writeThumbsLru(lru: Record<string, number>): Promise<void>
   await area().set({ [LOCAL_KEYS.thumbsLru]: lru });
 }
 
+/* ------------------------------------------------------------------ favicons (Phase 17) */
+
+/**
+ * The same shape as the thumbnail cache above, one level of indirection further away from anything
+ * readable: `name` is `HMAC-SHA256(k_icons, host)`, so this half of `storage.local` can be
+ * enumerated without learning a single domain (ARCHITECTURE §10.1).
+ */
+export function iconKey(name: string): string {
+  return `${LOCAL_KEYS.iconPrefix}${name}`;
+}
+
+/** One sealed favicon. `null` means this device does not hold the bytes. */
+export async function readIcon(name: string): Promise<Bytes | null> {
+  const key = iconKey(name);
+  const raw = (await area().get(key))[key];
+  if (raw === undefined || typeof raw !== 'string') return null;
+  return fromBase64Url(raw);
+}
+
+export async function writeIcon(name: string, sealed: Bytes): Promise<void> {
+  await area().set({ [iconKey(name)]: toBase64Url(sealed) });
+}
+
+/** Forget favicons by keyed name, and drop them from the LRU in the same breath. */
+export async function deleteIcons(names: readonly string[]): Promise<void> {
+  if (names.length === 0) return;
+  await area().remove(names.map(iconKey));
+  const lru = await readIconsLru();
+  let touched = false;
+  for (const name of names) {
+    if (Reflect.deleteProperty(lru, name)) touched = true;
+  }
+  if (touched) await writeIconsLru(lru);
+}
+
+/** Every keyed name this device holds favicon bytes for. */
+export async function listIconNames(): Promise<string[]> {
+  return Object.keys(await area().get(null))
+    .filter((key) => key.startsWith(LOCAL_KEYS.iconPrefix))
+    .map((key) => key.slice(LOCAL_KEYS.iconPrefix.length));
+}
+
+/** What the cached favicons are charging `storage.local`, by keyed name. */
+export async function iconBytesInUse(names: readonly string[]): Promise<number> {
+  if (names.length === 0) return 0;
+  return area().getBytesInUse(names.map(iconKey));
+}
+
+/**
+ * `vm.iconsLru` — keyed name → epoch ms of the last time that icon was shown (§10.1).
+ *
+ * Plaintext like `vm.thumbsLru`, and with even less to say: its keys are HMACs of hosts under a key
+ * derived from the master password, so unlike an item id they cannot be lined up against anything.
+ */
+export async function readIconsLru(): Promise<Record<string, number>> {
+  const raw = (await area().get(LOCAL_KEYS.iconsLru))[LOCAL_KEYS.iconsLru];
+  if (raw === null || typeof raw !== 'object') return {};
+  const out: Record<string, number> = {};
+  for (const [name, at] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof at === 'number' && Number.isFinite(at)) out[name] = at;
+  }
+  return out;
+}
+
+export async function writeIconsLru(lru: Record<string, number>): Promise<void> {
+  await area().set({ [LOCAL_KEYS.iconsLru]: lru });
+}
+
 /* ------------------------------------------------------------------ onboarding (Phase 9) */
 
 /**
@@ -423,6 +496,16 @@ export async function readSettings(): Promise<VaultSettings> {
         ? stored.thumbnailsOffered
         : DEFAULT_SETTINGS.thumbnailsOffered,
     sortBy: isSortKey(stored.sortBy) ? stored.sortBy : DEFAULT_SETTINGS.sortBy,
+    toolbarIcon: isToolbarIconId(stored.toolbarIcon)
+      ? stored.toolbarIcon
+      : DEFAULT_SETTINGS.toolbarIcon,
+    // Normalised on the way out as well as on the way in, for the same reason a width is clamped
+    // both ways: a stored value is only as trustworthy as the last thing that wrote it, and this one
+    // ends up on a `chrome.action.setTitle` call.
+    toolbarTitle:
+      typeof stored.toolbarTitle === 'string'
+        ? normalizeToolbarTitle(stored.toolbarTitle)
+        : DEFAULT_SETTINGS.toolbarTitle,
     sidebarWidth: paneWidth(stored.sidebarWidth, SIDEBAR_WIDTH),
     detailWidth: paneWidth(stored.detailWidth, DETAIL_WIDTH),
   };

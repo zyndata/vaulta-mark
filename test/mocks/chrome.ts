@@ -16,6 +16,7 @@
  */
 
 import { OPTIONAL_PERMISSIONS } from '../../build/manifest.js';
+import { resetPluralLocale } from '../../src/ui/plural.js';
 
 /** Chrome's documented `chrome.storage.sync` limits — docs/ARCHITECTURE.md §5.2. */
 export const SYNC_LIMITS = {
@@ -46,6 +47,14 @@ export interface MockInjection {
   readonly files?: readonly string[];
   /** Whether this was the `func:` reader injection rather than the `files:` one. */
   readonly hasFunc: boolean;
+  /**
+   * What was passed to the `func:` injection — the worker's `CaptureRequest` since Phase 19.
+   *
+   * Recorded because *what the worker asked the page for* is now a claim worth testing on its own:
+   * "an icon was not stored" and "an icon was never asked for" are different products, and only the
+   * second one honours §10.1's rule that an upgrade never overwrites.
+   */
+  readonly args?: readonly unknown[];
 }
 export type StorageSnapshot = Record<string, StoredValue>;
 
@@ -285,7 +294,13 @@ export interface ChromeMock {
   triggerAlarm(name: string): void;
   /** Fire `chrome.commands.onCommand`, as a keyboard shortcut does. */
   triggerCommand(name: string): void;
-  /** Fire `chrome.windows.onFocusChanged`. Pass `WINDOW_ID_NONE` (-1) for "Chrome lost focus". */
+  /**
+   * Fire `chrome.windows.onFocusChanged`, and record the focus state it announces.
+   *
+   * Pass `WINDOW_ID_NONE` (-1) for "no Chrome window has focus" — which `getLastFocused()` then
+   * reports as `focused: false`, exactly as the browser does. Firing `-1` and then a window id is
+   * the switch-between-windows pair Chrome really delivers.
+   */
   triggerFocusChanged(windowId: number): void;
   /**
    * Fire `chrome.idle.onStateChanged`. Throws when the optional `idle` permission is not granted,
@@ -295,7 +310,14 @@ export interface ChromeMock {
   /** Tabs created via `chrome.tabs.create`, in order. */
   readonly createdTabs: { url?: string; windowId?: number }[];
   /** The tabs `chrome.tabs.query` answers with. Replace the contents to change the active tab. */
-  readonly openTabs: { id: number; url?: string; title?: string; active?: boolean }[];
+  readonly openTabs: {
+    id: number;
+    url?: string;
+    title?: string;
+    active?: boolean;
+    /** What Chrome resolved as this page's icon. Sensitive: present only under `activeTab` (§10.1). */
+    favIconUrl?: string;
+  }[];
   /** Tab ids passed to `chrome.tabs.remove`, in order. */
   readonly removedTabs: number[];
   /**
@@ -350,6 +372,10 @@ export interface ChromeMock {
   triggerMenuClick(info: { menuItemId: string; linkUrl?: string; selectionText?: string }): void;
   /** The toolbar badge's current text, as `chrome.action.setBadgeText` left it. */
   badgeText(): string;
+  /** The size-to-path map of the last `chrome.action.setIcon`, or `null` if it was never called. */
+  actionIcon(): Record<string, string> | null;
+  /** The last `chrome.action.setTitle`, or `null` if it was never called. */
+  actionTitle(): string | null;
   /** `chrome.idle.setDetectionInterval`'s last argument, or `undefined` if never called. */
   idleDetectionInterval(): number | undefined;
   /** Send a message the way a popup would, resolving with the first response given. */
@@ -359,6 +385,22 @@ export interface ChromeMock {
    * messages it received — which is how a test observes a broadcast from the service worker.
    */
   observeMessages(): unknown[];
+
+}
+
+/**
+ * One end of a mocked `chrome.runtime` port.
+ *
+ * Structural rather than a re-export of `chrome.runtime.Port`, because the real type carries a
+ * `sender` and a handful of fields no test sets — and a mock that has to fill them in to compile
+ * is a mock that drifts.
+ */
+export interface MockPort {
+  readonly name: string;
+  postMessage(message: unknown): void;
+  disconnect(): void;
+  readonly onMessage: { addListener(listener: (message: unknown) => void): void };
+  readonly onDisconnect: { addListener(listener: () => void): void };
 }
 
 /** One entry of the mocked history. Mirrors the fields `chrome.history.HistoryItem` gives us. */
@@ -400,6 +442,11 @@ export interface ChromeMockOptions {
   grantedPermissions?: readonly string[];
   /** Whether "Allow in Incognito" starts on. Off by default, as it is on a fresh install. */
   incognitoAccess?: boolean;
+  /**
+   * The browser UI language, which `src/ui/plural.ts` resolves into a locale and asks
+   * `Intl.PluralRules` about. `en` unless a test is about a language with more than two forms.
+   */
+  uiLanguage?: string;
 }
 
 export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
@@ -439,6 +486,7 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   type InstalledListener = (details: { reason: string }) => void;
   type StartupListener = () => void;
   type FocusListener = (windowId: number) => void;
+  type ConnectListener = (port: MockPort) => void;
   type CommandListener = (name: string) => void;
   type IdleListener = (state: 'active' | 'idle' | 'locked') => void;
   type MenuListener = (info: {
@@ -446,6 +494,96 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     linkUrl?: string;
     selectionText?: string;
   }) => void;
+
+  const onConnect = new Event<ConnectListener>();
+  /** Both ends of every port that is still open, so a worker teardown can close them all. */
+  const openPorts: { page: MockPort; worker: MockPort }[] = [];
+
+  /**
+   * One end of a port. Two of these are wired together by {@link connect}.
+   *
+   * Kept as close to `chrome.runtime.Port` as a test needs: a name, two events, and the two verbs.
+   * `postMessage` after a disconnect throws, as Chrome's does — `shared/focus-beacon.ts` catches
+   * exactly that and reconnects.
+   */
+  function makePort(name: string): MockPort & {
+    deliver: (message: unknown) => void;
+    close: () => void;
+    closed: boolean;
+  } {
+    const messageListeners = new Event<(message: unknown) => void>();
+    const disconnectListeners = new Event<() => void>();
+    return {
+      name,
+      closed: false,
+      onMessage: messageListeners,
+      onDisconnect: disconnectListeners,
+      postMessage: () => undefined,
+      disconnect: () => undefined,
+      deliver: (message: unknown) => {
+        for (const listener of [...messageListeners.listeners]) listener(message);
+      },
+      close: () => {
+        for (const listener of [...disconnectListeners.listeners]) listener();
+      },
+    };
+  }
+
+  /** `chrome.runtime.connect` from a page: build both ends, hand the worker its one. */
+  function connect(info?: { name?: string }): MockPort {
+    const name = info?.name ?? '';
+    const page = makePort(name);
+    const worker = makePort(name);
+    const pair = { page, worker };
+
+    const drop = (): void => {
+      if (page.closed) return;
+      page.closed = true;
+      worker.closed = true;
+      const index = openPorts.indexOf(pair);
+      if (index >= 0) openPorts.splice(index, 1);
+    };
+
+    page.postMessage = (message: unknown) => {
+      if (page.closed) throw new Error('Attempting to use a disconnected port object');
+      worker.deliver(message);
+    };
+    worker.postMessage = (message: unknown) => {
+      if (worker.closed) throw new Error('Attempting to use a disconnected port object');
+      page.deliver(message);
+    };
+    page.disconnect = () => {
+      const wasOpen = !page.closed;
+      drop();
+      if (wasOpen) worker.close();
+    };
+    worker.disconnect = () => {
+      const wasOpen = !worker.closed;
+      drop();
+      if (wasOpen) page.close();
+    };
+
+    openPorts.push(pair);
+    if (!onConnect.hasListeners()) {
+      // What Chrome does with a connect nobody is listening for, and it is not "nothing": the port
+      // comes back as normal, then drops a task later with `runtime.lastError` set to "Could not
+      // establish connection. Receiving end does not exist." A page sees it only through its own
+      // `onDisconnect`, which is why the drop has to be deferred — the caller has not added that
+      // listener yet. `shared/focus-beacon.ts` is written around exactly this sequence.
+      setTimeout(() => {
+        if (page.closed) return;
+        api.runtime.lastError = {
+          message: 'Could not establish connection. Receiving end does not exist.',
+        };
+        drop();
+        page.close();
+        api.runtime.lastError = undefined;
+      }, 0);
+      return page;
+    }
+    for (const listener of [...onConnect.listeners]) listener(worker);
+    return page;
+  }
 
   const onMessage = new Event<MessageListener>();
   const onInstalled = new Event<InstalledListener>();
@@ -469,11 +607,26 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   const createdWindows: { url?: string | string[]; incognito?: boolean }[] = [];
   const createdTabs: { url?: string; windowId?: number }[] = [];
   const removedTabs: number[] = [];
-  const openTabs: { id: number; url?: string; title?: string; active?: boolean }[] = [];
+  const openTabs: {
+    id: number;
+    url?: string;
+    title?: string;
+    active?: boolean;
+    favIconUrl?: string;
+  }[] = [];
   const injections: MockInjection[] = [];
   let captureResult: unknown = null;
   let injectionFails = false;
   const openWindows: { id: number; incognito: boolean; type: string }[] = [];
+  // -1 is `WINDOW_ID_NONE`: a browser whose windows are all in the background, which is the state
+  // `handleFocusChange` has to tell apart from a switch between two of them. The two ids differ the
+  // way Chrome's do — `getLastFocused()` still names a window while none of them holds focus.
+  let focusedWindowId = -1;
+  let lastFocusedWindowId = -1;
+  const setFocus = (windowId: number): void => {
+    focusedWindowId = windowId;
+    if (windowId !== -1) lastFocusedWindowId = windowId;
+  };
   const menus = new Map<string, { title?: string; contexts?: readonly string[] }>();
   const bookmarkRoots: MockBookmarkNode[] = [{ id: '0', title: '', children: [] }];
   const removedBookmarks: string[] = [];
@@ -496,6 +649,8 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   let idleDetectionInterval: number | undefined;
   let incognitoAccess = options.incognitoAccess ?? false;
   let badgeText = '';
+  let actionIcon: Record<string, string> | null = null;
+  let actionTitle: string | null = null;
 
   const sendMessage = (message: unknown): Promise<unknown> =>
     new Promise((resolve) => {
@@ -523,7 +678,9 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
       }),
       getURL: (path: string) => `chrome-extension://${EXTENSION_ID}/${path.replace(/^\//, '')}`,
       sendMessage,
+      connect,
       onMessage,
+      onConnect,
       onInstalled,
       onStartup,
     },
@@ -562,7 +719,7 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     },
     windows: {
       WINDOW_ID_NONE: -1,
-      create: (options_: { url?: string | string[]; incognito?: boolean }) => {
+      create: (options_: { url?: string | string[]; incognito?: boolean; focused?: boolean }) => {
         createdWindows.push(options_);
         const window_ = {
           id: 1000 + createdWindows.length,
@@ -570,17 +727,41 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
           type: 'normal',
         };
         openWindows.push(window_);
+        if (options_.focused !== false) setFocus(window_.id);
         return Promise.resolve(window_);
       },
+      /**
+       * The most recently focused window, with `focused` saying whether it still holds focus.
+       *
+       * Rejects when there is no window, as Chrome does — a caller must handle "the last window
+       * just closed" rather than read `focused` off `undefined`.
+       */
+      getLastFocused: () => {
+        const window_ =
+          openWindows.find((candidate) => candidate.id === lastFocusedWindowId) ?? openWindows[0];
+        if (window_ === undefined) return Promise.reject(new Error('No window is open'));
+        return Promise.resolve({ ...window_, focused: focusedWindowId === window_.id });
+      },
+      /**
+       * Every window, each saying whether it holds the focus.
+       *
+       * The `focused` flag is the whole point for `background/autolock.ts`, which asks this rather
+       * than `getLastFocused()` — a browser in the background still *has* a last-focused window,
+       * and the difference between the two questions is the bug this mock now reproduces.
+       */
       getAll: (query?: { windowTypes?: string[] }) =>
         Promise.resolve(
-          openWindows.filter(
-            (window_) => query?.windowTypes === undefined || query.windowTypes.includes(window_.type),
-          ),
+          openWindows
+            .filter(
+              (window_) =>
+                query?.windowTypes === undefined || query.windowTypes.includes(window_.type),
+            )
+            .map((window_) => ({ ...window_, focused: focusedWindowId === window_.id })),
         ),
-      update: (windowId: number) => {
+      update: (windowId: number, info?: { focused?: boolean }) => {
         const window_ = openWindows.find((candidate) => candidate.id === windowId);
         if (window_ === undefined) return Promise.reject(new Error(`No window with id ${windowId}`));
+        if (info?.focused === true) setFocus(windowId);
         return Promise.resolve(window_);
       },
       remove: () => Promise.resolve(),
@@ -615,17 +796,28 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
         target?: { tabId?: number };
         files?: readonly string[];
         func?: unknown;
+        args?: readonly unknown[];
       }) => {
         injections.push({
           ...(options.target?.tabId === undefined ? {} : { tabId: options.target.tabId }),
           ...(options.files === undefined ? {} : { files: [...options.files] }),
           hasFunc: options.func !== undefined,
+          ...(options.args === undefined ? {} : { args: [...options.args] }),
         });
         if (injectionFails) {
           return Promise.reject(new Error('Cannot access contents of the page.'));
         }
+        /*
+         * A function models a page that answers differently depending on what it was asked for —
+         * which is the whole of Phase 19's icon half, where the worker either passes an `iconUrl`
+         * or does not. A plain value keeps every test written before that unchanged.
+         */
+        const answer =
+          typeof captureResult === 'function'
+            ? (captureResult as (...args: readonly unknown[]) => unknown)(...(options.args ?? []))
+            : captureResult;
         return Promise.resolve([
-          { frameId: 0, result: options.func === undefined ? undefined : captureResult },
+          { frameId: 0, result: options.func === undefined ? undefined : answer },
         ]);
       },
     },
@@ -657,7 +849,17 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
       },
       getBadgeText: () => Promise.resolve(badgeText),
       setBadgeBackgroundColor: () => Promise.resolve(),
-      setTitle: () => Promise.resolve(),
+      // Recorded rather than swallowed: "the icon survives a worker restart" (ARCHITECTURE §16) is a claim
+      // about the exact paths handed to Chrome, and a stub that returned a resolved promise would
+      // pass against a build that never called it.
+      setIcon: (details: { path?: Record<string, string> }) => {
+        actionIcon = details.path ?? null;
+        return Promise.resolve();
+      },
+      setTitle: (details: { title?: string }) => {
+        actionTitle = details.title ?? null;
+        return Promise.resolve();
+      },
     },
     commands: {
       getAll: () => Promise.resolve([]),
@@ -692,6 +894,9 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     i18n: {
       // Returning the key keeps assertions readable and makes a missing string obvious.
       getMessage: (key: string) => key,
+      // Real, not a stub: `plural()` resolves this against SHIPPED_LOCALES and hands the answer to
+      // `Intl.PluralRules`, so a test that wants Polish's four forms sets it and gets them.
+      getUILanguage: () => options.uiLanguage ?? 'en',
     },
   };
 
@@ -847,7 +1052,13 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
       incognitoAccess = allowed;
     },
     badgeText: () => badgeText,
+    actionIcon: () => actionIcon,
+    actionTitle: () => actionTitle,
     terminateWorker: () => {
+      // Listeners first, then the ports: the worker is gone before the page is told, so a page
+      // that reconnects on the spot is connecting to a worker that has not started yet. A test
+      // that wants the restart as Chrome performs it disconnects the worker's end of the port
+      // instead, which leaves the listeners standing for the instance that takes over.
       for (const event of [
         onMessage,
         onInstalled,
@@ -855,11 +1066,13 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
         onAlarm,
         onFocusChanged,
         onCommand,
+        onConnect,
         onIdleStateChanged,
         onMenuClicked,
       ]) {
         event.listeners.clear();
       }
+      for (const { worker } of [...openPorts]) worker.disconnect();
     },
     triggerMenuClick: (info) => {
       for (const listener of onMenuClicked.listeners) listener(info);
@@ -880,6 +1093,7 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
       for (const listener of onCommand.listeners) listener(name);
     },
     triggerFocusChanged: (windowId) => {
+      setFocus(windowId);
       for (const listener of onFocusChanged.listeners) listener(windowId);
     },
     triggerIdleState: (state) => {
@@ -910,4 +1124,8 @@ export function installChromeMock(options: ChromeMockOptions = {}): ChromeMock {
 
 export function uninstallChromeMock(): void {
   delete (globalThis as { chrome?: typeof chrome }).chrome;
+  // `plural()` caches the resolved UI language for the life of the module, which in a browser is the
+  // life of the document and here is the life of the whole run. A test that installs a Polish mock
+  // would otherwise leave every test after it counting in Polish.
+  resetPluralLocale();
 }

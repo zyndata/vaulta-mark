@@ -24,7 +24,8 @@ Two things are deliberately **not** assets:
 
 - **The existence of the vault.** The KDF header is plaintext — it must be, since the parameters
   have to be readable before a key exists. Plausible deniability is a non-goal.
-- **Which extension is installed.** Anyone with the profile can read `chrome://extensions`.
+- **Which extension is installed.** Anyone with the profile can read `chrome://extensions`. The
+  toolbar button's picture and tooltip can be changed (§4.7); its name there cannot.
 
 ---
 
@@ -82,6 +83,44 @@ Each of these is known, is not fixed, and is not going to be without a change of
 6. **`vm.settings` is plaintext**, by design — the lock screen must honour the theme before a key
    exists. It is therefore incapable of holding anything that describes a bookmark, which is why
    there are no user-defined saved filters and no per-folder sort order (ARCHITECTURE §5.1).
+7. **The extension is identifiable, whatever the toolbar says.** See §4.7 — it is long enough to be
+   worth its own heading, because it is the one accepted leak a user can be misled about.
+8. **A QR code is an address leaving the vault, on purpose.** *Show QR code* draws one bookmark's
+   URL on the screen in machine-readable form for as long as the dialog is open — anyone who can
+   see the monitor, or a camera pointed at it, has that address. That is the feature, not a flaw in
+   it, which is why it is drawn only when asked and never sits in the detail pane (ARCHITECTURE
+   §17.2). What happens after the scan is **outside this product's boundary**: the phone opens the
+   address in an ordinary tab and keeps it in that phone's history, no API on either mobile
+   platform can change that, and the line under the code says so rather than implying otherwise
+   (§17.3).
+
+### 4.7 What the toolbar can and cannot change
+
+Phase 14 made the toolbar button's **picture** and its **tooltip** settings (ARCHITECTURE §16). This
+paragraph exists so that nobody, here or in the product, mistakes that for concealment.
+
+**Variable**, from Settings → Toolbar appearance:
+
+- the icon on the toolbar button — one of four, applied with `chrome.action.setIcon`;
+- the tooltip on it — free text, applied with `chrome.action.setTitle`.
+
+**Fixed, and not fixable:**
+
+- the extension's **name**, in `chrome://extensions`, `chrome://apps`, the Chrome task manager and
+  the profile menu. `manifest.name` is resolved at install time and **no API rewrites a manifest
+  field of a running extension**;
+- the extension's **id**, which is in the `chrome-extension://` origin of every page it opens and is
+  visible in Chrome's own UI;
+- the **Chrome Web Store listing**, which is public and is not a per-install thing at all;
+- the **permissions** the extension holds, listed on its own `chrome://extensions` card.
+
+So: a different picture is a different picture. Someone who reads a changed toolbar icon as "nobody
+can tell VaultaMark is here" has a false belief, and will act on it — which is worse than never
+having been offered the setting. That is why the section is named *Toolbar appearance*, why it
+carries a sentence saying exactly what does not change, and why nothing in the product, the
+documentation or the Store listing claims otherwise. It is also why B2 ("disguise mode / panic
+camouflage", issue #19) was closed as a *rename and a narrowing* rather than built as asked — see
+PLAN §5.
 
 ---
 
@@ -157,6 +196,8 @@ fail if the claim stopped being true.
 | D2 | An export reveals nothing about its contents | `test/e2e/portable.spec.ts` and `journey.spec.ts` search the produced file for the titles and hosts that are in it |
 | D3 | The diagnostics report carries counts, booleans and enums only — no URLs, titles, names, notes, ids, addresses or tokens | `src/shared/diagnostics.ts` is a closed field list, never an object walk; `test/unit/background/diagnostics.test.ts` seeds distinctive strings and searches the whole report for each |
 | D4 | No user-facing string escapes `_locales` (INV-10) | `scripts/verify-strings.mjs`; `test/unit/scripts/verify-strings.test.ts` |
+| D5 | Nothing in the product claims the extension can be hidden — the toolbar's picture and tooltip are variable, its name, id and listing are not (§4.7) | `settingsToolbarUnchanged` in `_locales`, asserted on screen by `test/e2e/manager.spec.ts`; the section is named *Toolbar appearance* in `_locales` and in ARCHITECTURE §16 |
+| D6 | The QR code carries one bookmark's URL and nothing else, is drawn only on request, and claims nothing about the phone (§4, leak 8) | `src/ui/qr.ts` encodes `item.url` alone; `test/unit/ui/qr.test.ts` reads symbols back with an independent decoder; `test/e2e/manager.spec.ts` asserts no canvas exists until the button is pressed, none at all while locked, and that `qrOrdinaryTab` is in the dialog |
 
 ### 5.7 Dependencies
 
@@ -165,6 +206,7 @@ fail if the claim stopped being true.
 | P1 | Zero runtime dependencies | `package.json` has no `dependencies`; N1's scanner refuses a remote import; `release/bundle-report.md` lists what is actually in the package |
 | P2 | `npm audit` reports nothing outstanding | Phase 12 cleared the backlog: Vite 8, Vitest 4, ESLint 10 in one step. **Zero advisories at the time of writing.** Reviewed at the end of every phase (PLAN §0) |
 | P3 | A toolchain advisory cannot reach a user | Nothing from npm ships (P1), which is what made the Phase-12 batching decision safe in the first place (PLAN R11) |
+| P4 | The one piece of third-party source that *does* ship is vendored, unminified and verifiable | `src/vendor/qrcode-generator/qrcode.js` is byte-identical to `qrcode-generator@2.0.4`'s `dist/qrcode.mjs`, sha256 recorded beside it; it is source in the tree rather than a resolved dependency, so no install can substitute it (ARCHITECTURE §15.1). Its licence ships as `THIRD-PARTY-NOTICES.txt` |
 
 ---
 

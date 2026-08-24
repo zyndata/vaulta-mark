@@ -278,6 +278,20 @@ jobs:
                "the final one, so uploading it would block the real release (ARCHITECTURE §2)."
           exit 1
 
+      # This job builds nothing and needs no source, but `setup-node` below reads `.nvmrc`, and a
+      # job with no checkout has an empty workspace — so it failed on the missing file before it
+      # could reach the upload. Dispatching v1.1.0 is what found it; nothing else could have,
+      # which is the same lesson the `softprops` removal above records.
+      #
+      # Checked out at the tag, so the Node version is the one that tag was tested against rather
+      # than whatever `dev` moved to since. `persist-credentials: false` for the reason it is on
+      # every other checkout here, and it matters most in this job: this is the one whose
+      # environment holds the four Store secrets. Nothing from the tree is executed — the upload
+      # runs the CLI installed from npm — so the checkout is a file read and nothing more.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc

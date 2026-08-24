@@ -112,6 +112,27 @@ export default tseslint.config(
     },
   },
 
+  /**
+   * Vendored third-party source (ARCHITECTURE §15).
+   *
+   * The invariant bans stay on — a vendored file is shipped code and INV-1, INV-5 and INV-8 do not
+   * care who wrote it. What comes off is the house style, because the file is byte-identical to
+   * upstream on purpose: it is reviewed as a diff against the published package, and reformatting
+   * it to our taste would throw that away to satisfy a rule about how *we* write loops.
+   *
+   * The rules are listed one by one rather than switched off wholesale, so a future vendored file
+   * that trips a *different* one surfaces as a decision to make instead of as silence.
+   */
+  {
+    files: ['src/vendor/**'],
+    rules: {
+      '@typescript-eslint/prefer-for-of': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
+      'no-useless-assignment': 'off',
+    },
+  },
+
   // The one place WebCrypto is reachable. Everything else on this list still applies.
   {
     files: ['src/crypto/**/*.ts'],

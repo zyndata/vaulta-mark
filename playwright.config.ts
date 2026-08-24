@@ -22,6 +22,16 @@ export default defineConfig({
   expect: { timeout: 5_000 },
   reporter: process.env['CI'] ? [['github'], ['html', { open: 'never' }]] : [['list']],
   use: {
+    /*
+     * The other half of the language pin in `test/e2e/harness.ts`, and a different switch from it.
+     *
+     * `--lang` there decides which `_locales/<tag>/messages.json` Chrome renders. This decides what
+     * a page gets back from `chrome.i18n.getUILanguage()`, which `src/ui/plural.ts` resolves into
+     * the locale it asks `Intl.PluralRules` about. Playwright applies `en-US` whether or not one is
+     * asked for, so this line changes nothing today — it is here because the two have to agree and
+     * a default is a poor place to keep an invariant. The localisation specs override both.
+     */
+    locale: 'en-US',
     trace: 'on-first-retry',
     video: 'off',
     screenshot: 'only-on-failure',

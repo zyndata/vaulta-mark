@@ -92,7 +92,7 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | D1 | **TypeScript 5.x, strict** | Non-negotiable for a crypto/sync codebase. |
 | D2 | **Vite 8 + a small in-repo MV3 plugin**, *not* `@crxjs/vite-plugin` | `@crxjs/vite-plugin` v2 is still beta and has had maintenance gaps; a build tool going stale would block Store releases. Our needs are modest (multi-entry build, manifest emit, static asset copy, content-script IIFE bundle). We ship ~80 lines in `build/mv3-plugin.ts` that we own and can audit, plus a `scripts/dev-reload.mjs` watcher. **Deviation from the suggested stack — justified here.** *Was Vite 5 through Phase 11; taken to 8 in Phase 12 (§9) as one deliberate step with D5 and D6.* Vite 8 bundles with **Rolldown**, not Rollup, and three things followed: it ships no `esbuild`, so the minifier is `'oxc'`; it **ignores assignment to `bundle` in `generateBundle`** (honouring the delete), which is why the HTML flattening re-emits with `this.emitFile`; and it loads `vite.config.ts` through Node's own type stripping, so the config and the `build/` modules it reaches spell out `.ts` extensions and the `package.json` import attribute. |
 | D3 | **Vanilla TS UI, no framework** | As requested. A tiny reactive helper (`src/ui/dom.ts`, ~150 LOC: `h()`, signal-ish store, list diffing) is written in-repo instead of pulling a runtime dependency. Keeps the popup under a 1-frame paint budget and keeps the reviewer's diff small. |
-| D4 | **Zero runtime npm dependencies** in the shipped bundle (target) | Everything we need exists in the platform: WebCrypto, `CompressionStream`, `OffscreenCanvas`, `createImageBitmap`, `structuredClone`. Every added runtime dep is supply-chain risk in a security tool. Dev dependencies are unrestricted. Exception process: any proposed runtime dep needs a note in `docs/ARCHITECTURE.md` §Dependencies. |
+| D4 | **Zero runtime npm dependencies** in the shipped bundle (target) | Everything we need exists in the platform: WebCrypto, `CompressionStream`, `OffscreenCanvas`, `createImageBitmap`, `structuredClone`. Every added runtime dep is supply-chain risk in a security tool. Dev dependencies are unrestricted. Exception process: any proposed runtime dep needs a note in `docs/ARCHITECTURE.md` §Dependencies. **Vendored source is a separate thing and is allowed**: a file in this tree, reviewed as a diff and changed only by a commit, cannot be substituted by a resolver — see ARCHITECTURE §15.1, which lists what is vendored and why. |
 | D5 | **Vitest 4** (unit/integration) + **Playwright** with a persistent-context Chromium extension harness (E2E) | As suggested. `@vitest/coverage-v8`, `fake-indexeddb` not needed; a hand-written `chrome.*` mock lives in `test/mocks/chrome.ts`. *Was Vitest 3 through Phase 11.* Two removals to know about: `coverage.all` is gone because everything matched by `coverage.include` is now reported whether or not a test imported it — which is what the flag used to buy — and a mock implementation is no longer silently made `new`-able, so a constructor must be mocked with a `function` or a `class`. |
 | D6 | **ESLint 10 flat config + Prettier + `tsc --noEmit`** | Standard. Plus custom ESLint rules banning `eval`, `new Function`, `chrome.bookmarks` outside the import module, and remote URLs. *Was ESLint 9 through Phase 11.* |
 | D7 | **npm** (not pnpm/yarn) | Widest CI/action support, lockfile v3, no corepack friction for contributors. |
@@ -145,6 +145,7 @@ Every choice made on the user's behalf. Each is overridable — flag it before P
 | D34 | **Store upload is gated behind `workflow_dispatch` input `publish: true`** | A tag push builds and creates a GitHub Release with the zip attached, but never publishes to the Store by itself. |
 | D35 | **Versioning: SemVer**, `manifest.json` version generated from `package.json` at build time | Chrome versions must be `1.2.3` numeric-only; pre-release tags (`1.2.0-rc.1`) map to `1.2.0.1` via a documented rule in `build/version.ts`. |
 | D36 | **Repository visibility: public, single maintainer.** Decided 2026-08-15; private from the first commit until then. | Licensing and publishing are different things, and for this product the gap between them was a real cost: GPL-3.0-only (D31) governs the terms under which the code is distributed, but a security tool nobody can read is one whose claims cannot be checked, which `SECURITY.md` said in as many words while the repository was private. Publishing settles that, and unblocks four GitHub features the docs had to work around — private vulnerability reporting, CodeQL upload, secret-scanning push protection, and GitHub Pages, which is where the Store's privacy-policy URL now comes from ([docs/RELEASE.md](docs/RELEASE.md) §8). Branch protection, which the Free plan refused outright on a private repository (measured 2026-08-14), becomes available with it and is applied — see [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md). **Public is not the same as shared.** There is one maintainer, so D32 stands unchanged: no pull-request requirement, no approval gate, direct commits to `dev`. Issues, Discussions and pull requests are open; a pull request is judged on its merits, and none is solicited by a roadmap. **What was true while it was private stays true:** §8.1 is not relaxed by publication but *settled* by it — the history is readable in full now, so the rule about what may never enter it no longer has an undo. |
+| D37 | **Page-declared favicon bytes are fetched by the content script, in the page’s own context, inside the existing add-time OG injection.** Decided 2026-08-22 (Phase 19); `tab.favIconUrl` is a hint and the page’s own `<link rel="icon">` set is the list, corrected 2026-08-23. | This is D27 applied to a second kind of image, and it needs saying separately because *what this extension injects into a page, and when* is the product’s central claim. The problem it solves is structural: VaultaMark opens every bookmark in an incognito window, an incognito profile writes no favicon entry, so a site reached only through the vault can never get an icon out of `_favicon/` — the source [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §10.1 otherwise relies on. **It adds no permission and no second injection**: `activeTab` + `scripting` are already required (D25) and already used for exactly this, and `favIconUrl` is gated on the same per-tab host permission as `tab.url`, which `background/thumbs.ts` already reads. It rides inside the OG injection and inherits its tier gate, so §14.4’s rule that *nothing is injected when nothing would be kept* is untouched. An **extension-origin** fetch of an icon stays refused under INV-4 for the reason §10.1 gives, and so does capturing when VaultaMark itself opens a bookmark in incognito — `tabs.create` grants no `activeTab`, so that would need a host permission (D26, INV-9). **The first draft took `favIconUrl` alone and that was corrected on 2026-08-23**, before the phase was tagged: the field is *empty* for a site the regular profile has never resolved an icon for — precisely the site this decision exists for — and points at an SVG for about a quarter of the rest. So the content script reads the page’s declared set and orders it (Chrome’s answer first when it is not a vector, then rasters nearest 32 px, then `/favicon.ico`, then vectors), and **rasterises an SVG in the page**, where a canvas exists. Measured before the code, 2026-08-22: ICO decodes in a service worker and **SVG does not**, so §14.2’s refusal stands and the worker never sees one — what it is handed is a PNG the page drew. 18 of 18 page-context favicon fetches across 20 real sites succeeded; 13 reached a stored icon then, and the 5 that did not were all SVG and now do. |
 
 ---
 
@@ -313,24 +314,33 @@ These are enforced by CI (`npm run verify:invariants`), not just by convention. 
 | Auto-lock on browser blur | Optional | 9 (setting) |
 | Panic-lock shortcut | **Core** | 4 (cheap; it's just `lock()` on a command) |
 | Drag-and-drop reordering / re-parenting | Optional | 12 |
-| QR code for a vaulted URL | Optional | Post-1.0 (B1) |
-| Disguise mode (camouflaged icon/title) | Optional | Post-1.0 (B2) |
-| Argon2id KDF option | Optional | Post-1.0 (B7) |
+| QR code for a vaulted URL | Optional | 15 (B1) |
+| Toolbar appearance: a choice of icon and tooltip. **Not** concealment — B2 was refused under that name | Optional | 14 |
+| Argon2id KDF option | **Refused** | — (B7: needs `wasm-unsafe-eval` — INV-2, D3) |
 
 **Post-1.0 backlog** — opened as GitHub issues at the end of Phase 13 (2026-08-14), labelled
-`post-1.0`, each carrying the constraint that deferred it:
+`post-1.0`, each carrying the constraint that deferred it. **Triaged one at a time on 2026-08-19**,
+and the decision column below is that triage: five items accepted, three refused, three deferred (B5
+splits, so the counts are of halves rather than of rows). It is written down here rather than left in
+a conversation because *a backlog that records "no" without recording "because" invites the same
+conversation in a year* — and because a refusal that exists only in someone's memory is
+indistinguishable from an oversight to whoever finds the issue next.
 
-| | | |
-| --- | --- | --- |
-| [#18](https://github.com/zyndata/vaulta-mark/issues/18) | B1 QR code for a vaulted URL | needs a bundled encoder — D4 |
-| [#19](https://github.com/zyndata/vaulta-mark/issues/19) | B2 disguise / panic camouflage | the manifest name cannot be hidden; decide what is being promised first |
-| [#20](https://github.com/zyndata/vaulta-mark/issues/20) | B3 keyboard-driven command palette | mostly a second front end onto existing vocabulary |
-| [#21](https://github.com/zyndata/vaulta-mark/issues/21) | B4 vault-in-vault | vault-format change; the plaintext header is the hard part |
-| [#22](https://github.com/zyndata/vaulta-mark/issues/22) | B5 duplicate detection & dead-link check | the dead-link half is the first outbound traffic that is not Drive — INV-4 |
-| [#23](https://github.com/zyndata/vaulta-mark/issues/23) | B6 per-folder auto-lock | "locked" means one thing today, and cryptography enforces it |
-| [#24](https://github.com/zyndata/vaulta-mark/issues/24) | B7 Argon2id | needs `wasm-unsafe-eval` — INV-2, D3 |
-| [#25](https://github.com/zyndata/vaulta-mark/issues/25) | B8 Firefox port evaluation | an evaluation, not a commitment; `storage.session` and `_favicon/` decide it |
-| [#26](https://github.com/zyndata/vaulta-mark/issues/26) | B9 local-only WebDAV provider | a third `SyncProvider`; needs an optional host permission |
+**Closed as refused**, with the reasoning on the issue: #21, #23, #24. **Left open** as deferred:
+#20, #25, #26 — "not now" and "no" read differently to whoever arrives later, and closing the first
+as the second throws that distinction away. #19 and #22 are closed by the phase that lands them.
+
+| | | Constraint | Decision, 2026-08-19 |
+| --- | --- | --- | --- |
+| [#18](https://github.com/zyndata/vaulta-mark/issues/18) | B1 QR code for a vaulted URL | needs a bundled encoder — D4 | **Accepted — Phase 15.** It replaces mailing a vaulted URL to yourself, which leaves the address in an inbox forever. The encoder is *vendored source*, not an npm runtime dependency, so D4 holds. What it must never do is promise the phone opens it privately: measured, Chrome for Android has no scanner in private tabs, and an `intent://` carrying `EXTRA_OPEN_NEW_INCOGNITO_TAB` fails **silently** into an ordinary tab — the B2 failure mode again |
+| [#19](https://github.com/zyndata/vaulta-mark/issues/19) | B2 disguise / panic camouflage | the manifest name cannot be hidden; decide what is being promised first | **Accepted — Phase 14, renamed and narrowed.** "Disguise" is a promise the platform cannot keep: `manifest.name` is resolved at install time and no API rewrites it on a running extension. What shipped is *Toolbar appearance* — the icon and the tooltip — with one sentence saying the name, the id and the Store listing do not change. A feature that leaves someone believing they are hidden when they are not is worse than no feature (THREAT_MODEL §4.7) |
+| [#20](https://github.com/zyndata/vaulta-mark/issues/20) | B3 keyboard-driven command palette | mostly a second front end onto existing vocabulary | **Deferred, not refused.** Every command it would offer already exists in `organize.ts` and most are already on a key, so it is a front end rather than a capability. Worth building when the vocabulary is large enough to be hard to remember, which it is not yet |
+| [#21](https://github.com/zyndata/vaulta-mark/issues/21) | B4 vault-in-vault | vault-format change; the plaintext header is the hard part | **Refused.** The header is plaintext by necessity — the KDF parameters must be readable before a key exists — so a second vault is either visible in it, which is not a hidden vault, or the header has to lie about how many there are, and then a wrong password becomes indistinguishable from a decoy. Plausible deniability is a stated non-goal (THREAT_MODEL §1); this is the feature that would quietly turn it into a promise |
+| [#22](https://github.com/zyndata/vaulta-mark/issues/22) | B5 duplicate detection & dead-link check | the dead-link half is the first outbound traffic that is not Drive — INV-4 | **Split.** Duplicates **accepted — Phase 16**: pure, the normalisation already exists, and a vault grown by native import and by merge is full of them. Dead links **refused**: checking a link means requesting it, and "browsing the vault makes zero requests" (INV-4) is the sharpest claim this product makes. A link checker would send every vaulted URL to its host from the user's own address, which is the exact traffic the extension exists to avoid |
+| [#23](https://github.com/zyndata/vaulta-mark/issues/23) | B6 per-folder auto-lock | "locked" means one thing today, and cryptography enforces it | **Refused.** "Locked" means no key exists anywhere, `storage.session` included (INV-7), and cryptography is what enforces it. Per-folder locking is a *second* meaning — the key is present and the interface declines to use it — and shipping both under one word makes the strong one unverifiable by anyone reading the screen. A genuine second password per folder is a different feature, and it is B4 |
+| [#24](https://github.com/zyndata/vaulta-mark/issues/24) | B7 Argon2id | needs `wasm-unsafe-eval` — INV-2, D3 | **Refused.** It needs WASM, WASM needs `'wasm-unsafe-eval'` in the CSP, and INV-2 pins that CSP byte-for-byte. Widening the one directive that keeps arbitrary compiled code out of the package, to improve a KDF that is already 600,000 PBKDF2 iterations, is a bad trade for this threat model — D3, unchanged. Revisit if WebCrypto ever grows Argon2id, not before |
+| [#25](https://github.com/zyndata/vaulta-mark/issues/25) | B8 Firefox port evaluation | an evaluation, not a commitment; `storage.session` and `_favicon/` decide it | **Deferred, not refused.** It is an evaluation and it costs about a week. `storage.session` and `_favicon/` are the two APIs that decide whether it is a port or a rewrite, and neither has moved |
+| [#26](https://github.com/zyndata/vaulta-mark/issues/26) | B9 local-only WebDAV provider | a third `SyncProvider`; needs an optional host permission | **Deferred, not refused.** The `SyncProvider` seam is real and was paid for in Phase 7, so this is not architecturally hard — but it needs an optional host permission broad enough to reach an arbitrary server, which is a permissions decision (D26) rather than a sync one |
 
 ---
 
@@ -465,8 +475,10 @@ Consequences every phase must respect:
 
 # 9. The phased plan
 
-Fourteen phases, 0 → 13. Each ends on a green `dev`, tagged `phase-N-done`. One focused conversation
-per phase.
+Twenty-one phases, 0 → 20. Each ends on a green `dev`, tagged `phase-N-done`. One focused
+conversation per phase. Phases 0–13 carried the product to 1.0.0; **14–19 ship together as 1.2.0**
+(19 was folded into that release on 2026-08-22). **Phase 20 is suspended** — see the note at its
+head; it is not started until the maintainer asks for it.
 
 **Dependency graph:**
 
@@ -476,6 +488,9 @@ per phase.
                                     7 ──────► 10 (merge engine reused)
                                    10 ──────► 11 (heavy tier needs Drive)
 ```
+
+The spine above is 0 → 13. Phases 14–20 are independent of each other and declare their own
+dependencies in place.
 
 ---
 
@@ -1507,12 +1522,16 @@ a Chrome Web Store submission.
       so is the `v0.0.0-test` dry run the Tests list asks for: the job refuses any tag that is not
       an ancestor of `main`, and `main` is four phases behind `dev` until the release merge. A dry
       run that passed the ancestry check today would be building Phase-0 code.
-- [ ] `workflow_dispatch` with `publish: true` uploads a draft to the Store (verified once the item
-      exists). — the item exists now (`nfcfgnaefnkpmoiagnamdacpohifncpl`, uploaded by hand
-      2026-08-15, published 2026-08-16), so the API's create-versus-update limitation no longer
-      blocks anything and this is verified by the first automated upload, which is 1.1.0. The
-      credentials themselves were exercised against the live item on 2026-08-16 by the
-      `check_credentials` dispatch (RELEASE §6.5).
+- [x] `workflow_dispatch` with `publish: true` uploads a draft to the Store (verified once the item
+      exists). — **verified 2026-08-18**, uploading `vaulta-mark-1.1.0.zip` as a draft against item
+      `nfcfgnaefnkpmoiagnamdacpohifncpl`. It could not be verified before, because the API can only
+      *update* an item and the item did not exist until it was uploaded by hand on 2026-08-15.
+      The first dispatch **failed**, and usefully: the `publish` job had no `actions/checkout`, so
+      `setup-node`'s `node-version-file: .nvmrc` found an empty workspace and the job died before
+      the upload. It had never been runnable since this phase wrote it. That is the second finding
+      of that exact shape in `release.yml` — the first was `softprops/action-gh-release` being
+      refused at startup — and both say the same thing: **a release path is proven by dispatching
+      it, never by a green build.** The human gate was observed working across both runs.
 - [x] All four Store secrets documented end-to-end in `docs/RELEASE.md`, with screenshots-in-words
       for each Google Cloud step. — RELEASE §6.1–§6.5, including the two flags without which Google
       returns no refresh token and why a Testing-status consent screen expires one after 7 days.
@@ -1533,6 +1552,847 @@ a Chrome Web Store submission.
 **Git:** direct commits on `dev`, tag `phase-13-done`. Then the release itself:
 `git checkout main && git merge --no-ff dev -m "release: v1.0.0"`, push `main`, and push the
 annotated tag `v1.0.0` — see [RELEASE §4](docs/RELEASE.md#4-cutting-a-release).
+
+---
+
+> **Phases 14–18 are post-1.0 work**, scoped by the backlog triage of 2026-08-19. Nine backlog
+> issues and one maintainer proposal were reviewed one at a time; five items were accepted, three
+> refused with their reasoning, three deferred without being refused. The phases below are the
+> accepted five, ordered so that nothing is built twice. They ship together as **1.2.0**.
+
+## Phase 14 — Backlog settlement and toolbar appearance
+
+**Goal:** put the 2026-08-19 triage into the repository rather than leaving it in a conversation,
+close what was refused with the reasoning attached, and land the smallest accepted item.
+
+**Depends on:** nothing.
+**Specs to read:** [THREAT_MODEL §4](docs/THREAT_MODEL.md) — one claim there stops being true in
+this phase and is rewritten rather than deleted.
+
+**In scope**
+
+- **§5's post-1.0 table gains a decision column**, with the reason and not only the verdict. A
+  backlog that records "no" without recording "because" invites the same conversation in a year.
+  B1 accepted (Phase 15) · B2 accepted here · B3 deferred · **B4 refused** · B5 split, duplicates
+  accepted (Phase 16) and dead links refused · **B6 refused** · **B7 refused** · B8 deferred ·
+  B9 deferred.
+- **Close #21, #23, #24** with the reasoning on them. Leave **#20, #25, #26** open — deferred is
+  not refused, and an issue closed as "no" reads differently from one closed as "not now" to
+  whoever finds it next. #22 stays open until Phase 16 closes it.
+- **`src/css.d.ts`** containing `declare module '*.css';`. Harmless under TS 5.9 and it is the
+  whole fix for the four `TS2882` errors measured under TS 7.0.2 on the side-effect CSS imports in
+  `src/{manager/manager,popup/popup}.ts`. Deliberately **not** `vite/client` in tsconfig `types` —
+  that list is scoped on purpose because `src/` ships to a browser. **PR #15 stays open**: the
+  blocker is `typescript-eslint` refusing TS 7 outright, which takes `npm run lint` and therefore
+  `npm run verify` with it, and that local run is the real gate (CI cannot block a push to `dev`).
+  **Landed early** — the file went in with `bd69fc7` while chasing the bump, so this phase's job was
+  to confirm it is the whole fix and to leave PR #15 parked, not to write it.
+- **Toolbar appearance** (B2, #19) — a **manager** settings section, not the popup's. It is decided
+  once, which is the line the 2026-08-17 pass drew when it moved *Opening and saving* out of a
+  422-pixel column.
+  - A choice of toolbar icon: **the current one as the default**, plus a small set of neutral
+    alternatives. Rendered by `scripts/gen-brand-assets.mjs` through the same Playwright Chromium
+    the real icons already use — a Node image library would rasterise differently from the browser
+    that displays the result — at every size the manifest declares, and honouring that script's
+    existing rule that 16/32 omit the keyhole slot.
+  - Applied with `chrome.action.setIcon` / `setTitle` **from the worker, on startup, from
+    `vm.settings`**. The worker dies every ~30 s; an icon set once is an icon lost.
+  - The popup title is settable alongside it.
+  - Both stay **local**, not synced — they describe a screen, the same reasoning that keeps
+    `sidebarWidth` and `providerId` out of the synced record.
+- **The name is "Toolbar appearance".** Not *disguise*, not *camouflage*, not *hide*. One sentence
+  under the control says what does not change: the name in `chrome://extensions`, the extension id,
+  and the Store listing. **The manifest cannot be rewritten at runtime**, so the honest version of
+  this feature is a different icon and a different popup title, and it is described in exactly
+  those words.
+- **THREAT_MODEL §4** is rewritten where it says VaultaMark does not hide that a vault exists:
+  icon and title are variable; name, id and listing are not, and cannot be.
+
+**Out of scope:** anything touching `manifest.name`; any claim of concealment in UI, docs or the
+Store listing; per-profile icons.
+
+**Tests**
+- Settings round-trip; the default is the current icon; a chosen icon survives a worker restart.
+  — `test/unit/background/appearance.test.ts`, driving the restart through the chrome mock's
+  `terminateWorker()`.
+- E2E: choosing an alternative calls `chrome.action.setIcon` with the paths for every declared
+  size. — `test/e2e/manager.spec.ts`.
+- `verify:strings` green: new keys exist in `_locales`, none dead.
+
+**Definition of done**
+- [x] PLAN §5 records every decision with its reason; #21, #23, #24 closed; #20, #25, #26 open. —
+      §5's backlog table has a decision column; the three refusals carry the reasoning on the issue
+      as well as here, because an issue is where the next person looks.
+- [x] `src/css.d.ts` exists; `npm run verify` green; PR #15 untouched and open. — the file landed
+      early, in `bd69fc7`, staged ahead of the bump; this phase confirmed it is the whole fix and
+      left the PR parked. The blocker is unchanged: `typescript-eslint` refuses TS 7 outright, which
+      takes `npm run lint` and therefore `npm run verify` with it, and that local run is the real
+      gate because CI cannot block a push to `dev`.
+- [x] The icon can be changed from the manager and survives a worker restart. —
+      `test/unit/background/appearance.test.ts` drives the restart through `terminateWorker()` plus
+      a re-import over the same `storage.local`; `test/e2e/manager.spec.ts` asserts the real
+      `chrome.action.setIcon` call, with a path for every size the manifest declares.
+- [x] No user-facing text anywhere claims the extension can be hidden. — the section is called
+      *Toolbar appearance*, `settingsToolbarUnchanged` says what does not change, and the E2E fails
+      if that sentence leaves the screen. Nothing in `_locales`, the README or STORE_LISTING says
+      disguise, camouflage, stealth or hide.
+- [x] THREAT_MODEL §4 describes what is variable and what is not. — §4.7, plus a seventh accepted
+      leak pointing at it and traced claim D5 in §5.6.
+
+**What this phase learned, worth keeping.** The honest version of B2 is *smaller than what was
+asked for*, and writing that down was most of the work: `manifest.name` is resolved by Chrome at
+install time and no API rewrites a manifest field on a running extension, so "disguise" cannot be
+delivered and the near-miss — a changed icon that a user reads as concealment — is worse than
+nothing, because they act on the belief. That is the same shape as the `intent://` refusal in Phase
+15, and it is why both are recorded rather than merely done.
+
+Two smaller ones. `chrome.action`'s runtime icon lasts for the *browser session*, so a browser
+restart, an extension reload and an update each revert it — the apply is therefore on the worker's
+top-level evaluation, deferred past the cold-start budget, and not in `onStart()`. And the icons
+are drawn by the *same* Playwright Chromium that draws the real ones and are committed as PNGs, so
+regenerating them proved byte-identical output for `icon*.png` — the alternatives were added
+without touching the four files the manifest already points at, or the Store assets.
+
+**Git:** direct commits on `dev`. Tag `phase-14-done`.
+
+---
+
+## Phase 15 — QR code for a vaulted URL
+
+**Goal:** move one address to a phone without typing it or mailing it to yourself — the usual
+workaround, and the one that takes a vaulted URL out of the vault and leaves it in an inbox
+forever.
+
+**Depends on:** nothing.
+**Specs to read:** [ARCHITECTURE §15](docs/ARCHITECTURE.md) (dependencies) — this phase adds the
+first vendored third-party code in the tree; [THREAT_MODEL §4](docs/THREAT_MODEL.md).
+
+**In scope**
+
+- **A vendored encoder, not a hand-written one.** Kazuhiko Arase's `qrcode-generator` (MIT, 2009),
+  **unminified**, with its copyright header intact, plus a hand-written `.d.ts`. It is source in
+  the tree, not an npm runtime dependency, so **D4 holds**; ARCHITECTURE §15 gains an entry saying
+  what it is, its licence, its measured size, and why it is not written here — Galois-field
+  arithmetic and the error-correction block tables are not code worth owning, and a QR code either
+  scans or it does not. MIT into GPL-3.0-only is compatible; the header stays.
+  - A minified blob would be unauditable, in a project whose auditability is an argument it makes
+    in public.
+- **Loaded through `import('./…')` with a relative literal specifier.** The remote-code scanner
+  permits exactly that shape and refuses computed or non-relative ones
+  (`scripts/verify-no-remote-code.mjs`, rule `dynamic-import`), and Rolldown emits it as its own
+  chunk — so the encoder is in neither the worker's cold-start graph nor the manager's first paint.
+  Verify against the real `dist/`, do not assume.
+- `src/ui/qr.ts` — modules to a `<canvas>`, with the quiet zone, sized to the dialog.
+  Callback-injected like `incognito-prompt.ts` so it tests without a worker.
+- The manager's detail pane gains **"Show QR code" beside *Open in incognito***, opening
+  `openDialog`. **Deliberately not drawn until asked**: a permanently visible QR is a plaintext
+  address on screen for anyone who glances at the monitor, which is the shoulder case the product
+  exists for. Gated on an unlocked vault, like the address field itself.
+- **The code carries the address and nothing else.** A title and a note would push it to version 40
+  and produce a chessboard no phone reads reliably.
+- One line under the code, in `_locales`: the scanned address opens on the phone in an ordinary tab
+  and lands in that phone's history; copy it and paste it into a private tab if that matters.
+- **No promise of incognito on the phone, anywhere.** Measured by the maintainer on 2026-08-19:
+  Chrome for Android has no QR scanner in private tabs (Lens is disabled there), iOS has no URL
+  scheme for private mode, and an `intent://` carrying `EXTRA_OPEN_NEW_INCOGNITO_TAB` is
+  undocumented, scanner-dependent and **fails silently into an ordinary tab** — leaving the user
+  believing they are private when they are not. That is worse than promising nothing, and it is the
+  same failure mode B2 was refused a name over.
+- **THREAT_MODEL §4** gains an accepted leak: a QR code is a deliberate export of one address out
+  of the vault, and what the phone does with it is outside this product's boundary.
+
+**Out of scope:** a QR for anything but one bookmark's URL; bulk QR; scanning a QR *into* the vault;
+any attempt to influence what the phone does next.
+
+**Tests**
+- **Known-answer**, against published vectors — the standard `src/crypto/` holds for PBKDF2 and
+  HKDF, and for the same reason: a wrong QR is not an error but a silent one, either unscannable or
+  scanning to a truncated address. Cover a long URL with query parameters and a URL with non-ASCII
+  (byte mode, UTF-8). — `test/unit/ui/qr.test.ts`.
+- The encoder is **not** in an entry chunk, asserted against the real `dist/` through the machinery
+  `scripts/check-budgets.mjs` already has for compressed entry sizes.
+- E2E: unlock → open a bookmark → *Show QR code* → a canvas of the expected module count;
+  a locked vault offers no such button. — `test/e2e/manager.spec.ts`.
+- a11y: the dialog passes axe and the canvas carries an accessible name.
+- `npm run verify:invariants` green — this phase contains the first deliberate `import(` in the
+  codebase, so confirm the scanner accepts it rather than assuming it does.
+
+**Definition of done**
+- [x] A QR shown by the extension scans, on a real phone, to exactly the vaulted address. —
+      **verified by the maintainer on 2026-08-20**, procedure in DEVELOPMENT §5.6. Nothing in the
+      harness can point a camera at a screen, which is why this one item waited for a person. What
+      *was* settled without one, and is what made the pass a confirmation rather than a discovery:
+      `test/unit/ui/qr.test.ts` reads every symbol back with a decoder written from ISO/IEC 18004
+      rather than from the encoder — anchored on the standard's own worked example — over a long URL
+      with query parameters, a URL with a fragment and percent escapes, a Cyrillic one, and a CJK
+      host with an accented query.
+- [x] The encoder is vendored unminified, licensed correctly, and recorded in ARCHITECTURE §15. —
+      `src/vendor/qrcode-generator/qrcode.js`, byte-identical to `qrcode-generator@2.0.4`'s
+      `dist/qrcode.mjs` with both sha256 sums recorded beside it; §15.1 is new and says why it is
+      vendored rather than depended on, and why it is not written here. The MIT notice ships as
+      `public/THIRD-PARTY-NOTICES.txt`, because the minifier strips comments and `dist/` is a copy.
+- [x] It is absent from the worker and manager entry chunks (measured against `dist/`). —
+      `checkCodeSplitting` in `scripts/check-budgets.mjs` finds the encoder by a string it throws,
+      reads the eagerly loaded scripts out of the built HTML and the built manifest, and fails the
+      build if any of them carries it. **Verified by reintroducing the fault**: a static import
+      folds it into `assets/manager-*.js` and the check goes red.
+- [x] Nothing in the product or the Store listing implies control over the phone. — `qrOrdinaryTab`
+      says the address opens in an ordinary tab and lands in that phone's history, and the E2E
+      asserts that sentence is in the dialog. No `intent://`, no mobile-private claim, nothing
+      added to STORE_LISTING.
+- [x] THREAT_MODEL §4 records the leak. — accepted leak 8, plus traced claim D6 in §5.6 and P4 in
+      §5.7 for the vendored source.
+
+**What this phase learned, worth keeping.** Three of the four things that went wrong were found by
+running the checks rather than by reading them, which is exactly why the phase's own test list said
+to *confirm* the scanner accepts a dynamic import instead of assuming it.
+
+**The minifier writes the split chunk's specifier as a template literal.** Rolldown rewrites
+`import('../vendor/…/qrcode.js')` into a backtick literal naming the hashed chunk, and
+`verify-no-remote-code` only knew about quotes — so a correctly split build failed its own
+remote-code scan. The rule reads backticks now, and only substitution-free ones: the character class
+refuses any `${`, and refuses a lone `$` with it, which fails closed.
+
+**A vendored file names a URL that is not an address.** `http://www.w3.org/2000/svg` reaches `dist/`
+from an SVG builder nothing calls, and INV-3 has one mechanism for URLs. Putting it in `allowed`
+would have said the extension may contact w3.org, which is a different and much larger claim, so
+`build/url-allowlist.json` gained a **`constants`** key: URIs that are names, which nothing
+dereferences. The alternative — trimming the dead half of the vendored file — was rejected because
+byte-identical to upstream is the strongest form of "you can check this yourself", and that is the
+whole reason the file is unminified in the first place.
+
+**The test decoder had its format-information bits mirrored, and the standard's worked example did
+not catch it.** Reading a fifteen-bit field backwards still lands on a plausible error-correction
+level and mask often enough to pass once. What caught it was a round trip at level **L** reporting
+**M** — a second, independent property of the same read. A known-answer test with one assertion is
+one coincidence away from being wrong.
+
+Two smaller ones. **Error correction is level L on purpose**: it buys tolerance of *damage*, and a
+symbol on a clean self-lit screen has none — what a higher level costs is a version or two, and
+every version makes each module smaller inside a dialog of fixed width, which is what actually
+decides whether a camera resolves it. And the encoder's byte mode takes the low byte of each
+character, so the UTF-8 encoding is done with the platform's `TextEncoder` and handed in one
+character per byte, rather than vendoring upstream's second file for the purpose.
+
+**Git:** direct commits on `dev`. Tag `phase-15-done`.
+
+---
+
+## Phase 16 — Duplicate detection
+
+**Goal:** a vault grown by native import and by merge can be cleaned of bookmarks that collapse to
+the same address.
+
+**Depends on:** nothing.
+
+**Settled 2026-08-20 (maintainer): this is a cleanup, and only a cleanup.**
+
+The question was whether duplicate detection is a **cleanup** — a review screen over the whole vault
+— or a **prevention** — a notice at add time — or both. The answer is cleanup, for a reason that
+only became visible once the code was read rather than remembered: **prevention already shipped in
+Phase 5 and nobody had written it down.** `addUrl` computes `duplicateKeyOf`, `findDuplicate` walks
+the live items, and the popup answers "you already have this page" with a button that opens it
+(`src/background/add.ts`, `src/popup/vault.ts`). The native-bookmark import has counted duplicates
+by the same key since Phase 8. So "both" would have meant building one half twice, and the half
+people actually go looking for — the one that cleans years of accumulated copies — did not exist at
+all. This phase builds that half and records the other as already done.
+
+**One thing about the shipped prevention is left alone deliberately.** This section used to say
+prevention "must not block the add; a second copy on purpose is a thing people do" — and the shipped
+behaviour *does* block it: a duplicate is answered with `status: 'duplicate'` and nothing is saved.
+Adding an *Add anyway* would change add behaviour that has been in every release since Phase 5, to
+serve a case the cleanup screen now covers from the other end, and it would put a second bookmark in
+the vault whose only purpose is to be found by the screen this phase is building. Refused, and
+recorded here so it is not re-derived as an oversight. **#22 is closed by the cleanup alone.**
+
+**In scope**
+
+- `src/vault/duplicates.ts` — pure, no I/O, no `chrome.*`: group live items by a normal form. The
+  normalisation already exists (`vaultableUrl`, plus the tracking-parameter stripper, on by default
+  since Phase 8); this phase **chooses which one is shown and writes the choice down**.
+  `example.com/a` and `example.com/a?utm_source=x` are one address; `watch?v=a` and `watch?v=b` are
+  two videos.
+- **Live items only.** A tombstone is not a duplicate — the same trap `previewOf`'s `known` count
+  fell into in Phase 8, where a subset was counted against a superset and the preview contradicted
+  itself.
+- **A manager screen**, listing groups with the copies side by side — title, folder, tags, whether
+  there is a note, when it was added — because copies differ in everything except the address and
+  **which one to keep is the user's call, never an automatic one**. Nothing is pre-selected on the
+  user's behalf; the screen proposes a grouping and the user disposes of it.
+- **Reached from the sidebar**, beside *Untagged*, with a count of how many addresses are saved more
+  than once. Both are whole-vault filters and this is where someone already goes to ask a question
+  about the whole vault. The count is the point: it says there is something to clean without anyone
+  having gone looking, which is the same reason `ui/tracking.ts` asks for a count before it offers.
+- **Removal reuses `DELETE_ITEMS`.** The plan first said "composes one batch through
+  `organize.ts`" — but the batch it described is `items.ts`'s `remove()`, which already sends the
+  whole selection through one `repo.apply`, and which the manager already wraps in the 8-second undo
+  toast. A second entry point beside it would be a second thing to keep atomic. So: one batch, one
+  `vaultRev`, one tombstone, one undo — through the path that already had all four.
+- **The normal form is the wide one, and it is written down** (ARCHITECTURE §3.5): tracking
+  parameters stripped, then `duplicateKeyOf` — scheme, host, path, sorted query, fragment dropped.
+  It is deliberately **wider than the add-time check**, which does not strip. The two differ because
+  the moments differ: at add time a match *refuses a save*, so it must be conservative; here a match
+  only *proposes a comparison*, and nothing is removed without the user pressing a button. That
+  asymmetry is the whole reason both exist.
+  - `withoutTrackingParams` therefore moves from `src/background/add.ts` down to `src/vault/model.ts`,
+    beside `normalizeUrl` and `duplicateKeyOf`. It is pure URL arithmetic with no `chrome.*` and no
+    I/O, and `src/vault/` may not import from `src/background/` — the layering, not a preference.
+
+**Out of scope**
+
+**Dead-link checking, refused 2026-08-19**, and recorded here rather than only in the closed issue.
+Reaching a bookmark's target means requesting it, and **INV-4 says browsing the vault makes zero
+requests** — an invariant with an end-to-end test (`test/e2e/journey.spec.ts`), a line in the Store
+listing and a line in the privacy policy behind it. It would need a host permission broad enough to
+reach any origin, which D26's table does not contain; a hundred bookmarks is a hundred requests from
+the user's address to a hundred hosts in one second, which is the vault's table of contents exported
+to anyone watching the network; and the answers are unreliable enough — 403 to `HEAD`, Cloudflare,
+login walls — that a meaningful share of "dead" would be wrong, in a screen whose purpose is to
+suggest deleting things. Close **#22** in this phase, recording the split.
+
+**Tests**
+- Table test over the normal form: which pairs collapse and which do not, including the
+  tracking-parameter pair and the two-videos pair. — `test/unit/vault/duplicates.test.ts`.
+- Tombstones are never grouped.
+- Removal is **one** `repo.apply` — assert `vm.meta`'s `vaultRev` advances by exactly one when a
+  group of *n* copies is removed — and is undoable. — `test/unit/background/organize.test.ts`.
+- E2E over the duplicates screen: it finds the group, removes a copy, and the undo puts it back. —
+  `test/e2e/manager.spec.ts`.
+
+**Definition of done**
+- [x] The cleanup/prevention question is answered in this file before the first commit.
+- [x] Duplicates are found by a normal form that is documented, not implicit — ARCHITECTURE
+      §3.5.1, which is also where the *two* keys and their asymmetry are written down.
+- [x] Any removal is atomic and undoable — through `DELETE_ITEMS`, asserted as exactly one
+      `vaultRev` for a group of *n* in `test/unit/background/organize.test.ts`.
+- [x] #22 closed, recording that dead links were refused and why — and recording the accepted
+      half too, so the issue reads as a decision rather than a deletion.
+
+**Git:** direct commits on `dev`. Tag `phase-16-done`.
+
+---
+
+## Phase 17 — Favicon bytes in the heavy tier
+
+**Goal:** a vault restored on a second computer shows real icons instead of a column of coloured
+initials, because that profile has browsed none of those sites yet.
+
+**Depends on:** Phase 10 (Drive).
+**Specs to read:** [ARCHITECTURE §10](docs/ARCHITECTURE.md) (favicons), §14 (heavy tier), §8.3
+(accepted leaks); issue #6, whose spike resolved both unknowns against a real Chromium.
+
+**Settle before any code is written: does this need a `SCHEMA_VERSION` bump at all?** Issue #6
+assumes it does. The code suggests it may not, and the difference is the difference between an
+ordinary addition and the most expensive change this project can make — a bump re-seals **every
+bucket in the field**, because `Aad.v` *is* `SCHEMA_VERSION` and a blob sealed at 2 fails to
+authenticate under 3, indistinguishably from corruption; it forces the read path to stop using the
+constant and start reading the number in the header; it pushes the whole vault again; and it locks
+out any device Chrome has not yet updated, since a vault newer than the build throws
+`UnsupportedSchemaError` and is never written.
+
+Three reasons to think it is avoidable, all to be confirmed by reading `storage/codec.ts` and
+`storage/repo.ts` rather than by argument:
+
+1. The constant's own contract is *"bumped whenever the **decrypted payload shape** changes"*
+   (`src/vault/types.ts`). A store keyed by host changes no item.
+2. `AadPurpose` is a separate field from `v`; a **new purpose leaves every existing seal
+   untouched**.
+3. Phase 10's synced settings are the precedent — an additive optional field, in bucket 0's
+   payload, deliberately with no bump.
+
+Write the answer into ARCHITECTURE whichever way it falls. **If a bump is genuinely required, this
+phase stops there** and the bump becomes a phase of its own, with its migration, its fixture, and
+its own decision about when to make every other device wait for Chrome.
+
+> **Answered 2026-08-21, before the first line of code: no bump.** All three reasons hold, and were
+> checked by reading the code rather than by argument — `bucketAad` seals with the `SCHEMA_VERSION`
+> constant, so the cost of a bump is exactly as described above; no item field and no bucket payload
+> key changes, which is the contract the constant carries; and `'icon'` is a new `AadPurpose`, a
+> field of its own, which leaves every existing seal valid. Written up in
+> [ARCHITECTURE §10.1](docs/ARCHITECTURE.md), including what a *future* bump does to this store.
+> Consequence for the release: 14–18 still ship as **1.2.0**, a minor bump, with no schema change.
+
+**In scope**
+
+- **Keyed by host, not by item.** One icon serves every bookmark on the host — fifty GitHub
+  bookmarks, one file. Two orders of magnitude cheaper than thumbnails, which are per item because
+  every page has a different picture.
+- **The stored name is an HMAC under a vault key, never `sha256(host)`** (maintainer, 2026-08-19;
+  this is not in the issue and reverses its effect if missed). The set of domains is **enumerable**:
+  an unkeyed hash lets anyone holding the Drive folder hash the top million sites and read off which
+  files are present, turning *how many domains* into *which domains* — precisely the leak D28
+  refuses a third-party favicon service over.
+- **Read from `_favicon/` only**, by `fetch` from the worker. Our own origin, a local cache read,
+  **no network request**, no new permission — measured in the spike (200 OK, 646 bytes, readable
+  `ArrayBuffer`). INV-4 untouched and re-asserted by test.
+- **The placeholder is detected and not stored.** Two never-visited domains return byte-identical
+  646-byte globes; hashing the response and comparing against the placeholder's hash is what stops
+  the vault filling with hundreds of identical globes.
+- **Capture at three moments only**, each one where the user has already caused the work: on add
+  (already in the pipeline, under a gesture); on an opportunistic upgrade when we hold nothing for a
+  host and the cache now has a real icon, **checked only while rendering that row anyway**; and an
+  explicit *refresh icon*, mirroring §14.5's manual thumbnail refresh. **No timer, no startup sweep,
+  no fetch for rows nobody is looking at** — that is the same rule D27/§14 imposes on thumbnails,
+  for the same reason.
+- Sealed under `k_thumbs` through `repo.thumbCipher()`, so this module never holds a key, exactly as
+  `src/thumbs/**` does not.
+- **Drive tier only.** `chrome.storage.sync` is 100 KB in total and the heavy tier never touches
+  it — a hard invariant, not a preference. On the Chrome-sync tier nothing changes at all:
+  `_favicon/` plus the letter avatar, as today. That is also the only tier where the problem is felt.
+- **Deletion happens at purge, not at delete**, through the housekeeping alarm's existing
+  `sweepOrphans` shape — comparing stored keys against the live host set, which is also what catches
+  the orphans a merge, an import or a rollback leaves behind, none of which pass through the delete
+  path.
+- **§8.3 gains a leak:** the number of favicon files approximates the number of distinct domains in
+  the vault. Sharper than the bucket count, strictly weaker than the one-file-per-item thumbnails
+  already there, and the bytes stay encrypted.
+
+**Out of scope:** fetching `https://<site>/favicon.ico` or parsing `<link rel="icon">` from the
+extension origin — a third-party request and out of the question under INV-4. Any background or
+scheduled refresh. Replacing the letter avatar, which stays the fallback for "no real icon known".
+Anything on the Chrome-sync tier.
+
+**Tests**
+- N bookmarks on one host cost one stored icon. — `test/unit/thumbs/favicons.test.ts`.
+- A response whose hash matches the placeholder is **not** stored and the row keeps its letter.
+- **The stored name is not derivable from the host without the key** — assert that hashing the host
+  by any unkeyed means does not produce the stored key.
+- Bytes are encrypted at rest; the INV-6 assertion is extended to the favicon store.
+- **Nothing is written to `chrome.storage.sync`.**
+- INV-4: browsing a vault full of favicons issues zero network requests. — extend
+  `test/e2e/thumbs.spec.ts`'s request trap.
+- Capture happens on add, on the opportunistic upgrade, and on explicit refresh — **and at no other
+  time**, asserted against the fetch seam itself rather than against stored state, because the claim
+  is about what is *not* done.
+- On the Chrome-sync tier, behaviour is byte-for-byte unchanged.
+
+**Definition of done**
+- [x] The schema question is answered in ARCHITECTURE before the first commit — §10.1, and
+      the answer is *no bump*.
+- [x] Every acceptance criterion in issue #6 is met; #6 closed — with the one it *asked for* and
+      did not need, the `SCHEMA_VERSION` bump, recorded as answered rather than skipped.
+- [x] Stored names are keyed, and a test proves an unkeyed guess cannot find one —
+      `test/unit/thumbs/favicons.test.ts` checks the host, its SHA-256, its base64 and two
+      truncations against the name on disk.
+- [ ] Restoring a vault on a second profile with Drive connected shows real icons — **the
+      maintainer's manual pass**, for the same reason Phases 10 and 11 have one: Playwright cannot
+      sign into Google. Procedure written up as DEVELOPMENT §5.5.1, nine steps; **not yet run.**
+- [x] §8.3 records the leak — entry 6, with the reason the keyed names make it weaker than it
+      sounds.
+
+**Git:** direct commits on `dev`. Tag `phase-17-done`.
+
+---
+
+## Phase 18 — Localisation machinery and Polish
+
+**Goal:** make the product translatable in fact rather than in principle, and ship the first
+translation — Polish — in a state somebody can vouch for.
+
+**Depends on:** Phases 14–17. **Every one of them adds strings**, and translating a moving target is
+the avoidable half of this work. Phase 18 also rebuilds the popup's settings screen, which should be
+done once the screens above have stopped changing.
+
+**Specs to read:** the header of `scripts/verify-strings.mjs`, which anticipates this phase in so
+many words; `src/popup/popup.css` lines 1–30 and 290–305, which are load-bearing measurements.
+
+**Measured starting point** (2026-08-19): **572 keys, 5,060 words, 28,707 characters, 89 keys with
+placeholders, 17 singular-form keys.** The groundwork is genuinely done — INV-10 has kept every
+user-facing string in `_locales/en/messages.json` since Phase 12, and the Phase-12 decision to write
+**whole sentences** rather than a stem plus a pluralised suffix pays off exactly here, because a
+sentence assembled from fragments at runtime is one no translator can reorder.
+
+**Four things must be fixed before a single word is translated.**
+
+1. **Plurals.** `chrome.i18n` has **no plural support whatsoever** — no ICU MessageFormat, nothing.
+   The 17 singular keys are pairs built for English's two forms. **Polish has three** (1 zakładka /
+   2 zakładki / 5 zakładek, with 22 taking the second and 12 the third), so a pair cannot express
+   it. The fix is `Intl.PluralRules` — **built into the browser, zero dependencies, D4 intact**:
+   `new Intl.PluralRules(locale).select(n)` returns `one`/`few`/`many`/`other` and the key takes a
+   suffix. Rework `countsLine`/`knownLine` in `src/manager/io.ts` and the other fifteen sites. This
+   is a **structural change, not translation**, and it must come first — otherwise the translator is
+   handed a file in which correct Polish cannot be written.
+2. **The popup has eleven pixels of slack.** `popup.css` records it: the settings screen measured
+   **589 px of the 600 Chrome allows**, in a fixed 26.4 rem × 37.5 rem (422 × 600 px) column.
+   German runs 30–40 % longer than English. The cascade is already documented in this repository —
+   overflow produces a scrollbar, the scrollbar narrows the column, the narrower column rewraps the
+   hints, and the screen gets taller still. **Rebuild the popup's settings screen so it survives
+   longer text**, and add an E2E that measures the rendered height per locale. Without this the
+   first long-language translation is broken on the day it ships.
+3. **`verify-strings.mjs` checks English only.** Add a fourth check: **key parity across locales**.
+   A missing key is silent, which is the exact failure mode the first three checks exist to prevent.
+4. **Measure the fallback, do not assume it.** `default_locale` is `en`. Whether Chrome falls back
+   per *message* or only per *file* decides whether an unfinished translation renders as a partly
+   English interface (acceptable) or as **blank labels** (not). Measure it in a real Chrome against
+   the real `dist/` and write the answer down — this repository has been wrong before about what a
+   browser does, and found out by measuring.
+
+**In scope**
+
+- The four items above.
+- `public/_locales/pl/messages.json`, complete.
+- **Store listing in Polish.** Five fields. The **short description has a hard 132-character limit
+  that already refused a package once** (133 characters on the 1.0.0 upload — the Store *rejects*,
+  it does not truncate), and Polish runs longer than English, which fitted at 129. That line is
+  **written to the limit, not translated to it.** Screenshots stay English unless a full set of five
+  per locale is judged worth it; record the decision either way in `docs/STORE_LISTING.md`.
+- **Write down that there is no in-app language picker and why.** `chrome.i18n` takes its language
+  from the browser UI and offers no supported override; building one means abandoning `chrome.i18n`
+  for a private message loader, and the name and description in `chrome://extensions` would still
+  follow the browser. This will be asked in an issue — have the answer in the repository first.
+
+**Out of scope:** **German, French and Spanish.** Deferred to a separate decision after this phase,
+by the maintainer's own call: quality can only be verified in Polish, and machine translation of
+security copy is not a typo risk but a data-loss risk — *"There is no way to recover this password"*
+rendered a shade softer produces a user who sets a weak password on a vault with no recovery. The
+repository has been public since 2026-08-15 and translation is the most common form of outside
+contribution to extensions; after this phase the machinery accepts one, with English as the
+fallback. Polish also happens to be the hardest of the four — three plural forms, seven cases — so
+machinery that carries Polish carries the rest.
+
+**Tests**
+- `Intl.PluralRules` selection for `en` and `pl` across 0, 1, 2, 4, 5, 12, 22, 25, 101 — the
+  boundaries where the two languages disagree. — `test/unit/ui/plural.test.ts`.
+- Every plural key referenced by the selector exists in **both** locales, checked against
+  `messages.json` — the same shape as `test/unit/manager/io-text.test.ts`, which exists because a
+  missing key renders as an empty string and an empty line reads as one that was never there.
+- `verify-strings.mjs`'s fourth check fails a deliberately removed `pl` key. **Confirm it fails
+  before believing it** — the Phase-8 scrollbar regression test passed with the bug reintroduced.
+- E2E: the popup's settings screen fits within Chrome's 600 px in `en` and `pl`, measured in
+  Chromium, and again with a synthetic long-string locale standing in for German.
+- a11y: the axe pass runs against `pl` as well — an `aria-label` is a translated string too.
+
+**Definition of done**
+- [x] Plurals go through `Intl.PluralRules`; no key pair encodes English's two forms —
+      `src/ui/plural.ts`, **46 families**. Wider than the 17 the phase counted: a count key with no
+      English singular partner (`tagRenamed`, `dupesCopies`, `settingsIdleMinutes`) is the same
+      problem in Polish, which needs three forms where English needed one.
+- [x] The popup's settings screen fits in every shipped locale, measured, not reasoned about —
+      `test/e2e/locale-fit.spec.ts`, in `en`, `pl` and synthetic locales ×1.4 and ×3. **The phase's
+      premise did not survive the measurement**: the 589-px screen it budgeted eleven pixels for
+      lost a section in Phase 16, and the screen took English at 2.5× before anything reached the
+      fold. Rebuilt anyway, because "it happens to fit" is not a guarantee — the sections scroll in
+      a box of their own now, and the ×3 case fails against the old screen.
+- [x] `npm run verify` fails on a missing key in any locale — `verify-strings.mjs` check 4, which
+      asks `Intl.PluralRules` for each locale's categories rather than listing them. **Confirmed
+      failing** on a removed plain key, a removed `_few`, and an extra key.
+- [x] The `default_locale` fallback behaviour is measured and recorded — **per message**, not per
+      file. `test/e2e/locale-fallback.spec.ts`, ARCHITECTURE §18.3, DEVELOPMENT §5.7, with the date.
+      So a partial outside translation is mergeable, which is the policy the answer decided.
+- [x] Polish is complete and the Polish short description is ≤ 132 characters — 733 keys, and
+      **130 characters**, measured by `verify-manifest.mjs`, which now reads every locale in the
+      built package rather than only `en`.
+- [x] `docs/STORE_LISTING.md` carries every Polish field; the screenshot decision is recorded —
+      §11. The English screenshots are used, and §11.3 says what would change that.
+- [x] The absence of a language picker is documented with its reason — ARCHITECTURE §18.4, with
+      shorter versions in README and CONTRIBUTING, where the question will actually be asked.
+
+**One thing the phase did not plan for, and it was the sharpest finding.** The E2E suite took its
+browser language from the **operating system**, which was invisible while `en` was the only locale
+in the package. Adding `_locales/pl` turned twelve of thirteen specs red on a Polish-language
+machine while CI, which runs in English, stayed green — a failure with no signal on the branch that
+ships. Pinned in `test/e2e/harness.ts` and `playwright.config.ts`.
+
+**Git:** direct commits on `dev`. Tag `phase-18-done`.
+
+---
+
+### Releasing 14–19
+
+These six land on `dev` and ship together as **1.2.0** — features, so a minor bump by RELEASE §4's
+table. **Phase 17's first question is answered and the answer is no schema change** (§ Phase 17), so
+1.2.0 is an ordinary minor release and no device is asked to wait for a Chrome update.
+
+**Cut on 2026-08-24**: version bumped on `dev`, the CHANGELOG's `[Unreleased]` closed as
+`[1.2.0]`, and `dev` merged into `main` with `--no-ff`. The tag, the GitHub Release and the Store
+upload follow RELEASE §4 steps 6–9 and are each a deliberate act.
+
+Two things to raise at the release itself:
+
+- **The rewritten Store short descriptions are still unpublished** — the English one (129
+  characters) and the Polish one (130). Both have been on `dev` since before 1.1.0, whose package
+  went up only as a never-submitted draft, so 1.2.0 is the upload that publishes them. Only a
+  package can: the short description is the manifest's `description`.
+- **Check `gh run list` before the release merge.** 1.0.0 was tagged while CI on `dev` was red and
+  the fix was sitting uncommitted in the working tree — a local `verify` that is green *because* of
+  an unsaved file is green about nothing.
+
+---
+
+## Phase 19 — The icon of a site you only ever open through the vault
+
+**Goal:** a bookmark whose site the user reaches *only* through VaultaMark gets a real icon, not a
+coloured initial. Phase 17 stores what Chrome's favicon database holds; this phase covers the case
+Chrome's database structurally cannot hold, because VaultaMark opens every bookmark in an incognito
+window and an incognito profile writes no favicon entry (§10.1, maintainer-reported 2026-08-21).
+
+**Depends on:** Phase 11 (the OG injection this rides inside), Phase 17 (the icon store it writes
+to). **Ships *in* 1.2.0** — decided 2026-08-22 by the maintainer, reversing this section's original
+"ships after". The release had not been cut yet, and folding the phase in costs one more item in a
+release that is already five, against publishing 1.2.0 and then immediately owing a 1.2.1 for a
+decoration. What does not change is that it must not *delay* the release: if this phase is not done
+when 1.2.0 is otherwise ready, it comes out again and ships next.
+
+**Specs to read:** [ARCHITECTURE §10.1](docs/ARCHITECTURE.md) in full, and its incognito paragraph
+twice — it is the statement of the problem and already contains the shape of the answer; §14.1
+(pipeline), §14.2 (hostile input), §14.4 (tier gating and the *nothing is injected* rule), §8.3
+(accepted leaks). Issue **#27**, which is the specification this phase implements. D25, D26, D27.
+
+> **The phase's own title is half wrong, and finding that out is the first task.** #27 asks for
+> `<link rel="icon">` to be parsed in page context. It probably should not be. **`tab.favIconUrl`
+> is already populated under an `activeTab` grant** — `activeTab` confers host permission for that
+> tab, which is what unlocks the sensitive `Tab` fields — and `src/background/thumbs.ts` holds that
+> exact `Tab` at the moment it injects. Chrome has already done the resolution: `rel="icon"` versus
+> `rel="shortcut icon"`, `sizes=`, `media=`, `type=`, the `apple-touch-icon` fallbacks, and the
+> implicit `/favicon.ico` when the page declares nothing at all.
+>
+> So the shape is **worker reads `tab.favIconUrl` → passes the URL into the existing injection →
+> the page fetches it from its own origin → bytes return on the existing `CaptureResult`**. That is
+> a pile of parsing this phase does not write, and it guarantees the stored icon is *the one Chrome
+> is drawing in the tab strip*, which is the promise the feature is actually making. Confirm
+> `favIconUrl` is present under `activeTab` against the real `dist/` before building on it; a
+> `<link>` walk stays available as a fallback and is **not** built until something needs it.
+
+**Three measurements before any code, each of which can shrink the phase.**
+
+1. **Does `createImageBitmap` decode ICO in a service worker** — `image/x-icon`,
+   `image/vnd.microsoft.icon`, and a multi-size `.ico`? #27 flags this as unmeasured and it is
+   load-bearing: `/favicon.ico` is what `favIconUrl` points at for a large share of the web. If ICO
+   does not decode, coverage drops sharply and that number belongs in this section, not in a
+   retrospective.
+2. **Does `createImageBitmap` decode SVG in a worker?** Decides the SVG question below outright. The
+   expectation is *no* — SVG decoding is document-bound in Blink — in which case there is nothing to
+   decide.
+3. **How often does a page-context fetch of a same-origin favicon actually succeed?** Better odds
+   than `og:image`, which is usually on a CDN, but `connect-src` still governs it. A handful of real
+   sites, recorded as a dated table the way §10.1's `_favicon/` measurements are.
+
+Write all three into ARCHITECTURE before the first commit, whichever way they fall — the same rule
+Phase 17 applied to the schema question, for the same reason.
+
+**In scope**
+
+- **A new decision, D37**, written into §2 before the code: *page-declared favicon bytes are fetched
+  by the content script, in the page's own context, inside the existing add-time OG injection.* It
+  is D27 applied to a second kind of image, and it needs saying separately because *what this
+  extension injects into a page, and when* is the product's central claim.
+- **It rides inside the existing injection and inherits its gate.** One extra field on
+  `CaptureResult`, no second injection, and §14.4's *nothing is injected when nothing would be kept*
+  survives untouched — `test/unit/background/thumbs.test.ts` asserts it and must not be edited. The
+  practical intersection is the Drive tier, which is where stored icons live anyway, so the gate
+  costs nothing real.
+- **`captureOnAdd` stays exactly where it is.** `_favicon/` is free and reaches all four add
+  gestures; the injection reaches two. So the page-sourced bytes are an **upgrade applied only when
+  `captureOnAdd` stored nothing**, which preserves §10.1's rule that an upgrade never overwrites.
+- **A page-sourced icon goes through a `processIcon` beside `processThumb`**: decode → 32 px →
+  WebP/PNG → the existing 64 KB cap, with the 5 MB fetch ceiling on input. This is the pipeline
+  §14.2 exists for, because these bytes came from a page.
+- **Provenance is recorded** — one byte in the sealed plaintext, or a field in the icon AAD — so the
+  two sources are distinguishable at read time. The icon store is a cache and a blob that will not
+  parse is a miss, so this costs nothing to introduce.
+- **`refreshIcon`'s semantics change, and this is the defect this phase exists to avoid shipping.**
+  It currently *drops* a stored icon when `_favicon/` answers with the globe, deliberately — "this
+  is what the icon is now, including that it is nothing". With page-sourced icons in the store, a
+  refresh on a vault-only site would **delete a perfectly good icon** because the regular profile has
+  never seen the host. So: refresh tries the page first when the active tab is on that URL (the
+  `samePage` check already exists for the preview refresh), and a Chrome miss never overwrites a
+  page-sourced hit. **Write this into §10.1 in the same commit as the code.**
+- **A third moment reaching the case the phase is named for:** the popup, open on a vaulted page in
+  an incognito window. The worker is `spanning` (D29) so it sees that tab, and the popup's own
+  gesture grants `activeTab` on it — no new permission, and it is user-invoked, which is what every
+  moment in §10.1 has to be. Add-time capture alone still misses a bookmark that arrived from a
+  context menu and was thereafter only ever opened through the vault.
+
+  **This shipped as a separate *use this page's icon* button and that was wrong** — corrected
+  2026-08-23, before the phase was tagged. The preview refresh and the icon capture are one script
+  in one page with two concurrent fetches; two buttons meant two injections for one gesture, and on
+  the vault-only site the icon button existed for, its whole answer was a paragraph telling the user
+  to press it. `REFRESH_THUMB` now carries both halves and `USE_PAGE_ICON` is gone. The manager's
+  pane likewise has one button, which re-reads `_favicon/` *before* it opens the page, so the click
+  is an action rather than a note. §10.1 says so under *One button, because it was always one
+  request*.
+- **The honest ceiling, stated in ARCHITECTURE rather than discovered later:** this fires where
+  *Drive tier ∧ added from a loaded tab ∧ capture enabled ∧ the icon fetches and decodes*. §10.1's
+  closing sentence — "what this feature covers is sites you have also browsed normally" — gets
+  rewritten, not deleted.
+
+**Out of scope:** capturing when *VaultaMark itself* opens the bookmark in incognito — `tabs.create`
+grants no `activeTab`, so injecting there needs a host permission (D26, INV-9); write the refusal
+down so it stops being re-proposed. An extension-origin fetch of any icon, which stays refused under
+INV-4 for the reason §10.1 gives. Anything on the Chrome-sync tier. Any background, scheduled or
+browse-time capture — the rule D27/§14 imposes, unchanged.
+
+**The `<link rel="icon">` walk was out of scope "unless something forces one", and something did**
+— corrected 2026-08-23, before the phase was tagged. Two things, in fact: `tab.favIconUrl` is
+**empty** for a site the regular profile has never resolved an icon for, which is precisely the site
+this phase is named for; and it points at an SVG for about a quarter of the web. So the walk is
+built, in the page, in `content/og.ts` — Chrome's answer first when it is not a vector, then the
+declared rasters nearest 32 px, then `/favicon.ico`, then anything vector-shaped, at most four
+attempts. `apple-touch-icon` is included as the last raster rather than preferred, and `mask-icon`
+is skipped.
+
+**The SVG question, and the shape of its answer.** `thumbs/validate.ts` refuses `image/svg+xml`
+outright, with its own reason string, as a script vector. Measurement 2 said a worker cannot decode
+SVG, and the phase took that as the end of it — **which was reading "document-bound" as
+"impossible"**, corrected 2026-08-23 before the tag. The capture already runs *in a document*; that
+is the whole reason the fetch is legal (§14.1). So the answer is the one this bullet always named as
+the only acceptable one: **rasterise and never store the SVG.** An `<img>` from a blob URL minted in
+that same page runs no script and resolves no external reference, the canvas it draws into is not
+tainted, and what crosses back to the worker is a PNG. The worker's refusal stands and it now never
+sees an SVG at all. Storing an SVG and rendering it was never on the table and still is not.
+
+**Tests**
+- A page-sourced icon is stored **only** when `captureOnAdd` stored nothing — table test over the
+  four combinations of (Chrome has an icon) × (the page declares one).
+- Refresh on a host with a page-sourced icon and no Chrome entry **keeps the icon**. This is the
+  regression the phase is written around; write it before the code that makes it pass.
+- Nothing is injected on the Chrome-sync tier with the opt-in off — the existing §14.4 assertion,
+  re-run unchanged, and it must not need editing.
+- A page-sourced icon goes through `processIcon`: hostile-input table over content type, declared
+  size, actual size, dimensions and decodability, mirroring `test/unit/thumbs/validate.test.ts`.
+- INV-4: the E2E route trap stays empty through an add, a browse and a refresh. The page's fetch is
+  in the page, so a request appearing at the extension origin is the failure this asserts.
+- **Capture happens at the three moments and no other**, asserted against the injection seam rather
+  than against stored state — the claim is about what is not done. The seam now distinguishes the
+  *ask* (`icon: true`) from the *hint* (`iconUrl`): an unusable `favIconUrl` suppresses the hint and
+  must not suppress the ask.
+- **The candidate ordering is a table test** over the shapes real pages have — an SVG hint beside a
+  declared PNG, sizes above and below 32, `apple-touch-icon`, `mask-icon`, a `data:` href — and the
+  rasteriser is injected, because jsdom has no canvas. That a document *can* draw an SVG and read
+  the canvas back is measured in Chromium in `test/e2e/thumbs.spec.ts`, beside the worker's refusal
+  to decode the same bytes.
+- E2E: `thumbs.spec.ts`'s harness limit applies here too (the automation profile's favicon database
+  never returns a real icon), so the page-sourced half is driven through the fetch seam and that is
+  recorded, not worked around.
+
+**Definition of done**
+- [x] The three measurements are in ARCHITECTURE, dated, before the first commit — including a
+      *no* that shrinks the phase.
+- [x] `favIconUrl` under `activeTab` is confirmed against the real `dist/`, or the phase falls back
+      to a `<link>` walk and says so.
+- [x] D37 is in PLAN §2 and §14.1 describes the second image the injection now carries.
+- [x] §10.1's refresh semantics are rewritten, and a test proves a page-sourced icon survives a
+      refresh on a profile that has never visited the host.
+- [x] The popup's *Refresh preview and icon* works from an incognito window on a vaulted page,
+      **including on a site whose only icon is an SVG** — **maintainer's manual pass**, for the same
+      reason Phases 10, 11 and 17 have one. Written up as DEVELOPMENT §5.5.2 and **run clean on
+      2026-08-23**. Playwright can neither click the toolbar button that grants `activeTab` nor sign
+      into Google, so both seams this rides on are outside the harness; everything downstream of
+      them is covered by `test/unit/background/page-icon.test.ts`.
+- [x] §10.1's coverage sentence tells the truth about the new ceiling.
+- [x] Issue #27 closed against what was built, including the parts it asked for and this phase
+      declined. **Closed 2026-08-23.** What it says: the `<link rel="icon">` walk it asked for **was** built, in the page,
+      after `tab.favIconUrl` turned out to be empty for exactly the sites this is for and to point at
+      an SVG for a quarter of the rest — it is a hint at the head of the list now, not the list. Its
+      SVG question is answered by rasterising in the page: ICO decodes in a worker and SVG does not,
+      but a document draws one, so nothing is written off. And capturing when VaultaMark itself opens
+      a bookmark in incognito is refused for good — `tabs.create` grants no `activeTab`
+      (D26, INV-9).
+
+**Git:** direct commits on `dev`. Tag `phase-19-done`.
+
+---
+
+## Phase 20 — Pictures on Drive are a choice, not a consequence
+
+> **Suspended on 2026-08-23, by the maintainer, before any of it was built.** Not cancelled and not
+> superseded — the reasoning below still holds and the phase is written up well enough to pick up
+> whole. It is simply not what this repository does next: 1.2.0 is cut first, and nothing in the
+> release depends on this. Nothing is half-done, so there is no state to clean up; §14.4's
+> tier-gating table stands as written and Phase 19's default keeps the meaning it shipped with.
+> **The dependency note below — "if only one of the two gets built, build this one" — is spent**:
+> Phase 19 shipped, so the awkward edit it warned about is the edit this phase now *is*, whenever it
+> is taken up. Do not start it without the maintainer saying so.
+
+**Goal:** connecting Drive should not, by itself, decide that a picture for every bookmark and an
+icon for every domain get uploaded to the user's own Drive. One checkbox in Settings — visible only
+while Drive is connected, **off by default** — governs the whole heavy tier.
+
+**Depends on:** Phase 10 (Drive), Phase 11 (thumbnails), Phase 17 (icons). **Nothing in Phase 19**,
+and if only one of the two gets built, build this one: it changes what Phase 19's default *means*,
+and a gate fitted after the thing it gates has shipped is the more awkward edit.
+
+**Specs to read:** [ARCHITECTURE §14.4](docs/ARCHITECTURE.md) — the tier-gating table, which this
+phase rewrites; §10.1 (*Drive tier only*, which stops being the whole rule); §6.7 (settings that
+travel, and why some deliberately do not); §8.3 (accepted leaks); §13.3 (Drive file layout).
+
+**Why, and the third reason is the real one.**
+
+1. **Quota and traffic in a folder the user pays for.** A 600-bookmark vault is measured in
+   megabytes of thumbnails against a light tier measured in kilobytes.
+2. **The leak §8.3 already records.** One file per item and one per domain means the Drive folder's
+   file count approximates *how many bookmarks* and *how many distinct domains* the vault holds.
+   A user who wants the smallest possible footprint in their own Drive should be able to keep a
+   light-tier-only vault there — and today, connecting Drive decides otherwise on their behalf.
+3. **Consent.** *"I connected Drive so my bookmarks reach my other computer"* is not the same
+   statement as *"upload a picture of each of them"*, and this product does not get to treat the
+   first as the second. That is the reason; the other two are the arithmetic.
+
+**In scope**
+
+- **One setting, working name `driveMedia`, governing icons and thumbnails together.** Not two
+  checkboxes: they are the same question about the same folder, and a user who does not want
+  pictures on Drive does not want half of them there either.
+- **It travels.** `localThumbnails` is deliberately per-device because it is a statement about *this
+  computer's disk* (§6.7). This one is a statement about *the vault's Drive folder*, which every
+  device shares — so it belongs in `SYNCED_SETTING_KEYS`, and one device turning it off must stop
+  another device uploading. Last-writer-wins per field, like the rest of §6.7; no new merge rule.
+- **Visible only while `providerId === 'drive'`.** The value persists while the control is hidden
+  and survives a disconnect and reconnect — a hidden setting that silently resets is a setting that
+  answers a question the user did not get asked twice.
+- **Default off on a fresh Drive connection.** *Settled: the maintainer's call, 2026-08-22.*
+- **The upgrade question is a different question and the phase must settle it before any code.** A
+  vault whose Drive folder already holds `t_*.vmt` and `f_*.vmi` belongs to somebody who has been
+  living with the feature working. Two options, decided in ARCHITECTURE first:
+  **(a)** off for everyone, one rule, and existing users silently lose pictures they had;
+  **(b)** off for new connections, on for a vault whose Drive folder already holds heavy-tier files —
+  a one-time read at migration. **Recommendation is (b):** the setting exists to prevent a surprise,
+  and switching off something somebody already has is the same surprise pointed the other way.
+- **Turning it off stops future uploads and deletes nothing by itself.** Deleting a user's Drive
+  files on the strength of a checkbox is a hard-to-reverse action taken on an ambiguous gesture.
+  What is offered instead is an explicit, separately-confirmed **remove pictures from Drive** action
+  beside the checkbox, which reuses the sweep the housekeeping alarm already has (§14.6).
+- **Two switches about pictures is one too many.** `localThumbnails` exists for the Chrome tier and
+  `offersThumbnails` already asks a question about it (§14.4). Decide before the code whether the
+  two collapse into one control with three states — *never* / *this device only* / *this device and
+  Drive* — or stay separate, and write the answer into §14.4's table, which this phase rewrites
+  either way.
+- **The local cache is untouched.** `storage.local`'s 8 MB of thumbnails and 1 MB of icons are this
+  computer's disk, not the user's Drive, and this checkbox says nothing about them.
+- New strings in `en` **and** `pl`, complete — INV-10 and `verify-strings.mjs` check 4.
+
+**Out of scope:** a per-item or per-folder choice, which is a different feature with a different UI.
+Any quota display or size budget. Changing anything the Chrome-sync tier does — §14.4 settles that
+and this phase does not reopen it. Changing what the **light** tier stores: items, titles, tags,
+notes and folders always sync, and this checkbox never touches them. Making Drive itself opt-out.
+
+**Tests**
+- With Drive connected and the setting off, an add captures nothing and writes no heavy-tier file —
+  asserted against the capture seam *and* against the provider, because "did not upload" and "did
+  not capture" are two claims.
+- Turning it off stops uploads and leaves the existing Drive files exactly where they are.
+- The explicit removal action deletes every `t_*.vmt` and `f_*.vmi` and nothing else — the light
+  tier's buckets and header survive it, asserted by name.
+- The setting is in `SYNCED_SETTING_KEYS` and two devices converge on it, through the existing §6.7
+  table tests rather than a new mechanism.
+- The control is absent on the Chrome tier, and its value survives a disconnect and reconnect.
+- Migration: a vault whose Drive folder already holds heavy-tier files arrives with the setting set
+  the way the answer above decided, asserted against a fixture rather than against a live Drive.
+- `npm run verify` green with `pl` complete.
+
+**Definition of done**
+- [ ] §14.4's table is rewritten and §10.1's "Drive tier only" sentence tells the truth about the
+      new gate.
+- [ ] The upgrade question is answered in ARCHITECTURE, dated, before the first commit.
+- [ ] The `localThumbnails` overlap is resolved one way or the other, and the settings screen shows
+      one comprehensible set of choices rather than two overlapping ones.
+- [ ] Removing pictures from Drive is explicit, confirmed, and reversible only by re-capture — and
+      says so in the confirmation.
+- [ ] The setting travels, and a second computer arrives with the answer rather than the default.
+- [ ] `en` and `pl` complete; the popup and manager settings screens still fit in both
+      (`test/e2e/locale-fit.spec.ts`).
+
+**Git:** direct commits on `dev`. Tag `phase-20-done`.
 
 ---
 

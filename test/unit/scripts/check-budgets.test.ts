@@ -11,7 +11,14 @@
 import { access } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
-import { BUDGETS, checkBudgets, measure, report } from '../../../scripts/check-budgets.mjs';
+import {
+  BUDGETS,
+  checkBudgets,
+  checkCodeSplitting,
+  entryScripts,
+  measure,
+  report,
+} from '../../../scripts/check-budgets.mjs';
 
 interface Measurement {
   zipBytes: number;
@@ -86,6 +93,79 @@ describe('the report', () => {
   });
 });
 
+/**
+ * PLAN §9 Phase 15. The encoder is found by a string it throws, so these fixtures carry that string
+ * rather than a filename — the same reason the check itself does.
+ */
+describe('the QR encoder stays out of the eager chunks', () => {
+  const entry = (name: string, text: string) => ({ name, data: Buffer.from(text, 'utf8') });
+  const MARKER = 'code length overflow';
+
+  const manifest = entry('manifest.json', JSON.stringify({ background: { service_worker: 'background.js' } }));
+  const document_ = entry(
+    'manager.html',
+    '<script type="module" crossorigin src="/assets/manager-abc.js"></script>',
+  );
+
+  it('reads the eager scripts out of the document and the manifest', () => {
+    expect([...entryScripts([manifest, document_])].sort()).toEqual([
+      'assets/manager-abc.js',
+      'background.js',
+    ]);
+  });
+
+  it('passes a build where only the lazy chunk carries it', () => {
+    const entries = [
+      manifest,
+      document_,
+      entry('assets/manager-abc.js', 'await import(`./qrcode-def.js`);'),
+      entry('assets/qrcode-def.js', `throw ${JSON.stringify(MARKER)};`),
+      entry('background.js', 'const worker = true;'),
+    ];
+    expect(checkCodeSplitting(entries)).toEqual([]);
+  });
+
+  it("fails a build that folded it into the manager's first paint", () => {
+    const entries = [
+      manifest,
+      document_,
+      entry('assets/manager-abc.js', `throw ${JSON.stringify(MARKER)};`),
+      entry('background.js', 'const worker = true;'),
+    ];
+    expect(checkCodeSplitting(entries)[0]).toContain('assets/manager-abc.js is loaded eagerly');
+  });
+
+  it('fails a build that put it in the service worker', () => {
+    const entries = [
+      manifest,
+      document_,
+      entry('assets/manager-abc.js', 'const page = true;'),
+      entry('background.js', `throw ${JSON.stringify(MARKER)};`),
+    ];
+    expect(checkCodeSplitting(entries)[0]).toContain('background.js is loaded eagerly');
+  });
+
+  it('fails a build carrying two copies of it', () => {
+    const entries = [
+      manifest,
+      document_,
+      entry('assets/manager-abc.js', 'const page = true;'),
+      entry('assets/qrcode-def.js', `throw ${JSON.stringify(MARKER)};`),
+      entry('assets/qrcode-ghi.js', `throw ${JSON.stringify(MARKER)};`),
+      entry('background.js', 'const worker = true;'),
+    ];
+    expect(checkCodeSplitting(entries)[0]).toContain('in 2 chunks');
+  });
+
+  /*
+   * The marker is a string literal inside somebody else's source. Re-vendoring could take it away
+   * and every assertion above would keep passing against a package with no encoder in it at all.
+   */
+  it('fails a build where nothing carries it', () => {
+    expect(checkCodeSplitting([manifest, document_])[0]).toContain('no chunk carries the QR encoder');
+  });
+});
+
 describe('the package as it stands', () => {
   it('fits every budget', async () => {
     // Skipped rather than failed when there is no build: `npm run test` runs before `npm run
@@ -99,6 +179,7 @@ describe('the package as it stands', () => {
 
     const measurement = await measure();
     expect(checkBudgets(measurement)).toEqual([]);
+    expect(checkCodeSplitting(measurement.entries)).toEqual([]);
     // A sanity check on the measurement itself: an empty dist/ would satisfy every budget.
     expect(measurement.files.some((entry) => entry.name === 'background.js')).toBe(true);
     expect(measurement.zipBytes).toBeGreaterThan(10_000);

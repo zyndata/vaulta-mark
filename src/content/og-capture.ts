@@ -16,13 +16,17 @@
  * in `og.ts` next door, which is bundled into this one and has no `chrome` in it at all.
  */
 
-import { capture, type CaptureResult } from './og.js';
+import { capture, type CaptureRequest, type CaptureResult } from './og.js';
 
 /** The name the worker's reader injection looks for. Namespaced; the page shares this global. */
 const HOOK = '__vmOgCapture';
 
 Object.defineProperty(globalThis, HOOK, {
-  value: (): Promise<CaptureResult> => capture(document),
+  // The argument says what this capture is for (§10.1, D37): whether to fetch the OG picture, and
+  // the icon URL the worker resolved from `tab.favIconUrl`. Absent means "the picture, as before" —
+  // a worker that already holds an icon for this host asks for no icon and none is fetched.
+  value: (request?: CaptureRequest): Promise<CaptureResult> =>
+    capture(document, fetch, request ?? {}),
   writable: true,
   configurable: true,
   // Not enumerable: the isolated world is ours, but a property that does not show up in a

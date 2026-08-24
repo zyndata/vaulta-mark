@@ -16,6 +16,7 @@
 
 import {
   broadcast,
+  type IconResponse,
   type IncognitoAccessResponse,
   type ItemSummary,
   type OpenStatus,
@@ -42,6 +43,7 @@ import {
   openVaulted,
   queueHistoryCleanup,
 } from './incognito.js';
+import * as icons from './favicons.js';
 import * as session from './session.js';
 import * as thumbs from './thumbs.js';
 
@@ -88,7 +90,16 @@ export interface OpenOptions {
 export async function addActiveTab(): Promise<AddResult> {
   const repo = await requireVault();
   const result = await addActiveTabTo(repo, await addOptions());
-  if (result.status === 'added') await thumbs.capture(repo, result.item.id);
+  if (result.status === 'added') {
+    /*
+     * The icon first, from `_favicon/`, which is free and reaches all four add gestures. What it
+     * came to then decides whether the injection below is also asked for the icon the *page*
+     * declares (§10.1, D37) — so "an upgrade never overwrites" is honoured by not asking, and the
+     * store is not read a second time to find out something we have just been told.
+     */
+    const outcome = await icons.captureOnAdd(repo, result.item.url);
+    await thumbs.capture(repo, result.item.id, { wantIcon: icons.wantsPageIcon(outcome) });
+  }
   await announce(result);
   return result;
 }
@@ -129,6 +140,14 @@ export async function lookupActiveTab(): Promise<ItemSummary | null> {
   return existing === undefined ? null : summarize(existing);
 }
 
+/**
+ * Add a URL nobody has opened — the context menu on a link, and the manager's own add form.
+ *
+ * It captures an **icon** but not a preview, and the asymmetry is the permission model rather than
+ * a preference: a thumbnail needs a script in the page and therefore an `activeTab` grant on *that*
+ * tab, which a link nobody clicked does not have. `_favicon/` is our own origin and needs neither
+ * (§10.1), so this one entry point can still come back with something to show.
+ */
 export async function addUrl(url: string, title?: string): Promise<AddResult> {
   const repo = await requireVault();
   const result = await addUrlTo(
@@ -136,6 +155,7 @@ export async function addUrl(url: string, title?: string): Promise<AddResult> {
     { url, ...(title === undefined ? {} : { title }) },
     await addOptions(),
   );
+  if (result.status === 'added') await icons.captureOnAdd(repo, result.item.url);
   await announce(result);
   return result;
 }
@@ -176,7 +196,10 @@ export async function list(options: ListOptions = {}): Promise<ListResult> {
   const matches: Bookmark[] =
     query === ''
       ? sortItems(repo.getAll().filter(isBookmark), 'added').filter(isBookmark)
-      : repo.search(query).map((hit) => hit.item).filter(isBookmark);
+      : repo
+          .search(query)
+          .map((hit) => hit.item)
+          .filter(isBookmark);
 
   const limited = options.limit === undefined ? matches : matches.slice(0, options.limit);
   return { items: limited.map(summarize), total: matches.length };
@@ -236,10 +259,15 @@ export async function thumb(id: string): Promise<ThumbResponse> {
 }
 
 /**
- * Re-capture the preview from the page in the active tab.
+ * Re-capture the preview **and the icon** from the page in the active tab (§14.5, §10.1).
  *
- * Broadcasts on the way out, because a capture that succeeded changed the item — and the row that
- * gains an eye icon is usually in a manager window, not in the popup that asked.
+ * Broadcasts on the way out, because a capture that succeeded changed something an open manager is
+ * showing — the row that gains an eye icon is usually in a manager window, not in the popup that
+ * asked. A stored icon counts: it is keyed by host, so one refresh can change every row on that
+ * site, and the list has no cheaper way to hear about it.
+ *
+ * The icon is not vault content and costs no revision, so it is broadcast without a sync being
+ * scheduled — the bytes went to Drive under their own key (§10.1), not into the light tier.
  */
 export async function refreshThumb(id: string): Promise<ThumbResponse> {
   const repo = await requireVault();
@@ -248,8 +276,32 @@ export async function refreshThumb(id: string): Promise<ThumbResponse> {
   if (result.state === 'ready') {
     await broadcast({ type: 'VAULT_CHANGED' });
     scheduleSync();
+  } else if (result.icon === 'stored') {
+    await broadcast({ type: 'VAULT_CHANGED' });
   }
   return result;
+}
+
+/* ------------------------------------------------------------------ icons */
+
+/**
+ * The stored icon for one host, and the opportunistic upgrade that rides along with the question
+ * (§10.1).
+ *
+ * Deliberately **not** `session.touch()`: this is a list rendering itself, not a person doing
+ * something. Treating it as activity would mean an open manager kept the vault unlocked forever,
+ * which is the opposite of what the idle window is for.
+ */
+export async function icon(url: string): Promise<IconResponse> {
+  const repo = await requireVault();
+  return await icons.iconFor(repo, url);
+}
+
+/** Work out what one host's icon is now — the page, then Chrome — and write that down. */
+export async function refreshIcon(url: string): Promise<IconResponse> {
+  const repo = await requireVault();
+  await session.touch();
+  return await icons.refreshIcon(repo, url);
 }
 
 export async function incognitoAccess(recheck = false): Promise<IncognitoAccessResponse> {

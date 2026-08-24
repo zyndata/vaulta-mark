@@ -22,6 +22,7 @@
 import { estimateStrength, MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
 import { hasHistoryPermission, requestHistoryPermission } from '../history/cleanup.js';
 import { DRIVE_SCOPE, requestDrivePermissions } from '../sync/drive/auth.js';
+import { TOOLBAR_ICON_LABEL_KEYS, toolbarIconPaths } from '../shared/appearance.js';
 import { copyableValue } from '../ui/address.js';
 import { diagnosticsPanel } from '../ui/diagnostics.js';
 import {
@@ -34,6 +35,7 @@ import {
 } from '../shared/messages.js';
 import { dialogField, dialogText, openDialog } from '../ui/dialog.js';
 import { h, matchesPhrase, msg, render } from '../ui/dom.js';
+import { plural } from '../ui/plural.js';
 import { historyCleanupPanel } from '../ui/history-cleanup.js';
 import { errorText, syncErrorText } from '../ui/strings.js';
 import { offerTrackingCleanup } from '../ui/tracking.js';
@@ -41,6 +43,10 @@ import { historyDeps } from './history.js';
 import {
   IDLE_TIMEOUT_CHOICES,
   IDLE_TIMEOUT_NEVER,
+  TOOLBAR_ICONS,
+  TOOLBAR_TITLE_MAX,
+  normalizeToolbarTitle,
+  type ToolbarIconId,
   type VaultSettings,
 } from '../vault/types.js';
 import { relativeTime, syncQuotaBar } from './sync.js';
@@ -115,6 +121,7 @@ export async function settingsScreen(deps: SettingsDeps): Promise<HTMLElement> {
         'div',
         { class: 'vm-settings-col' },
         section('settingsSectionAppearance', [appearance(deps)]),
+        section('settingsSectionToolbar', toolbar(deps)),
         section('settingsSectionLock', locking(deps)),
         section('settingsSectionBrowsing', browsing(deps)),
         section('settingsSectionShortcuts', shortcuts(commands)),
@@ -517,9 +524,7 @@ async function askAdoptRemote(from: 'chrome' | 'drive'): Promise<boolean> {
         { class: local === 0 ? 'vm-notice' : 'vm-notice vm-notice--danger' },
         local === 0
           ? msg('syncMismatchAdoptLosesNone')
-          : local === 1
-            ? msg('syncMismatchAdoptLosesOne')
-            : msg('syncMismatchAdoptLoses', [String(local)]),
+          : plural('syncMismatchAdoptLoses', local, [String(local)]),
       ),
       ...(local === 0 ? [] : [dialogText('syncMismatchAdoptBackupFirst')]),
       dialogField('syncMismatchAdoptPassword', password),
@@ -824,10 +829,10 @@ const MIGRATION_FAILURE_KEYS: Record<
 function migrationFailureText(response: MigrationResponse): string {
   const reason = response.reason ?? 'unknown';
   if (reason !== 'too-large') return msg(MIGRATION_FAILURE_KEYS[reason]);
-  return msg(MIGRATION_FAILURE_KEYS[reason], [
-    String(response.items ?? 0),
-    String(response.fits ?? 0),
-  ]);
+  // Named rather than read back out of the table above: `plural()` takes a family base, and a base
+  // reached through a lookup is one `scripts/verify-strings.mjs` cannot see and so cannot check.
+  const items = response.items ?? 0;
+  return plural('syncMigrateFailedTooLarge', items, [String(items), String(response.fits ?? 0)]);
 }
 
 function section(headingKey: string, children: HTMLElement[], extraClass?: string): HTMLElement {
@@ -866,6 +871,98 @@ function appearance(deps: SettingsDeps): HTMLElement {
   return dialogField('settingsTheme', select);
 }
 
+/* ------------------------------------------------------------------ toolbar appearance */
+
+/**
+ * Which picture and tooltip the toolbar button wears (PLAN §9 Phase 14, ARCHITECTURE §16).
+ *
+ * **Here rather than in the popup**, and that is the line the 2026-08-17 pass drew when it moved
+ * *Opening and saving* out of a 422-pixel column: this is decided once, it wants four pictures side
+ * by side, and it is not a thing anybody changes in the moment.
+ *
+ * **The screen has to say "toolbar" and mean it.** The extension's name, its id and its Store
+ * listing do not change and cannot — `manifest.name` is fixed at build time — and somebody who
+ * reads "toolbar appearance" as "rename it" and acts on that belief is worse off than somebody who
+ * never found the setting. That used to be a paragraph of small print (`settingsToolbarUnchanged`),
+ * dropped 2026-08-21 because the section heading, the field's label and its hint had all come to
+ * say the same thing in fewer words: *what you see on the toolbar when you hover over the button*.
+ * The obligation did not go with it. Whatever is added here says which surface it changes.
+ */
+function toolbar(deps: SettingsDeps): HTMLElement[] {
+  const title = h('input', {
+    type: 'text',
+    id: 'vm-set-toolbar-title',
+    value: deps.settings.toolbarTitle,
+    maxlength: String(TOOLBAR_TITLE_MAX),
+    // The shipped tooltip, shown the way a placeholder shows a default: an empty field is not an
+    // empty tooltip, it is this one.
+    placeholder: msg('actionTitle'),
+    // On `change`, not on `input`: every keystroke would be a `storage.local` write and a
+    // `chrome.action.setTitle` call, and the button would flicker through every prefix of the word
+    // being typed.
+    onchange: (event: Event) => {
+      const field = event.currentTarget as HTMLInputElement;
+      void (async () => {
+        await deps.patch({ toolbarTitle: field.value });
+        // Read back what was stored rather than leaving what was typed: the worker collapses
+        // whitespace and caps the length, and a field still showing three spaces after they were
+        // dropped is a field disagreeing with the tooltip it just set.
+        field.value = normalizeToolbarTitle(field.value);
+      })();
+    },
+  });
+
+  return [
+    h(
+      'div',
+      { class: 'vm-icon-choices', role: 'radiogroup', 'aria-label': msg('settingsToolbarIcon') },
+      ...TOOLBAR_ICONS.map((id) => iconChoice(deps, id)),
+    ),
+    dialogField('settingsToolbarTitle', title, msg('settingsToolbarTitleHint')),
+  ];
+}
+
+/**
+ * One icon, as a radio nobody can see wrapped around a picture everybody can.
+ *
+ * A real `<input type="radio">` rather than a grid of buttons with `aria-checked`: arrow-key
+ * navigation, the roving tab stop and the group semantics all come free and correctly, and this is
+ * a set of mutually exclusive choices, which is the control radios exist for.
+ *
+ * The picture is `aria-hidden` and the name beside it is the label. An `alt` on the image would
+ * make every choice announce itself twice, and "a folder" is not a better description of the option
+ * than the word already under it.
+ */
+function iconChoice(deps: SettingsDeps, id: ToolbarIconId): HTMLElement {
+  const input = h('input', {
+    type: 'radio',
+    name: 'vm-toolbar-icon',
+    id: `vm-toolbar-icon-${id}`,
+    value: id,
+    checked: id === deps.settings.toolbarIcon,
+    onchange: (event: Event) => {
+      const radio = event.currentTarget as HTMLInputElement;
+      if (!radio.checked) return;
+      void deps.patch({ toolbarIcon: id });
+    },
+  });
+  // 32, not 16: the small drawings drop their interior detail (`scripts/gen-brand-assets.mjs`), and
+  // choosing between four pictures is not the moment to be shown the least of each of them.
+  const preview = h('img', {
+    class: 'vm-icon-choice-image',
+    src: chrome.runtime.getURL(toolbarIconPaths(id)[32] ?? ''),
+    width: '32',
+    height: '32',
+    'aria-hidden': 'true',
+  });
+  return h(
+    'div',
+    { class: 'vm-icon-choice' },
+    input,
+    h('label', { for: `vm-toolbar-icon-${id}` }, preview, h('span', null, msg(TOOLBAR_ICON_LABEL_KEYS[id]))),
+  );
+}
+
 function locking(deps: SettingsDeps): HTMLElement[] {
   const idle = h(
     'select',
@@ -882,7 +979,7 @@ function locking(deps: SettingsDeps): HTMLElement[] {
         { value: String(minutes), selected: minutes === deps.settings.idleTimeoutMinutes },
         minutes === IDLE_TIMEOUT_NEVER
           ? msg('settingsIdleNever')
-          : msg('settingsIdleMinutes', [String(minutes)]),
+          : plural('settingsIdleMinutes', minutes, [String(minutes)]),
       ),
     ),
   );

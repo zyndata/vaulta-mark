@@ -12,8 +12,9 @@
  * creation ("there is no recovery") and vault destruction.
  */
 
-import { dialogField, dialogText, openDialog } from './dialog.js';
+import { dialogField, dialogPlural, dialogText, openDialog } from './dialog.js';
 import { h, matchesPhrase, msg } from './dom.js';
+import { plural } from './plural.js';
 
 export interface ReplaceImportGateOptions {
   /** Bookmarks in the file that would become the vault. */
@@ -38,7 +39,7 @@ export async function confirmReplaceImport(options: ReplaceImportGateOptions): P
   const first = await openDialog<true>({
     heading: msg('importReplaceHeading'),
     body: [
-      h('p', { class: 'vm-notice vm-notice--danger' }, msg('importReplaceWarning', [
+      h('p', { class: 'vm-notice vm-notice--danger' }, plural('importReplaceWarning', options.current, [
         String(options.current),
         String(options.incoming),
       ])),
@@ -55,7 +56,7 @@ export async function confirmReplaceImport(options: ReplaceImportGateOptions): P
 
   const second = await openDialog<true>({
     heading: msg('importReplaceLastHeading'),
-    body: [dialogText('importReplaceLastBody', [String(options.current)])],
+    body: [dialogPlural('importReplaceLastBody', options.current, [String(options.current)])],
     confirmLabel: msg('importReplaceLastButton'),
     danger: true,
     onConfirm: () => true,

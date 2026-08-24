@@ -227,8 +227,11 @@ runs the same command. Thresholds are ratcheted upward as modules land; never lo
    only in a package — a rewrite committed on `dev` sits unpublished until the release that carries
    it, and nothing in CI or in the dashboard says so. The dashboard fields it does **not** cover
    (detailed description, category, screenshots, promo tile, support and homepage URLs) are editable
-   at any time and are worth a glance in the same sitting. Currently pending: the short description,
-   rewritten 2026-08-18.
+   at any time and are worth a glance in the same sitting. Currently pending: the English short
+   description, rewritten 2026-08-18, and the Polish one added in 1.2.0 — the 1.1.0 package went
+   up only as a draft and was never submitted. 1.2.0 also opens a **Polish listing**, whose
+   dashboard half — the detailed description — is pasted by hand under Language → Polish
+   ([STORE_LISTING §11](STORE_LISTING.md#11-polish-phase-18)).
 
 **Semantic versioning for this project:**
 

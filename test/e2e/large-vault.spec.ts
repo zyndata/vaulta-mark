@@ -28,6 +28,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, expect, test, type BrowserContext, type Page } from '@playwright/test';
 
+import { extensionArgs } from './harness.js';
+
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
 const PASSWORD = 'correct horse battery staple';
@@ -52,7 +54,7 @@ test.beforeAll(async () => {
     // See lock.spec.ts: the default headless build does not run extensions at all.
     channel: 'chromium',
     headless: true,
-    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+    args: extensionArgs(DIST),
   });
 
   for (const pattern of ['http://**', 'https://**']) {

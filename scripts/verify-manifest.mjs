@@ -10,7 +10,7 @@
  * Usage: node scripts/verify-manifest.mjs [dist-dir]
  */
 
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -71,7 +71,9 @@ function resolveMessage(value, messages) {
  *
  * @param {Record<string, unknown>} manifest  the parsed manifest.json
  * @param {Record<string, unknown>} lock      the parsed permissions.lock.json
- * @param {Record<string, unknown>} [messages] the parsed `_locales/en/messages.json`, if built
+ * @param {Record<string, unknown> | Record<string, Record<string, unknown>>} [messages]
+ *   the parsed `_locales/<tag>/messages.json` for one locale, or a `{ tag: messages }` map of every
+ *   locale the build ships. One locale is the old shape and still works.
  * @returns {string[]} human-readable problems; empty means the manifest is clean
  */
 export function checkManifest(manifest, lock, messages) {
@@ -152,29 +154,59 @@ export function checkManifest(manifest, lock, messages) {
     problems.push('background must be { service_worker: "<file>", type: "module" }');
   }
 
-  // Only when the locale is available: the manifest itself carries placeholders, and a length
-  // measured on "__MSG_extDescription__" would be measuring nothing.
+  /*
+   * Only when the locale is available: the manifest itself carries placeholders, and a length
+   * measured on "__MSG_extDescription__" would be measuring nothing.
+   *
+   * **Every locale, not only `en`** (Phase 18). The Store reads the name and description out of
+   * whichever `messages.json` matches the shopper's language, and applies the same limit to each —
+   * so a Polish description of 133 characters is the same rejected upload as an English one, and
+   * Polish runs longer than English. The line is written to the limit, not translated to it.
+   */
   if (messages) {
-    for (const [field, limit] of Object.entries(FIELD_LIMITS)) {
-      const raw = manifest[field];
-      const text = resolveMessage(raw, messages);
-      if (text === undefined) {
-        problems.push(
-          `${field} is ${JSON.stringify(raw)}, which _locales/en/messages.json does not resolve — ` +
-            'the Store shows the placeholder verbatim',
-        );
-        continue;
-      }
-      if (text.length > limit) {
-        problems.push(
-          `${field} is ${text.length} characters, over the Chrome Web Store's limit of ${limit} — ` +
-            'the upload is rejected, not truncated',
-        );
+    for (const [tag, catalogue] of localeCatalogues(messages)) {
+      for (const [field, limit] of Object.entries(FIELD_LIMITS)) {
+        const raw = manifest[field];
+        const text = resolveMessage(raw, catalogue);
+        if (text === undefined) {
+          problems.push(
+            `${field} is ${JSON.stringify(raw)}, which _locales/${tag}/messages.json does not ` +
+              'resolve — the Store shows the placeholder verbatim',
+          );
+          continue;
+        }
+        if (text.length > limit) {
+          problems.push(
+            `${field} in ${tag} is ${text.length} characters, over the Chrome Web Store's limit ` +
+              `of ${limit} — the upload is rejected, not truncated`,
+          );
+        }
       }
     }
   }
 
   return problems;
+}
+
+/**
+ * `[tag, messages]` pairs, whether the caller passed one catalogue or a map of them.
+ *
+ * A catalogue's values are `{ message: … }` objects; a map's values are catalogues. Telling them
+ * apart on the shape of one value rather than on a flag keeps the old single-locale call working,
+ * which is what every unit test in `test/unit/scripts/verify-manifest.test.ts` uses.
+ *
+ * @param {Record<string, unknown>} messages
+ * @returns {Array<[string, Record<string, unknown>]>}
+ */
+function localeCatalogues(messages) {
+  const first = Object.values(messages)[0];
+  const isMap =
+    first !== null &&
+    typeof first === 'object' &&
+    !('message' in /** @type {Record<string, unknown>} */ (first));
+  return isMap
+    ? Object.entries(/** @type {Record<string, Record<string, unknown>>} */ (messages))
+    : [['en', messages]];
 }
 
 async function main() {
@@ -183,7 +215,16 @@ async function main() {
 
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   const lock = JSON.parse(await readFile(resolve(repoRoot, 'build/permissions.lock.json'), 'utf8'));
-  const messages = JSON.parse(await readFile(resolve(dir, '_locales/en/messages.json'), 'utf8'));
+  // Every locale in the built package, so a translated description over the limit is caught here
+  // rather than by the Store after the zip has been uploaded.
+  const localesDir = resolve(dir, '_locales');
+  /** @type {Record<string, Record<string, unknown>>} */
+  const messages = {};
+  for (const tag of (await readdir(localesDir, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)) {
+    messages[tag] = JSON.parse(await readFile(resolve(localesDir, tag, 'messages.json'), 'utf8'));
+  }
 
   const problems = checkManifest(manifest, lock, messages);
 

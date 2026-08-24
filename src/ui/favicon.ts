@@ -13,7 +13,15 @@
  * same colour for the same site on every device.
  *
  * This is the one file under `src/ui/` allowed to touch `chrome.*`, and it only builds a string.
+ *
+ * Since Phase 17 a row can also be shown an icon **out of the vault** — one this profile has never
+ * browsed to, restored with the vault from Drive (§10.1). That changes nothing above: the worker
+ * answers with bytes only when Chrome's own cache had nothing better, so on a profile that has
+ * visited these sites every row still renders exactly as it did.
  */
+
+import { fromBase64Url } from '../crypto/codec.js';
+import { sniffImageType } from './thumb.js';
 
 /** Default favicon edge, in CSS pixels. 32 covers a 16 px row on a 2× display. */
 export const DEFAULT_FAVICON_SIZE = 32;
@@ -95,6 +103,70 @@ export function letterAvatar(pageUrl: string): HTMLElement {
 }
 
 /**
+ * What a page can be asked about one host's stored icon (ARCHITECTURE §10.1).
+ *
+ * A callback rather than a message, for the same reason `thumb.ts` takes its fetch as a function:
+ * `src/ui/` stays free of the message protocol and every one of these paths stays testable in jsdom
+ * with no service worker anywhere.
+ */
+export type StoredIconLookup = (pageUrl: string) => Promise<StoredIcon>;
+
+export interface StoredIcon {
+  /** base64url bytes to show instead of Chrome's answer, or `null` to keep Chrome's. */
+  readonly image: string | null;
+  /**
+   * Whether this profile stores icons at all. `false` — the Chrome sync tier, or a locked vault —
+   * retires the lookup for the life of the page, so a profile that will never have one pays a
+   * single message rather than one per host.
+   */
+  readonly available: boolean;
+}
+
+/**
+ * Installed once per page, by the page's own bootstrap.
+ *
+ * Module state rather than an argument threaded through two unrelated lists, and it is the right
+ * shape for what this is: a *document*-wide cache keyed by host, which is exactly the granularity
+ * that keeps a five-thousand-row manager from asking five thousand times. `faviconImage` is already
+ * a free function that reaches for `chrome.runtime`; this is the same kind of thing.
+ */
+let storedIcons: StoredIconLookup | null = null;
+
+/** Host → the answer for it, asked at most once per document (§10.1). */
+const iconCache = new Map<string, Promise<string | null>>();
+
+export function useStoredIcons(lookup: StoredIconLookup | null): void {
+  storedIcons = lookup;
+  iconCache.clear();
+}
+
+/** For tests, and for a page that has just been told the vault locked. */
+export function forgetStoredIcons(): void {
+  useStoredIcons(null);
+}
+
+async function storedIconFor(pageUrl: string): Promise<string | null> {
+  const lookup = storedIcons;
+  if (lookup === null) return null;
+  const host = displayHost(pageUrl);
+  const pending = iconCache.get(host);
+  if (pending !== undefined) return await pending;
+
+  const answer = lookup(pageUrl).then((result) => {
+    // "This profile has no stored icons" is a fact about the profile, not about this host, so it
+    // retires the whole lookup rather than caching one `null` per row.
+    if (!result.available) forgetStoredIcons();
+    return result.image;
+  });
+  iconCache.set(host, answer);
+  try {
+    return await answer;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * An `<img>` that falls back to the letter avatar.
  *
  * Chrome answers `_favicon/` with a generic globe rather than an error when it has nothing cached,
@@ -123,5 +195,32 @@ export function faviconImage(
   img.addEventListener('error', () => {
     img.replaceWith(letterAvatar(pageUrl));
   });
+  void showStoredIcon(img, pageUrl);
   return img;
+}
+
+/**
+ * Replace Chrome's answer with the vault's, when the vault has one and Chrome does not.
+ *
+ * The worker decides that — it is the side that can tell a real icon from the generic globe — and
+ * answers with bytes only when there is something better to show. On a profile that has browsed
+ * these sites, which is the ordinary case, every answer here is `null` and nothing happens.
+ *
+ * The bytes become a `blob:` URL rather than a `data:` one, for the reason `thumb.ts` gives: a
+ * `data:` image URL is a long string shaped exactly like what the remote-code scanner exists to
+ * find. It is revoked as soon as the image has loaded — the decoded frame outlives the URL.
+ */
+async function showStoredIcon(img: HTMLImageElement, pageUrl: string): Promise<void> {
+  const image = await storedIconFor(pageUrl);
+  if (image === null) return;
+  const bytes = fromBase64Url(image);
+  const type = sniffImageType(bytes);
+  const url = URL.createObjectURL(new Blob([bytes], ...(type === '' ? [] : [{ type }])));
+  img.addEventListener('load', () => {
+    URL.revokeObjectURL(url);
+  });
+  img.addEventListener('error', () => {
+    URL.revokeObjectURL(url);
+  });
+  img.src = url;
 }

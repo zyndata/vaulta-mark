@@ -49,6 +49,29 @@ describe('installContextMenus', () => {
     await expect(installContextMenus()).resolves.toBeUndefined();
     expect(mock.menus.size).toBe(2);
   });
+
+  it('is safe to run twice at once — `onInstalled` and `onStartup` both fire on a browser start', async () => {
+    // Unqueued, these interleave as remove, remove, create, create, create: the second `removeAll`
+    // is already in flight when the first run's items appear, so it clears nothing and its own
+    // creates land on top of them. That is
+    // `Unchecked runtime.lastError: Cannot create item with duplicate id vm.add-page`.
+    await expect(
+      Promise.all([installContextMenus(), installContextMenus(), installContextMenus()]),
+    ).resolves.toEqual([undefined, undefined, undefined]);
+    expect([...mock.menus.keys()].sort()).toEqual([MENU_IDS.addLink, MENU_IDS.addPage].sort());
+  });
+
+  it('keeps queueing after a rebuild that failed', async () => {
+    const removeAll = vi
+      .spyOn(chrome.contextMenus, 'removeAll')
+      .mockRejectedValueOnce(new Error('no'));
+    const first = installContextMenus();
+    const second = installContextMenus();
+    await expect(first).rejects.toThrow('no');
+    await expect(second).resolves.toBeUndefined();
+    expect(mock.menus.size).toBe(2);
+    removeAll.mockRestore();
+  });
 });
 
 describe('handleMenuClick', () => {

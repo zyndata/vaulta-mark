@@ -18,10 +18,10 @@ import {
   summarize,
   titleFor,
   vaultableUrl,
-  withoutTrackingParams,
 } from '../../../src/background/add.js';
 import { VaultRepository } from '../../../src/storage/repo.js';
 import { UnsupportedUrlError } from '../../../src/vault/errors.js';
+import { withoutTrackingParams } from '../../../src/vault/model.js';
 import { isBookmark, type Bookmark } from '../../../src/vault/types.js';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../../mocks/chrome.js';
 

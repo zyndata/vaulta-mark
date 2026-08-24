@@ -15,9 +15,11 @@
 import '../ui/styles.css';
 import './popup.css';
 
+import { startFocusBeacon } from '../shared/focus-beacon.js';
 import { onBroadcast, send, type LockReason } from '../shared/messages.js';
 import { createVaultForm } from '../ui/create-form.js';
 import { applyTheme, h, msg, qs, render } from '../ui/dom.js';
+import { forgetStoredIcons, useStoredIcons, type StoredIconLookup } from '../ui/favicon.js';
 import { LOCK_REASON_KEYS, errorText } from '../ui/strings.js';
 import type { VaultSettings } from '../vault/types.js';
 import { settingsScreen } from './settings.js';
@@ -25,6 +27,17 @@ import { vaultScreen } from './vault.js';
 
 const root = qs(document, '#vm-root');
 const headerAction = qs(document, '#vm-header-action');
+
+/*
+ * Tell the worker that this popup, and not another application, has the user (§7.3).
+ *
+ * The popup is the reason the beacon exists. Chrome's window model has no entry for it, so an open
+ * popup reports exactly what a browser the user has walked away from reports — no focused window at
+ * all — and "lock when this window loses focus" used to lock the vault the moment its own quick
+ * menu opened. Started before the first render, because the lock it prevents can arrive
+ * before the first paint.
+ */
+startFocusBeacon();
 
 /** Why the vault locked while the popup was open. Shown once on the unlock screen, then cleared. */
 let lastLockReason: LockReason | null = null;
@@ -38,6 +51,9 @@ let lastLockReason: LockReason | null = null;
  * after typing their password.
  */
 let unlockedScreen: 'vault' | 'settings' = 'vault';
+
+/** Whether the stored-icon lookup is in place for this unlocked session (§10.1). */
+let iconsInstalled = false;
 
 /* ------------------------------------------------------------------ shared pieces */
 
@@ -139,7 +155,15 @@ function adoptScreen(): HTMLElement {
         type: 'button',
         class: 'vm-button vm-button--quiet vm-button--inline',
         onclick: () => {
-          render(root, createScreen({ separate: true, onBack: () => { render(root, adoptScreen()); } }));
+          render(
+            root,
+            createScreen({
+              separate: true,
+              onBack: () => {
+                render(root, adoptScreen());
+              },
+            }),
+          );
         },
       },
       msg('adoptCreateInstead'),
@@ -184,7 +208,8 @@ function unlockScreen(): HTMLElement {
         void submitUnlock();
       },
     },
-    reason !== null && h('p', { class: 'vm-notice', role: 'status' }, msg(LOCK_REASON_KEYS[reason])),
+    reason !== null &&
+      h('p', { class: 'vm-notice', role: 'status' }, msg(LOCK_REASON_KEYS[reason])),
     field('unlockFieldPassword', password),
     error,
     submit,
@@ -218,6 +243,8 @@ async function refresh(): Promise<void> {
     render(root, response.adoptable ? adoptScreen() : createScreen());
   } else if (response.locked) {
     unlockedScreen = 'vault';
+    forgetStoredIcons();
+    iconsInstalled = false;
     render(root, unlockScreen());
   } else if (unlockedScreen === 'settings') {
     render(
@@ -241,6 +268,12 @@ async function refresh(): Promise<void> {
       }),
     );
   } else {
+    // Installed once per unlock, not once per repaint: installing again clears the per-host cache,
+    // and the popup repaints itself on every add, delete and undo.
+    if (!iconsInstalled) {
+      useStoredIcons(storedIconLookup());
+      iconsInstalled = true;
+    }
     render(
       root,
       vaultScreen({
@@ -303,3 +336,18 @@ onBroadcast((message) => {
 
 render(root, h('p', { class: 'vm-small vm-muted' }, msg('popupLoading')));
 void refresh();
+
+/**
+ * Ask the worker for one host's stored icon (ARCHITECTURE §10.1).
+ *
+ * Installed once, here, because `src/ui/` stays free of the message protocol. It is asked at most
+ * once per host per page, and on a profile that keeps no icons the first answer retires it.
+ */
+function storedIconLookup(): StoredIconLookup {
+  return async (url) => {
+    const response = await send({ type: 'GET_ICON', url });
+    return response.type === 'ICON'
+      ? { image: response.image, available: response.available }
+      : { image: null, available: false };
+  };
+}

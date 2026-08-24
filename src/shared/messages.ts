@@ -27,6 +27,8 @@ import {
   DETAIL_WIDTH,
   SIDEBAR_WIDTH,
   clampPaneWidth,
+  isToolbarIconId,
+  normalizeToolbarTitle,
   type VaultSettings,
 } from '../vault/types.js';
 
@@ -323,16 +325,51 @@ export interface GetThumbRequest {
 }
 
 /**
- * Re-capture the preview for an item, from the page in the active tab.
+ * Re-capture the preview **and the icon** for an item, from the page in the active tab.
  *
  * Only ever an explicit click, never automatic and never on a timer (§14.5). The tab is not named:
  * the worker reads the active one itself, under the `activeTab` grant the click that produced this
  * message just created — the same reasoning as {@link AddActiveTabRequest}, and the reason this can
  * exist at all without a host permission.
+ *
+ * **It carries the icon because the two were always one request.** Both halves come off a single
+ * injection into a single page, fetched concurrently; the separate *Use this page's icon* message
+ * this replaces meant a second injection for a second button that named the same gesture. The
+ * answer says what became of each ({@link ThumbResponse.icon}).
  */
 export interface RefreshThumbRequest {
   readonly type: 'REFRESH_THUMB';
   readonly id: string;
+}
+
+/**
+ * The stored favicon for a page, if this vault has one and Chrome does not (§10.1).
+ *
+ * Asked once per **host** by a list that is being rendered, never once per row and never for rows
+ * nobody is looking at. The worker answers `image: null` for the ordinary case — Chrome's own cache
+ * has the icon, so the `<img>` the row already built is showing it — and only sends bytes when
+ * Chrome answered with its generic globe and the vault holds something better.
+ *
+ * It is also where the **opportunistic upgrade** happens: if Chrome's cache has a real icon and the
+ * vault holds none for that host, this is the moment it is stored. That is not a side effect
+ * smuggled onto a read — it is the one moment §10.1 allows besides an add and an explicit refresh,
+ * and it costs nothing extra because the answer had to be fetched to reply at all.
+ */
+export interface GetIconRequest {
+  readonly type: 'GET_ICON';
+  readonly url: string;
+}
+
+/**
+ * Re-read one host's icon from Chrome's cache and write down what is there now.
+ *
+ * The only path that **replaces**, including replacing an icon with nothing: mirrors
+ * {@link RefreshThumbRequest}, and unlike it needs no `activeTab` grant, because `_favicon/` is our
+ * own origin rather than the page's.
+ */
+export interface RefreshIconRequest {
+  readonly type: 'REFRESH_ICON';
+  readonly url: string;
 }
 
 /**
@@ -577,9 +614,12 @@ export type Request =
   | IncognitoAccessRequest
   | GetThumbRequest
   | RefreshThumbRequest
+  | GetIconRequest
+  | RefreshIconRequest
   | LookupActiveTabRequest
   | GetTreeRequest
   | ListViewRequest
+  | ListDuplicatesRequest
   | GetItemRequest
   | CreateFolderRequest
   | UpdateItemRequest
@@ -768,6 +808,32 @@ export interface ThumbResponse {
    */
   readonly ogTitle: string | null;
   readonly ogDescription: string | null;
+
+  /**
+   * What became of the icon, when this answer is a refresh rather than a read (§10.1).
+   *
+   * Absent for {@link GetThumbRequest}, which asks nothing about icons. Present for
+   * {@link RefreshThumbRequest}, which reaches the page once and brings both halves back:
+   * `'stored'` — the icon in the store is now the one this page declares; `'none'` — the page
+   * offered nothing this vault can keep; `'unavailable'` — this tier keeps no icons at all.
+   */
+  readonly icon?: 'stored' | 'none' | 'unavailable';
+}
+
+/**
+ * One host's stored icon.
+ *
+ * `available: false` means this tier keeps no icons at all — the Chrome tier, or a locked vault —
+ * and is how a page learns to stop asking, so a profile that will never have a stored icon pays one
+ * message rather than one per host (§10.1).
+ */
+export interface IconResponse {
+  readonly type: 'ICON';
+  /** Echoed back, because answers arrive out of order and a row must match its own. */
+  readonly url: string;
+  /** base64url of the icon bytes, or `null` for "nothing better than what you have". */
+  readonly image: string | null;
+  readonly available: boolean;
 }
 
 export interface ItemsResponse {
@@ -855,6 +921,15 @@ export interface TreeResponse {
   /** Live bookmarks in the whole vault, and how many of them carry no tag. */
   readonly total: number;
   readonly untagged: number;
+  /**
+   * How many **addresses** are saved more than once (Phase 16).
+   *
+   * Addresses, not copies: a page saved five times is 1 here, because it is one row on the
+   * duplicates screen and one decision to make. It rides on the tree rather than being asked for
+   * separately so the sidebar can say there is something to clean without anyone having gone
+   * looking — the same reason `ui/tracking.ts` asks for a count before it offers.
+   */
+  readonly duplicates: number;
 }
 
 export interface ViewResponse {
@@ -875,6 +950,46 @@ export interface ViewResponse {
    * offering a menu that changes nothing.
    */
   readonly ranked: boolean;
+}
+
+/* --- duplicates (Phase 16) ------------------------------------------------- */
+
+/**
+ * Every address saved more than once, with its copies.
+ *
+ * Read-only and asked for exactly once, when the screen opens: this is a review, not a live view,
+ * and a list that rearranged itself while somebody was deciding which copy to keep would move the
+ * row out from under the cursor. The screen re-asks after it has removed something, because then
+ * the user is the one who changed it.
+ */
+export interface ListDuplicatesRequest {
+  readonly type: 'LIST_DUPLICATES';
+}
+
+/** One copy, as the duplicates screen draws it. */
+export interface DuplicateRow extends ListRow {
+  /**
+   * Ancestors from the top level down to this copy's parent. Empty at the top level.
+   *
+   * On the row rather than fetched per item like the detail pane's, because the folder is one of
+   * the few things that actually distinguishes two copies, and a screen whose whole job is
+   * comparison cannot make the user click each one to see it.
+   */
+  readonly path: readonly Crumb[];
+}
+
+/** One address, and every live bookmark that resolves to it. Always two or more copies. */
+export interface DuplicateGroupView {
+  /** The normal form the copies share. An identity for the group, never displayed. */
+  readonly key: string;
+  /** Oldest first. Nothing is pre-selected — which copy to keep is the user's call. */
+  readonly items: readonly DuplicateRow[];
+}
+
+export interface DuplicatesResponse {
+  readonly type: 'DUPLICATES';
+  /** Largest group first, then oldest. Empty when there is nothing saved twice. */
+  readonly groups: readonly DuplicateGroupView[];
 }
 
 export interface ItemResponse {
@@ -956,7 +1071,8 @@ export interface ConflictsResponse {
  */
 export interface SyncStatusResponse {
   readonly type: 'SYNC_STATUS';
-  readonly phase: 'idle' | 'peeking' | 'pulling' | 'merging' | 'pushing' | 'conflict' | 'error' | 'locked';
+  readonly phase:
+    'idle' | 'peeking' | 'pulling' | 'merging' | 'pushing' | 'conflict' | 'error' | 'locked';
   readonly providerId: 'chrome' | 'drive';
   readonly lastSyncedAt: number | null;
   readonly conflicts: number;
@@ -1226,9 +1342,12 @@ export interface ResponseMap {
   readonly INCOGNITO_ACCESS: IncognitoAccessResponse;
   readonly GET_THUMB: ThumbResponse;
   readonly REFRESH_THUMB: ThumbResponse;
+  readonly GET_ICON: IconResponse;
+  readonly REFRESH_ICON: IconResponse;
   readonly LOOKUP_ACTIVE_TAB: ActiveTabResponse;
   readonly GET_TREE: TreeResponse;
   readonly LIST_VIEW: ViewResponse;
+  readonly LIST_DUPLICATES: DuplicatesResponse;
   readonly GET_ITEM: ItemResponse;
   readonly CREATE_FOLDER: CreatedResponse;
   readonly UPDATE_ITEM: OkResponse;
@@ -1396,6 +1515,11 @@ export function parseRequest(raw: unknown): Request | null {
     case 'ADD_ACTIVE_TAB':
     case 'LOOKUP_ACTIVE_TAB':
       return { type };
+    case 'GET_ICON':
+    case 'REFRESH_ICON': {
+      const url = raw['url'];
+      return isNonEmptyString(url) ? { type, url } : null;
+    }
     case 'ADD_URL': {
       const url = raw['url'];
       if (typeof url !== 'string' || url === '') return null;
@@ -1439,6 +1563,7 @@ export function parseRequest(raw: unknown): Request | null {
       return typeof recheck === 'boolean' ? { type, recheck } : null;
     }
     case 'GET_TREE':
+    case 'LIST_DUPLICATES':
     case 'COUNT_TRACKING_PARAMS':
     case 'STRIP_TRACKING_PARAMS':
     case 'GET_SYNC_STATUS':
@@ -1768,6 +1893,22 @@ export function parseSettingsPatch(raw: unknown): SettingsPatch | null {
     patch.sortBy = sortBy;
   }
 
+  const toolbarIcon = raw['toolbarIcon'];
+  if (toolbarIcon !== undefined) {
+    if (!isToolbarIconId(toolbarIcon)) return null;
+    patch.toolbarIcon = toolbarIcon;
+  }
+
+  // Normalised rather than rejected, like the widths below and unlike everything above: the sender
+  // is a text field with a `maxlength`, so nothing a person types can reach the cap — and a refusal
+  // that answers "your tooltip had two spaces in it" by leaving the old one in place would be a
+  // control that silently does nothing.
+  const toolbarTitle = raw['toolbarTitle'];
+  if (toolbarTitle !== undefined) {
+    if (typeof toolbarTitle !== 'string') return null;
+    patch.toolbarTitle = normalizeToolbarTitle(toolbarTitle);
+  }
+
   // Clamped rather than rejected: the sender is a mouse drag, and the honest answer to "wider than
   // the window" is the widest allowed, not a refused write that leaves the column where it was.
   const sidebarWidth = raw['sidebarWidth'];
@@ -1796,8 +1937,10 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'OPENED',
   'INCOGNITO_ACCESS_STATE',
   'THUMB',
+  'ICON',
   'TREE',
   'VIEW',
+  'DUPLICATES',
   'ITEM',
   'CREATED',
   'COUNT',
@@ -1816,6 +1959,7 @@ const RESPONSE_TYPES: ReadonlySet<string> = new Set([
   'DRIVE_STATE',
   'DIAGNOSTICS',
   'MIGRATION',
+  'DESTROYED',
   'ERROR',
 ]);
 

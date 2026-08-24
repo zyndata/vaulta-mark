@@ -106,7 +106,77 @@ export async function measure(dir = distDir) {
     zipped: zippedSizeOf(zip, entry.name),
   }));
 
-  return { zipBytes: zip.length, files };
+  // `entries` carries the bytes as well as the names, which is what `checkCodeSplitting` reads.
+  return { zipBytes: zip.length, files, entries };
+}
+
+/**
+ * A string the vendored QR encoder throws, and nothing else in the package contains.
+ *
+ * A marker rather than a filename: the chunk's name is hashed, and asserting that some
+ * `assets/qrcode-*.js` exists would pass against a build that emitted that chunk *and* inlined the
+ * encoder into the manager as well.
+ */
+const ENCODER_MARKER = 'code length overflow';
+
+/**
+ * The JavaScript a document parses before it paints, plus the service worker.
+ *
+ * Read out of the built HTML and the built manifest rather than listed here, because that is the
+ * question being asked -- what does the browser load eagerly? -- and a hand-written list would
+ * answer a different one the day an entry is renamed.
+ */
+export function entryScripts(entries) {
+  const names = new Set();
+
+  for (const entry of entries) {
+    if (!entry.name.endsWith('.html')) continue;
+    const html = entry.data.toString('utf8');
+    for (const match of html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)) {
+      names.add(match[1].replace(/^\.?\//, ''));
+    }
+  }
+
+  const manifest = entries.find((entry) => entry.name === 'manifest.json');
+  const worker = manifest && JSON.parse(manifest.data.toString('utf8')).background?.service_worker;
+  if (typeof worker === 'string') names.add(worker);
+
+  return names;
+}
+
+/**
+ * PLAN §9 Phase 15: the QR encoder is in a chunk of its own, and in none of the eager ones.
+ *
+ * It is 20 KB of Galois-field arithmetic and error-correction block tables that most sessions never
+ * open a dialog to reach, so `src/ui/qr.ts` loads it with `import('../vendor/…/qrcode.js')`.
+ * Nothing about that shape is guaranteed: a static import added by mistake, a bundler setting or an
+ * inlining threshold would fold it back into the manager's first paint and nothing would look
+ * wrong. So it is measured against the real `dist/`, beside the sizes, rather than assumed.
+ */
+export function checkCodeSplitting(entries) {
+  const problems = [];
+  const eager = entryScripts(entries);
+  const carrying = entries
+    .filter((entry) => entry.name.endsWith('.js') && entry.data.includes(ENCODER_MARKER))
+    .map((entry) => entry.name);
+
+  if (carrying.length === 0) {
+    return [
+      'no chunk carries the QR encoder -- either it stopped being bundled, or the marker '
+        + `${JSON.stringify(ENCODER_MARKER)} is no longer in it`,
+    ];
+  }
+
+  for (const name of carrying) {
+    if (eager.has(name)) {
+      problems.push(`${name} is loaded eagerly and carries the QR encoder (PLAN §9 Phase 15)`);
+    }
+  }
+  if (carrying.length > 1) {
+    problems.push(`the QR encoder is in ${String(carrying.length)} chunks: ${carrying.join(', ')}`);
+  }
+
+  return problems;
 }
 
 /**
@@ -185,7 +255,8 @@ export function report(measurement, version) {
     '',
     'None, and that is checked rather than asserted: `package.json` has no `dependencies` field,',
     '`scripts/verify-no-remote-code.mjs` refuses any remote import in `dist/`, and everything above',
-    'is code from `src/` plus the bundled public-suffix list.',
+    'is code from `src/` plus two bundled data sets (the public-suffix and common-password lists)',
+    'and one vendored third-party source file, the QR encoder in `src/vendor/` (ARCHITECTURE §15).',
     '',
   ];
   return `${lines.join('\n')}\n`;
@@ -219,7 +290,7 @@ async function main() {
     console.log(`  wrote ${relative(repoRoot, target)}`);
   }
 
-  const problems = checkBudgets(measurement);
+  const problems = [...checkBudgets(measurement), ...checkCodeSplitting(measurement.entries)];
   if (problems.length > 0) {
     console.error('✗ performance budgets (PLAN §9 Phase 12)\n');
     for (const problem of problems) console.error(`  ${problem}`);
@@ -231,7 +302,8 @@ async function main() {
   console.log(
     `✓ ${kb(measurement.zipBytes)} zipped / ${kb(BUDGETS.zipBytes)}, `
       + `worker ${kb(largestJs(measurement.files, true))} / ${kb(BUDGETS.workerBytes)}, `
-      + `largest page chunk ${kb(largestJs(measurement.files, false))} / ${kb(BUDGETS.chunkBytes)}`,
+      + `largest page chunk ${kb(largestJs(measurement.files, false))} / ${kb(BUDGETS.chunkBytes)}, `
+      + 'QR encoder out of every eager chunk',
   );
 }
 

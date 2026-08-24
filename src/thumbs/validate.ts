@@ -83,6 +83,29 @@ const ALLOWED_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The same allowlist plus the three spellings of ICO, for a **page-declared favicon** (§10.1, D37).
+ *
+ * It is a separate set rather than three more entries in the one above, because the two questions
+ * are different: a page offering an `og:image` as `image/x-icon` is offering something that is not a
+ * preview picture, while `/favicon.ico` is what `tab.favIconUrl` points at for a large share of the
+ * web — 7 of the 18 icons measured on 2026-08-22 were one of these types.
+ *
+ * `image/svg+xml` is absent here too, and that is now a *measured* decision rather than only a
+ * cautious one: `createImageBitmap` will not decode SVG in a service worker at all (§10.1), so
+ * there is nothing to weigh against the script-vector risk. It stays refused with its own reason.
+ *
+ * **The allowlist is policy, not a guard on the decoder.** Measured the same day: `createImageBitmap`
+ * sniffs the bytes and ignores the type it was handed — an ICO labelled `text/html` decodes fine. So
+ * this list decides what we are willing to accept, and nothing downstream re-checks it.
+ */
+const ALLOWED_ICON_TYPES: ReadonlySet<string> = new Set([
+  ...ALLOWED_TYPES,
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+  'image/ico',
+]);
+
+/**
  * A DNS label: letters, digits and hyphens, not starting or ending with one.
  *
  * Punycode passes (`xn--80ak6aa92e`), which is deliberate — an internationalized domain is a normal
@@ -190,6 +213,21 @@ export function validateContentType(raw: string | undefined): string {
   return type;
 }
 
+/**
+ * Reject an icon content type we will not decode.
+ *
+ * {@link validateContentType} with {@link ALLOWED_ICON_TYPES}; the SVG special case is identical and
+ * deliberately duplicated rather than shared, so that removing it from one path cannot silently
+ * remove it from the other.
+ */
+export function validateIconContentType(raw: string | undefined): string {
+  const type = (raw ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
+  if (type === '') throw new ThumbRejected('content-type');
+  if (type === 'image/svg+xml' || type === 'image/svg') throw new ThumbRejected('svg');
+  if (!ALLOWED_ICON_TYPES.has(type)) throw new ThumbRejected('content-type');
+  return type;
+}
+
 /** Reject a body that grew past the cap regardless of what the headers claimed. */
 export function validateActualSize(byteLength: number): void {
   if (byteLength === 0) throw new ThumbRejected('blocked');
@@ -221,6 +259,28 @@ export function validateCandidate(candidate: {
   const url = validateImageUrl(candidate.url);
   validateDeclaredSize(candidate.declaredBytes);
   const contentType = validateContentType(candidate.contentType);
+  validateActualSize(candidate.byteLength);
+  return { url, contentType };
+}
+
+/**
+ * The same, for a page-declared favicon (§10.1, D37).
+ *
+ * Identical in every check but the content-type allowlist — the URL still has to be `https:` and a
+ * public DNS name, the same 5 MB ceiling still applies to what the page was allowed to pull. A
+ * favicon on `http://192.168.1.1` is exactly the SSRF-shaped thing {@link isPublicDnsHost} exists
+ * for, and the fact that Chrome resolved the URL is not a reason to trust it: `favIconUrl` comes
+ * from the page's own markup.
+ */
+export function validateIconCandidate(candidate: {
+  readonly url: string;
+  readonly contentType?: string | undefined;
+  readonly declaredBytes?: number | undefined;
+  readonly byteLength: number;
+}): { readonly url: string; readonly contentType: string } {
+  const url = validateImageUrl(candidate.url);
+  validateDeclaredSize(candidate.declaredBytes);
+  const contentType = validateIconContentType(candidate.contentType);
   validateActualSize(candidate.byteLength);
   return { url, contentType };
 }

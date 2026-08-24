@@ -12,6 +12,231 @@ below.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-24
+
+### Added
+
+- **A site you only ever open through VaultaMark can finally have its own icon.** Until now the
+  icon beside a bookmark came from Chrome's own store of them, which Chrome fills in while you
+  browse. Opening a bookmark from VaultaMark opens it in an incognito window, and incognito windows
+  deliberately remember nothing — so for a site you *only* reach through the vault, that store stays
+  empty for ever and the row kept showing a coloured letter no matter how often you visited.
+  VaultaMark now takes the icon the page itself declares, at the moment you save the page, and keeps
+  it with the bookmark like every other icon.
+  - **Nothing new is asked of you, and nothing new is sent anywhere.** The icon is fetched **by the
+    page, from the page's own address** — the same address that just served it to draw your tab —
+    on the same visit that already looks for a preview picture. No new permission, no second visit
+    to the page, and no request that VaultaMark itself makes. Browsing the vault still makes zero
+    requests.
+  - **It only fills a gap, never overwrites.** If Chrome already has an icon for that site, that one
+    is kept and the page is not asked at all.
+  - **Icons drawn as SVG work too** — about a quarter of the web, and until now the whole of what
+    this feature missed. Chrome will not decode a vector picture in the background, so VaultaMark
+    draws it on the page itself and keeps the result. Nothing is fetched twice to do it.
+  - **A site whose icon Chrome has never seen at all is no longer a dead end.** VaultaMark reads
+    what the page declares about itself and picks the one nearest the size a row shows, so a
+    right-clicked bookmark on a site you have never opened normally still gets its icon the first
+    time you refresh it from the page.
+  - **One button, not two: *Refresh preview and icon*.** For a bookmark saved from a right-click,
+    or saved before this arrived: open the page, open VaultaMark from the toolbar, and press it.
+    The preview picture and the icon are read on the same visit, because they always were — there
+    is no reason to ask twice, and the second button used to answer with instructions to press the
+    first one. The same button in the bookmark manager now refreshes the icon before it opens the
+    page, so pressing it always does something.
+  - Requires Google Drive sync, like every other picture the vault stores.
+
+- **Four pieces of settings copy say the same thing in fewer words.** The QR-code caveat dropped a
+  sentence about what the extension *cannot* do on another device — nobody was assuming it could.
+  The tooltip field now says what it is ("what you see on the toolbar when you hover over the
+  button") instead of what happens if you leave it blank, and the paragraph of small print under it
+  is gone: the section is headed *Toolbar appearance* and the field is labelled *Tooltip*, which
+  already said it. And the warning behind *Also delete the synced copy* is a third shorter, without
+  losing the part that matters — a vault created here again is a new vault, even with the same
+  password.
+
+- **VaultaMark speaks Polish.** Every screen, every button, every warning and every accessible
+  label — all of it, not the easy half. VaultaMark follows Chrome's own language, so a browser set
+  to Polish gets a Polish VaultaMark and nothing has to be switched on.
+  - **A language Chrome is in and VaultaMark is not falls back to English, one sentence at a time.**
+    Measured in a real browser rather than assumed, because the alternative — falling back a whole
+    file at a time — would have rendered the missing sentences as *blank*, including the one that
+    says a forgotten password cannot be recovered.
+  - **There is no language picker in the extension, on purpose.** Chrome decides, and there is no
+    supported way for an extension to override it; a picker that changed the popup's words but not
+    the name Chrome shows on the extensions page would look broken rather than limited. Changing
+    Chrome's language changes VaultaMark's.
+  - **Translations into other languages are welcome**, and the machinery now accepts a partial one:
+    the gaps read as English rather than as nothing. German, French and Spanish are deliberately
+    *not* included here — machine-translating a sentence like "there is no way to recover this
+    password" a shade softer is not a typo, it is a lost vault, and Polish is the one language whose
+    wording could actually be checked.
+
+- **Site icons now travel with the vault, so a second computer shows them.** Until now a bookmark's
+  icon came only from Chrome's own cache on the machine you were looking at — which is exactly right
+  for privacy, and means a vault restored on a new computer showed a column of coloured initials,
+  because that browser has visited none of those sites. With **Google Drive connected**, VaultaMark
+  now keeps an encrypted copy of the icon Chrome already has, and the other computer gets the real
+  thing.
+  - **Nothing new is downloaded, from anyone.** The icons are read out of Chrome's own local cache,
+    the same source as before. VaultaMark never asks a site — or a favicon service — for an icon;
+    that would hand every domain in your vault to somebody else, which is the thing this extension
+    exists not to do.
+  - **One icon per site, not per bookmark.** Fifty bookmarks on one site keep one small file, so a
+    600-bookmark vault costs a few hundred kilobytes of your Drive.
+  - **The file names give nothing away.** Each icon is filed under a name derived from your master
+    password, so the list of files in your Drive folder cannot be matched against a list of guessed
+    domains.
+  - Icons are picked up at three moments and no others: when you save a page, when a row you are
+    looking at turns out to have gained an icon since — because you have since visited the site in
+    an **ordinary window** — and when you press **Refresh icon** in the detail pane. There is no
+    background task, nothing on a timer, and nothing happens for rows you are not looking at.
+  - **An incognito visit leaves Chrome no icon to copy**, so a site you have only ever opened in
+    incognito — including through VaultaMark, which opens every bookmark that way — keeps the
+    generic globe until you open it once in an ordinary window. The icons come from Chrome's cache
+    and nowhere else, and incognito deliberately does not fill that cache.
+  - **On Chrome sync — the default — nothing changes.** That 100 KB of storage has no room for
+    pictures, and it is a browser profile Chrome is already syncing favicons to.
+  - *Copy diagnostics* now reports **stored icons**: how many sites this device holds an icon for.
+    A count, never a name.
+
+- **A screen that finds the same page saved twice, and lets you pick which copy to keep.**
+  *Duplicates* in the sidebar, beside *Untagged*, counts the addresses your vault holds more than
+  once; opening it lists the copies side by side with their title, folder, tags, note and the date
+  they were saved. **Nothing is ticked for you** — copies differ in everything except the address,
+  and which one matters is not something the extension can know — but *Tick all but the oldest* is
+  one press per group when there is nothing to choose between them. Removing is one operation
+  however many groups it spans, with the same eight-second undo as any other bulk delete.
+  - It matters most for a vault built by importing this browser's bookmarks, or grown on two
+    computers, which is where copies accumulate without anyone adding them twice on purpose.
+  - Two bookmarks count as the same page when the addresses match apart from **campaign parameters**
+    (`?utm_source=`, `?fbclid=` and the like), the part after `#`, and the order of the query. So
+    the same article saved from two mailings is one address, and two videos that differ only in
+    `?v=` are two. This is deliberately a wider net than the check made when you *save* a page,
+    where a wrong guess would cost you a bookmark you asked for; here it only puts two rows next to
+    each other and waits.
+  - **Dead-link checking was considered and refused.** Finding out whether a bookmark still works
+    means requesting it, and browsing your vault makes no requests at all — that is the sharpest
+    promise this extension makes. A hundred bookmarks would be a hundred requests to a hundred
+    hosts from your own address, which is the vault's table of contents handed to anyone watching
+    the network.
+
+- **A bookmark's address as a QR code, for getting it onto a phone.** Select a bookmark in the
+  manager and press *Show QR code*, beside *Open in incognito*. It beats retyping a long URL, and it
+  beats the usual workaround of mailing the address to yourself — which takes it out of the vault
+  and leaves it in an inbox for good. The code is drawn only when you ask for it, never left sitting
+  in the pane where anyone walking past could photograph it, and it carries the address and nothing
+  else. **It cannot make the phone open the link privately**, and the line under it says so: no
+  phone browser offers a way to do that, so the page opens in an ordinary tab and stays in that
+  phone's history. Copy the address and paste it into a private tab yourself if that matters.
+
+- **The toolbar button can wear a different picture, and say something else.** Settings → *Toolbar
+  appearance* offers four icons — the usual one, a plain bookmark, a grey folder, a grey sheet of
+  paper — and a tooltip you can type yourself. Both are per-computer: the machine in a shared office
+  can look one way while the one at home keeps the mark. **It is not a way to hide VaultaMark, and
+  the screen says so.** The extension is still called VaultaMark on the extensions page, in its
+  address and in the Chrome Web Store, and nothing an extension can do at runtime changes that —
+  that name is fixed when the package is built.
+
+### Fixed
+
+- **Setup lost its last two screens to the very step it asked you to complete.** Turning on *Allow
+  in Incognito* restarts VaultaMark, and Chrome closes every VaultaMark page that is open — the
+  setup tab included. So doing the thing the screen asked for ended setup two screens early. That
+  screen is now the **last** one, and it says the tab is about to close before you go and do it, so
+  there is nothing left to lose when it does. Skipping it from there finishes setup instead of
+  leaving you on a dead page.
+
+- **"All settings" flashed the bookmark list on the way to the settings screen.** Opening settings
+  from the quick menu showed the whole vault for a moment first, while the settings screen was still
+  asking about sync. The manager now goes straight there.
+
+- **A duplicate-menu error in the console on some browser starts.** When Chrome started up on a
+  VaultaMark that had been updated while the browser was closed, two separate events each rebuilt
+  the right-click menu at the same time, and one of them lost the race —
+  `Cannot create item with duplicate id`. The rebuilds now queue behind each other. The menu
+  entries themselves always worked; the error was noise, but it was real.
+
+- **"Refresh icon" could delete a good icon and leave nothing behind.** It re-read Chrome's store
+  and wrote down the answer, including an empty one — which was right when that store was the only
+  source. For a site you only open through VaultaMark that store is empty **permanently**, so the
+  button would have thrown away the page's own icon every time it was pressed. It now asks the page
+  first when you are looking at it, and never replaces a page's own icon with nothing.
+
+- **Two lines of on-screen advice described a limitation that no longer exists.** "Open the site
+  once in an ordinary window and try again" was the only remedy there used to be; it is not any
+  more, and the text now says what actually works. The explanation above the button said no page is
+  ever opened and nothing is downloaded, which stopped being true in the same release.
+
+- **Lock-on-focus-loss locked when it should not have, and did not lock when it should.** Opening
+  the quick menu locked the vault behind it — and leaving Chrome with the quick menu open, or with
+  the manager on screen, did not lock at all. Both come from the same thing, measured in a real
+  browser: Chrome tells an extension **nothing** when you switch to another application, and when
+  you open the quick menu it says the same thing it says when you have walked away — that no window
+  is in front. So the extension stopped believing the event. It now looks at where the focus
+  actually is, and the quick menu and the manager say for themselves when they are the ones holding
+  it. Leaving with either of them in front locks within a second; leaving with an ordinary page in
+  front locks within half a minute, which is as often as Chrome will wake an extension to look.
+
+- **Destroying the vault said it had failed, when it had worked.** *Destroy vault* really did erase
+  everything, but the screen then reported "Something went wrong.", re-enabled the button and left
+  the old page up — because the reply's name was missing from the list the extension checks replies
+  against. Nothing was lost and nothing was left behind; the message was simply wrong about it. Found
+  by a new check that puts every service-worker reply through the same parsing the real screens use.
+
+### Changed
+
+- **The screen that takes on a synced vault now says what taking it on brings with it.** It said
+  this computer "joins" the vault "the way a second computer does" — which is not what the common
+  case is: most people reading it have just reinstalled. It now says plainly that everything in the
+  synced vault is imported here — every bookmark, folder, tag and note, and the settings it carries
+  — and that its master password comes with it and is the one that opens the vault from then on.
+  The screen offering the same thing on a fresh install no longer claims there is a second computer
+  either.
+
+- **Four more sentences say the same thing in fewer words**, including the one an earlier entry
+  already promised. The warning behind *Also delete the synced copy* is the third shorter it was
+  described as being — that edit had been written down and not made. Onboarding now says Drive holds
+  a **folder**, not "one file", which is what is actually there; and the page about Chrome's history
+  says plainly that visited pages land in it and the vault cannot reach them, instead of explaining
+  at length why saying so is better than not.
+
+- **"Lock when I switch to another app" is now "Lock when this window loses focus", and means it.**
+  It used to promise that moving between Chrome windows would not lock, which was a promise about a
+  detail nobody asked for and one the code could not keep reliably. It now locks whenever the window
+  you unlocked in stops being the one in front, whatever took its place — another program or another
+  Chrome window. **Opening a bookmark in incognito is another window**, so with this setting on you
+  will be asked for your password when you come back; the toggle's own explanation says so. The
+  quick menu is not another window and does not lock. The setting remains off by default.
+
+- **Counted sentences now agree with their numbers in any language, not only in English.** Every
+  line that says how many of something there are — "3 bookmarks", "12 entries", "5 minutes" — used
+  to come from a pair of sentences, one for one and one for everything else. That is exactly the two
+  forms English has and it is wrong nearly everywhere else: Polish needs three (1 zakładka,
+  2 zakładki, 5 zakładek, with 22 taking the second and 12 the third), so a pair could not have been
+  translated correctly no matter what anyone wrote in it. The forms now come from the browser's own
+  `Intl.PluralRules`, which knows every language's rules and costs nothing to ask.
+  - **Two sentences that each counted two things were split in half.** The import preview said
+    "412 bookmarks in 19 folders" from a key that enumerated every combination of English's two
+    forms — six of them. In Polish that is sixteen, and in the next language a different number
+    again. It now reads as two sentences with one count each, which a translator can write correctly
+    in any language and reorder within.
+  - Nothing here changes what the English reads, apart from a handful of lines that gained a proper
+    singular they had been going without.
+
+- **The popup's settings screen now fits whatever language it is read in, by construction.** Chrome
+  will not show a popup taller than 600 pixels, and every screen in it was laid out against English —
+  the shortest of the languages this could ship in. The screen held its bottom two lines — the way
+  back to the rest of the settings, and the version number — in whatever space the sections above
+  happened to leave, which works exactly as long as the words are short. The sections scroll on
+  their own now, so those two lines are at the bottom of the popup at any length. Measured in a real
+  browser at English's length, at 40 % longer (German's own figure) and at three times longer.
+
+- **The post-1.0 backlog now records why, not only whether.** Three requests were closed as
+  refused with the reasoning attached — a second hidden vault under a different password, per-folder
+  auto-lock, and Argon2id — and three more were left open as deferred rather than closed, because
+  "not now" and "no" are different answers. The reasoning is in
+  [PLAN.md §5](PLAN.md#5-feature-inventory--core-vs-optional) as well as on each issue.
+
 ## [1.1.0] - 2026-08-18
 
 ### Added
@@ -837,6 +1062,7 @@ The first release. Everything below is new, because there was nothing before it.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
-[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.1.0...dev
+[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.2.0...dev
+[1.2.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.0
 [1.1.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.1.0
 [1.0.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.0.0

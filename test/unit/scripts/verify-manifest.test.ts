@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildManifest } from '../../../build/manifest';
@@ -18,6 +19,22 @@ const messages = JSON.parse(
     'utf8',
   ),
 ) as Record<string, unknown>;
+
+/** Every locale under `public/_locales/`, in the shape `checkManifest` takes for a whole build. */
+function shippedMessages(): Record<string, Record<string, unknown>> {
+  const dir = fileURLToPath(new URL('../../../public/_locales', import.meta.url));
+  return Object.fromEntries(
+    readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => [
+        entry.name,
+        JSON.parse(readFileSync(join(dir, entry.name, 'messages.json'), 'utf8')) as Record<
+          string,
+          unknown
+        >,
+      ]),
+  );
+}
 
 const good = (): Record<string, unknown> =>
   JSON.parse(JSON.stringify(buildManifest('1.0.0'))) as Record<string, unknown>;
@@ -105,7 +122,7 @@ describe('Chrome Web Store field limits', () => {
   it('rejects a description one character over the limit', () => {
     const over = { ...messages, extDescription: { message: 'x'.repeat(133) } };
     expect(checkManifest(good(), lock, over).join('\n')).toMatch(
-      /description is 133 characters, over the Chrome Web Store's limit of 132/,
+      /description in en is 133 characters, over the Chrome Web Store's limit of 132/,
     );
     const at = { ...messages, extDescription: { message: 'x'.repeat(132) } };
     expect(checkManifest(good(), lock, at)).toEqual([]);
@@ -113,10 +130,38 @@ describe('Chrome Web Store field limits', () => {
 
   it('rejects a name over the limit', () => {
     const over = { ...messages, extName: { message: 'x'.repeat(46) } };
-    expect(checkManifest(good(), lock, over).join('\n')).toMatch(/name is 46 characters/);
+    expect(checkManifest(good(), lock, over).join('\n')).toMatch(/name in en is 46 characters/);
   });
 
-  it('rejects a placeholder the locale does not define', () => {
+  /*
+   * The limit is per locale, and only one of them is the one somebody wrote to it.
+   *
+   * The Store reads the name and description out of whichever `messages.json` matches the shopper's
+   * language and applies the same 132 to each. Polish runs longer than English, so the locale that
+   * fits is not evidence about the locale that does not — which is why this check stopped looking
+   * only at `en`.
+   */
+  it('measures every locale in the map, not only the first', () => {
+    const shipped = {
+      en: messages,
+      pl: { ...messages, extDescription: { message: 'x'.repeat(133) } },
+    };
+    expect(checkManifest(good(), lock, shipped).join('\n')).toMatch(
+      /description in pl is 133 characters/,
+    );
+  });
+
+  it('accepts a map in which every locale fits', () => {
+    expect(checkManifest(good(), lock, { en: messages, pl: messages })).toEqual([]);
+  });
+
+  it('reads the real _locales directory, and every locale in it is within the limits', () => {
+    // Not a restatement of the case above: this one is the files as they stand, so a translation
+    // added later is measured by a test nobody has to remember to update.
+    expect(checkManifest(good(), lock, shippedMessages())).toEqual([]);
+  });
+
+  it('rejects a placeholder the locale does not define', () =>{
     const missing = { ...messages };
     delete missing['extDescription'];
     expect(checkManifest(good(), lock, missing).join('\n')).toMatch(
@@ -126,6 +171,6 @@ describe('Chrome Web Store field limits', () => {
 
   it('measures a literal too, in case the manifest ever stops using placeholders', () => {
     const manifest = { ...good(), description: 'x'.repeat(133) };
-    expect(checkManifest(manifest, lock, messages).join('\n')).toMatch(/description is 133/);
+    expect(checkManifest(manifest, lock, messages).join('\n')).toMatch(/description in en is 133/);
   });
 });

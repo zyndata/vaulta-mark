@@ -18,7 +18,13 @@
 
 import type { SyncStatusResponse } from '../shared/messages.js';
 import { chromeMajorFrom, type Diagnostics } from '../shared/diagnostics.js';
-import { listThumbIds, readHeader, readSettings, thumbBytesInUse } from '../storage/local.js';
+import {
+  listIconNames,
+  listThumbIds,
+  readHeader,
+  readSettings,
+  thumbBytesInUse,
+} from '../storage/local.js';
 import { isBookmark, ROOT_ID } from '../vault/types.js';
 import * as session from './session.js';
 import * as syncing from './syncing.js';
@@ -96,6 +102,7 @@ export async function collect(): Promise<Diagnostics> {
     localBytes: await attempt(async () => await chrome.storage.local.getBytesInUse(null), 0),
     buckets: header?.bucketCount ?? 0,
     thumbnailCacheBytes: await attempt(async () => await thumbBytesInUse(thumbIds), 0),
+    storedIcons: (await attempt(listIconNames, [])).length,
 
     providerId: status.providerId,
     syncPhase: status.phase,

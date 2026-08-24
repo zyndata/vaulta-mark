@@ -16,6 +16,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, expect, test, type BrowserContext, type Page, type Worker } from '@playwright/test';
 
+import { extensionArgs } from './harness.js';
+
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
 const PASSWORD = 'correct horse battery staple';
@@ -45,7 +47,7 @@ test.beforeAll(async () => {
     // never starts and the failure looks like a timeout rather than a missing feature.
     channel: 'chromium',
     headless: true,
-    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+    args: extensionArgs(DIST),
   });
   const worker = await serviceWorker();
   extensionId = new URL(worker.url()).host;

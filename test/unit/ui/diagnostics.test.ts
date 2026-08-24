@@ -32,6 +32,7 @@ const RECORD: Diagnostics = {
   localBytes: 1234,
   buckets: 8,
   thumbnailCacheBytes: 0,
+  storedIcons: 0,
   providerId: 'chrome',
   syncPhase: 'idle',
   syncError: null,

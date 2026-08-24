@@ -330,11 +330,166 @@ So, with `dist/` loaded unpacked and Drive connected (§5.4):
 6. **Check nothing leaks.** `chrome://extensions` → service worker → Application → Storage: every
    `vm.thumbs.*` value is base64 that does not begin `iVBOR`, `/9j/` or `UklGR`.
 
+
+### 5.5.1 Stored favicons, on a second computer, by hand
+
+The thing Phase 17 promises is not something one profile can show you: **a vault restored on a
+second computer displays real icons instead of a column of coloured initials** (ARCHITECTURE §10.1).
+Playwright cannot sign into Google, so the Drive half is a manual pass for the same reason §5.4 is —
+and the automation profile's favicon database never answers with a real icon at all, so even the
+local half cannot be seen there.
+
+Two profiles, Drive connected on both (§5.4), `dist/` loaded unpacked in each:
+
+1. **On profile A**, visit half a dozen sites normally — the favicon database is populated by
+   browsing and by nothing else — then vault a page on each with the toolbar button.
+2. Vault one page on a site you have **never** visited in that profile (paste the address into the
+   manager's add form). Its row keeps its letter avatar, and that is correct.
+3. Manager → any bookmark → *Copy diagnostics*. **`stored icons`** is the count of hosts this device
+   holds an icon for. It should be the number of sites from step 1, not the number of bookmarks —
+   one icon serves every bookmark on a host, which is the whole reason this is affordable.
+4. Wait for the sync to settle, then look in **Drive → VaultaMark → icons/**. One `f_<name>.vmi` per
+   host, and **not one of those names may resemble a domain**. If a file is called anything you can
+   read, the keyed name has regressed and that is a leak, not a cosmetic bug (§10.1).
+5. **On profile B** — a profile that has browsed none of those sites — connect Drive to the same
+   vault and open the manager. The rows show the real icons. This is the whole feature; if it does
+   not happen here, nothing else in this section matters.
+6. **The opportunistic upgrade.** Back on profile B, visit one of the never-visited sites from step
+   2 in an ordinary tab, then reopen the manager. That row now has a real icon and
+   `stored icons` has gone up by one — captured while the row was being rendered, with no timer
+   anywhere.
+7. **Refresh.** Select a bookmark → *Refresh preview and icon*. From the manager that re-reads
+   Chrome's cache and then opens the page in incognito to finish the preview half; the icon half is
+   silent about its outcome, so judge it by the row. When Chrome's cache has an icon it is stored.
+   When it does not, the stored copy is **removed** — a refresh writes down what is there now —
+   **unless the icon came from the page itself**, which since Phase 19 it may have (§5.5.2 below,
+   ARCHITECTURE §10.1). Those survive, because for a vault-only site Chrome's answer is empty
+   permanently and deleting on it would destroy the icon every single time.
+8. **Check nothing leaks.** `chrome://extensions` → service worker → Application → Storage: every
+   `vm.icons.*` key is 22 characters of base64url that says nothing about a domain, and every value
+   is base64 that does not begin `iVBOR`. `vm.iconsLru` holds the same names and no host.
+9. **Check the Chrome tier is untouched.** On a profile syncing through `chrome.storage.sync`,
+   `stored icons` stays `0` and no `vm.icons.*` key ever appears. The heavy tier does not go near
+   the 100 KB area, and on that tier this feature does not exist.
+
+### 5.5.2 The page's own icon, from an incognito window, by hand
+
+Phase 19's promise is the one case the automated suite structurally cannot reach: **a bookmark whose
+site you only ever open through VaultaMark gets a real icon** (ARCHITECTURE §10.1, D37). Playwright
+cannot click the toolbar button, so it cannot create the `activeTab` grant this rides on, and it
+cannot sign into Google, so it cannot reach the tier the icons live in. Everything downstream of
+those two is covered by `test/unit/background/page-icon.test.ts`; the two seams themselves are here.
+
+**Run clean on 2026-08-23**, all eight steps including the SVG-only site in step 6. Repeat it before
+any release that changes `src/background/page-icon.ts`, the add-time injection, or §10.1's refresh
+semantics.
+
+One profile is enough, Drive connected (§5.4), `dist/` loaded unpacked — and it must be the
+**development** build, or the extension id is wrong and Drive answers `redirect_uri_mismatch`.
+
+1. **Pick a site this profile has never visited**, and make sure of it: `chrome://history` shows
+   nothing for it. `python.org`, `wikipedia.org` and `arxiv.org` all work. An **SVG-only** site is
+   no longer excluded — `github.com` and `developer.mozilla.org` are the ones to use in step 6,
+   where the vector is rasterised in the page.
+2. **Vault it from an incognito window.** Open it there, press the VaultaMark toolbar button, *Add
+   this page*. This is the whole scenario in one step: incognito writes no favicon entry, so
+   `_favicon/` has nothing and the page's own icon is the only source.
+3. Open the manager. **The row shows the site's real icon**, not a coloured letter. If it shows a
+   letter, nothing else below matters — check the tier first (`Copy diagnostics` → the provider must
+   be Drive), then that the site's icon is not an SVG.
+4. **Refresh must not destroy it.** Select that bookmark → *Refresh preview and icon*, with the
+   manager in front rather than the site. Chrome still knows nothing about the host, so the old
+   behaviour would have deleted the icon here. The icon must still be there afterwards. **This
+   is the regression the phase was written around**; if the row falls back to a letter, stop
+   and report it.
+5. **The third moment, from the popup.** Vault a *second* never-visited site from a right-click on
+   a link — "Add link to VaultaMark" — so nothing was ever injected for it. Its row shows a letter,
+   correctly. Now open that site in an incognito window, press the toolbar button, and press
+   **"Refresh preview and icon"** on the *You already have this page* notice. The notice answers
+   with two sentences — one about the preview, one reading "Icon updated." — and the row has the
+   icon from then on. There is **one** button on that notice; if there are two, or if one of them
+   says *Open it*, the build is older than this pass.
+6. **An SVG-only site now works.** Repeat step 5 on `github.com` or `developer.mozilla.org`, whose
+   icons are vectors. It must answer "Icon updated." and the row must show the real mark, not a
+   letter. This is the step that proves the rasterising path: the worker cannot decode SVG at all,
+   so a stored icon here can only have been drawn in the page.
+7. **Nothing left this origin.** `chrome://extensions` → service worker → Network, cleared before
+   step 5. Pressing the button must show **no request to the site** from the extension — the fetch
+   happens in the page, under the page's own origin, and is not ours (INV-4). A request here is the
+   failure this whole design exists to avoid.
+8. **What is stored is a bitmap this browser drew.** Application → Storage → `vm.icons.*`: the names
+   are still 22 characters that say nothing about a domain, and the values are still base64 that
+   does not begin `iVBOR`. A page-sourced icon is a WebP re-encoded through a canvas, never the
+   file the site served.
+
+### 5.6 The QR code, against a real phone
+
+`test/unit/ui/qr.test.ts` reads every symbol back with a decoder written from ISO/IEC 18004 rather
+than from the encoder, so "it encodes the right bytes" is settled without a camera.
+`test/e2e/manager.spec.ts` draws one in a real Chromium and checks its module count and its quiet
+zone. What neither can do is **point a phone at a screen**, and that is the one thing a QR code is
+for. **Done once, 2026-08-20**, when the feature landed; repeat it before any release that changes
+`src/ui/qr.ts` or re-vendors the encoder. With `dist/` loaded unpacked:
+
+1. Vault a page whose URL is long and has query parameters, and one whose host or path is not ASCII.
+2. Select each in the manager and press **Show QR code**.
+3. Scan with the phone's own camera app — not a QR utility from a store, which may be more forgiving
+   than what people actually have.
+4. The address that opens must be the vaulted one, **character for character**, query string
+   included. A truncated or mangled URL usually still opens *something*, which is why this is read
+   rather than glanced at.
+5. Try it at arm's length and at an angle, on the light theme and the dark one. The symbol is black
+   on white in both by design (§17.1); if a dark window makes it unreadable, the quiet zone is the
+   thing to look at.
+6. **Check the copy is honest**: the address opens in an ordinary tab, and it is in that phone's
+   history afterwards. If a phone somewhere makes that untrue, the sentence under the code is what
+   needs changing, not the sentence's absence.
+
+---
+
+### 5.7 Locales: what is automated, and the two things the harness gets wrong
+
+`locale-fit.spec.ts` and `locale-fallback.spec.ts` cover the parts of localisation only a browser
+can answer. Two harness facts cost an afternoon each and are not guessable:
+
+- **`--lang` and Playwright's `locale` are different switches, and both are needed.** `--lang=pl`
+  sets the browser's *application* locale, which is what picks `_locales/pl/messages.json`.
+  Playwright separately emulates a context locale — `en-US` unless told otherwise — and that is what
+  a page gets back from `chrome.i18n.getUILanguage()`. Set only `--lang` and you have a browser
+  rendering Polish while every page in it reports `en-US`, which is not a state a real browser can
+  be in and which makes `src/ui/plural.ts` pick English's categories for Polish text. Pass
+  `locale: 'pl-PL'` alongside `--lang=pl`, always.
+- **Unset, `--lang` comes from the operating system — which made the whole suite machine-dependent
+  the day a second locale shipped.** Every assertion in the E2E specs names an English sentence.
+  While `en` was the only locale in the package that was safe by accident: whatever the machine's
+  language, English was all Chrome could render. Adding `_locales/pl` turned twelve of thirteen
+  specs red on a Polish-language Windows box while CI, which runs in English, stayed green. Launch
+  through `extensionArgs()` in `test/e2e/harness.ts`, which pins it, rather than writing an `args`
+  array by hand.
+- **A synthetic locale goes into a copy of `dist/`, never into `dist/`.** Every other spec loads the
+  same directory and `npm run zip` packages it.
+
+#### What `default_locale` actually does — measured 2026-08-21
+
+The manifest documentation says Chrome falls back to `default_locale` without saying at what
+granularity, and the difference is a policy rather than a detail. **Measured, in Chromium, against
+the real build, with a `pl` locale holding exactly one key: Chrome falls back _per message_.** The
+translated key came back in Polish, a key the Polish file did not have came back in English, and a
+key no locale has came back as the empty string.
+
+So an unfinished translation renders as a **partly English interface**, not as blank labels. That is
+what makes a partial translation mergeable — the gaps are visible to whoever is reading them, which
+is the only person positioned to report them. It does not make the parity check optional: a missing
+key is still a sentence nobody chose, and `scripts/verify-strings.mjs` fails on one.
+
+`locale-fallback.spec.ts` is that measurement, kept, so a future Chrome that changes its mind says
+so out loud.
+
 ---
 
 ## 6. The invariant scanners
 
-`npm run verify:invariants` runs two scripts against the **built** `dist/`, because the point is to
+`npm run verify:invariants` runs its scripts against the **built** `dist/`, because the point is to
 catch what a dependency or a plugin smuggled into the bundle, which source-level linting cannot see:
 
 - [`scripts/verify-manifest.mjs`](../scripts/verify-manifest.mjs) — MV3, the exact CSP string, and
@@ -343,7 +498,9 @@ catch what a dependency or a plugin smuggled into the bundle, which source-level
 - [`scripts/verify-no-remote-code.mjs`](../scripts/verify-no-remote-code.mjs) — `eval`, the
   `Function` constructor, remote or computed `import()`, `importScripts`, WASM, `sendBeacon`,
   `XMLHttpRequest`, `blob:`/`data:` script URLs, and any absolute URL not in
-  [`build/url-allowlist.json`](../build/url-allowlist.json).
+  [`build/url-allowlist.json`](../build/url-allowlist.json). A **relative literal** `import()` is
+  permitted and is how `src/ui/qr.ts` loads the vendored encoder; note that the minifier writes that
+  specifier as a substitution-free template literal, so the rule reads backticks too.
 
 ESLint enforces the same bans at the source level, so you find out while typing rather than at the
 end of `verify`. If a scanner fires on something legitimate, the fix is a narrower rule or an

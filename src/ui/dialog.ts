@@ -16,6 +16,7 @@
  */
 
 import { append, h, msg, type Child } from './dom.js';
+import { plural } from './plural.js';
 
 export interface DialogOptions<T> {
   readonly heading: string;
@@ -405,4 +406,13 @@ export async function promptText<T = never>(options: {
  */
 export function dialogText(key: string, substitutions?: readonly string[]): HTMLElement {
   return h('p', null, msg(key, substitutions));
+}
+
+/** {@link dialogText} for a counted sentence: picks the form the locale needs. See `ui/plural.ts`. */
+export function dialogPlural(
+  base: string,
+  count: number,
+  substitutions?: readonly string[],
+): HTMLElement {
+  return h('p', null, plural(base, count, substitutions));
 }

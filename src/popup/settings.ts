@@ -27,6 +27,7 @@
 
 import type { StateResponse } from '../shared/messages.js';
 import { h, msg } from '../ui/dom.js';
+import { plural } from '../ui/plural.js';
 import {
   IDLE_TIMEOUT_CHOICES,
   IDLE_TIMEOUT_NEVER,
@@ -81,16 +82,35 @@ export function settingsScreen(deps: SettingsScreenDeps): HTMLElement {
       h('h2', { class: 'vm-screen-title' }, msg('settingsHeading')),
     ),
 
-    section(
-      'settingsSectionLock',
-      h('p', { class: 'vm-small vm-muted' }, autoLockText(deps.state.unlockedUntil, settings)),
-      h('label', { class: 'vm-field' }, h('span', null, msg('settingsIdleTimeout')), idleSelect),
-      toggle(
-        'vm-lock-on-blur',
-        'settingsLockOnBlur',
-        'settingsLockOnBlurHint',
-        settings.lockOnBrowserBlur,
-        (checked) => deps.patchSettings({ lockOnBrowserBlur: checked }),
+    /*
+     * The sections scroll; the heading above and the two lines below do not (Phase 18).
+     *
+     * They used to be one column that either fitted or did not, held on the floor by an `auto`
+     * margin — which works exactly as long as there is slack, and slack is the thing a translation
+     * spends. This screen has a lot of it now: measured against the real build, it takes English at
+     * **two and a half times its length** before anything reaches the fold, because Phase 16 moved
+     * the opening-and-saving section to the manager and the 589-px measurement this screen was
+     * designed around went with it. But "a long language happens to fit" is not the same claim as
+     * "this screen fits", and only one of them survives the next section somebody adds here.
+     *
+     * So the fit is structural instead: whatever the sections cost, the way out of this screen and
+     * the version number are at the bottom of it, and the popup is never taller than Chrome will
+     * show. What a longer language changes is how much of the middle is on screen at once.
+     */
+    h(
+      'div',
+      { class: 'vm-settings-body' },
+      section(
+        'settingsSectionLock',
+        h('p', { class: 'vm-small vm-muted' }, autoLockText(deps.state.unlockedUntil, settings)),
+        h('label', { class: 'vm-field' }, h('span', null, msg('settingsIdleTimeout')), idleSelect),
+        toggle(
+          'vm-lock-on-blur',
+          'settingsLockOnBlur',
+          'settingsLockOnBlurHint',
+          settings.lockOnBrowserBlur,
+          (checked) => deps.patchSettings({ lockOnBrowserBlur: checked }),
+        ),
       ),
     ),
 
@@ -135,7 +155,7 @@ function section(headingKey: string, ...children: HTMLElement[]): HTMLElement {
 function idleChoiceLabel(minutes: number): string {
   return minutes === IDLE_TIMEOUT_NEVER
     ? msg('settingsIdleNever')
-    : msg('settingsIdleMinutes', [String(minutes)]);
+    : plural('settingsIdleMinutes', minutes, [String(minutes)]);
 }
 
 function autoLockText(unlockedUntil: number | null, settings: VaultSettings): string {

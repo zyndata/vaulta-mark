@@ -40,6 +40,16 @@ export const ENVELOPE_OVERHEAD_BYTES = 1 + IV_BYTES + TAG_BYTES;
 export type AadPurpose =
   | 'bucket'
   | 'thumb'
+  /**
+   * One host's favicon, kept so a vault restored on a second computer shows real icons rather than
+   * a column of initials (Phase 17, ARCHITECTURE §10.1).
+   *
+   * A purpose of its own rather than a second use of `'thumb'`, and that is the whole reason this
+   * feature needed no `SCHEMA_VERSION` bump: `purpose` is a separate AAD field from `v`, so a new
+   * kind of sealed value leaves every existing seal byte-for-byte valid. `id` is the *keyed* name
+   * of the host, never the host itself.
+   */
+  | 'icon'
   | 'base'
   | 'export'
   | 'conflicts'
@@ -57,8 +67,8 @@ export type AadPurpose =
  * The associated data bound to a sealed blob.
  *
  * `id` distinguishes slots within a purpose: the bucket index for `bucket`, the item id for
- * `thumb`, the empty string for the singletons (`base`, `export`, `conflicts`, `rollback`,
- * `oauth`).
+ * `thumb`, the keyed host name for `icon`, the empty string for the singletons (`base`, `export`,
+ * `conflicts`, `rollback`, `oauth`).
  */
 export interface Aad {
   readonly v: number;

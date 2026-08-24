@@ -43,6 +43,7 @@ src/
 │  ├─ kdf.ts  keys.ts  envelope.ts  codec.ts  hash.ts  wipe.ts  password.ts  errors.ts
 ├─ vault/               pure domain logic, zero I/O
 │  ├─ types.ts  model.ts  order.ts  migrate.ts  search.ts  sort.ts  errors.ts
+│  ├─ duplicates.ts    grouping by the wide normal form (§3.5.1)
 ├─ storage/             persistence of the working copy
 │  ├─ repo.ts  local.ts  buckets.ts  codec.ts  quota.ts
 ├─ sync/                transport + reconciliation
@@ -60,11 +61,15 @@ src/
 ├─ manager/             manager.ts (entry/router)  app.ts (the shell)
 │  ├─ state.ts          what the tab is looking at; the only thing that fetches
 │  ├─ sidebar.ts  list.ts  detail.ts  settings.ts  dnd.ts  sync.ts  io.ts
+│  ├─ duplicates.ts    the cleanup screen
 │  └─ onboarding/       steps.ts (the gates, pure)  screen.ts (the five screens)
 ├─ ui/                  dom.ts  favicon.ts  incognito-prompt.ts  virtual-list.ts  strings.ts
 │                       dialog.ts  create-form.ts  address.ts  history-cleanup.ts
-│                       tracking.ts  export-gate.ts  styles.css
-└─ shared/              messages.ts  settings.ts  result.ts  time.ts  url.ts
+│                       tracking.ts  export-gate.ts  thumb.ts  diagnostics.ts  qr.ts
+│                       styles.css
+├─ vendor/              third-party source, byte-identical to upstream (§15.1)
+│  └─ qrcode-generator/ qrcode.js  ← MIT, unminified, loaded by import() from ui/qr.ts
+└─ shared/              messages.ts  settings.ts  result.ts  time.ts  url.ts  appearance.ts
 ```
 
 **Dependency direction is strictly one-way:**
@@ -375,11 +380,13 @@ written case for a runtime dependency. This is not that case.
   on offers, once and only when there is something to offer, to apply the same strip to what is
   already saved (`organize.countTracked` / `organize.stripTracked`, `ui/tracking.ts`); nothing is
   ever rewritten without that being answered. Two bookmarks that collapse to the same address stay
-  two bookmarks — a clean-up of addresses is not a licence to delete one of them. A separate key is
-  computed for duplicate detection only (`duplicateKeyOf`:
-  scheme+host+path+sorted query, fragment dropped, a bare origin's trailing slash normalised away)
-  and **never stored**. A URL `URL` cannot parse is kept verbatim: this is a bookmark manager, not a
-  validator, and a user should get back exactly what they saved.
+  two bookmarks — a clean-up of addresses is not a licence to delete one of them; removing one is
+  the separate, asked-for operation in §3.5.1. A URL `URL` cannot parse is kept verbatim: this is a
+  bookmark manager, not a validator, and a user should get back exactly what they saved.
+- **Duplicate keys** are computed on demand and **never stored** — a second normalization of the
+  same URL sitting in the ciphertext would be redundant bytes and a second thing to migrate. There
+  are **two** of them, and which one applies depends on what a match is about to do. See §3.5.1.
+
 - **Which URLs may be vaulted at all** (`background/add.ts`, an allowlist of `http`, `https`, `ftp`,
   `ftps`): a browser-internal page (`chrome:`, `chrome-extension:`, `about:`, `devtools:`,
   `view-source:`, and the equivalents in other Chromium builds) is refused because nothing could
@@ -392,6 +399,36 @@ written case for a runtime dependency. This is not that case.
 - **Search text:** NFKD-folded, combining marks stripped, lowercased. The search index is built on
   unlock and dropped on lock — it is never persisted, because a search index *is* the vault content
   reorganised, and writing one would break INV-6.
+
+#### 3.5.1 The two duplicate keys
+
+**Normative.** "The same page" is asked at two different moments, and the moments want different
+answers. Both keys are pure, both are computed on demand, neither is ever stored.
+
+| | Key | Where | What a match does |
+| --- | --- | --- | --- |
+| **Narrow** | `duplicateKeyOf(url)` — scheme + host + path + sorted query, fragment dropped, a bare origin's trailing slash normalised away | `background/add.ts` (`findDuplicate`), `import/native-bookmarks.ts` | **Refuses the save.** The popup answers "you already have this page" and offers to open it |
+| **Wide** | `duplicateKey(url)` — the same, **preceded by the tracking-parameter strip** | `vault/duplicates.ts`, the manager's duplicates screen | **Proposes a comparison.** Two rows side by side; nothing is removed until a button is pressed |
+
+So `example.com/a` and `example.com/a?utm_source=x` are **one** address to the wide key and **two**
+to the narrow one, while `watch?v=a` and `watch?v=b` are two videos to both — the query is kept,
+only campaign parameters come off.
+
+**The asymmetry is the point, not an inconsistency to be tidied away.** A false match at add time
+costs the user a bookmark they asked for and did not get; a false match in the cleanup screen costs
+them a glance. The narrow key is therefore conservative and the wide one is not. The wide key
+applies the strip whatever `stripTrackingParams` is set to, because that setting governs what
+happens to the *next* thing saved, and a vault full of `?utm_source=` collected before it was
+switched on is exactly the vault the screen exists for.
+
+**Live items only, on both sides.** A tombstone is a bookmark the user already deleted, kept so the
+merge engine can carry the deletion to another device (§6). Grouping one would offer to delete what
+is already deleted, and would report a duplicate for a lone survivor whose earlier copy is gone.
+
+`duplicateCount` — how many addresses are saved more than once, groups rather than copies — rides
+on `GET_TREE` and is what the sidebar's *Duplicates* entry shows. Removal from the screen goes
+through `DELETE_ITEMS`, so it is one `repo.apply`, one `vaultRev`, one set of tombstones and one
+8-second undo, exactly like every other bulk delete.
 
 ---
 
@@ -432,8 +469,9 @@ master password (never stored, never transmitted, never logged)
       │
       │  HKDF-SHA256, salt = 32 zero bytes, info = "vaultamark/v2/<purpose>"
       ├──► k_items   — bucket payload encryption
-      ├──► k_thumbs  — thumbnail encryption
-      └──► k_hmac    — bucket integrity tags
+      ├──► k_thumbs  — thumbnail and stored-favicon encryption
+      ├──► k_hmac    — bucket integrity tags
+      └──► k_icons   — the stored name of a favicon, keyed by host (§10.1)
 ```
 
 **Why two levels.** Changing the master password re-derives the KEK and re-wraps 32 bytes. Nothing
@@ -442,6 +480,11 @@ half-converted. Phase 6 asserts this (bucket tags must be unchanged after a pass
 
 **Why HKDF subkeys.** No key is ever used for two purposes. A hypothetical weakness in the thumbnail
 path cannot be turned into an oracle against the item path.
+
+`k_icons` is the one subkey that names things rather than encrypting them: a favicon's file name is
+`HMAC-SHA256(k_icons, host)` truncated to 16 bytes, so the set of names on Drive cannot be matched
+against a list of guessed domains (§10.1). Its bytes are sealed under `k_thumbs` like any other
+heavy-tier blob — naming and sealing are two purposes, so they are two keys.
 
 **What each level is, concretely.** The KEK is a non-extractable `CryptoKey` — the raw bits never
 exist as JavaScript-reachable bytes, which costs us nothing because the KEK's only job is the DEK.
@@ -623,6 +666,8 @@ the list and decompresses the shipped asset, so the three artefacts cannot drift
 | — | *no key holds a bookmark's URL, host or title outside the sealed buckets* | — |
 | `vm.thumbs.<itemId>` | sealed thumbnail bytes | yes (`k_thumbs`) |
 | `vm.thumbsLru` | `{ itemId: lastViewedMs }` | no |
+| `vm.icons.<name>` | sealed favicon bytes, one per host; `name` is keyed (§10.1) | yes (`k_thumbs`) |
+| `vm.iconsLru` | `{ name: lastShownMs }` | no (the names are HMACs) |
 | `vm.conflicts` | sealed pending-conflict records | yes (`k_items`) |
 | `vm.rollback` | sealed pre-replace-import snapshot (§11) | yes (`k_items`) |
 | `vm.rollbackMeta` | `{ createdAt, expiresAt }` | no (no content) |
@@ -635,7 +680,8 @@ of quota per byte of ciphertext, and a silent shape change on the way out.
 
 `vm.settings` holds `theme`, `idleTimeoutMinutes`, `providerId`, `lockOnBrowserBlur`,
 `stripTrackingParams`, `reuseIncognitoWindow`, `clearHistoryOnLock`, `quickClose`,
-`localThumbnails`, `thumbnailsOffered`, `sortBy` and the
+`localThumbnails`, `thumbnailsOffered`, `sortBy`, the toolbar's appearance (`toolbarIcon`,
+`toolbarTitle` — §16) and the
 manager's two column widths (`sidebarWidth`, `detailWidth`). It is deliberately plaintext and
 deliberately incapable of holding vault content: the lock screen has to honour the theme, and the
 auto-lock alarm has to be armed, before any key exists.
@@ -644,11 +690,15 @@ It is **half** of the settings, and the other half travels with the vault (§6.7
 that describe how the *vault* behaves — theme, idle timeout, lock-on-blur, the tracking strip, the
 incognito-window reuse, the two history toggles and the sort order — are recorded inside the
 ciphertext, so a second Chrome profile that adopts the synced vault arrives with them already set.
-`sidebarWidth`, `detailWidth`, `providerId`, `localThumbnails` and `thumbnailsOffered` stay here and
+`sidebarWidth`, `detailWidth`, `providerId`, `localThumbnails`, `thumbnailsOffered`, `toolbarIcon`
+and `toolbarTitle` stay here and
 only here, because a column width describes a screen, a provider id describes this profile's
-connection, and "keep preview pictures on this device only" describes this computer's disk: a laptop
+connection, "keep preview pictures on this device only" describes this computer's disk, and a
+toolbar button describes a screen again: a laptop
 must not inherit a desktop's columns, a profile with no Drive token must not be told to use Drive,
-and a machine that opted into local-only pictures has not opted the others in.
+a machine that opted into local-only pictures has not opted the others in, and one computer being
+in a shared office is the whole reason its toolbar was changed and no reason at all to change every
+other one.
 
 `sortBy` names one of six orders. Five are derived from a field of the item — date added, date
 modified, title, recently opened, most opened — and the sixth, **`manual`** (Phase 12), reads
@@ -718,6 +768,12 @@ to keep it that way.
 is the system of record for thumbnails; the local copy is only a cache, so eviction costs a re-fetch,
 not data. If a future release adds `unlimitedStorage`, the cap becomes user-configurable
 (25 / 100 / 500 MB).
+
+The stored favicons (§10.1) get **1 MB** of the same budget, on the same terms and with their own
+LRU. Two caches rather than one shared cap, because they are not interchangeable: an evicted picture
+costs one round trip for one item, while an evicted icon costs one for every row on that host, and a
+vault whose pictures filled the cache would leave a restored profile looking exactly as it did
+before this feature existed.
 
 ### 5.2 `chrome.storage.sync` — the ChromeSyncProvider transport
 
@@ -1248,15 +1304,75 @@ memory-backed, never written to disk, cleared on browser exit, and restricted to
 We combine it with a real idle timeout (default 10 min), an explicit lock command, lock-on-blur as an
 option, and "require password after browser restart" (free — session storage clears anyway).
 
-**Lock-on-blur is off by default**, and its name in the UI matters more than it looks. It fires on
-`WINDOW_ID_NONE` — no Chrome window has focus at all — which means *every switch to another
-application*, not "when Chrome closes". At 600,000 PBKDF2 iterations that is a password prompt per
-alt-tab: a defensible posture to offer, a bad one to impose, and a worse one to imply with a label
-like "lock when I leave Chrome". The UI says "switch to another app" and spells out the consequence
-next to the toggle.
+**Lock-on-blur is off by default**, and its name in the UI matters more than it looks. It locks when
+the window the vault was unlocked in stops being the one in front — *every* switch to another
+application, and every switch to another Chrome window. At 600,000 PBKDF2 iterations that is a
+password prompt per alt-tab: a defensible posture to offer, a bad one to impose, and a worse one to
+imply with a label like "lock when I leave Chrome". The UI says "lock when this window loses focus"
+and spells out both consequences next to the toggle — including that opening a bookmark in incognito
+(§9) puts a new window in front and therefore locks.
 
-Focus moving *between* Chrome windows must never lock, or opening a bookmark in incognito (§9) would
-lock the vault behind it.
+**The focus state is sampled, never awaited, because Chrome's focus event does not report what this
+setting is about.** Measured 2026-08-22 on Windows 10 against the real `dist/`, with a listener
+recording `chrome.windows.onFocusChanged` in the service worker:
+
+| What the user did | What `onFocusChanged` said | What `getAll()` said |
+| --- | --- | --- |
+| Switched to another application | **nothing at all** | no window focused |
+| Minimised the last window | **nothing at all** | no window focused |
+| Opened the toolbar popup | the window's id, then `-1`, 1 ms apart | no window focused |
+| Came back to Chrome | the window's id (sometimes then `-1`) | that window focused |
+
+Two things follow. The event is not a signal — it is missing exactly when the user leaves, and it
+arrives when they have not — so it is treated as nothing more than a reason to go and look. And an
+open toolbar popup is *indistinguishable* from a browser nobody is in front of: Chrome's window model
+has no entry for a popup, so "the quick menu is open" and "the user is in another program" are the
+same state, which is why the 1.2.0 build locked the vault the moment its own quick menu opened.
+
+So the policy asks two questions, from state rather than from events:
+
+1. **Does one of our own pages hold the keyboard focus?** The popup and the manager each keep a
+   `vm.focus` port open (`src/shared/focus-beacon.ts`) and report `document.hasFocus()` over it. A
+   port rather than a message because the interesting event is the page *going away*, which
+   `onDisconnect` reports for it. A focused page rebuilds the port when the worker is torn down under
+   it; an unfocused one has no claim to restate and stays quiet. A connect that never opened at all
+   is a third case, told apart by `runtime.lastError` and retried with a backoff rather than at once:
+   reloading an unpacked build reloads the open extension pages a few milliseconds before the new
+   worker has registered `onConnect`, and a page whose single connect failed is in no beacon set, so
+   it can be neither heard nor asked. **A claim is never trusted at the
+   moment a lock is decided — it is re-asked for.** Minimising a window fires no `blur` in the page
+   inside it (measured the same day, which is how this was found: the vault stayed unlocked behind a
+   minimised browser because the manager tab was still claiming a focus it had lost), so the worker
+   drops every claim and pings each beacon, and the settle below is the window the answers arrive in.
+2. **Is the focused window the one this session belongs to?** `SessionRecord.focusWindowId` is
+   recorded when the vault is unlocked (from `getLastFocused()`, because the popup that unlocked it
+   is covering every window at that moment) and never moves afterwards — under this policy, the focus
+   leaving that window ends the session, so there is nothing to move it to.
+
+A "no" to both starts a **750 ms settle** and asks again. The settle is not a tolerance for switching
+windows; it is there because the popup's claim and Chrome's focus event are two messages in flight at
+once, and a sample taken between them reads "nobody has it" for a browser that is perfectly in use.
+
+Three triggers lead to that sample: any focus event, any page reporting its own blur, and the
+`vm.focuswatch` alarm — periodic at Chrome's 30-second floor, armed only while the vault is unlocked
+and the setting is on. The alarm is what covers the case Chrome reports nothing at all for: leaving
+the browser while an ordinary web page is on screen locks within half a minute of the switch, while
+leaving with the popup or the manager in front locks within the settle, because those pages say so
+themselves.
+
+Three things were confirmed against the real `dist/` before this was called fixed: an open toolbar
+popup does not lock, another Chrome window taking the focus locks within about a second, and a
+browser sent to the background with an ordinary page in front locks at the alarm's 30 seconds.
+**Note for anyone testing this in Playwright:** it emulates focus on the pages it drives, so any
+extension page it can see — the onboarding tab included — reports `document.hasFocus() === true` for
+ever and claims the focus for ever. Close every extension page before testing the window half of the
+policy, or measure the page half by hand.
+
+One case is genuinely indistinguishable: an incognito window opened while "Allow in Incognito" is
+off. Chrome hides that window from the extension completely, so no window appears focused and nothing
+contradicts it. VaultaMark refuses to open a vaulted link in that state (§9), so reaching it means the
+user opened incognito by hand — and locking is the right reading of a window we are not permitted to
+see.
 
 ### 7.2 Cold-start budget
 
@@ -1333,6 +1449,11 @@ on a profile the user touches often.
 5. **The OG image fetch at add-time** — the page's own origin serves the image to the page's own
    context. No new party learns anything, but the origin sees one more request from a browser that
    was already loading the page.
+6. **The number of stored favicons** (§10.1, Drive tier only) approximates the number of distinct
+   domains in the vault. Sharper than the bucket count and strictly weaker than the thumbnails
+   above, which are one file per *item*. The file names are HMACs under a key derived from the
+   master password, so they cannot be matched against a list of guessed domains, and the bytes are
+   sealed like everything else.
 
 ### 8.4 Non-negotiable invariants
 
@@ -1386,7 +1507,7 @@ It lives on the **manager page** (`manager.html#incognito=<itemId>`, built by
 `src/ui/incognito-prompt.ts`) rather than in the popup, because it sends the user to another tab and
 waits for them to come back, and because the fallback below it — a warning, a history checkbox and a
 button — is not a popup's worth of screen. The three steps are exported as `incognitoSteps()` and
-rendered by onboarding's step 3 as well (§12.5): two screens asking for the same thing in two sets of
+rendered by onboarding's incognito step as well (§12.5): two screens asking for the same thing in two sets of
 words is how one of them ends up out of date.
 
 > **Corrected 2026-08-17, and it was not a detail.** Step 2 used to show the address with a **Copy**
@@ -1407,7 +1528,7 @@ words is how one of them ends up out of date.
 > got to. And nothing here can turn the toggle on: there is still no API for that, which is why steps
 > 3–5 are unchanged.
 >
-> Applied in the same pass: this prompt, onboarding step 3, and Settings → *Keyboard shortcuts*
+> Applied in the same pass: this prompt, onboarding's incognito step, and Settings → *Keyboard shortcuts*
 > (§2, under the generated manifest), which opens `chrome://extensions/shortcuts`. Each has an E2E
 > that asserts a real tab appears at the real address, so a future Chrome closing the door shows up
 > as a failing test rather than as a button nobody can explain. `src/ui/address.ts` survives for the
@@ -1460,6 +1581,362 @@ what `verify-no-remote-code.mjs` exists to find — both would mean arguing with
 over a decoration. The colour goes on through CSSOM, which no CSP directive touches; `.vm-avatar` in
 `ui/styles.css` owns the geometry, so the fallback and a real favicon are the same size by
 construction.
+
+### 10.1 Icons that travel with the vault (Phase 17)
+
+Everything above is about one profile. The cost it documents — *a site this profile has never
+visited shows a generic globe* — is paid all at once on a **second computer**: restore a vault
+there and every row is a coloured initial, because that Chrome has browsed none of those sites yet.
+
+So the bytes `_favicon/` hands us are kept, sealed, in the heavy tier, and come back with the vault.
+One icon per **host**, not per item: fifty GitHub bookmarks share one file, which makes icons about
+two orders of magnitude cheaper than thumbnails (§14), where every page has a different picture and
+the file is therefore per item.
+
+**Drive tier only.** `chrome.storage.sync` is 100 KB in total and the heavy tier never touches it
+(INV-6, §5.2). On the default Chrome-sync tier nothing here happens at all — `_favicon/` plus the
+letter avatar, exactly as §10 describes — and that is also the only tier where the problem is not
+felt, because a vault that syncs through `chrome.storage.sync` is a vault on a profile Chrome is
+already syncing history and favicons to.
+
+#### The schema question, answered before the code was written
+
+Issue #6 assumed this needed a `SCHEMA_VERSION` bump with a migration and a fixture. **It does
+not**, and the difference matters more than the feature does: `Aad.v` *is* `SCHEMA_VERSION`
+(`storage/codec.ts`, `bucketAad`), read from the constant rather than from the header, so a bump
+re-seals **every bucket in the field** — a blob sealed at 2 fails to authenticate under 3,
+indistinguishably from corruption — pushes the whole vault again, and locks out every device whose
+Chrome has not yet taken the update (`repo.#readUnlockableHeader` throws `UnsupportedSchemaError`
+for a vault newer than the build, and never writes to it).
+
+Three things make it avoidable, all of them read out of the code rather than argued:
+
+1. **Nothing about the decrypted payload changes.** `SCHEMA_VERSION`'s own contract is
+   *"bumped whenever the decrypted payload shape changes"* (`vault/types.ts`). No item gains a
+   field, no bucket payload gains a key, and the icon store is not in the vault format at all: it is
+   a set of sealed blobs beside it, exactly as thumbnails are.
+2. **`purpose` is a separate AAD field from `v`.** A new `AadPurpose` — `'icon'` — produces sealed
+   values that no existing reader asks for and leaves every existing seal byte-for-byte valid.
+3. **Phase 10's synced settings are the precedent**: an additive optional field, deliberately with
+   no bump.
+
+The one consequence worth writing down is a *future* bump's effect here: an icon sealed at v2 will
+not open under v3's AAD. That is not data loss — the icon store is a cache of something Chrome
+still holds locally, and a blob that will not open is treated as a miss and re-captured on the next
+opportunistic upgrade (below). It is the reason this store can be that casual, and the reason it is
+worth saying so out loud.
+
+#### The stored name is an HMAC, never an unkeyed hash of the host
+
+```
+name = base64url( HMAC-SHA256(k_icons, host)[0..16] )      // 22 characters
+```
+
+`k_icons` is a fourth HKDF subkey off the DEK (§4.1), so no key is used for two purposes.
+
+**The unkeyed version of this would be a serious leak, and it is the leak D28 refuses a third-party
+favicon service over.** The set of hosts a vault could contain is *enumerable*: anyone holding the
+Drive folder could hash the top million domains and read off which files are present, turning
+*how many domains are in the vault* into *which domains are in the vault*. Under a key derived from
+the master password, the file names are 22 characters of nothing to anyone who cannot already
+decrypt the vault.
+
+The host is the URL's `host` — lowercased by `URL`, with a leading `www.` dropped, port included if
+there is one — the same string the row displays under the title. A URL that will not parse has no
+icon and keeps its letter.
+
+#### The bytes
+
+Sealed under **`k_thumbs`**, through `repo.iconCipher()`, with AAD `{ v, purpose: 'icon', id: name }`
+— so an icon cannot be served back as another host's icon, and neither can a bucket. The module that
+stores them (`src/thumbs/favicons.ts`) never holds a key, exactly as `src/thumbs/store.ts` does not.
+
+They are stored as Chrome returned them, at the size the row asks for (32 px). Nothing is decoded,
+re-encoded or resized: these bytes came from Chrome's own cache, not from a page, so the
+hostile-input pipeline thumbnails go through (§14.2) has no subject here. A response larger than
+**64 KB** is refused anyway — a favicon is 1–3 KB, and a cache answering with something else is a
+thing to decline rather than to store.
+
+#### Detecting the placeholder
+
+Chrome answers `_favicon/` for a site it knows nothing about with a **generic globe**, at HTTP 200,
+and two never-visited hosts get byte-identical bytes. Storing those would fill a vault with hundreds
+of copies of one picture, so the response is hashed and compared against the placeholder's hash
+before anything is stored.
+
+**The placeholder's hash is measured at runtime, not committed.** The globe is a Chrome asset: it
+differs per requested size and is free to change with a Chrome version or a theme. So the worker
+asks `_favicon/` for `about:blank` once per worker lifetime and hashes that — `about:blank` can
+never have a favicon, so whatever comes back is this browser's "I have nothing" answer by
+construction.
+
+Measured against the real `dist/` in a real Chromium on 2026-08-21, in the throwaway spike shape
+issue #6 used (not committed):
+
+| `pageUrl` | size 16 | size 32 | size 64 |
+| --- | --- | --- | --- |
+| `about:blank` | 383 B, `23f0e422…` | 646 B, `be31fb35…` | 1,262 B, `e5c321f5…` |
+| a never-visited `https://` host | identical | identical | identical |
+
+Two further measurements from the same run, both of which changed a decision:
+
+- A `chrome-extension://` page URL answers with **1,195 bytes** — our own icon, not the globe — so
+  an extension URL cannot be the sentinel. `about:blank` can.
+- **The automation profile's favicon database never answers with a real icon.** A page served from
+  `127.0.0.1` with a valid, decodable 32 × 32 `<link rel="icon">`, visited, reloaded and waited on
+  for twenty seconds, still reads back as the placeholder. So the E2E suite asserts *"the
+  placeholder is never stored"* against the real browser, and the "there is a real icon" half is
+  driven through the fetch seam — the same kind of harness limit `thumbs.spec.ts` documents for
+  `activeTab`, recorded here so the next person does not spend the afternoon this cost.
+
+#### Three moments, and no fourth
+
+Reading `_favicon/` costs no network request — it is our own origin and a local cache read, INV-4 is
+untouched, and the E2E route trap re-asserts it — but it is still work, and work at browse time is
+what D27/§14 forbids for thumbnails. The same rule here, for the same reason:
+
+1. **On add.** All four add gestures, not just the two that can inject: `_favicon/` needs no
+   `activeTab` grant, so unlike a thumbnail an icon can be captured for a URL that arrived from a
+   context menu. Only for a genuine add — a `duplicate` captures nothing, or the toolbar button
+   becomes a hidden refresh button.
+2. **On an opportunistic upgrade**, when we hold nothing for a host and Chrome's cache now has a
+   real icon — that is, the user has since visited the site. Checked **only while that row was being
+   rendered anyway**, at most once per host per page.
+3. **On an explicit *Refresh preview and icon***, which is one button in both windows and reaches
+   two different sources depending on which one it was pressed in. From the manager it re-reads
+   `_favicon/`, which needs no page and no grant, and then opens the page. From the popup it rides
+   §14.5's preview injection into the page the user is looking at — the only path that reaches the
+   case this whole section is about: a bookmark opened only ever through the vault, in an incognito
+   window, whose host the regular profile has therefore never seen. The worker is `spanning` (D29)
+   so it sees that tab, and opening the popup is itself the gesture that grants `activeTab` on it —
+   no new permission, and user-invoked, which is what every moment here has to be. It is the only
+   moment that **replaces** — see *What a refresh may destroy* below, which is not the rule it was
+   before Phase 19.
+
+No timer, no startup sweep, no fetch for rows nobody is looking at, and nothing on import — a
+thousand imported bookmarks get their icons the first time somebody looks at them, one host at a
+time, rather than as a burst of uploads nobody asked for.
+
+An upgrade never overwrites. A stored icon is replaced only by moment 3, because "Chrome's cache
+changed" is not evidence that the site's icon did — that cache is evicted, re-populated and resized
+by a browser with its own reasons.
+
+**Incognito browsing populates no favicon database, and that has a sharper consequence here than
+anywhere else in this product** (maintainer-reported, 2026-08-21). An incognito profile is
+in-memory: a page visited there leaves no entry in the on-disk favicon database, and the service
+worker is `spanning` (D29), so `_favicon/` answers it from the *regular* profile — which has never
+seen the site. Adding a bookmark from an incognito window therefore stores no icon, correctly and
+by construction.
+
+The sharper consequence is that **VaultaMark's own way of opening a bookmark is an incognito
+window** (§9). A site the user only ever reaches *through the vault* never populates the cache, so
+moment 2 above — "the user has since visited the site" — only ever fires for a visit in an ordinary
+window. For a vault whose whole point is that its sites are not browsed normally, that is a large
+part of the second moment gone.
+
+An **extension-origin** request for the site's icon is refused by INV-4 and stays refused: it would
+send every vaulted domain to its host from the user's own address. But the shape thumbnails already
+use is not that — fetch the icon **in the page's own context**, at add time, inside the existing
+`activeTab` injection (§14.1) — and it **breaks no invariant and needs no new permission**. An
+earlier draft of this section said it had "a different permission story", which was simply wrong:
+`activeTab` and `scripting` are already required (D25) and already used for exactly this, and the
+page's own origin already served that icon to draw the tab.
+
+That is what **Phase 19** built, as **D37**, and issue **#27** is its specification. The rest of this
+subsection is what was measured first, and what the shape turned out to be.
+
+#### Page-declared icons (Phase 19, D37)
+
+**`tab.favIconUrl` is a hint, and the page's own `<link rel="icon">` set is the list.** The first
+draft of this section said the opposite — that Chrome had already done the resolution, so taking its
+answer was a pile of parsing this codebase did not have to write — and shipping it found two holes
+that the field cannot fill:
+
+- **It is empty for exactly the site this feature is for.** A bookmark the user only ever opens
+  through the vault opens in incognito, so the regular profile never resolves an icon for it and
+  `favIconUrl` is simply absent. The old code read that as "do not ask", which meant the one case
+  the phase existed for was the one case that got nothing.
+- **It very often points at an SVG**, which the worker cannot decode — five of the eighteen icons
+  measured below, about a quarter of the web. A site that publishes both an SVG and a PNG was being
+  handed the half that loses.
+
+So `content/og.ts` reads the page's whole declared set and orders it, in the page, where the DOM is:
+Chrome's answer first when it is not a vector, then declared rasters nearest 32 px (downscaling
+beats upscaling, so 180 px beats 16 px), then `/favicon.ico`, then anything vector-shaped. At most
+`MAX_ICON_CANDIDATES` are tried, which bounds the work done inside somebody else's page. A 200 that
+turns out not to be an image does not end the walk — `/favicon.ico` answering with an HTML error
+page is routine, and stopping there would mean never reaching the icon the page actually declared.
+`rel="mask-icon"` is skipped: Safari's pinned-tab icon is a silhouette meant to be tinted, and
+rasterising one gives a black square.
+
+**An SVG is rasterised in the page.** A document has an `<img>`, and an `<img>` renders SVG — no
+script in it runs, no external reference in it resolves, and because the blob URL is minted in that
+same document the canvas is not tainted, so `toBlob` answers with PNG bytes. The draw is bounded at
+64 px, and a decode that has not finished in three seconds is abandoned. That is what closes the
+quarter of the web this section used to write off; the worker still refuses SVG bytes, and now never
+sees any.
+
+`favIconUrl` is one of the sensitive `Tab` fields — with `url` and `title` — and they are gated
+together on a host permission **for that tab**. `activeTab` is exactly that grant, which is why this
+needs no new permission: `background/thumbs.ts` already holds the granted `Tab` at the moment it
+injects, and already reads `tab.url` off it in `refresh()`. Measured against the real `dist/` on
+2026-08-22: with no host permission `chrome.tabs.query` still lists every tab, but the objects it
+returns **omit `url`, `title`, `favIconUrl` and `pendingUrl` from their keys entirely** — not
+present-and-empty, absent. With a host permission all four are there.
+
+#### The three things measured before the code (2026-08-22)
+
+Chromium 151, Windows 10, in the real service worker of the real build. Each of these could have
+shrunk the phase, and the second one did.
+
+**1. `createImageBitmap` decodes ICO in a service worker — every form tried.** This was the
+load-bearing unknown: `/favicon.ico` is what `favIconUrl` points at for a large share of the web.
+
+| Blob type | Payload | Result |
+| --- | --- | --- |
+| `image/x-icon` | one 32 px PNG frame | 32 × 32 |
+| `image/vnd.microsoft.icon` | one 32 px PNG frame | 32 × 32 |
+| `image/ico` | one 32 px PNG frame | 32 × 32 |
+| `image/x-icon` | **multi-size**, 16 + 32 + 48 | 48 × 48 — the **largest** frame |
+| `image/x-icon` | classic 32 px BMP DIB | 32 × 32 |
+| `''`, `image/png`, `text/html` | real ICO bytes | 32 × 32 |
+
+The last row is the one with a consequence: **the decoder sniffs the bytes and ignores the Blob's
+type**. So the content-type allowlist in §14.2 is a *policy* filter — what we are willing to accept
+— and never a guard on what the decoder will attempt. It has to stay strict on its own account.
+
+**2. `createImageBitmap` does not decode SVG in a worker.** `image/svg+xml` answers
+`InvalidStateError: The source image could not be decoded.`, with or without a resize hint — SVG
+decoding is document-bound in Blink. So the refusal `thumbs/validate.ts` carries stands, and the
+worker will never store an SVG.
+
+**"Document-bound" was read as "impossible" and it is not.** The phase shipped on that reading and a
+quarter of the web got no icon. The capture already runs *in a document* — that is the whole of why
+the fetch is legal (§14.1) — so the vector is drawn there, on the same visit, and what crosses back
+to the worker is a PNG. `test/e2e/thumbs.spec.ts` measures both halves: the worker still refuses, and
+a page still draws.
+
+**3. A page-context fetch of the declared favicon essentially always succeeds — and SVG is the only
+thing that then loses.** Twenty real sites, the whole pipeline (page fetch → worker decode → 32 px
+→ WebP), 2026-08-22:
+
+| Outcome | Sites |
+| --- | --- |
+| Stored an icon | **13** |
+| Fetched, then refused — **all of them SVG** | 5 |
+| Declared no `favIconUrl` at all | 1 |
+| Would not load in the harness | 1 |
+
+**Not one fetch was blocked**: 18 of 18 declared icons came back, three of them from a different
+origin than the page (a CDN), because favicon hosts serve permissive CORS and no `connect-src`
+objected. That is a different world from `og:image`, which is usually on a CDN that does not. Content
+types seen: `image/png` 6, `image/svg+xml` 5, `image/vnd.microsoft.icon` 4, `image/x-icon` 3.
+Decoded sizes ran 32 × 32 to 72 × 72; fetched bodies ran 315 B to 15 KB; and **every stored result
+re-encoded to between 740 and 1,558 bytes**, which is why the byte cap below is never the binding
+constraint.
+
+#### What a page-sourced icon goes through, and what marks it
+
+Unlike a `_favicon/` response, **these bytes came from a page**, so they take the pipeline §14.2
+exists for rather than being stored as returned. `processIcon` sits beside `processThumb`: decode →
+fit within 32 px, never upscaling → WebP (PNG where WebP is unavailable) → the same 64 KB ceiling
+`_favicon/` responses are held to, with the 5 MB fetch ceiling on input. The content-type allowlist
+is the icon's own, and it is **not** §14.2's: it adds `image/x-icon`, `image/vnd.microsoft.icon` and
+`image/ico`, which are 7 of the 18 icons measured above and none of which a page would ever offer as
+an `og:image`.
+
+Re-encoding through a canvas strips metadata by construction, exactly as §14.3 describes, and it is
+worth slightly more here than there: a favicon is a file a site serves to every visitor, and the
+version that reaches the vault is a bitmap this browser drew.
+
+**Provenance is one byte in the sealed plaintext.** A stored blob is framed
+`0xF0 'V' 'M' <source>` ahead of the image bytes, and a blob with no such frame is read as
+`chrome` — which is what every icon stored before Phase 19 is. So nothing already in a vault is
+invalidated, nothing is re-uploaded on upgrade, and the two sources are distinguishable at read time
+without a second read. It is in the plaintext rather than in the AAD because the AAD has to be built
+*before* the blob opens, and a provenance field there would mean trying both values and seeing which
+one authenticates.
+
+#### What a refresh may destroy — and this changed in Phase 19
+
+Before Phase 19, *Refresh icon* re-read `_favicon/` and wrote down the answer including an absence:
+Chrome returning the globe **dropped** the stored icon, deliberately — "this is what the icon is
+now, including that it is nothing".
+
+With page-sourced icons in the store that rule destroys data. A vault-only site is precisely one the
+regular profile has never visited, so `_favicon/` will answer with the globe **for ever**, and a
+refresh would delete a perfectly good icon every time it ran. So:
+
+1. A refresh **tries the page first** when the active tab is on that bookmark's URL — the same
+   `samePage` check §14.5's preview refresh already makes. A page-sourced hit is stored and returned.
+2. Otherwise it reads `_favicon/`. A real answer is stored as before.
+3. **A Chrome miss never overwrites a page-sourced icon.** It still clears a `chrome`-sourced one,
+   which is the original behaviour and the one it was written for.
+
+#### One button, because it was always one request
+
+The popup offered *Refresh preview* and *Use this page's icon* side by side, and they were the same
+gesture: one script, injected into one page, whose two fetches already run concurrently (§14.1). The
+second button meant a second injection for something the first was in a position to bring back
+anyway — and on the vault-only site it existed for, the *icon* button's answer was a paragraph of
+instructions telling the user to press it, which is not an answer.
+
+So `REFRESH_THUMB` carries both halves and `ThumbResponse.icon` says what became of the icon
+(`stored` / `none` / `unavailable`); `USE_PAGE_ICON` is gone. The refresh **replaces** the stored
+icon, matching what `replace` already meant for the picture: the user is looking at the page and
+saying that this is what it shows now. An add still only fills an absence.
+
+The popup's notice is assembled from one finished sentence per half rather than one key per
+combination — the halves fail independently, and enumerating them would be six strings in English
+and more in languages with more plural forms. On a tier that keeps no icons the icon half
+contributes nothing at all: telling somebody that a feature they have not turned on did not happen
+is noise.
+
+The manager's pane has one button for the same reason, and it now **acts before it explains**: it
+re-reads `_favicon/` — which needs no page and no grant — and only then opens the page and says
+where to finish. The old *Refresh icon* button's failure message named a different button; a button
+whose entire answer is "press another button" is a defect, not a limitation.
+
+**No "open it" on the already-saved notice.** That notice is only ever shown about the page in the
+tab behind the popup, from both of its entry points, so the page is open by construction. The row
+for it is in the list below, which is where opening anything belongs.
+
+#### The honest ceiling
+
+A page-sourced icon happens where **Drive tier ∧ added from a loaded tab ∧ capture enabled ∧ the
+icon fetches and decodes** — or, later, wherever the user presses *Refresh preview and icon* with
+the page in front of them. Of those conjuncts the third is the tier gate (§14.4) and the fourth is
+measured above at 13 of 20 sites — of which SVG was 5, and SVG now rasterises, so on that sample the
+reachable set is 18 of 20 and the remaining two are a page that declared nothing and a page the
+harness could not load.
+
+So the statement of coverage this section used to make — **"sites you have also browsed normally"**
+— is no longer the whole of it, and is not deleted either. `_favicon/` still reaches all four add
+gestures and still needs no injection; page-declared bytes reach the two gestures that act on a
+loaded tab, plus the popup button. What the two together do *not* reach: a bookmark that arrived
+from a context menu, on a site never browsed normally, whose owner never opens the popup on it.
+
+#### Where they are kept, and how they leave
+
+`vm.icons.<name>` in `storage.local` (base64url, like every sealed value there, §5.1) and
+`VaultaMark/icons/f_<name>.vmi` on Drive (§13.3). Drive is the system of record and the local copy is
+a cache, capped at **1 MB** and evicted least-recently-shown first — the same arrangement as the
+thumbnail cache and a much smaller number, because an icon is 1–3 KB where a picture is up to 40.
+
+**Deletion happens at purge, not at delete**, through the housekeeping alarm that already sweeps
+orphaned thumbnails (§14.6): the live hosts are keyed and compared against the stored names, and the
+difference goes. Sweeping by comparison rather than by list is also what catches the orphans a merge,
+an import or a rollback leaves behind — and a bookmark's *host* can stop being in the vault without
+any delete running at all, which is not true of an item id.
+
+#### What it leaks, and what it costs
+
+The number of icon files approximates the number of distinct domains in the vault — a new entry in
+§8.3. It is sharper than the bucket count and strictly weaker than the one-file-per-item thumbnails
+already listed there; the names say nothing without the key, and the bytes stay encrypted.
+
+Roughly 1–3 KB per domain. A 600-bookmark vault across 200 domains is about 400 KB on Drive, beside
+a thumbnail budget measured in megabytes.
 
 ---
 
@@ -1717,21 +2194,33 @@ carried into the Google Cloud console, a place nothing we ship can open at all.
 A five-step flow on `manager.html?onboarding=1`, opened once by `chrome.runtime.onInstalled` with
 reason `install` — never on an *update*, because a browser that updated four extensions overnight
 and greeted the user with four tabs is how a flow teaches people to close it unread. It lives on the
-manager page rather than in the popup because step 3 sends the user to a `chrome://` tab and waits
-for them to come back, and a popup is gone the moment focus leaves it.
+manager page rather than in the popup because the incognito step sends the user to a `chrome://` tab
+and waits for them to come back, and a popup is gone the moment focus leaves it.
 
-The five screens are: what VaultaMark is · create your master password · allow in incognito · choose
-your sync tier · two things Chrome still does. The gates are pure functions in
+The five screens are: what VaultaMark is · create your master password · choose your sync tier · one
+thing Chrome still does · allow in incognito. The gates are pure functions in
 `src/manager/onboarding/steps.ts`, and there are exactly two:
 
 - **The password step is gated on `vaultExists`**, not on "the form said so". Nothing can set that
   but a `CREATE_VAULT` that succeeded, and nothing can send one but a form whose typed no-recovery
-  phrase matched (`src/ui/create-form.ts`). There is no path from Next to step 3 that does not go
-  through a real vault. This is the Definition-of-done item.
+  phrase matched (`src/ui/create-form.ts`). There is no path from Next to the rest of the flow that
+  does not go through a real vault. This is the Definition-of-done item.
 - **The incognito step is gated on "allowed **or** explicitly skipped"**. Nobody may be swept past it
   without noticing, and nobody may be trapped on it either — there is no API that can turn the
   setting on. A skip is recorded in `vm.onboarding` and leaves a persistent banner in the manager,
-  which clears itself the moment the toggle goes on.
+  which clears itself the moment the toggle goes on. On the last screen a skip *finishes* the flow
+  rather than advancing it, because there is nowhere left to advance to.
+
+**Incognito is the last screen, and the order is what makes the flow survivable.** Ticking "Allow in
+Incognito" reloads the extension, and Chrome closes every extension page it has open — the wizard's
+own tab included (maintainer-reported 2026-08-23). Nothing in here can recover from that: the reload
+fires neither `onInstalled` nor `onStartup`, so no event exists to reopen the tab from, and no code
+of ours runs between the tick and the close. The only answer available is to put the screen that
+kills the tab where there is nothing after it to lose, and to say so on the screen before it happens
+— the alternative, which shipped until 2026-08-23, cost the user the two screens that followed. A
+record left mid-flow by a tab that died there is therefore the *successful* path, and nothing nags
+about one: the flow is opened by `onInstalled` and by "Replay the setup guide", which resets `step`
+first.
 
 Going *back* is always allowed, including out of a step whose gate is shut: rewinding to re-read the
 introduction cannot un-create a vault, and a flow you can only go forwards through is one people
@@ -1879,10 +2368,17 @@ builds — the Store assigns the real ID.
 My Drive/
 └─ VaultaMark/
    ├─ vaultamark-vault.vmv          appProperties: { vmRev: "137", vmSchema: "2" }
-   └─ thumbs/
-      ├─ t_<itemId>.vmt             appProperties: { vmItem: "<id>", vmSha: "<sha256>" }
+   ├─ thumbs/
+   │  ├─ t_<itemId>.vmt             appProperties: { vmItem: "<id>", vmSha: "<sha256>" }
+   │  └─ …
+   └─ icons/
+      ├─ f_<name>.vmi               one favicon per host; <name> is keyed, §10.1
       └─ …
 ```
+
+The icons are in their own folder rather than beside the thumbnails, because the two are keyed by
+different things — an item id and a host — and a folder whose names mean two things is a folder that
+cannot be swept by comparison.
 
 The folder and files are ordinary, user-visible Drive objects. Their *contents* are ciphertext.
 
@@ -1948,12 +2444,23 @@ add-time, user gesture, activeTab granted
   │    fetch(imageUrl, { credentials: 'omit', mode: 'cors', signal: AbortSignal.timeout(8000) })
   │      ↳ IN PAGE CONTEXT: the page's origin already served this image to this page
   │      ↳ abort above 5 MB
-  │    returns { image?: base64url, contentType?, declaredBytes?, ogTitle?, ogDescription? }
+  │    AND, when the worker asked for one, fetch the page's icon — CONCURRENTLY (§10.1, D37)
+  │      ↳ candidates: tab.favIconUrl unless vector, <link rel=icon> nearest 32 px,
+  │        /favicon.ico, then anything vector-shaped — at most 4 tried
+  │      ↳ an SVG is drawn into a canvas HERE and leaves as PNG; a worker cannot decode one
+  │      ↳ asked for only when the vault holds no icon for this host yet
+  │    returns { image?, contentType?, declaredBytes?, ogTitle?, ogDescription?,
+  │              icon?, iconContentType?, iconDeclaredBytes?, iconReason? }
   │
   ├─ SW: validate.ts   (§14.2)
   ├─ SW: process.ts    createImageBitmap → OffscreenCanvas → ≤320 px → WebP q0.75 → ≤40 KB
   ├─ SW: seal(k_thumbs, bytes, aad{v:2, purpose:'thumb', id:itemId})
-  └─ SW: store.ts      storage.local (LRU-capped) + provider.putThumb() when heavyTier
+  ├─ SW: store.ts      storage.local (LRU-capped) + provider.putThumb() when heavyTier
+  │
+  └─ the icon half, when there is one:
+       SW: validate.ts  icon allowlist — §14.2's plus image/x-icon, image/vnd.microsoft.icon
+       SW: process.ts   processIcon → ≤32 px → WebP → ≤64 KB
+       SW: favicons.ts  framed 0xF0 'V' 'M' 'p', sealed, one file per HOST not per item (§10.1)
 ```
 
 **Why two injections.** A `files:` injection reports the completion value of the *program*, and a
@@ -1983,6 +2490,21 @@ INV-4 and is asserted by a Playwright route-interception test.
 
 **Never a screenshot.** No `captureVisibleTab`, no `tabs.captureVisibleTab`, no offscreen rendering
 of the page. If there is no OG/Twitter image, there is no thumbnail.
+
+**The injection carries two images since Phase 19, and it is still one injection.** The favicon the
+page declares rides in the same `executeScript` pair as the OG picture (D37, §10.1) — one extra
+argument out, four extra fields back, no second injection and no new permission. It inherits the
+tier gate wholesale, so §14.4's rule that **nothing is injected when nothing would be kept** is
+untouched: on the Chrome tier with the opt-in off, nothing runs, and no icon is fetched either. The
+practical intersection is the Drive tier, which is where stored icons live anyway, so the gate costs
+nothing real.
+
+Two things about it are deliberate. The worker asks for an icon **only when the vault holds none for
+that host**, so `_favicon/` — which is free and reaches all four add gestures — always wins, and a
+page-sourced icon is strictly an upgrade applied to an absence (§10.1's *an upgrade never
+overwrites*). And the two fetches run **concurrently** inside the page rather than one after the
+other: they are independent, and serialising them would put two 8-second timeouts end to end on the
+last thing that happens during an add.
 
 ### 14.2 Validation — everything from the page is hostile
 
@@ -2131,6 +2653,10 @@ evicted least-recently-viewed first. Evicted thumbnails are re-fetched from Driv
 what the opt-in in §14.4 is asking about. A thumbnail with no LRU entry sorts as never-viewed and
 goes first — the only way to have bytes and no entry is a write interrupted between the two.
 
+The favicon cache (§10.1) is swept by the same alarm and on the same rule, one step removed: it
+compares the *hosts* of the live items against the stored names rather than the ids, because a host
+leaves the vault whenever its last bookmark does and no delete ever mentions it.
+
 `vm.thumbsLru` tracks last-viewed times and is **plaintext**, which is defensible for exactly one
 reason: the item ids it holds are already visible beside it, because §5.1 stores each picture under
 `vm.thumbs.<itemId>`. It leaks no id that enumerating the area would not, and it holds no title, URL
@@ -2180,6 +2706,293 @@ fetched at runtime.
 the platform cannot; a bundle-size measurement; a look at its own dependency tree (transitive
 dependencies count); a note in this section. Dev dependencies (Vite, Vitest, Playwright, ESLint,
 TypeScript) are unrestricted — they never reach users.
+
+### 15.1 Vendored source
+
+**Not the same thing as a runtime dependency, and the difference is the supply chain.** A package in
+`dependencies` is fetched by a resolver, at a version range, with its own transitive tree, on every
+machine that installs — and the code that arrives can differ from the code that was reviewed.
+Vendored source is a file in this repository: it is read once, reviewed as a diff, and changes only
+when a commit changes it. So D4 holds with the list below non-empty.
+
+The bar for vendoring is the same as for writing: *would we write this, and would ours be better?*
+
+| What | Where | Licence | Size |
+| --- | --- | --- | --- |
+| `qrcode-generator` 2.0.4, Kazuhiko Arase — `dist/qrcode.mjs` | `src/vendor/qrcode-generator/qrcode.js` | MIT (2009) | 51.9 KB source · 20.6 KB in its own chunk · 7.3 KB gzipped |
+
+**Why it is not written here.** A QR encoder is Galois-field arithmetic over GF(256), the
+error-correction block tables from ISO/IEC 18004 Annex, eight mask patterns and a penalty score.
+None of that is code worth owning: it is a fixed specification with no product decisions in it, and
+the outcome is binary — a symbol either scans or it does not. There is nothing to get subtly right
+in a way that is ours.
+
+**Why it is unminified.** So it can be read. A project whose auditability is an argument it makes in
+public does not ship somebody else's minified output and call it reviewed. It is also **byte-
+identical to the published package**, sha256 in `src/vendor/qrcode-generator/README.md`, so the
+review is a one-command diff rather than a reading.
+
+Three consequences worth knowing, because each of them was a build failure first:
+
+- **ESLint's house style is off for `src/vendor/**`** and the invariant bans are not. Reformatting a
+  vendored file to our taste would throw away the diff-against-upstream property to satisfy a rule
+  about how *we* write loops.
+- **The copyright notice does not survive minification**, so the one that ships is
+  `public/THIRD-PARTY-NOTICES.txt`, carrying the MIT text and the DENSO WAVE trademark line. MIT
+  requires the notice in every copy, and `dist/` is a copy.
+- **The file names an absolute URL** — `http://www.w3.org/2000/svg`, in an SVG builder we never
+  call. It is an XML namespace, which is a name and not an address, and `build/url-allowlist.json`
+  has a separate `constants` key for exactly that distinction: widening `allowed` means the
+  extension may talk to one more host, and widening `constants` does not.
+
+
+---
+
+## 16. Toolbar appearance
+
+Phase 14. The picture on the toolbar button and the tooltip on it are settings; **the extension's
+name, its id and its Store listing are not, and cannot be.**
+
+That sentence is the specification. `manifest.name` is `__MSG_extName__`, resolved by Chrome from
+the packaged locale at install time, and there is no API that rewrites a manifest field of a running
+extension — not `chrome.action`, not `chrome.management`, not anything reachable from a service
+worker. So `chrome://extensions`, `chrome://apps`, the extension's own `chrome-extension://` origin
+and its Web Store page all read VaultaMark whatever is chosen here, and every word this feature
+shows a user has to be true given that. It is called **Toolbar appearance**; it is never called
+disguise, camouflage, stealth or hide. THREAT_MODEL §4 records it as what it is.
+
+The reasoning is the same one that refused the `intent://` trick in Phase 15: a feature that leaves
+someone believing they are hidden when they are not is worse than no feature, because they will act
+on the belief.
+
+### 16.1 What is stored
+
+Two fields in `vm.settings` (§5.1), per-device and deliberately **not** in `SYNCED_SETTING_KEYS`
+(§6.7):
+
+| Field | Values |
+| --- | --- |
+| `toolbarIcon` | `default` · `ribbon` · `folder` · `page` |
+| `toolbarTitle` | a tooltip, or the empty string for the manifest's own |
+
+Per-device for the same reason as `sidebarWidth` and `providerId`: it describes a *screen*. One
+computer is at a desk in a shared office and another is at home, and that difference is the whole
+reason anyone reaches for this — a synced answer would defeat it on the machine that needed it.
+
+`toolbarTitle` is the only free-text field in a file that is stored in the clear, so it is
+whitespace-collapsed and capped at `TOOLBAR_TITLE_MAX` (64) on the way in *and* on the way out
+(`normalizeToolbarTitle`, `src/vault/types.ts`) — the same both-ways treatment a pane width gets, and
+for the same reason: a stored value is only as trustworthy as the last thing that wrote it, and this
+one ends up on a `chrome.action.setTitle` call.
+
+### 16.2 The drawings
+
+`scripts/gen-brand-assets.mjs` renders all four through Playwright's Chromium, at every size the
+manifest declares (16, 32, 48, 128), committed as PNGs — a build step would make an icon change
+because someone's toolchain moved, and a Node image library would be a dependency *and* would
+rasterise differently from the browser that displays the result.
+
+They obey the rule the mark already obeyed, in its general form: **interior detail thinner than
+about 8 units of 128 is dropped at 16 and 32 rather than rendered as a smear.** That is the
+keyhole's slot on `default` and the ruled lines on `page`; `ribbon` and `folder` have no such detail
+and are one drawing at every size.
+
+`ribbon` is the mark with the keyhole removed — the shape the extension is recognised by, without
+the element that says what is behind it. `folder` and `page` are slate rather than the brand blue,
+because a grey utility glyph is the most anonymous thing a Chrome toolbar holds.
+
+### 16.3 Applying it
+
+`src/background/appearance.ts`, from the service worker, through `chrome.action.setIcon` and
+`chrome.action.setTitle`. Two call sites:
+
+1. **`session.updateSettings`**, immediately — the toolbar is outside any window the settings page
+   could repaint, and a worker does not receive its own `SETTINGS_CHANGED` broadcast, so a version
+   that listened for one would look right and change nothing.
+2. **The worker's top-level evaluation**, deferred by `APPEARANCE_DELAY_MS` (250 ms). Chrome keeps a
+   runtime action icon for the browser session, and "the browser session" ends at a browser restart,
+   an extension reload and an update — three events after which a chosen icon silently reverts to
+   the manifest's. Re-applying on every wake costs one `storage.local` read and one idempotent call.
+
+Deferred rather than awaited for the reason `scheduleProbe` is: the cold-start budget is measured to
+the **first handled message** (§7.2), and a storage read plus two `chrome.action` calls in front of
+it would be spending that budget on a picture.
+
+The empty `toolbarTitle` is restored as `chrome.i18n.getMessage('actionTitle')` — the same string out
+of the same `_locales` file the manifest names — not as a copy kept in the module, and not as
+`setTitle('')`, which would leave the button with no tooltip at all.
+
+---
+
+## 17. QR code for one address
+
+Phase 15. **A QR code is a deliberate export of exactly one bookmark's URL, drawn on demand, and it
+promises nothing about the device that reads it.** Those three clauses are the whole specification.
+
+**The problem it replaces.** Getting a vaulted address onto a phone means retyping a URL nobody
+retypes correctly, or mailing it to yourself — which takes the address out of the vault and leaves
+it in an inbox, in a sent folder and on a mail server, for good.
+
+### 17.1 What goes in it
+
+The URL. Nothing else. A title and a note would push the symbol several versions higher and produce
+a chessboard whose modules are too small for a camera at arm's length; a QR code that does not scan
+is not a smaller feature than one that does.
+
+Encoding is **byte mode over UTF-8**, so an internationalised host or a non-ASCII path survives. The
+vendored encoder's byte mode takes the low byte of every character, so `src/ui/qr.ts` hands it the
+UTF-8 bytes one per character (`toBinaryString`) rather than vendoring upstream's second file for
+the purpose — `TextEncoder` is in the platform and is right about surrogate pairs.
+
+Error correction is **level L (7 %)**, which is a choice and not a default. Error correction buys
+tolerance of *damage*: creases, ink spread, a coffee ring. This symbol lives on a clean, self-lit
+screen for a few seconds and is never printed. What a higher level would cost is real — a version or
+two, and every version makes each module smaller inside a dialog of fixed width, which is what
+actually decides whether a camera resolves it.
+
+The **quiet zone is four modules** and is painted by us, into the canvas, rather than left to CSS. A
+symbol with nothing around it is the commonest reason a phone sees no code at all. The symbol is
+black on white **whatever `data-theme` says**: QR has a stated polarity, some readers cope with an
+inverted one, and "some" is not a thing to hand a user who is holding up a phone.
+
+### 17.2 When it is drawn
+
+**Only when asked.** *Show QR code* sits beside *Open in incognito* in the manager's detail pane and
+opens a dialog. A QR drawn into the pane as soon as a bookmark was selected would be that
+bookmark's address on screen, in machine-readable form, for anyone who glanced at the monitor —
+which is the case this product exists for. It is reachable only with the vault unlocked, because the
+pane it lives on is not built otherwise.
+
+### 17.3 What it does not promise
+
+**Nothing about what the phone does next**, and the copy under the code says so in as many words:
+the scanned address opens in an ordinary tab and lands in that phone's history.
+
+That is a limit, not an omission. Measured 2026-08-19: Chrome for Android has no scanner inside a
+private tab (Lens is disabled there); iOS has no URL scheme for private browsing; and an
+`intent://` URL carrying `EXTRA_OPEN_NEW_INCOGNITO_TAB` is undocumented, scanner-dependent, and
+fails **silently into an ordinary tab** when it is not honoured. A feature that silently degrades
+from private to not-private leaves someone believing they are private when they are not, and acting
+on it. That is worse than promising nothing — the same reasoning that renamed B2 (§16, THREAT_MODEL
+§4.7).
+
+### 17.4 Where the encoder lives
+
+`src/ui/qr.ts` reaches it with `import('../vendor/qrcode-generator/qrcode.js')` — a **relative
+string literal**, the one dynamic-import shape `scripts/verify-no-remote-code.mjs` permits, and the
+one Rolldown resolves at build time into a chunk of the package. So 20 KB of Galois-field arithmetic
+is in neither the service worker's cold-start graph nor the manager's first paint, and is read from
+disk the first time somebody opens the dialog.
+
+That is asserted against the real `dist/`, not assumed: `scripts/check-budgets.mjs` finds the
+encoder by a string it throws, works out which scripts a document or the manifest loads eagerly, and
+fails the build if any of them carries it.
+
+---
+
+## 18. Localisation
+
+Phase 18. Two locales ship — `en` and `pl` — and everything below exists because a second one
+arrived, not because the first one needed it.
+
+### 18.1 The shape of the message file
+
+`chrome.i18n`, `public/_locales/<tag>/messages.json`, `default_locale: "en"`. **INV-10 has kept
+every user-facing string in that file since Phase 12**, and `scripts/verify-strings.mjs` is what
+keeps it there: an AST walk over `src/` that reports a key `msg()` names and the file lacks, a key
+the file has and nothing names, and prose that reached the document without going through `msg`.
+
+Two rules the file follows, and the second one changed in Phase 18:
+
+- **Whole sentences, never a stem plus a suffix.** A sentence assembled at runtime out of fragments
+  is one no translator can reorder, and word order is the first thing a language moves.
+- **One count per sentence.** Two counts in one sentence means enumerating the combinations, which
+  is six keys in English and sixteen in Polish and a different number in the next language. Where a
+  sentence carried two — the import preview's "412 bookmarks in 19 folders", the native import's
+  three totals — it is now two or three sentences with one count each. That is the only split that
+  costs a translator nothing: each half is a whole sentence they can reorder inside.
+
+### 18.2 Plurals: `Intl.PluralRules`, not key pairs
+
+`chrome.i18n` has **no plural support whatsoever** — no ICU MessageFormat, no `plural` argument, no
+`select`. It substitutes and stops.
+
+Through Phase 17 that was survivable because English has two forms and a pair of keys expresses
+both. **Polish has three that matter here** — 1 zakładka, 2 zakładki, 5 zakładek, with 22 taking the
+second and 12 the third — so the pair is not a translation problem but a shape the file has to stop
+having: hand it to a translator and there is nowhere for them to put the third form.
+
+`src/ui/plural.ts` turns a count into a key suffix through `Intl.PluralRules`, which is in the
+browser (Chrome 63, well under the floor of 116) and so leaves D4 — zero runtime dependencies —
+intact:
+
+```
+plural('listCountBookmarks', 5)  →  msg('listCountBookmarks_many')   // pl
+                                 →  msg('listCountBookmarks_other')  // en
+```
+
+Forty-six families, `_one` / `_few` / `_many` / `_other`. Which members a locale has is that
+language's business and is never listed anywhere: `verify-strings.mjs` asks `Intl.PluralRules` for
+the categories of each shipped locale and requires exactly those, so a new language adds no rule.
+
+**The locale the rules are asked about is not `chrome.i18n.getUILanguage()`.** It is the UI language
+resolved against `SHIPPED_LOCALES`, mirroring Chrome's own resolution — exact tag, then the base
+tag, then `default_locale`. A Russian-language browser, for which Chrome renders our English,
+would otherwise ask `Intl.PluralRules('ru')` about 21, be told `one`, and print the English
+"1 bookmark" over a list of twenty-one.
+
+A category whose key is absent falls back to `_other` rather than rendering empty — see §18.3.
+
+### 18.3 What a missing key does — measured, not assumed
+
+**Chrome falls back to `default_locale` per message, not per file.** Measured 2026-08-21 in
+Chromium against the real build, with a `pl` locale holding exactly one key: the translated key came
+back in Polish, a key that file lacked came back in English, and a key no locale has came back as
+the empty string. `test/e2e/locale-fallback.spec.ts` is that measurement, kept.
+
+The consequence is a policy: **an unfinished translation renders as a partly English interface**,
+which is imperfect, obvious, and reportable by whoever is reading it — so a partial outside
+contribution is mergeable and can be finished later. Under the other reading it would have rendered
+as blank labels, including the sentence saying a forgotten password cannot be recovered, and a blank
+label is invisible to exactly the person who could report it.
+
+It does not make the parity check optional. `verify-strings.mjs` fails on a key any shipped locale
+is missing, on a key it has that `en` does not, and on a plural family missing a form that
+language needs. Confirmed by deliberately breaking each of the three.
+
+### 18.4 There is no in-app language picker, and there will not be one
+
+This is the question an issue will ask, so the answer is here first.
+
+`chrome.i18n` takes its language from **the browser's UI language** and offers no supported
+override. There is no API to set it, and `chrome.i18n.getMessage` reads whichever `_locales`
+directory Chrome picked when the extension loaded.
+
+Building a picker therefore means abandoning `chrome.i18n` for a private message loader: read the
+JSON ourselves, resolve substitutions ourselves, keep the chosen tag in `storage.local`, re-render
+every open document when it changes. That is a real amount of code for a real loss — and it does not
+even deliver the feature, because **the manifest's own strings would still follow the browser**.
+`name` and `description` are resolved by Chrome, not by us, so `chrome://extensions`, the Web Store
+listing and the toolbar tooltip would stay in the browser's language while the popup was in another.
+A language picker that changes some of the product's words is worse than none: it looks broken in a
+way that reads as a bug rather than a limitation.
+
+Someone who wants VaultaMark in another language changes Chrome's language, which changes the whole
+browser to match — which is, in almost every case, what they actually wanted.
+
+### 18.5 Fitting a longer language
+
+Chrome clamps a popup at 800 × 600 and will not scroll it beyond that. The popup's settings screen
+holds its two bottom lines — the way through to the manager's settings, and the version number —
+**by construction rather than by slack**: the sections scroll in a box of their own and take the
+room the heading and those two lines leave. That box reserves its scrollbar gutter, so a scrollbar
+appearing cannot narrow the column and rewrap the text above it, which is the cascade that made this
+a Phase-18 item at all.
+
+`test/e2e/locale-fit.spec.ts` measures it in a real Chromium in `en`, in `pl`, and in synthetic
+locales 40 % and 200 % longer than English. The 200 % case fails against the pre-Phase-18 screen,
+which is why the others are worth believing. The Polish run carries the axe pass as well: an
+accessible name is a translated string like any other.
 
 ---
 

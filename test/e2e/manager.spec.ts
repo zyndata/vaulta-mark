@@ -26,6 +26,7 @@ import {
 } from '@playwright/test';
 
 import { expectNoA11yViolations } from './a11y.js';
+import { extensionArgs } from './harness.js';
 
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
@@ -118,7 +119,7 @@ test.beforeAll(async () => {
     // See lock.spec.ts: the default headless build does not run extensions at all.
     channel: 'chromium',
     headless: true,
-    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+    args: extensionArgs(DIST),
   });
 
   for (const pattern of ['http://**', 'https://**']) {
@@ -871,3 +872,249 @@ test('drags a folder onto another folder in the sidebar, and deletes one with th
   await page.close();
 });
 
+
+/**
+ * Toolbar appearance (§16): the picture and the tooltip on the toolbar button.
+ *
+ * `chrome.action` has getters for a badge and none for an icon, so the assertion is on the call
+ * itself, recorded inside the service worker the way `thumbs.spec.ts` records injections. That is
+ * also the right thing to assert: the property is that **every declared size** is handed over, and a
+ * screenshot of a toolbar button would not distinguish "all four" from "the 16 and a guess".
+ *
+ * The other half of the test is the sentence under the field, which has to name **which surface**
+ * this section changes. Someone who reads "toolbar appearance" as a way to rename or hide the
+ * extension, and acts on that belief, is worse off than someone who never found it — and the name,
+ * the address and the Store listing are fixed at build time whatever is typed here. That used to be
+ * a paragraph of small print; it is the hint itself since 2026-08-21, and shorter. What is asserted
+ * is the obligation, not the wording: the hint has to say "toolbar" out loud.
+ */
+test('choosing a toolbar icon reaches chrome.action, at every size the manifest declares', async () => {
+  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  await worker.evaluate(() => {
+    const target = globalThis as unknown as { __vmIcons?: unknown[]; chrome: typeof chrome };
+    target.__vmIcons = [];
+    const real = target.chrome.action.setIcon.bind(target.chrome.action);
+    target.chrome.action.setIcon = (details: chrome.action.TabIconDetails) => {
+      target.__vmIcons?.push(details.path);
+      return real(details);
+    };
+  });
+
+  const page = await openPage('manager.html');
+  await page.getByRole('button', { name: 'Settings' }).click();
+
+  const section = page
+    .locator('.vm-settings-section')
+    .filter({ has: page.getByRole('heading', { name: 'Toolbar appearance' }) });
+  await expect(section.getByText(/toolbar/i)).not.toHaveCount(0);
+
+  await section.getByRole('radio', { name: 'Folder' }).check();
+
+  await expect
+    .poll(async () =>
+      worker.evaluate(() => (globalThis as unknown as { __vmIcons?: unknown[] }).__vmIcons ?? []),
+    )
+    .toContainEqual({
+      16: 'icons/folder16.png',
+      32: 'icons/folder32.png',
+      48: 'icons/folder48.png',
+      128: 'icons/folder128.png',
+    });
+
+  // The tooltip is the other half, and the empty field is a value: it means "keep the shipped one".
+  await section.getByLabel('Tooltip').fill('Reading list');
+  await section.getByLabel('Tooltip').blur();
+  await expect
+    .poll(async () => page.evaluate(async () => (await chrome.storage.local.get('vm.settings'))['vm.settings']))
+    .toMatchObject({ toolbarIcon: 'folder', toolbarTitle: 'Reading list' });
+
+  // And it survives the trip back — a reload rebuilds this screen from `vm.settings`, which is the
+  // same read the worker does after a restart.
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(section.getByRole('radio', { name: 'Folder' })).toBeChecked();
+  await expect(section.getByLabel('Tooltip')).toHaveValue('Reading list');
+
+  // Put it back, so the specs after this one meet the extension they expect.
+  await section.getByRole('radio', { name: 'VaultaMark' }).check();
+  await section.getByLabel('Tooltip').fill('');
+  await section.getByLabel('Tooltip').blur();
+  await page.close();
+});
+
+/**
+ * "Show QR code" (§17), against the real canvas and the real vendored encoder.
+ *
+ * The size is asserted rather than the existence of a canvas, because every number in it is a
+ * decision: 29 modules is version 3, which is what a 37-byte address at level L comes to; the eight
+ * extra are the quiet zone, four a side, and a symbol without one is the commonest reason a phone
+ * sees nothing; and seven is `floor(264 / 37)`, the whole-pixel module size. A regression in any of
+ * the three still draws something that looks like a QR code.
+ *
+ * What no test here can do is scan it. `test/unit/ui/qr.test.ts` reads the symbol back with an
+ * independent decoder, and a real phone is the maintainer's pass (DEVELOPMENT §5.6).
+ */
+test('draws one bookmark’s address as a QR code, and only when asked', async () => {
+  const page = await openPage('manager.html');
+  await row(page, 'Lattice reduction').click();
+  await expect(page.getByRole('textbox', { name: 'Title' })).toBeVisible();
+
+  // Nothing is drawn until the button is pressed: a QR sitting in the pane is a plaintext address
+  // on screen for anyone who glances at the monitor, which is the case the product exists for.
+  await expect(page.locator('canvas')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Show QR code' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+
+  const canvas = dialog.getByRole('img', { name: "QR code of this bookmark's address" });
+  await expect(canvas).toBeVisible();
+  await expect(canvas).toHaveAttribute('width', String((29 + 8) * 7));
+  await expect(canvas).toHaveAttribute('height', String((29 + 8) * 7));
+
+  // The symbol is drawn, not merely sized: a canvas nothing painted reads back as transparent
+  // black, and its top-left corner is inside the quiet zone, which must be white.
+  const corner = await canvas.evaluate((element) => {
+    const context = (element as HTMLCanvasElement).getContext('2d');
+    return [...(context?.getImageData(2, 2, 1, 1).data ?? [])];
+  });
+  expect(corner).toEqual([255, 255, 255, 255]);
+
+  // And the sentence that stops anyone reading this as private on the receiving device.
+  await expect(dialog).toContainText('ordinary tab');
+
+  await expectNoA11yViolations(page, 'the QR code dialog');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.close();
+});
+
+/**
+ * A locked vault offers no QR code, because it offers no detail pane at all.
+ *
+ * Worth asserting rather than reasoning about: the button reads `item.url`, which is vault content,
+ * and "the pane it lives on is not built" is a property of `manager.ts`'s router that a later
+ * refactor could quietly lose. The vault is put back on the way out, since every test in this file
+ * shares one.
+ */
+test('offers no QR code while the vault is locked', async () => {
+  const page = await openPage('manager.html');
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+
+  await page.evaluate(() => chrome.runtime.sendMessage({ type: 'LOCK' }));
+  await page.reload();
+  await expect(page.locator('.vm-placeholder')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Show QR code' })).toHaveCount(0);
+  await expect(page.locator('canvas')).toHaveCount(0);
+
+  await page.evaluate(
+    (password) => chrome.runtime.sendMessage({ type: 'UNLOCK', password }),
+    PASSWORD,
+  );
+  await page.reload();
+  await expect(row(page, 'Lattice reduction')).toBeVisible();
+  await page.close();
+});
+
+/**
+ * The Phase-16 cleanup, end to end.
+ *
+ * Two copies of one address have to exist before the screen has anything to say, and the add path
+ * refuses to make them — which is the point of the feature. So they arrive the way a real vault's
+ * duplicates arrive: the tracking strip switched off, the same page saved from two mailings, and
+ * the campaign parameter still in each address. The setting goes back on afterwards, because
+ * turning it on is exactly what does *not* clean up what is already saved.
+ *
+ * Cleans up after itself. The tests in this file share one vault, and leaving two bookmarks named
+ * after this one in it would be a row count somebody else's assertion has to know about.
+ */
+test('finds an address saved twice, removes a copy, and undoes it', async () => {
+  const page = await openPage('manager.html');
+
+  const ids = await page.evaluate(async () => {
+    const add = async (url: string, title: string): Promise<string> => {
+      const response: { item: { id: string } } = await chrome.runtime.sendMessage({
+        type: 'ADD_URL',
+        url,
+        title,
+      });
+      return response.item.id;
+    };
+    await chrome.runtime.sendMessage({
+      type: 'SET_SETTINGS',
+      settings: { stripTrackingParams: false },
+    });
+    const first = await add(
+      'https://dupes-e2e.invalid/report?utm_source=newsletter',
+      'Quarterly report',
+    );
+    // Far enough apart to be a different millisecond. Copies come back oldest first and tie-break
+    // on a random uuid, so two adds inside one tick would put the rows in an order that changes
+    // between runs — and "the oldest is the one left alone" is exactly what this test is checking.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const second = await add('https://dupes-e2e.invalid/report?utm_source=twitter', 'The report');
+    await chrome.runtime.sendMessage({
+      type: 'SET_SETTINGS',
+      settings: { stripTrackingParams: true },
+    });
+    return [first, second];
+  });
+  await page.reload();
+
+  // ---------------------------------------------------------------- the sidebar says so
+  // One address, not two copies — which is the number of decisions there are to make.
+  const entry = page.getByRole('button', { name: 'Duplicates' });
+  await expect(entry).toContainText('1');
+  await entry.click();
+
+  // ---------------------------------------------------------------- the copies, side by side
+  await expect(page.getByRole('heading', { name: 'Duplicate addresses' })).toBeVisible();
+  await expect(page.locator('.vm-dupes-group')).toHaveCount(1);
+  await expect(page.locator('.vm-dupes-copy')).toHaveCount(2);
+  // Oldest first, and each copy's real address is shown where it differs from the heading's.
+  await expect(page.locator('.vm-dupes-title')).toHaveText(['Quarterly report', 'The report']);
+  await expect(page.locator('.vm-dupes-url')).toContainText('utm_source=twitter');
+
+  await expectNoA11yViolations(page, 'the duplicates screen');
+
+  // ---------------------------------------------------------------- nothing is ticked for you
+  const remove = page.getByRole('button', { name: /^Remove \d+ ticked$/ });
+  await expect(remove).toBeDisabled();
+  await expect(remove).toContainText('0');
+
+  await page.getByRole('button', { name: 'Tick all but the oldest' }).click();
+  await expect(remove).toContainText('1');
+  await expect(remove).toBeEnabled();
+  // The oldest is the one left alone.
+  await expect(page.getByRole('checkbox', { name: 'Remove Quarterly report' })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Remove The report' })).toBeChecked();
+
+  // ---------------------------------------------------------------- asked, then done, then undoable
+  await remove.click();
+  await expect(page.getByRole('dialog')).toContainText('Remove 1 bookmark?');
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove', exact: true }).click();
+
+  await expect(page.getByText('Deleted 1 bookmark.')).toBeVisible();
+  // The screen re-read itself: one copy left is not a duplicate.
+  await expect(page.getByText('No address is saved twice.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Undo' }).click();
+  // And the screen re-read itself again, because the vault under it changed back.
+  await expect(page.locator('.vm-dupes-copy')).toHaveCount(2);
+
+  // ---------------------------------------------------------------- back, and tidy up
+  await page.getByRole('button', { name: 'Back to bookmarks' }).click();
+  await expect(page.locator('.vm-row').first()).toBeVisible();
+
+  await page.evaluate(
+    (doomed) => chrome.runtime.sendMessage({ type: 'DELETE_ITEMS', ids: doomed }),
+    ids,
+  );
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Duplicates' })).toContainText('0');
+
+  await expect(page.locator('#vm-status .vm-notice--danger')).toHaveCount(0);
+  expect(requests).toEqual([]);
+
+  await page.close();
+});

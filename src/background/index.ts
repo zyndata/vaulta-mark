@@ -37,6 +37,7 @@ import {
 import { BookmarksPermissionError } from '../import/native-bookmarks.js';
 import { HistoryPermissionError } from '../history/cleanup.js';
 import { NoActiveTabError } from './add.js';
+import { scheduleToolbarAppearance } from './appearance.js';
 import { armHousekeeping, registerLifecycleListeners } from './autolock.js';
 import { clearBadge, flashBadge, type BadgeKind } from './badge.js';
 import { registerCommandListener } from './commands.js';
@@ -44,6 +45,7 @@ import { installContextMenus, registerContextMenuListener } from './contextmenu.
 import * as diagnostics from './diagnostics.js';
 import * as history from './history.js';
 import * as io from './io.js';
+import * as icons from './favicons.js';
 import * as items from './items.js';
 import * as organize from './organize.js';
 import * as session from './session.js';
@@ -157,6 +159,10 @@ export async function handleRequest(request: Request): Promise<Response> {
         return await items.thumb(request.id);
       case 'REFRESH_THUMB':
         return await items.refreshThumb(request.id);
+      case 'GET_ICON':
+        return await items.icon(request.url);
+      case 'REFRESH_ICON':
+        return await items.refreshIcon(request.url);
       case 'LOOKUP_ACTIVE_TAB':
         return { type: 'ACTIVE_TAB', item: await items.lookupActiveTab() };
       case 'LIST_ITEMS': {
@@ -195,10 +201,15 @@ export async function handleRequest(request: Request): Promise<Response> {
           ...(request.sort === undefined ? {} : { sort: request.sort }),
           ...(request.untagged === undefined ? {} : { untagged: request.untagged }),
         });
+      case 'LIST_DUPLICATES':
+        return await organize.duplicates();
       case 'GET_ITEM':
         return { type: 'ITEM', item: await organize.getItem(request.id) };
       case 'CREATE_FOLDER':
-        return { type: 'CREATED', id: await organize.createFolder(request.title, request.parentId) };
+        return {
+          type: 'CREATED',
+          id: await organize.createFolder(request.title, request.parentId),
+        };
       case 'UPDATE_ITEM':
         await organize.editItem(request.id, request.patch);
         return { type: 'OK' };
@@ -331,7 +342,8 @@ configureSync({
   repository: () => session.currentRepository(),
   onVaultChanged: () => broadcast({ type: 'VAULT_CHANGED' }),
   onSettingsChanged: () => session.settingsArrived(),
-  onStatus: (status) => broadcast({ type: 'SYNC_CHANGED', status: { type: 'SYNC_STATUS', ...status } }),
+  onStatus: (status) =>
+    broadcast({ type: 'SYNC_CHANGED', status: { type: 'SYNC_STATUS', ...status } }),
 });
 
 /**
@@ -363,12 +375,27 @@ chrome.storage.onChanged.addListener((changes, area) => {
  */
 scheduleProbe();
 
+/**
+ * Put the chosen toolbar icon and tooltip back (§16).
+ *
+ * Here rather than in `onStart()`, which fires on install, update and browser launch only: an action
+ * icon set at runtime lasts for the browser session, and *that* is the set of events that ends one.
+ * A worker restart in between does not — but this costs one storage read a quarter of a second after
+ * a wake, and being certain the picture someone chose is the picture they see is worth more than
+ * the read. Deferred for the same reason `scheduleProbe` is: the cold-start budget is measured to
+ * the first handled message.
+ */
+scheduleToolbarAppearance();
+
 registerLifecycleListeners({
   enforceDeadline: () => session.enforceDeadline(),
   housekeep: () => session.housekeep(),
   wake: () => probe(),
   lock: (reason) => session.lock({ reason }),
   settings: () => session.settings(),
+  unlocked: () => session.isUnlocked(),
+  focusHolder: () => session.focusHolder(),
+  rememberFocusHolder: (windowId) => session.rememberFocusHolder(windowId),
 });
 
 /**
@@ -379,7 +406,9 @@ registerLifecycleListeners({
  * the failure paths carry the URL that failed, which is exactly the thing that must never reach a
  * console (INV-6's spirit, and the "never log a URL" rule).
  */
-async function addFromGesture(add: () => Promise<{ status: 'added' | 'duplicate' }>): Promise<void> {
+async function addFromGesture(
+  add: () => Promise<{ status: 'added' | 'duplicate' }>,
+): Promise<void> {
   let kind: BadgeKind;
   try {
     kind = (await add()).status === 'duplicate' ? 'duplicate' : 'added';
@@ -433,7 +462,10 @@ session.configureLockHooks({
  * it from `session.ts` would close the loop.
  */
 session.configureHousekeeping({
-  afterPurge: (repo) => thumbs.sweepOrphans(repo),
+  afterPurge: async (repo) => {
+    await thumbs.sweepOrphans(repo);
+    await icons.sweepOrphans(repo);
+  },
 });
 
 registerContextMenuListener({

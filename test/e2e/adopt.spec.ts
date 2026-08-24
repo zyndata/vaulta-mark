@@ -18,6 +18,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, expect, test, type BrowserContext, type Page } from '@playwright/test';
 
+import { extensionArgs } from './harness.js';
+
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
 const PASSWORD = 'correct horse battery staple';
@@ -43,7 +45,7 @@ async function launch(label: string): Promise<Profile> {
     // See lock.spec.ts: the default headless build does not run extensions at all.
     channel: 'chromium',
     headless: true,
-    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+    args: extensionArgs(DIST),
   });
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
   const profile = { context, dir, extensionId: new URL(worker.url()).host };
@@ -100,7 +102,7 @@ test('a second profile joins the synced vault with the master password alone', a
   /* --- profile two: offered the password, not the create form -------------- */
 
   await second.reload();
-  await expect(second.getByText('There is already a vault on your other computer')).toBeVisible();
+  await expect(second.getByText('There is already a synced vault')).toBeVisible();
   const join = second.getByRole('button', { name: 'Use this vault here' });
   await expect(join).toBeVisible();
 

@@ -14,6 +14,7 @@
  */
 
 import { h, msg, render } from '../ui/dom.js';
+import { plural } from '../ui/plural.js';
 import { inlinePreview, type ThumbData } from '../ui/thumb.js';
 import type { ItemDetail } from '../shared/messages.js';
 import { MAX_NOTE_LENGTH } from '../vault/types.js';
@@ -25,11 +26,17 @@ export interface DetailDeps {
   /** The preview, fetched when the pane is built. Not part of `ItemDetail`: it is 40 KB. */
   readonly loadThumb: (id: string) => Promise<ThumbData>;
   /**
-   * "Refresh preview" was clicked.
+   * "Refresh preview and icon" was clicked (§14.5, §10.1).
    *
-   * Named for what it is rather than for what it does, because what it does is open the page —
-   * re-capturing needs the page loaded and needs the `activeTab` grant that only a gesture on that
-   * tab creates. The pane says so in words before the button is pressed (§14.5).
+   * Named for what it is rather than for what it does, because what it *finishes* by doing is open
+   * the page — re-capturing needs the page loaded and needs the `activeTab` grant that only a
+   * gesture on that tab creates, and this window is not that tab. It still does everything it can
+   * from here first, so the click is an action rather than an instruction. The pane says so in
+   * words before the button is pressed.
+   *
+   * One button rather than two, matching the popup: the preview and the icon are one question —
+   * "this row is showing the wrong thing, fix it" — and splitting them meant a second button whose
+   * whole answer, on the site it existed for, was a paragraph telling you to press the first one.
    */
   readonly refreshPreview: (item: ItemDetail) => void;
   readonly save: (patch: {
@@ -39,6 +46,13 @@ export interface DetailDeps {
     tags: string[] | null;
   }) => Promise<void>;
   readonly open: (id: string) => void;
+  /**
+   * "Show QR code" was pressed (§17).
+   *
+   * The dialog is raised by the caller rather than from here, because it needs `openDialog` and
+   * this file builds a pane — the same seam every other action in it uses.
+   */
+  readonly showQr: (item: ItemDetail) => void;
   readonly renameFolder: (item: ItemDetail) => void;
   readonly deleteFolder: (item: ItemDetail) => void;
   /**
@@ -62,7 +76,7 @@ export function detailPane(deps: DetailDeps): HTMLElement {
         'p',
         { class: 'vm-muted' },
         deps.selectionCount > 1
-          ? msg('detailMany', [String(deps.selectionCount)])
+          ? plural('detailMany', deps.selectionCount, [String(deps.selectionCount)])
           : msg('detailNothing'),
       ),
     );
@@ -73,7 +87,12 @@ export function detailPane(deps: DetailDeps): HTMLElement {
   const isFolder = item.type === 'folder';
 
   const title = h('input', { type: 'text', value: item.title, autocomplete: 'off' });
-  const url = h('input', { type: 'text', value: item.url ?? '', autocomplete: 'off', spellcheck: 'false' });
+  const url = h('input', {
+    type: 'text',
+    value: item.url ?? '',
+    autocomplete: 'off',
+    spellcheck: 'false',
+  });
   const note = h('textarea', { rows: 6, maxlength: MAX_NOTE_LENGTH });
   note.value = item.note;
 
@@ -170,6 +189,20 @@ export function detailPane(deps: DetailDeps): HTMLElement {
             },
             msg('detailOpen'),
           ),
+          // Beside "Open in incognito" because it is the other way of getting to the page, and it
+          // is a button rather than a drawn code because a QR sitting in the pane would be this
+          // bookmark's address on screen for anyone who walked past (§17).
+          h(
+            'button',
+            {
+              type: 'button',
+              class: 'vm-button vm-button--quiet vm-button--inline',
+              onclick: () => {
+                deps.showQr(item);
+              },
+            },
+            msg('detailShowQr'),
+          ),
         ),
     isFolder || !deps.inHistory ? null : historySection(item, deps),
     isFolder ? null : previewSection(item, deps),
@@ -178,7 +211,7 @@ export function detailPane(deps: DetailDeps): HTMLElement {
       : h(
           'p',
           { class: 'vm-small vm-muted' },
-          msg('detailStats', [
+          plural('detailStats', item.openCount ?? 0, [
             new Date(item.createdAt).toLocaleDateString(),
             String(item.openCount ?? 0),
           ]),

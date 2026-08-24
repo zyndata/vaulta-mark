@@ -129,19 +129,20 @@ describe('the dry run', () => {
     press(panel, 'historyCheckButton');
     await settle();
 
-    expect(has(panel, 'historyDryRun')).toBe(true);
+    expect(has(panel, 'historyDryRunEntries_other')).toBe(true);
+    expect(has(panel, 'historyDryRunSites_other')).toBe(true);
     expect(panel.querySelectorAll('details li')).toHaveLength(2);
     expect(panel.textContent).toContain('bbc.co.uk');
     expect(d.clear).not.toHaveBeenCalled();
   });
 
-  it('uses the singular line when only one site matched', async () => {
+  it('picks the "one" form of the sites family when only one site matched', async () => {
     const single: CleanupPreview = { ...PREVIEW, domains: [{ domain: 'a.test', entries: 5 }] };
     const panel = historyCleanupPanel(deps({ preview: vi.fn(() => Promise.resolve(single)) }));
 
     press(panel, 'historyCheckButton');
     await settle();
-    expect(has(panel, 'historyDryRunOneDomain')).toBe(true);
+    expect(has(panel, 'historyDryRunSites_one')).toBe(true);
   });
 
   it('offers no delete button when there is nothing to delete', async () => {
@@ -210,10 +211,10 @@ describe('deleting', () => {
     await settle();
 
     expect(d.clear).toHaveBeenCalledTimes(1);
-    expect(has(panel, 'historyCleared')).toBe(true);
+    expect(has(panel, 'historyCleared_other')).toBe(true);
   });
 
-  it('uses the singular line for one entry', async () => {
+  it('picks the "one" form for a single entry', async () => {
     const d = deps({ clear: vi.fn(() => Promise.resolve(1)) });
     const panel = await toPreview(d);
 
@@ -222,7 +223,7 @@ describe('deleting', () => {
     pressInDialog('historyClearButton');
     await settle();
 
-    expect(has(panel, 'historyClearedOne')).toBe(true);
+    expect(has(panel, 'historyCleared_one')).toBe(true);
   });
 
   it('deletes nothing when the confirmation is dismissed', async () => {
@@ -259,7 +260,7 @@ describe('deleting', () => {
 
     // The first row's site, and only it.
     expect(d.clear).toHaveBeenCalledWith(['bbc.co.uk']);
-    expect(has(panel, 'historyCleared')).toBe(true);
+    expect(has(panel, 'historyCleared_other')).toBe(true);
     expect(panel.querySelectorAll('details li')).toHaveLength(1);
     expect(panel.textContent).toContain('example.com');
     expect(panel.textContent).not.toContain('bbc.co.uk');
@@ -277,7 +278,7 @@ describe('deleting', () => {
     pressInDialog('historyReviewRemove');
     await settle();
 
-    expect(has(panel, 'historyCleared')).toBe(true);
+    expect(has(panel, 'historyCleared_other')).toBe(true);
     expect(has(panel, 'historyCheckButton')).toBe(true);
   });
 

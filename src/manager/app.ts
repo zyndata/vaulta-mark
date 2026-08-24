@@ -23,6 +23,7 @@ import {
   type SyncStatusResponse,
 } from '../shared/messages.js';
 import { applyTheme, h, msg, qs, render } from '../ui/dom.js';
+import { forgetStoredIcons, useStoredIcons, type StoredIconLookup } from '../ui/favicon.js';
 import { errorText, syncErrorText } from '../ui/strings.js';
 import { normalizeTags } from '../vault/model.js';
 import { SORT_KEYS, isSortKey, type SortKey } from '../vault/sort.js';
@@ -37,12 +38,16 @@ import {
   chooseDialog,
   confirmDialog,
   dialogField,
+  dialogPlural,
   dialogText,
   openDialog,
   promptText,
 } from '../ui/dialog.js';
+import { plural } from '../ui/plural.js';
+import { qrPanel } from '../ui/qr.js';
 import { ThumbPopover, type ThumbData } from '../ui/thumb.js';
 import { detailPane } from './detail.js';
+import { duplicatesScreen } from './duplicates.js';
 import { ioScreen, paintProgress } from './io.js';
 import { BookmarkList } from './list.js';
 import { settingsScreen } from './settings.js';
@@ -127,7 +132,11 @@ export function mountManager(
   const sidebarSlot = h('div', { class: 'vm-sidebar-slot' });
   const detailSlot = h('div', { class: 'vm-detail-slot' });
   const crumbSlot = h('nav', { class: 'vm-crumbs', 'aria-label': msg('navFolders') });
-  const actionSlot = h('div', { class: 'vm-actions', role: 'toolbar', 'aria-label': msg('actionsLabel') });
+  const actionSlot = h('div', {
+    class: 'vm-actions',
+    role: 'toolbar',
+    'aria-label': msg('actionsLabel'),
+  });
   const countSlot = h('p', { class: 'vm-count-line vm-small vm-muted', role: 'status' });
   const emptySlot = h('p', { class: 'vm-list-empty vm-muted' });
   const toastSlot = h('div', { class: 'vm-toast-slot' });
@@ -136,6 +145,7 @@ export function mountManager(
   const conflictSlot = h('div', { class: 'vm-conflict-slot', hidden: true });
   const ioSlot = h('div', { class: 'vm-io-slot', hidden: true });
   const settingsSlot = h('div', { class: 'vm-settings-slot', hidden: true });
+  const dupesSlot = h('div', { class: 'vm-dupes-slot', hidden: true });
   const status = qs(document, '#vm-status');
 
   /** The last status the worker reported. `null` until the first answer arrives. */
@@ -197,17 +207,17 @@ export function mountManager(
   }
 
   /**
-   * Which of the four full-window screens is up.
+   * Which of the full-window screens is up.
    *
-   * One variable rather than four `hidden` attributes read back off the DOM, because the four are
-   * mutually exclusive and nothing was enforcing it: each screen only ever put the *layout* away and
+   * One variable rather than one `hidden` attribute per screen read back off the DOM, because they
+   * are mutually exclusive and nothing was enforcing it: each screen only ever put the *layout* away and
    * brought itself out, so opening import/export from the conflict screen left both on the page, one
    * scrolled under the other. Worse, resolving the last conflict calls `paintSync`, which used to
    * bring the layout back unconditionally — so settling a disagreement while looking at
    * import/export put the bookmark list on screen above it. `showScreen` is now the only thing that
-   * touches those attributes, and it always says what all four of them are.
+   * touches those attributes, and it always says what every one of them is.
    */
-  type Screen = 'list' | 'conflicts' | 'io' | 'settings';
+  type Screen = 'list' | 'conflicts' | 'io' | 'settings' | 'duplicates';
   let screen: Screen = 'list';
 
   function showScreen(next: Screen): void {
@@ -221,12 +231,14 @@ export function mountManager(
     conflictSlot.hidden = next !== 'conflicts';
     ioSlot.hidden = next !== 'io';
     settingsSlot.hidden = next !== 'settings';
+    dupesSlot.hidden = next !== 'duplicates';
     // A screen that is not on the page holds nothing: its contents are a snapshot of the vault
     // taken when it opened, and one left parked in the DOM is stale data a screen reader in browse
     // mode can still walk into. For settings that snapshot includes three password fields.
     if (next !== 'conflicts') render(conflictSlot);
     if (next !== 'io') render(ioSlot);
     if (next !== 'settings') render(settingsSlot);
+    if (next !== 'duplicates') render(dupesSlot);
   }
 
   const list = new BookmarkList({
@@ -288,7 +300,9 @@ export function mountManager(
   function setPaneWidth(pane: Pane, value: number): void {
     const width = clampPaneWidth(value, PANES[pane].bounds);
     settings =
-      pane === 'sidebar' ? { ...settings, sidebarWidth: width } : { ...settings, detailWidth: width };
+      pane === 'sidebar'
+        ? { ...settings, sidebarWidth: width }
+        : { ...settings, detailWidth: width };
     applyPaneWidths();
   }
 
@@ -422,7 +436,14 @@ export function mountManager(
   /** A `THUMB` answer, or the shape "there is nothing here" when the worker refused. */
   function toThumbData(response: Awaited<ReturnType<typeof send>>): ThumbData {
     if (response.type !== 'THUMB')
-      return { state: 'none', image: null, width: 0, height: 0, ogTitle: null, ogDescription: null };
+      return {
+        state: 'none',
+        image: null,
+        width: 0,
+        height: 0,
+        ogTitle: null,
+        ogDescription: null,
+      };
     return {
       state: response.state,
       image: response.image,
@@ -439,7 +460,12 @@ export function mountManager(
       'header',
       { class: 'vm-topbar' },
       h('h1', { class: 'vm-wordmark' }, 'VaultaMark'),
-      h('div', { class: 'vm-search-slot' }, search, h('span', { class: 'vm-small vm-muted' }, msg('managerSearchHint'))),
+      h(
+        'div',
+        { class: 'vm-search-slot' },
+        search,
+        h('span', { class: 'vm-small vm-muted' }, msg('managerSearchHint')),
+      ),
       sortSlot,
       syncSlot,
       h(
@@ -479,6 +505,7 @@ export function mountManager(
     conflictSlot,
     ioSlot,
     settingsSlot,
+    dupesSlot,
     toastSlot,
   );
 
@@ -518,6 +545,9 @@ export function mountManager(
         editTag: (tag) => {
           void editTag(tag);
         },
+        openDuplicates: () => {
+          openDuplicates();
+        },
         editFolder: (folder) => {
           void editFolder(folder);
         },
@@ -552,6 +582,9 @@ export function mountManager(
         },
         open: (id) => {
           void openItem(id);
+        },
+        showQr: (item) => {
+          void showQr(item);
         },
         renameFolder: (item) => {
           void renameFolder(item);
@@ -622,10 +655,8 @@ export function mountManager(
     const bookmarks = rowsOf(state).filter((row) => row.type === 'bookmark').length;
     countSlot.textContent =
       state.selection.size > 0
-        ? msg('selectionCount', [String(state.selection.size)])
-        : bookmarks === 1
-          ? msg('listCountOneBookmark')
-          : msg('listCountBookmarks', [String(bookmarks)]);
+        ? plural('selectionCount', state.selection.size, [String(state.selection.size)])
+        : plural('listCountBookmarks', bookmarks, [String(bookmarks)]);
   }
 
   function paintActions(): void {
@@ -659,7 +690,12 @@ export function mountManager(
   function action(labelKey: string, disabled: boolean, onClick: () => void): HTMLElement {
     return h(
       'button',
-      { type: 'button', class: 'vm-button vm-button--quiet vm-button--inline', disabled, onclick: onClick },
+      {
+        type: 'button',
+        class: 'vm-button vm-button--quiet vm-button--inline',
+        disabled,
+        onclick: onClick,
+      },
       msg(labelKey),
     );
   }
@@ -814,11 +850,7 @@ export function mountManager(
       warn(response.code);
       return;
     }
-    say(
-      response.count === 1
-        ? msg('conflictResolvedOne')
-        : msg('conflictResolvedCount', [String(response.count)]),
-    );
+    say(plural('conflictResolved', response.count, [String(response.count)]));
     await refreshSync();
     await reloadAll();
     // `refreshSync` may already have taken us back to the list, if that was the last one.
@@ -858,6 +890,33 @@ export function mountManager(
       }),
     );
     ioSlot.scrollTop = 0;
+  }
+
+  /* ---------------------------------------------------------------- duplicates */
+
+  /**
+   * The duplicates screen, in place of the three-column layout (Phase 16).
+   *
+   * A screen for the same reason the other three are: the copies of one address have to be read
+   * side by side before anything is chosen, and the list column shows one row per bookmark with no
+   * room for a group.
+   *
+   * It removes through `removeWithUndo`, which is the list's own delete — so a clean-up here is one
+   * batch, one revision, one set of tombstones and one undo, exactly like a bulk delete from the
+   * list. The screen re-reads itself afterwards; `reloadAll` refreshes what is behind it.
+   */
+  function openDuplicates(): void {
+    showScreen('duplicates');
+    render(
+      dupesSlot,
+      duplicatesScreen({
+        onBack: () => {
+          showScreen('list');
+        },
+        remove: removeWithUndo,
+      }),
+    );
+    dupesSlot.scrollTop = 0;
   }
 
   /* ---------------------------------------------------------------- settings */
@@ -1026,7 +1085,7 @@ export function mountManager(
       return;
     }
     await reloadAll();
-    say(response.count === 1 ? msg('movedOne') : msg('movedCount', [String(response.count)]));
+    say(plural('moved', response.count, [String(response.count)]));
   }
 
   /**
@@ -1060,11 +1119,7 @@ export function mountManager(
     }
     await reloadAll();
     reselect(ids);
-    say(
-      response.count === 1
-        ? msg('reorderMovedOne')
-        : msg('reorderMovedCount', [String(response.count)]),
-    );
+    say(plural('reorderMoved', response.count, [String(response.count)]));
   }
 
   /**
@@ -1105,11 +1160,7 @@ export function mountManager(
       return;
     }
     await reloadAll();
-    say(
-      response.count === 1
-        ? msg('reorderMovedOne')
-        : msg('reorderMovedCount', [String(response.count)]),
-    );
+    say(plural('reorderMoved', response.count, [String(response.count)]));
   }
 
   /**
@@ -1178,7 +1229,7 @@ export function mountManager(
     }
     await reloadAll();
     reselect(ids);
-    say(ids.length === 1 ? msg('reorderMovedOne') : msg('reorderMovedCount', [String(ids.length)]));
+    say(plural('reorderMoved', ids.length, [String(ids.length)]));
   }
 
   /**
@@ -1231,7 +1282,10 @@ export function mountManager(
   function moveCursor(delta: number): void {
     const rows = rowsOf(state);
     if (rows.length === 0) return;
-    const next = Math.max(0, Math.min(rows.length - 1, (state.cursor < 0 ? -1 : state.cursor) + delta));
+    const next = Math.max(
+      0,
+      Math.min(rows.length - 1, (state.cursor < 0 ? -1 : state.cursor) + delta),
+    );
     selectAt(next, { toggle: false, range: false });
   }
 
@@ -1243,16 +1297,32 @@ export function mountManager(
   }
 
   /**
-   * "Refresh preview", from the detail pane.
+   * "Refresh preview and icon", from the detail pane (§14.5, §10.1).
    *
-   * It opens the page and says what to do next, and that is the whole of it — re-capturing needs a
-   * script in the page, `chrome.scripting` needs either a host permission or an `activeTab` grant,
-   * and `activeTab` is only ever granted by a gesture *on that tab*. VaultaMark asks for no host
-   * permission at install and adding one for a decoration would be the wrong trade (INV-9, D25), so
-   * the manager cannot finish the job from here. The toolbar button on the page it just opened can,
-   * and the popup offers exactly that when the page in front of it is already vaulted.
+   * **It does what it can here, then opens the page.** The icon half has a source this window can
+   * reach — `_favicon/` is the extension's own origin, so it needs no page open and no `activeTab`
+   * grant — and running it first is what makes this button an action rather than a note. The
+   * preview half cannot be finished from here at all: re-capturing needs a script in the page,
+   * `chrome.scripting` needs either a host permission or an `activeTab` grant, and `activeTab` is
+   * only ever granted by a gesture *on that tab*. VaultaMark asks for no host permission at install
+   * and adding one for a decoration would be the wrong trade (INV-9, D25). So the page is opened,
+   * and the toolbar button on it finishes both halves in one injection.
+   *
+   * The icon step is skipped where nothing would be stored — the Chrome tier keeps no icons — and
+   * its failure is not reported: this button's answer is about the page it just opened.
+   *
+   * The list is repainted rather than the row patched: an icon is keyed by host, so one refresh can
+   * change every row on that site, and there is no cheaper way to say that.
    */
   async function refreshPreview(item: ItemDetail): Promise<void> {
+    if (syncState?.providerId === 'drive' && item.url !== undefined) {
+      const response = await send({ type: 'REFRESH_ICON', url: item.url });
+      if (response.type !== 'ERROR' && response.image !== null) {
+        forgetStoredIcons();
+        useStoredIcons(storedIconLookup());
+        paintList();
+      }
+    }
     await openItem(item.id);
     say(msg('thumbRefreshOpened'));
   }
@@ -1291,10 +1361,25 @@ export function mountManager(
     say(
       response.count === 0
         ? msg('detailForgotNothing')
-        : response.count === 1
-          ? msg('detailForgotOne')
-          : msg('detailForgot', [String(response.count)]),
+        : plural('detailForgot', response.count, [String(response.count)]),
     );
+  }
+
+  /**
+   * The bookmark's address as a QR code, in a dialog (§17).
+   *
+   * Nothing is asked of the worker: the address is already in `ItemDetail`, which is what the pane
+   * behind this dialog is showing. The dialog reports rather than asks, so it has one way out and
+   * no confirming button — `openDialog` labels that one "Close".
+   *
+   * A folder has no address; the button that calls this is only built for a bookmark.
+   */
+  async function showQr(item: ItemDetail): Promise<void> {
+    if (item.url === undefined) return;
+    await openDialog<never>({
+      heading: msg('qrHeading', [item.title]),
+      body: [qrPanel({ url: item.url })],
+    });
   }
 
   async function openItem(id: string): Promise<void> {
@@ -1385,7 +1470,7 @@ export function mountManager(
   }): Promise<void> {
     const mode = await chooseDialog<'reparent' | 'recursive'>({
       heading: msg('folderDeleteHeading', [item.title]),
-      body: [h('p', null, msg('folderDeleteQuestion', [String(item.descendants ?? 0)]))],
+      body: [dialogPlural('folderDeleteQuestion', item.descendants ?? 0, [String(item.descendants ?? 0)])],
       choices: [
         { label: msg('folderDeleteReparent'), value: 'reparent' },
         { label: msg('folderDeleteRecursive'), value: 'recursive', danger: true },
@@ -1490,7 +1575,7 @@ export function mountManager(
 
     const response = await send({ type: 'RENAME_TAG', from: tag, to: answer });
     if (response.type === 'ERROR') warn(response.code);
-    else say(msg('tagRenamed', [String(response.count)]));
+    else say(plural('tagRenamed', response.count, [String(response.count)]));
     await reloadAll();
   }
 
@@ -1507,10 +1592,9 @@ export function mountManager(
     const confirmed = await confirmDialog({
       heading: msg('tagDeleteHeading', [tag]),
       body: [
-        dialogText(
-          count === undefined ? 'tagDeleteBody' : count === 1 ? 'tagDeleteBodyOne' : 'tagDeleteBodyCount',
-          count === undefined ? [tag] : [tag, String(count)],
-        ),
+        count === undefined
+          ? dialogText('tagDeleteBody', [tag])
+          : dialogPlural('tagDeleteBodyCount', count, [tag, String(count)]),
       ],
       confirmLabel: msg('tagDeleteConfirm'),
       danger: true,
@@ -1519,7 +1603,7 @@ export function mountManager(
 
     const response = await send({ type: 'DELETE_TAG', tag });
     if (response.type === 'ERROR') warn(response.code);
-    else say(msg('tagDeleted', [String(response.count)]));
+    else say(plural('tagDeleted', response.count, [String(response.count)]));
     // A tag filter that no longer matches anything would leave the list permanently empty, in the
     // same way standing inside a deleted folder does.
     if (state.query === tagQuery(tag)) {
@@ -1568,18 +1652,32 @@ export function mountManager(
     const confirmed = await confirmDialog({
       heading:
         ids.length === 1 && sole !== undefined
-          ? msg('deleteConfirmHeadingOne', [sole.title])
-          : msg('deleteConfirmHeading', [String(ids.length)]),
+          ? msg('deleteConfirmHeadingTitled', [sole.title])
+          : plural('deleteConfirmHeading', ids.length, [String(ids.length)]),
       body: [dialogText('deleteConfirmBody')],
       confirmLabel: msg('deleteConfirmButton'),
       danger: true,
     });
     if (!confirmed) return;
 
+    await removeWithUndo(ids);
+  }
+
+  /**
+   * Delete a batch and offer one undo for the whole of it. Answers whether it happened.
+   *
+   * The manager's **only** delete. The list column's Delete key comes through here and so does the
+   * duplicates screen, because a second copy of this would be a second thing to keep atomic, and
+   * the two would drift on the day one of them learned something the other did not.
+   *
+   * The selection is cleared unconditionally: after a delete from the duplicates screen it holds
+   * ids the list behind may no longer have, and `refreshView` only prunes what it can still see.
+   */
+  async function removeWithUndo(ids: readonly string[]): Promise<boolean> {
     const response = await send({ type: 'DELETE_ITEMS', ids });
     if (response.type === 'ERROR') {
       warn(response.code);
-      return;
+      return false;
     }
     state.selection.clear();
     await reloadAll();
@@ -1587,8 +1685,12 @@ export function mountManager(
     const toast = h(
       'div',
       // The filling bar is the deadline, drawn (`ui/styles.css`). Same constant as the timer.
-      { class: 'vm-toast vm-toast--timed', role: 'status', style: `--vm-undo-ms: ${String(UNDO_MS)}ms` },
-      h('span', null, msg('deletedCount', [String(ids.length)])),
+      {
+        class: 'vm-toast vm-toast--timed',
+        role: 'status',
+        style: `--vm-undo-ms: ${String(UNDO_MS)}ms`,
+      },
+      h('span', null, plural('deletedCount', ids.length, [String(ids.length)])),
       h(
         'button',
         {
@@ -1600,6 +1702,10 @@ export function mountManager(
               const undone = await send({ type: 'RESTORE_ITEMS', ids });
               if (undone.type === 'ERROR') warn(undone.code);
               await reloadAll();
+              // The duplicates screen is a snapshot taken before the delete, so a restore that put
+              // the copies back leaves it describing a vault that no longer matches. It re-reads
+              // itself when it is the screen on top.
+              if (screen === 'duplicates') openDuplicates();
             })();
           },
         },
@@ -1610,6 +1716,7 @@ export function mountManager(
     setTimeout(() => {
       if (toast.isConnected) render(toastSlot);
     }, UNDO_MS);
+    return true;
   }
 
   /* ---------------------------------------------------------------- keyboard */
@@ -1784,10 +1891,14 @@ export function mountManager(
     }
     if (message.type === 'SESSION_LOCKED') {
       // Nothing decrypted may stay on screen, and the manager cannot unlock — that is the popup's
-      // job, and it is one click away.
+      // job, and it is one click away. The icon lookup goes with it: a locked vault has no key to
+      // open one with, and every answer from here on would be "unavailable".
+      forgetStoredIcons();
       render(root, h('p', { class: 'vm-placeholder' }, msg('managerLocked')));
     }
   });
+
+  useStoredIcons(storedIconLookup());
 
   applyTheme(settings.theme, document.documentElement);
   void reloadAll();
@@ -1798,7 +1909,18 @@ export function mountManager(
   // Last, and not awaited by any of the above: the settings screen is built from its own questions
   // to the worker and replaces the layout rather than depending on it, so the list can go on loading
   // underneath. Back leaves the manager on a list that is already there.
-  if (options.screen === 'settings') void openSettings();
+  //
+  // The switch happens *here*, synchronously, rather than inside `openSettings` when its answers
+  // arrive: this whole mount is one task, so nothing is painted until it returns — but
+  // `openSettings` awaits a `SYNC_STATUS` round trip first, and a browser given a frame in the
+  // meantime paints the bookmark list. Someone who asked the quick menu for "All settings" saw
+  // their vault flash past on the way (maintainer-reported 2026-08-23). The slot carries the same
+  // line the page loaded with until the real screen replaces it.
+  if (options.screen === 'settings') {
+    showScreen('settings');
+    render(settingsSlot, h('p', { class: 'vm-placeholder' }, msg('managerLoading')));
+    void openSettings();
+  }
 }
 
 /** Spelled out rather than derived from the key, so a renamed sort key breaks the build. */
@@ -1830,4 +1952,19 @@ function isTyping(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null;
   const tag = element?.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || element?.isContentEditable === true;
+}
+
+/**
+ * Ask the worker for one host's stored icon (ARCHITECTURE §10.1).
+ *
+ * Installed once, here, because `src/ui/` stays free of the message protocol. It is asked at most
+ * once per host per page, and on a profile that keeps no icons the first answer retires it.
+ */
+function storedIconLookup(): StoredIconLookup {
+  return async (url) => {
+    const response = await send({ type: 'GET_ICON', url });
+    return response.type === 'ICON'
+      ? { image: response.image, available: response.available }
+      : { image: null, available: false };
+  };
 }

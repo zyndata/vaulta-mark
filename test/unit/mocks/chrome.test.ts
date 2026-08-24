@@ -180,6 +180,102 @@ describe('chrome runtime, alarms and windows mocks', () => {
     expect(focus).toEqual([-1]);
   });
 
+  it('reports focus the way Chrome does: a last-focused window that need not be focused', async () => {
+    const mock = createChromeMock();
+    const window_ = await mock.chrome.windows.create({ url: 'https://example.com/' });
+
+    expect(await mock.chrome.windows.getLastFocused()).toMatchObject({
+      id: window_?.id,
+      focused: true,
+    });
+
+    // `WINDOW_ID_NONE` does not close or forget the window — it says none is in front.
+    mock.triggerFocusChanged(mock.chrome.windows.WINDOW_ID_NONE);
+    expect(await mock.chrome.windows.getLastFocused()).toMatchObject({
+      id: window_?.id,
+      focused: false,
+    });
+  });
+
+  it('rejects getLastFocused when no window is open, rather than answering undefined', async () => {
+    const mock = createChromeMock();
+    await expect(mock.chrome.windows.getLastFocused()).rejects.toThrow(/No window/);
+  });
+
+  it('says which window holds the focus, not merely that one exists', async () => {
+    const mock = createChromeMock();
+    const first = await mock.chrome.windows.create({ url: 'https://example.com/' });
+    const second = await mock.chrome.windows.create({ url: 'https://example.org/' });
+
+    // `getAll` is what the blur policy asks, because "a window is in front" and "this window is in
+    // front" are different questions and only this one answers the second.
+    expect(await mock.chrome.windows.getAll()).toEqual([
+      expect.objectContaining({ id: first?.id, focused: false }),
+      expect.objectContaining({ id: second?.id, focused: true }),
+    ]);
+
+    mock.triggerFocusChanged(mock.chrome.windows.WINDOW_ID_NONE);
+    expect((await mock.chrome.windows.getAll()).some((window_) => window_.focused)).toBe(false);
+  });
+
+  it('carries a port between a page and the worker, and closes it at both ends', () => {
+    const mock = createChromeMock();
+    const received: unknown[] = [];
+    let disconnected = false;
+    mock.chrome.runtime.onConnect.addListener((port) => {
+      expect(port.name).toBe('vm.focus');
+      port.onMessage.addListener((message) => received.push(message));
+      port.onDisconnect.addListener(() => {
+        disconnected = true;
+      });
+    });
+
+    const port = mock.chrome.runtime.connect({ name: 'vm.focus' });
+    port.postMessage({ focused: true });
+    expect(received).toEqual([{ focused: true }]);
+
+    port.disconnect();
+    expect(disconnected).toBe(true);
+    // Chrome throws on a port that has been disconnected; the beacon catches exactly this.
+    expect(() => {
+      port.postMessage({ focused: false });
+    }).toThrow(/disconnected/);
+  });
+
+  it('takes every port down with the worker, and tells the page', () => {
+    const mock = createChromeMock();
+    let disconnected = false;
+    mock.chrome.runtime.onConnect.addListener(() => undefined);
+    const port = mock.chrome.runtime.connect({ name: 'vm.focus' });
+    port.onDisconnect.addListener(() => {
+      disconnected = true;
+    });
+
+    mock.terminateWorker();
+
+    expect(disconnected).toBe(true);
+  });
+
+  it('drops a connect nobody listens for, with lastError, as Chrome does', async () => {
+    vi.useFakeTimers();
+    const mock = createChromeMock();
+    // No `onConnect` listener: the worker has not registered one yet, which is the state an
+    // extension page is reloaded into when an unpacked build is reloaded under it.
+    const port = mock.chrome.runtime.connect({ name: 'vm.focus' });
+    let seen: string | undefined;
+    port.onDisconnect.addListener(() => {
+      seen = mock.chrome.runtime.lastError?.message;
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(seen).toMatch(/Receiving end does not exist/);
+    // Chrome clears it once the listener has had its chance; an error left standing would be read
+    // by whatever asked next.
+    expect(mock.chrome.runtime.lastError).toBeUndefined();
+    vi.useRealTimers();
+  });
+
   it('omits chrome.idle until the optional permission is granted, as Chrome does', () => {
     const withoutIdle = createChromeMock();
     // The namespace is genuinely absent, which is what src/background/autolock.ts checks for.

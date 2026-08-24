@@ -13,7 +13,7 @@ import {
   type Request,
   type Response,
 } from '../../../src/shared/messages.js';
-import { DETAIL_WIDTH, SIDEBAR_WIDTH } from '../../../src/vault/types.js';
+import { DETAIL_WIDTH, SIDEBAR_WIDTH, TOOLBAR_TITLE_MAX } from '../../../src/vault/types.js';
 import { installChromeMock, uninstallChromeMock, type ChromeMock } from '../../mocks/chrome.js';
 
 let mock: ChromeMock;
@@ -430,6 +430,27 @@ describe('parseSettingsPatch', () => {
     expect(parseSettingsPatch({ sidebarWidth: Number.NaN })).toBeNull();
   });
 
+  it('takes a toolbar icon by name and nothing else', () => {
+    expect(parseSettingsPatch({ toolbarIcon: 'folder' })).toEqual({ toolbarIcon: 'folder' });
+    expect(parseSettingsPatch({ toolbarIcon: 'aubergine' })).toBeNull();
+    expect(parseSettingsPatch({ toolbarIcon: 2 })).toBeNull();
+  });
+
+  it('normalises a toolbar tooltip instead of refusing it', () => {
+    // The sender is a text field with a `maxlength`, so nothing typed can reach the cap — and a
+    // refusal that answered "your tooltip had two spaces in it" would be a control that silently
+    // does nothing.
+    expect(parseSettingsPatch({ toolbarTitle: '  Reading   list \n' })).toEqual({
+      toolbarTitle: 'Reading list',
+    });
+    // The empty string is a value, not an absent field: it is how "use the shipped tooltip" is said.
+    expect(parseSettingsPatch({ toolbarTitle: '   ' })).toEqual({ toolbarTitle: '' });
+    expect(parseSettingsPatch({ toolbarTitle: 'x'.repeat(200) })).toEqual({
+      toolbarTitle: 'x'.repeat(TOOLBAR_TITLE_MAX),
+    });
+    expect(parseSettingsPatch({ toolbarTitle: 7 })).toBeNull();
+  });
+
   it('rejects the whole patch on any bad field rather than half-applying it', () => {
     expect(parseSettingsPatch({ theme: 'chartreuse' })).toBeNull();
     expect(parseSettingsPatch({ theme: 'dark', idleTimeoutMinutes: -1 })).toBeNull();
@@ -441,6 +462,16 @@ describe('parseSettingsPatch', () => {
     expect(parseSettingsPatch({ reuseIncognitoWindow: 'on' })).toBeNull();
     expect(parseSettingsPatch('nope')).toBeNull();
     expect(parseSettingsPatch(null)).toBeNull();
+  });
+
+  it.each(['GET_ICON', 'REFRESH_ICON'])('takes a url on %s', (type) => {
+    expect(parseRequest({ type, url: 'https://example.com/' })).toEqual({
+      type,
+      url: 'https://example.com/',
+    });
+    expect(parseRequest({ type })).toBeNull();
+    expect(parseRequest({ type, url: '' })).toBeNull();
+    expect(parseRequest({ type, url: 7 })).toBeNull();
   });
 
   it('rides along on SET_SETTINGS', () => {
@@ -465,6 +496,7 @@ describe('parseResponse / parseBroadcast', () => {
       'ITEMS',
       'OPENED',
       'INCOGNITO_ACCESS_STATE',
+      'DUPLICATES',
       'FILE',
       'IMPORT_PREVIEW',
       'IMPORT_RESULT',
@@ -472,6 +504,8 @@ describe('parseResponse / parseBroadcast', () => {
       'NATIVE_TREE_STATE',
       'NATIVE_IMPORT',
       'NATIVE_DELETE',
+      'ICON',
+      'THUMB',
       'ERROR',
     ]) {
       expect(parseResponse({ type })).toEqual({ type });

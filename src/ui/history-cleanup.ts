@@ -20,8 +20,9 @@
  * worker is needed to test it, and two screens wire the same three messages to it.
  */
 
-import { confirmDialog, dialogText } from './dialog.js';
+import { confirmDialog, dialogPlural, dialogText } from './dialog.js';
 import { h, msg, render } from './dom.js';
+import { plural } from './plural.js';
 
 /** One vaulted domain and how many history entries it has. Mirrors the wire shape. */
 export interface CleanupDomain {
@@ -166,9 +167,7 @@ function paintPreview(
     h(
       'p',
       { class: 'vm-notice vm-notice--warning', role: 'status' },
-      preview.domains.length === 1
-        ? msg('historyDryRunOneDomain', [String(preview.entries)])
-        : msg('historyDryRun', [String(preview.entries), String(preview.domains.length)]),
+      `${plural('historyDryRunEntries', preview.entries, [String(preview.entries)])} ${plural('historyDryRunSites', preview.domains.length, [String(preview.domains.length)])}`,
     ),
     // A `<details>` rather than the list itself: twenty-seven domains between the sentence and the
     // button would push the button off the screen, and the point of the list is that it is there for
@@ -190,9 +189,7 @@ function paintPreview(
             h(
               'span',
               { class: 'vm-muted' },
-              entry.entries === 1
-                ? msg('historyReviewOneEntry')
-                : msg('historyReviewEntries', [String(entry.entries)]),
+              plural('historyReviewEntries', entry.entries, [String(entry.entries)]),
             ),
             // One site at a time. The site is named in its own confirmation, so a mis-aimed click
             // on a row of look-alike domains still has somewhere to be caught.
@@ -237,7 +234,8 @@ async function confirmAndClear(
   const confirmed = await confirmDialog({
     heading: msg('historyConfirmHeading'),
     body: [
-      dialogText('historyConfirmBody', [String(preview.entries), String(preview.domains.length)]),
+      dialogPlural('historyConfirmEntries', preview.entries, [String(preview.entries)]),
+      dialogPlural('historyDryRunSites', preview.domains.length, [String(preview.domains.length)]),
       dialogText('historyConfirmCaveat'),
     ],
     confirmLabel: msg('historyClearButton'),
@@ -266,10 +264,7 @@ async function confirmAndClearOne(
   const confirmed = await confirmDialog({
     heading: msg('historyConfirmHeading'),
     body: [
-      dialogText(entry.entries === 1 ? 'historyConfirmSiteOne' : 'historyConfirmSite', [
-        entry.domain,
-        String(entry.entries),
-      ]),
+      dialogPlural('historyConfirmSite', entry.entries, [entry.domain, String(entry.entries)]),
       dialogText('historyConfirmCaveat'),
     ],
     confirmLabel: msg('historyReviewRemove'),
@@ -322,7 +317,7 @@ async function clearing(
 }
 
 function clearedText(removed: number): string {
-  return removed === 1 ? msg('historyClearedOne') : msg('historyCleared', [String(removed)]);
+  return plural('historyCleared', removed, [String(removed)]);
 }
 
 function button(

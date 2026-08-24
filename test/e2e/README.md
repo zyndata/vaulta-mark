@@ -14,6 +14,8 @@
 | `journey.spec.ts` | 12 | first run → onboarding → create → add → organise → open → lock/unlock → export/import → sync, in **one profile**, plus INV-4 over the whole arc |
 | `budgets.spec.ts` | 12 | popup first paint — the one performance budget that needs a real renderer |
 | `large-vault.spec.ts` | 6, moved in 12 | five thousand bookmarks in a windowed list, in a profile of its own |
+| `locale-fit.spec.ts` | 18 | the popup's settings screen fits Chrome's 600 px in `en` and in synthetic locales 40 % and 200 % longer — **measure, never read the CSS** |
+| `locale-fallback.spec.ts` | 18 | what Chrome does with a key a translation has not got — **per message, measured, not read** |
 
 `manager.spec.ts` also carries the Phase-12 reordering case and the axe pass over five documents;
 `popup.spec.ts` and `onboarding.spec.ts` carry the axe passes over theirs. There is no single
@@ -33,6 +35,20 @@ but a serial run is what makes a flake reproducible in the order it appeared.
 
 Things the harness gets wrong if you do not know them:
 
+- **Launch through `extensionArgs()` in `harness.ts`, never with a hand-written `args` array.**
+  Every assertion in this suite names an English sentence, and `--lang` — which decides which
+  `_locales/<tag>/messages.json` Chrome renders — comes from the **operating system** when it is not
+  passed. That was invisible while `en` was the only locale in the package. The moment Phase 18
+  added `_locales/pl`, twelve of thirteen specs went red on a Polish-language machine and stayed
+  green in CI, which runs on an English one. `extensionArgs()` pins it; `use.locale` in
+  `playwright.config.ts` pins the other half.
+- **`--lang` picks the locale; Playwright's `locale` decides what the page reports.** They are
+  different switches. `--lang=pl` sets the browser's application locale, which selects
+  `_locales/pl/messages.json`. Playwright emulates a context locale of `en-US` unless told
+  otherwise, and *that* is what `chrome.i18n.getUILanguage()` answers with — so `--lang` alone gives
+  a browser rendering Polish while every page in it reports `en-US`, and `src/ui/plural.ts` picks
+  English's plural categories for Polish text. Pass both, always. See `locale-fallback.spec.ts`,
+  which was measured wrong by exactly this.
 - Playwright's default `browser` fixture cannot load an extension. Launch a **persistent context**
   (`chromium.launchPersistentContext`) with `--disable-extensions-except=<dist>` and
   `--load-extension=<dist>`, against a **built** `dist/` — run `npm run build` first.

@@ -43,9 +43,19 @@ import { patchDriveRecord, readDriveRecord } from './record.js';
 export const DRIVE_FOLDER_NAME = 'VaultaMark';
 export const VAULT_FILE_NAME = 'vaultamark-vault.vmv';
 export const THUMBS_FOLDER_NAME = 'thumbs';
+export const ICONS_FOLDER_NAME = 'icons';
 
 export function thumbFileName(itemId: string): string {
   return `t_${itemId}.vmt`;
+}
+
+/**
+ * One host's favicon (§10.1). `name` is an HMAC of the host under `k_icons`, never the host — the
+ * set of domains is enumerable, so a file called `f_github.com.vmi` would publish the vault's table
+ * of contents to anyone with the folder.
+ */
+export function iconFileName(name: string): string {
+  return `f_${name}.vmi`;
 }
 
 /**
@@ -202,6 +212,41 @@ export class DriveSyncProvider implements SyncProvider {
     if (file !== null) await this.#api.remove(file.id);
   }
 
+  async getIcon(name: string): Promise<Uint8Array | null> {
+    const file = await this.#iconFile(name);
+    if (file === null) return null;
+    return await this.#api.download(file.id);
+  }
+
+  /**
+   * Write one favicon, in its own folder.
+   *
+   * `appProperties.vmIcon` carries the same keyed name the file is called, which is the only label
+   * this file may have: an `appProperties` entry naming the host would put in metadata exactly what
+   * the file name is careful not to say.
+   */
+  async putIcon(name: string, blob: Uint8Array): Promise<void> {
+    const existing = await this.#iconFile(name);
+    const media = new Uint8Array(blob);
+    const appProperties = { vmIcon: name };
+    if (existing === null) {
+      await this.#api.upload(null, {
+        name: iconFileName(name),
+        parents: [await this.#iconsFolderId()],
+        mimeType: 'application/octet-stream',
+        appProperties,
+        media,
+      });
+      return;
+    }
+    await this.#api.upload(existing.id, { appProperties, media });
+  }
+
+  async deleteIcon(name: string): Promise<void> {
+    const file = await this.#iconFile(name);
+    if (file !== null) await this.#api.remove(file.id);
+  }
+
   /* ---------------------------------------------------------------- housekeeping */
 
   /**
@@ -223,7 +268,13 @@ export class DriveSyncProvider implements SyncProvider {
    */
   async disconnect(): Promise<void> {
     await this.#auth.revoke();
-    await patchDriveRecord({ fileId: null, folderId: null, thumbsFolderId: null, email: null });
+    await patchDriveRecord({
+      fileId: null,
+      folderId: null,
+      thumbsFolderId: null,
+      iconsFolderId: null,
+      email: null,
+    });
   }
 
   /** The explicit second step: remove the folder we created. Only ever from a confirmed choice. */
@@ -231,7 +282,12 @@ export class DriveSyncProvider implements SyncProvider {
     const record = await readDriveRecord();
     const folderId = record.folderId ?? (await this.#findFolder())?.id ?? null;
     if (folderId !== null) await this.#api.remove(folderId);
-    await patchDriveRecord({ fileId: null, folderId: null, thumbsFolderId: null });
+    await patchDriveRecord({
+      fileId: null,
+      folderId: null,
+      thumbsFolderId: null,
+      iconsFolderId: null,
+    });
   }
 
   /* ---------------------------------------------------------------- locating things */
@@ -266,6 +322,11 @@ export class DriveSyncProvider implements SyncProvider {
     return await this.#search(thumbFileName(itemId), record.thumbsFolderId);
   }
 
+  async #iconFile(name: string): Promise<DriveFile | null> {
+    const record = await readDriveRecord();
+    return await this.#search(iconFileName(name), record.iconsFolderId);
+  }
+
   async #search(name: string, parentId: string | null): Promise<DriveFile | null> {
     const clauses = [`name = '${escapeQuery(name)}'`, 'trashed = false'];
     if (parentId !== null) clauses.push(`'${escapeQuery(parentId)}' in parents`);
@@ -285,14 +346,28 @@ export class DriveSyncProvider implements SyncProvider {
   }
 
   async #thumbsFolderId(): Promise<string> {
-    const record = await readDriveRecord();
-    if (record.thumbsFolderId !== null) return record.thumbsFolderId;
+    const id = await this.#subfolderId(
+      THUMBS_FOLDER_NAME,
+      (await readDriveRecord()).thumbsFolderId,
+    );
+    await patchDriveRecord({ thumbsFolderId: id });
+    return id;
+  }
+
+  async #iconsFolderId(): Promise<string> {
+    const id = await this.#subfolderId(ICONS_FOLDER_NAME, (await readDriveRecord()).iconsFolderId);
+    await patchDriveRecord({ iconsFolderId: id });
+    return id;
+  }
+
+  /** Find or create one folder inside `VaultaMark/`, remembering nothing on its own. */
+  async #subfolderId(name: string, cached: string | null): Promise<string> {
+    if (cached !== null) return cached;
     const parent = await this.#folderId();
     const files = await this.#api.list(
-      `name = '${THUMBS_FOLDER_NAME}' and mimeType = '${FOLDER_MIME}' and trashed = false and '${escapeQuery(parent)}' in parents`,
+      `name = '${name}' and mimeType = '${FOLDER_MIME}' and trashed = false and '${escapeQuery(parent)}' in parents`,
     );
-    const folder = files[0] ?? (await this.#api.createFolder(THUMBS_FOLDER_NAME, parent));
-    await patchDriveRecord({ thumbsFolderId: folder.id });
+    const folder = files[0] ?? (await this.#api.createFolder(name, parent));
     return folder.id;
   }
 

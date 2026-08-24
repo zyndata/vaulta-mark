@@ -198,6 +198,26 @@ describe('settings', () => {
     expect(await readSettings()).toEqual(DEFAULT_SETTINGS);
   });
 
+  it('falls back to the shipped icon and re-normalises a stored tooltip', async () => {
+    // Both ways, for the same reason a width is clamped both ways: a stored value is only as
+    // trustworthy as the last thing that wrote it, and this one ends up on a `setTitle` call.
+    await mock.storage.local.set({
+      [LOCAL_KEYS.settings]: {
+        ...DEFAULT_SETTINGS,
+        toolbarIcon: 'aubergine',
+        toolbarTitle: '  Reading   list  ',
+      },
+    });
+    const settings = await readSettings();
+    expect(settings.toolbarIcon).toBe(DEFAULT_SETTINGS.toolbarIcon);
+    expect(settings.toolbarTitle).toBe('Reading list');
+
+    await mock.storage.local.set({
+      [LOCAL_KEYS.settings]: { ...DEFAULT_SETTINGS, toolbarTitle: 42 },
+    });
+    expect((await readSettings()).toolbarTitle).toBe('');
+  });
+
   it('forces a stored pane width back into range', async () => {
     // A width is only as trustworthy as the last thing that wrote it, and a column of −4,000 px is
     // a manager nobody can use again without clearing storage by hand.

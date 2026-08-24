@@ -22,9 +22,10 @@
  * takes one back through `unlockWithDek()`, and knows nothing about where it was kept in between.
  */
 
-import { fromBase64Url, toBase64Url, type Bytes } from '../crypto/codec.js';
+import { fromBase64Url, toBase64Url, utf8, type Bytes } from '../crypto/codec.js';
 import type { AadPurpose } from '../crypto/envelope.js';
 import { CorruptVaultError, UnsupportedSchemaError } from '../crypto/errors.js';
+import { hmacSha256 } from '../crypto/hash.js';
 import { RECOMMENDED_KDF_PARAMS, deriveKek, generateKdfSalt } from '../crypto/kdf.js';
 import { generateDek, subkey, unwrapDek, wrapDek } from '../crypto/keys.js';
 import { MIN_PASSWORD_LENGTH, passwordLength } from '../crypto/password.js';
@@ -118,6 +119,28 @@ export interface ThumbCipher {
   open(itemId: string, sealed: Bytes): Promise<Bytes>;
 }
 
+/**
+ * The same again for stored favicons (Phase 17, ARCHITECTURE §10.1), with one extra operation.
+ *
+ * A favicon is kept per **host**, and the host is exactly the thing that must not be written down:
+ * the set of domains is enumerable, so an unkeyed name would let anyone holding the Drive folder
+ * hash the top million sites and read off which of them are in the vault. {@link IconCipher.name}
+ * is that defence — `HMAC-SHA256(k_icons, host)`, truncated — and it lives here for the same reason
+ * the other two do: the caller gets the operation, never the key.
+ *
+ * The bytes themselves are sealed under `k_thumbs`, like every other heavy-tier blob, with the
+ * keyed name as the AAD's `id`.
+ */
+export interface IconCipher {
+  /** The stored name for a host. Deterministic for one vault, meaningless outside it. */
+  name(host: string): Promise<string>;
+  seal(name: string, bytes: Bytes): Promise<Bytes>;
+  open(name: string, sealed: Bytes): Promise<Bytes>;
+}
+
+/** Bytes of the HMAC an icon's name keeps. 128 bits: a name, not a tag anyone forges. */
+export const ICON_NAME_BYTES = 16;
+
 export class VaultRepository {
   readonly #now: () => number;
   readonly #newId: () => string;
@@ -128,6 +151,7 @@ export class VaultRepository {
   #itemsKey: CryptoKey | null = null;
   #hmacKey: CryptoKey | null = null;
   #thumbsKey: CryptoKey | null = null;
+  #iconsKey: CryptoKey | null = null;
 
   #items: ItemMap = new Map();
   /** The synced half of the settings (Phase 10). Lives in bucket 0's payload, beside its items. */
@@ -433,6 +457,7 @@ export class VaultRepository {
     this.#itemsKey = null;
     this.#hmacKey = null;
     this.#thumbsKey = null;
+    this.#iconsKey = null;
     this.#header = null;
     this.#items = new Map();
     this.#bucketByItem = new Map();
@@ -817,6 +842,19 @@ export class VaultRepository {
     };
   }
 
+  /** Naming and sealing for stored favicons. See {@link IconCipher}. */
+  iconCipher(): IconCipher {
+    const thumbsKey = this.#thumbsKey;
+    const iconKey = this.#iconsKey;
+    if (thumbsKey === null || iconKey === null) throw new VaultLockedError('sealing a favicon');
+    return {
+      name: async (host) =>
+        toBase64Url((await hmacSha256(iconKey, utf8(host))).subarray(0, ICON_NAME_BYTES)),
+      seal: (name, bytes) => sealBytes(thumbsKey, 'icon', name, bytes),
+      open: (name, sealed) => openBytes(thumbsKey, 'icon', name, sealed),
+    };
+  }
+
   /* ---------------------------------------------------------------- internals */
 
   async #writePending(): Promise<void> {
@@ -912,6 +950,7 @@ export class VaultRepository {
     this.#itemsKey = await subkey(dek, 'items');
     this.#hmacKey = await subkey(dek, 'hmac');
     this.#thumbsKey = await subkey(dek, 'thumbs');
+    this.#iconsKey = await subkey(dek, 'icons');
   }
 
   #scheduleFlush(): void {
