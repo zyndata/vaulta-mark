@@ -38,10 +38,20 @@ them: `npm run verify` locally before every push, CI as the backstop, and a `pha
 
 | Branch | Rules |
 | --- | --- |
-| `main` | Release-only. Receives a `--no-ff` merge from `dev` at release time and nothing else (except hotfix branches, §9). Never commit to it directly. Force pushes and deletions blocked — **not** linear history, which would reject that very merge (§2). |
+| `main` | Release-only. Receives a `--no-ff` merge from `dev` at release time, a hotfix branch (§9), or a deliberate policy publish (below the table) — and nothing else. Never commit to it directly. Force pushes and deletions blocked — **not** linear history, which would reject that very merge (§2). |
 | `dev` | Where all development happens. Direct commits, one per logical unit. Always green, always installable. Force pushes and deletions blocked. |
 | `feat/*` | **Optional**, for work risky enough to want a clean revert point — Phase 7 (the sync merge engine) is the one phase that uses one. Merged back with `--no-ff`, then deleted. |
 | PRs | Not required for the maintainer, but fully available: the repository is public, so outside contributions arrive as PRs targeting `dev` and CI gates them automatically. |
+
+**One thing besides a release legitimately reaches `main`: the privacy policy.** Pages serves
+`main`/`docs` (§8), and the Store listing points at that URL, so a correction to `docs/PRIVACY.md`
+is *not live* until it is on `main` — and a listing pointing at a policy that says something untrue
+is worse than one pointing at a 404, because nothing reports it. Publish it the same way a release
+is published, a `--no-ff` merge from `dev`, with a `docs:` subject rather than `release:` so
+`git log --first-parent main` still reads as the list of releases plus the few times the policy was
+corrected. Two things make this deliberate rather than casual: the merge carries **everything** else
+sitting on `dev` at that moment, and the version on `main` is what the Store was shown — so run
+`npm run verify`, and do it in the same sitting as the listing change that made it necessary.
 
 **Phase tags.** Each completed phase gets an annotated tag on `dev`:
 
