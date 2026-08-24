@@ -1909,7 +1909,18 @@ export function mountManager(
   // Last, and not awaited by any of the above: the settings screen is built from its own questions
   // to the worker and replaces the layout rather than depending on it, so the list can go on loading
   // underneath. Back leaves the manager on a list that is already there.
-  if (options.screen === 'settings') void openSettings();
+  //
+  // The switch happens *here*, synchronously, rather than inside `openSettings` when its answers
+  // arrive: this whole mount is one task, so nothing is painted until it returns — but
+  // `openSettings` awaits a `SYNC_STATUS` round trip first, and a browser given a frame in the
+  // meantime paints the bookmark list. Someone who asked the quick menu for "All settings" saw
+  // their vault flash past on the way (maintainer-reported 2026-08-23). The slot carries the same
+  // line the page loaded with until the real screen replaces it.
+  if (options.screen === 'settings') {
+    showScreen('settings');
+    render(settingsSlot, h('p', { class: 'vm-placeholder' }, msg('managerLoading')));
+    void openSettings();
+  }
 }
 
 /** Spelled out rather than derived from the key, so a renamed sort key breaks the build. */

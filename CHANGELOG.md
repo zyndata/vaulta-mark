@@ -144,6 +144,10 @@ below.
   there is nothing left to lose when it does. Skipping it from there finishes setup instead of
   leaving you on a dead page.
 
+- **"All settings" flashed the bookmark list on the way to the settings screen.** Opening settings
+  from the quick menu showed the whole vault for a moment first, while the settings screen was still
+  asking about sync. The manager now goes straight there.
+
 - **"Refresh icon" could delete a good icon and leave nothing behind.** It re-read Chrome's store
   and wrote down the answer, including an empty one — which was right when that store was the only
   source. For a site you only open through VaultaMark that store is empty **permanently**, so the
