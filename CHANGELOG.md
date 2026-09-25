@@ -14,6 +14,11 @@ below.
 
 ### Changed
 
+- **A link opens in a window the size of the one you opened it from.** Chrome used to give the new
+  incognito window a default size of its own, so a bookmark opened from a maximised browser landed
+  in a smaller window beside it. It now copies the window you clicked in — maximised, full screen,
+  or the same position and size. A reused incognito window is left as it is.
+
 - **One sentence about coercion is gone from the privacy policy, the README and the Store listing.**
   Forgetting the master password still makes the vault permanently unreadable, and that is still the
   design rather than a limitation — but "it is the reason nobody can be compelled to hand over your

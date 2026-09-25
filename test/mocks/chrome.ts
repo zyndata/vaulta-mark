@@ -262,6 +262,30 @@ class Event<Listener extends (...args: never[]) => unknown> {
   hasListeners = (): boolean => this.listeners.size > 0;
 }
 
+/** A window as `chrome.windows.getAll` / `getLastFocused` answer it. The shape fields are optional, as in Chrome. */
+export interface MockWindow {
+  id: number;
+  incognito: boolean;
+  type: string;
+  state?: string;
+  left?: number;
+  top?: number;
+  width?: number;
+  height?: number;
+}
+
+/** What `chrome.windows.create` was asked for. */
+export interface MockWindowCreate {
+  url?: string | string[];
+  incognito?: boolean;
+  focused?: boolean;
+  state?: string;
+  left?: number;
+  top?: number;
+  width?: number;
+  height?: number;
+}
+
 export interface ChromeMock {
   /** The object to install as `globalThis.chrome`. */
   readonly chrome: typeof chrome;
@@ -274,7 +298,7 @@ export interface ChromeMock {
   /** Permissions the profile has granted. Optional ones start ungranted, as in a fresh install. */
   readonly grantedPermissions: Set<string>;
   /** Windows created via `chrome.windows.create`, in order. */
-  readonly createdWindows: { url?: string | string[]; incognito?: boolean }[];
+  readonly createdWindows: MockWindowCreate[];
   /** Alarms currently armed, by name. */
   readonly alarms: Map<string, { periodInMinutes?: number; scheduledTime: number }>;
   /**
@@ -336,7 +360,7 @@ export interface ChromeMock {
   /** Make every injection fail, as a restricted page or a missing `activeTab` grant does. */
   injectionFails: boolean;
   /** The windows `chrome.windows.getAll` answers with, plus everything `create` appended. */
-  readonly openWindows: { id: number; incognito: boolean; type: string }[];
+  readonly openWindows: MockWindow[];
   /** What `chrome.extension.isAllowedIncognitoAccess()` answers. Off, as a fresh install is. */
   incognitoAccess: boolean;
   /** Context menus currently created, by id. `removeAll` empties it. */
@@ -604,7 +628,7 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     ...(options.grantedPermissions ?? []),
   ]);
 
-  const createdWindows: { url?: string | string[]; incognito?: boolean }[] = [];
+  const createdWindows: MockWindowCreate[] = [];
   const createdTabs: { url?: string; windowId?: number }[] = [];
   const removedTabs: number[] = [];
   const openTabs: {
@@ -617,7 +641,7 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
   const injections: MockInjection[] = [];
   let captureResult: unknown = null;
   let injectionFails = false;
-  const openWindows: { id: number; incognito: boolean; type: string }[] = [];
+  const openWindows: MockWindow[] = [];
   // -1 is `WINDOW_ID_NONE`: a browser whose windows are all in the background, which is the state
   // `handleFocusChange` has to tell apart from a switch between two of them. The two ids differ the
   // way Chrome's do — `getLastFocused()` still names a window while none of them holds focus.
@@ -719,7 +743,7 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
     },
     windows: {
       WINDOW_ID_NONE: -1,
-      create: (options_: { url?: string | string[]; incognito?: boolean; focused?: boolean }) => {
+      create: (options_: MockWindowCreate) => {
         createdWindows.push(options_);
         const window_ = {
           id: 1000 + createdWindows.length,
@@ -736,9 +760,13 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
        * Rejects when there is no window, as Chrome does — a caller must handle "the last window
        * just closed" rather than read `focused` off `undefined`.
        */
-      getLastFocused: () => {
+      getLastFocused: (query?: { windowTypes?: string[] }) => {
+        const eligible = openWindows.filter(
+          (candidate) =>
+            query?.windowTypes === undefined || query.windowTypes.includes(candidate.type),
+        );
         const window_ =
-          openWindows.find((candidate) => candidate.id === lastFocusedWindowId) ?? openWindows[0];
+          eligible.find((candidate) => candidate.id === lastFocusedWindowId) ?? eligible[0];
         if (window_ === undefined) return Promise.reject(new Error('No window is open'));
         return Promise.resolve({ ...window_, focused: focusedWindowId === window_.id });
       },

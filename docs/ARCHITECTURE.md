@@ -1481,13 +1481,21 @@ export async function openVaulted(url: string, options: OpenOptions = {}): Promi
         return 'incognito';
       }
     }
-    await chrome.windows.create({ incognito: true, url, focused: true });
+    await chrome.windows.create({ incognito: true, url, focused: true, ...(await sourceShape()) });
     return 'incognito';
   }
   if (options.force !== true) return 'needs-incognito-access';  // UI shows the guided prompt
-  return (await chrome.windows.create({ url, focused: true }), 'normal');  // explicit fallback only
+  await chrome.windows.create({ url, focused: true, ...(await sourceShape()) });  // explicit fallback only
+  return 'normal';
 }
 ```
+
+**A new window takes the shape of the one it was opened from.** `sourceShape()` reads
+`windows.getLastFocused({ windowTypes: ['normal'] })` — the manager's window, or the browser window
+the popup hangs off, since the popup is not a window in Chrome's model. A `maximized` or
+`fullscreen` source is copied as that state alone (Chrome rejects a state combined with bounds); a
+`normal` one as `left`/`top`/`width`/`height`; a `minimized` one, or none at all, as Chrome's
+default. A reused incognito window keeps whatever shape it already has.
 
 The open counter (`openedAt`, `openCount`) is bumped only when something actually opened, so the
 guided prompt is not a click that silently edits the vault.
