@@ -87,9 +87,13 @@ function rowFor(page: Page, title: string) {
 }
 
 async function createdWindows(worker: Worker): Promise<unknown[]> {
-  return await worker.evaluate(
-    () => (globalThis as unknown as { __vmWindows?: unknown[] }).__vmWindows ?? [],
+  const windows = await worker.evaluate(
+    () =>
+      (globalThis as unknown as { __vmWindows?: chrome.windows.CreateData[] }).__vmWindows ?? [],
   );
+  // The shape copied from the source window (ARCHITECTURE §9) depends on the runner's screen, so it
+  // is left out. `incognito` stays in: a fallback window that turned incognito is the bug.
+  return windows.map(({ url, focused, incognito }) => ({ url, focused, incognito }));
 }
 
 /**

@@ -240,9 +240,17 @@ test('a fresh profile, from first run to a restored backup, without touching the
 
   // The labelled fallback is the only thing that opens a normal window, and only when pressed.
   await page.getByRole('button', { name: 'Open in a normal window' }).click();
+  // Only the fields this is about: the shape copied from the source window (ARCHITECTURE §9)
+  // depends on the runner's screen.
   await expect
     .poll(async () =>
-      sw.evaluate(() => (globalThis as unknown as { __vmWindows?: unknown[] }).__vmWindows ?? []),
+      (
+        await sw.evaluate(
+          () =>
+            (globalThis as unknown as { __vmWindows?: chrome.windows.CreateData[] }).__vmWindows ??
+            [],
+        )
+      ).map(({ url, focused, incognito }) => ({ url, focused, incognito })),
     )
     .toEqual([{ url: PAGES[0]![0], focused: true }]);
 
