@@ -41,7 +41,7 @@ retake is a command rather than an afternoon:
 | Screenshots | 1280 × 800 PNG, five of them | `docs/store/screenshot-{1..5}-*.png` |
 | Small promo tile | 440 × 280 PNG | `docs/store/promo-440x280.png` |
 | Marquee promo tile | 1400 × 560 PNG — only needed if the listing is ever considered for featuring | not produced; optional |
-| Short description | ≤ 132 characters | §2 below (129) — rewritten 2026-08-18, still unpublished; reaches the listing only in a package, and 1.2.0 is the one that carries it |
+| Short description | ≤ 132 characters | §2 below (129) — rewritten 2026-08-18, published with 1.2.0; reaches the listing only in a package |
 | Detailed description | Leads with the differentiators; states the no-recovery warning; explains both sync tiers | §3 below — one bullet edited 2026-08-18, editable in the dashboard without a package |
 | Category | **Privacy & Security** | chosen 2026-08-15 — see below |
 | Language | English (United States), plus Polish from 1.2.0 | §11 — the name never translates, the short description ships in the package, the detailed description is pasted in the dashboard |
@@ -125,17 +125,12 @@ Light mode for 1–4 and dark for 5, so both themes appear in the strip.
 short description and the toolbar tooltip's subtitle, so there is one place to change it:
 `public/_locales/en/messages.json`.
 
-> **⚠️ Pending upload since 2026-08-18.** The 1.1.0 package went up only as a **draft**, to prove
-> the automation, and was never submitted — so 1.2.0 is the upload that carries this text. It is
-> *not* what the published 1.0.0 listing says, and unlike §3 it **cannot be fixed in the
-> dashboard** — the short description is the manifest's
-> `description`, so it reaches the Store only in a new package. The published text is the previous
-> wording, kept here so the two can be told apart:
->
-> > *Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito.
-> > Optional sync via your Google Drive.*
->
-> [RELEASE §4](RELEASE.md#4-cutting-a-release) step 9 is what surfaces this at release time.
+Rewritten 2026-08-18 and **published with 1.2.0** — the first submitted package after the rewrite
+(1.1.0 went up only as a never-submitted draft). The text it replaced, for telling old screenshots
+of the listing apart:
+
+> *Password-encrypted bookmarks kept out of Chrome's bookmarks and omnibox. Opens in incognito.
+> Optional sync via your Google Drive.*
 
 ### Why it stopped leading with "password-encrypted" (2026-08-18)
 
