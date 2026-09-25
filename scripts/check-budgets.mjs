@@ -54,18 +54,23 @@ const distDir = resolve(repoRoot, 'dist');
  * the zip budget, and the package is 156 KB of its 400 KB.
  *
  * So the 150 KB number is kept, unchanged, for the thing it was about — a *document's* JavaScript,
- * parsed before that document paints — and the worker gets a ceiling of its own. If the worker ever
- * needs to shrink, the PSL is the obvious 147 KB: it could ship as a package asset read with
- * `fetch(chrome.runtime.getURL(…))` at first use, which is an extension-origin read and not network
- * traffic. Not done here — Phase 12 hardens, it does not rework proven Phase 9 code.
+ * parsed before that document paints — and the worker gets a ceiling of its own.
+ *
+ * **The PSL was moved out on 2026-08-24, and the worker ceiling came down with it.** This comment
+ * named the list as the obvious 147 KB to reclaim and said "not done here"; 1.2.0 shipped at
+ * 327.7 KB against 340 KB, which is 12 KB of headroom against a release that had just cost 16 KB,
+ * so it was done. The list is a package asset read with `fetch(chrome.runtime.getURL(…))` at first
+ * use — an extension-origin read, not network traffic (`src/history/public-suffix.ts`). The worker
+ * measured 178.8 KB afterwards, and the ceiling is now 220 KB: the same ~40 KB of room the 340 KB
+ * number was drawn to leave, rather than a ceiling that has stopped being able to fail.
  */
 export const BUDGETS = {
   /** The whole package, zipped, as the Chrome Web Store receives it. */
   zipBytes: 400 * 1024,
   /** Any one JavaScript file a *document* loads — what the browser parses before the page paints. */
   chunkBytes: 150 * 1024,
-  /** The service worker, which is one un-split file carrying the feature set and two data sets. */
-  workerBytes: 340 * 1024,
+  /** The service worker, which is one un-split file carrying the feature set. */
+  workerBytes: 220 * 1024,
 };
 
 /** The service worker's filename, fixed by `build/mv3-plugin.ts` and by the manifest. */

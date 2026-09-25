@@ -67,6 +67,71 @@ describe('openVaulted, with incognito access', () => {
     expect(mock.createdTabs).toEqual([]);
   });
 
+  it('opens maximised when the window it was opened from is maximised', async () => {
+    mock.openWindows.push({ id: 3, incognito: false, type: 'normal', state: 'maximized' });
+    mock.triggerFocusChanged(3);
+
+    expect(await openVaulted(URL)).toBe('incognito');
+    // A state alone: Chrome refuses one combined with bounds.
+    expect(mock.createdWindows).toEqual([
+      { incognito: true, url: URL, focused: true, state: 'maximized' },
+    ]);
+  });
+
+  it('keeps a full-screen source full screen', async () => {
+    mock.openWindows.push({ id: 3, incognito: false, type: 'normal', state: 'fullscreen' });
+    mock.triggerFocusChanged(3);
+
+    await openVaulted(URL);
+    expect(mock.createdWindows[0]?.state).toBe('fullscreen');
+  });
+
+  it('copies the bounds of a source in the normal state', async () => {
+    mock.openWindows.push({
+      id: 3,
+      incognito: false,
+      type: 'normal',
+      state: 'normal',
+      left: 40,
+      top: 20,
+      width: 1200,
+      height: 800,
+    });
+    mock.triggerFocusChanged(3);
+
+    await openVaulted(URL);
+    expect(mock.createdWindows).toEqual([
+      { incognito: true, url: URL, focused: true, left: 40, top: 20, width: 1200, height: 800 },
+    ]);
+  });
+
+  it('takes the last-focused normal window, not a popup-type one', async () => {
+    mock.openWindows.push({ id: 3, incognito: false, type: 'normal', state: 'maximized' });
+    mock.openWindows.push({ id: 4, incognito: false, type: 'popup', state: 'normal', width: 300 });
+    mock.triggerFocusChanged(3);
+
+    await openVaulted(URL);
+    expect(mock.createdWindows[0]?.state).toBe('maximized');
+  });
+
+  it("uses Chrome's default for a minimised source", async () => {
+    mock.openWindows.push({ id: 3, incognito: false, type: 'normal', state: 'minimized' });
+    mock.triggerFocusChanged(3);
+
+    await openVaulted(URL);
+    expect(mock.createdWindows).toEqual([{ incognito: true, url: URL, focused: true }]);
+  });
+
+  it('leaves a reused window the shape it has', async () => {
+    mock.openWindows.push({ id: 3, incognito: false, type: 'normal', state: 'maximized' });
+    mock.openWindows.push({ id: 7, incognito: true, type: 'normal', state: 'normal' });
+    mock.triggerFocusChanged(3);
+    const update = vi.spyOn(mock.chrome.windows, 'update');
+
+    await openVaulted(URL, { reuseWindow: true });
+    expect(update).toHaveBeenCalledWith(7, { focused: true });
+  });
+
   it('survives the reused window vanishing between the lookup and the focus call', async () => {
     mock.openWindows.push({ id: 7, incognito: true, type: 'normal' });
     vi.spyOn(mock.chrome.windows, 'update').mockRejectedValue(new Error('No window with id 7'));
@@ -87,6 +152,14 @@ describe('openVaulted, without incognito access', () => {
     expect(await openVaulted(URL, { force: true })).toBe('normal');
     expect(mock.createdWindows).toEqual([{ url: URL, focused: true }]);
     expect(mock.createdWindows[0]?.incognito).toBe(undefined);
+  });
+
+  it("gives the forced normal window the source window's shape too", async () => {
+    mock.openWindows.push({ id: 3, incognito: false, type: 'normal', state: 'maximized' });
+    mock.triggerFocusChanged(3);
+
+    expect(await openVaulted(URL, { force: true })).toBe('normal');
+    expect(mock.createdWindows).toEqual([{ url: URL, focused: true, state: 'maximized' }]);
   });
 
   it('does not fall back just because reuse is on', async () => {

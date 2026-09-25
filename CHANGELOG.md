@@ -12,7 +12,14 @@ below.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-09-25
+
 ### Changed
+
+- **A link opens in a window the size of the one you opened it from.** Chrome used to give the new
+  incognito window a default size of its own, so a bookmark opened from a maximised browser landed
+  in a smaller window beside it. It now copies the window you clicked in — maximised, full screen,
+  or the same position and size. A reused incognito window is left as it is.
 
 - **One sentence about coercion is gone from the privacy policy, the README and the Store listing.**
   Forgetting the master password still makes the vault permanently unreadable, and that is still the
@@ -20,6 +27,13 @@ below.
   bookmarks" claimed more than the design can carry. Encryption protects the vault from someone who
   has the file; it does not protect you from someone who can make you type the password. The
   sentence that survives says what is true and stops there.
+- **VaultaMark wakes up faster, and has room to grow again.** Chrome shuts the extension's
+  background worker down every half minute and rebuilds it on the next thing you do, reading the
+  whole of it each time — and 144 KB of that was a list of the world's domain suffixes, which is
+  only ever needed if you ask to clean your browsing history. It now sits beside the code as a file
+  and is read the once, if and when something needs it. The worker is 45 % smaller. Nothing is
+  fetched from anywhere: the file is part of the download you already installed.
+
 - **The privacy policy no longer says the source is unpublished.** It has been public since
   2026-08-15 and the policy had not caught up. It still says plainly that there has been no
   third-party security audit, because there has not been one.
@@ -1074,7 +1088,8 @@ The first release. Everything below is new, because there was nothing before it.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
-[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.2.0...dev
+[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.2.1...dev
+[1.2.1]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.1
 [1.2.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.0
 [1.1.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.1.0
 [1.0.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.0.0

@@ -72,13 +72,13 @@ export async function openVaulted(url: string, options: OpenOptions = {}): Promi
         return 'incognito';
       }
     }
-    await chrome.windows.create({ incognito: true, url, focused: true });
+    await chrome.windows.create({ incognito: true, url, focused: true, ...(await sourceShape()) });
     return 'incognito';
   }
 
   if (options.force !== true) return 'needs-incognito-access';
   // The user was told, in the guided prompt, that this visit is recorded in history.
-  await chrome.windows.create({ url, focused: true });
+  await chrome.windows.create({ url, focused: true, ...(await sourceShape()) });
   return 'normal';
 }
 
@@ -136,6 +136,34 @@ export async function clearHistoryQueue(): Promise<void> {
 async function findIncognitoWindow(): Promise<number | undefined> {
   const windows = await chrome.windows.getAll({ windowTypes: ['normal'] });
   return windows.find((window) => window.incognito)?.id;
+}
+
+/**
+ * The shape of the window the open was asked from, for the new one to copy (§9).
+ *
+ * Chrome gives an API-created window its own default size and cascaded position, so without this a
+ * link opened from a maximised browser lands in a smaller window beside it. The asking window is
+ * the last-focused normal one whether the ask came from the manager's tab or from the popup — the
+ * popup is not a window in Chrome's model, so the browser window it hangs off stays last-focused.
+ *
+ * `maximized` and `fullscreen` are passed as a state and nothing else, because Chrome refuses a
+ * state combined with bounds. A minimised source has no shape worth copying, and no source at all
+ * (the last window just closed) is Chrome's default — both are `{}`, never an error.
+ */
+async function sourceShape(): Promise<chrome.windows.CreateData> {
+  let source: chrome.windows.Window;
+  try {
+    source = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+  } catch {
+    return {};
+  }
+  if (source.state === 'maximized' || source.state === 'fullscreen') return { state: source.state };
+  if (source.state === 'minimized') return {};
+  const { left, top, width, height } = source;
+  if (left === undefined || top === undefined || width === undefined || height === undefined) {
+    return {};
+  }
+  return { left, top, width, height };
 }
 
 /**

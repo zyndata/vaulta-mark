@@ -18,6 +18,7 @@
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { stubPublicSuffixAsset } from '../../helpers/psl.js';
 import {
   installChromeMock,
   uninstallChromeMock,
@@ -68,6 +69,9 @@ afterAll(() => {
 beforeEach(async () => {
   uninstallChromeMock();
   mock = installChromeMock({ grantedPermissions: ['history'] });
+  // Every path in this file reduces URLs to registrable domains, and the list those come from is a
+  // packaged asset the worker reads at first use (src/history/public-suffix.ts).
+  await stubPublicSuffixAsset();
   await mock.storage.local.set(structuredClone(seededLocal));
   await mock.storage.session.set(structuredClone(seededSession));
   await startWorker();
@@ -75,6 +79,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   uninstallChromeMock();
+  vi.unstubAllGlobals();
 });
 
 /** A profile's browsing history: three vaulted sites, and four that are nothing to do with us. */
