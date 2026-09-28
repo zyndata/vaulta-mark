@@ -55,7 +55,9 @@ beforeAll(async () => {
   mock = installChromeMock();
   const repo = new VaultRepository({ coalesceMs: 0 });
   await repo.create(PASSWORD);
-  await repo.apply([{ kind: 'add', input: { type: 'bookmark', parentId: ROOT_ID, title: TITLE, url: URL } }]);
+  await repo.apply([
+    { kind: 'add', input: { type: 'bookmark', parentId: ROOT_ID, title: TITLE, url: URL } },
+  ]);
   await repo.flush();
   seeded = structuredClone(mock.storage.local.snapshot());
   uninstallChromeMock();
@@ -101,7 +103,9 @@ describe('unlock', () => {
   }, 30_000);
 
   it('leaves the session empty after a wrong password', async () => {
-    await expect(session.unlock('not the password')).rejects.toThrow(cryptoErrors.WrongPasswordError);
+    await expect(session.unlock('not the password')).rejects.toThrow(
+      cryptoErrors.WrongPasswordError,
+    );
     expect(mock.storage.session.snapshot()).toEqual({});
     await expect(session.currentRepository()).resolves.toBeNull();
   }, 30_000);
