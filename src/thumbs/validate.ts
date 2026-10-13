@@ -80,6 +80,11 @@ const ALLOWED_TYPES: ReadonlySet<string> = new Set([
   'image/gif',
   'image/avif',
   'image/bmp',
+  // Added because a user told us about it, which is the arrangement described above: a large site
+  // serves its `og:image` as JPEG XL to a Chrome that decodes it, and every such page had no
+  // preview. A Chrome with no JXL decoder is not harmed by the entry — `createImageBitmap` refuses
+  // the bytes and the reason reads `undecodable`, which is the truth.
+  'image/jxl',
 ]);
 
 /**

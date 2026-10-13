@@ -12,6 +12,23 @@ below.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-13
+
+### Security
+
+- **A panic-lock can no longer be undone by a write that was already under way.** Extending the
+  session and remembering which window holds it both read the session record, wait, and write it
+  back. A lock that landed in that gap cleared the key and the write put it back, so the vault
+  could sit unlocked in memory after it reported itself locked. Those writes now stand down when
+  a lock has happened since they started.
+
+### Fixed
+
+- **A preview picture served as JPEG XL is kept.** A page whose `og:image` arrived as `image/jxl`
+  was answered with "This page offered no preview picture.", although the browser had fetched
+  and could draw it. The format is now on the list of ones the vault accepts; a Chrome that cannot
+  decode JPEG XL still shows no preview for such a page.
+
 ## [1.2.1] - 2026-09-25
 
 ### Changed
@@ -1088,7 +1105,8 @@ The first release. Everything below is new, because there was nothing before it.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
-[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.2.1...dev
+[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.2.2...dev
+[1.2.2]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.2
 [1.2.1]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.1
 [1.2.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.0
 [1.1.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.1.0

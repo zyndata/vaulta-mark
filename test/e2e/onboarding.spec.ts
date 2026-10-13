@@ -160,7 +160,13 @@ test('walks a fresh profile through setup, and then never appears again', async 
 
   // ---------------------------------------------------------------- it is over
   // Finishing lands on the manager, with a vault that really exists.
-  await expect(page.getByRole('heading', { name: 'VaultaMark' })).toBeVisible();
+  //
+  // `exact`, because Skip navigates only after two worker round trips, and until then this is still
+  // the onboarding page — where a substring match finds "Setting up VaultaMark" *and* "VaultaMark
+  // needs permission…". Two matches is a strict-mode violation, which Playwright throws at once
+  // rather than retrying, so the assertion lost a race with the navigation instead of waiting for
+  // it: red on CI's slower runners, green here.
+  await expect(page.getByRole('heading', { name: 'VaultaMark', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible();
 
   // The skipped incognito step left the persistent nudge PLAN §9 asks for.

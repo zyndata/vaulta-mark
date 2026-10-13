@@ -97,6 +97,17 @@ export interface LockOptions {
 let repository: VaultRepository | null = null;
 
 /**
+ * Bumped synchronously on the way into every lock.
+ *
+ * A read-modify-write of the session record (`touch`, `rememberFocusHolder`) awaits between the
+ * read and the write, and a lock that clears `storage.session` in that gap would otherwise be
+ * undone by the write — putting the DEK back after a panic-lock said it was gone. Checking this
+ * in the same tick as the `set()` call is enough: `storage.session` applies operations in the order
+ * they were issued, and a lock always bumps it before issuing its `clear()`.
+ */
+let lockGeneration = 0;
+
+/**
  * Work that needs the open vault, run on the way into a lock.
  *
  * Injected from the service-worker entry rather than imported, for the same reason the sync engine's
@@ -305,6 +316,7 @@ export async function settingsArrived(): Promise<void> {
  * point, so the key leaves `storage.session` before anything that could await a write.
  */
 export async function lock(options: LockOptions = {}): Promise<void> {
+  lockGeneration += 1;
   const reason = options.reason ?? 'manual';
   const flush = options.flush ?? reason !== 'panic';
 
@@ -452,8 +464,10 @@ export async function focusHolder(): Promise<number | null> {
  * toolbar popup covered every window, or because the setting was switched on mid-session.
  */
 export async function rememberFocusHolder(windowId: number): Promise<void> {
+  const generation = lockGeneration;
   const record = await readRecord();
   if (record === null || record.focusWindowId === windowId) return;
+  if (generation !== lockGeneration) return;
   await writeRecord({ ...record, focusWindowId: windowId });
 }
 
@@ -463,6 +477,7 @@ export async function rememberFocusHolder(windowId: number): Promise<void> {
  * Returns the new deadline, or `null` if the vault is locked — a touch never unlocks anything.
  */
 export async function touch(): Promise<number | null> {
+  const generation = lockGeneration;
   const record = await readRecord();
   if (record === null) return null;
   const now = Date.now();
@@ -477,6 +492,8 @@ export async function touch(): Promise<number | null> {
   // be a storage write per keystroke for no benefit.
   if (neverExpires(unlockedUntil)) return record.unlockedUntil;
 
+  // A lock landed while the settings were being read; writing now would resurrect the key.
+  if (generation !== lockGeneration) return null;
   await writeRecord({ ...record, unlockedUntil });
   await armAutolock(unlockedUntil, now);
   return unlockedUntil;
@@ -531,6 +548,7 @@ export async function changePassword(current: string, next: string): Promise<voi
 export async function destroyVault(): Promise<void> {
   const repo = await currentRepository();
   if (repo === null) throw new VaultLockedError('destroying the vault');
+  lockGeneration += 1;
   repository = null;
   await repo.destroy();
   await chrome.storage.session.clear();

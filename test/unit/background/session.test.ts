@@ -55,7 +55,9 @@ beforeAll(async () => {
   mock = installChromeMock();
   const repo = new VaultRepository({ coalesceMs: 0 });
   await repo.create(PASSWORD);
-  await repo.apply([{ kind: 'add', input: { type: 'bookmark', parentId: ROOT_ID, title: TITLE, url: URL } }]);
+  await repo.apply([
+    { kind: 'add', input: { type: 'bookmark', parentId: ROOT_ID, title: TITLE, url: URL } },
+  ]);
   await repo.flush();
   seeded = structuredClone(mock.storage.local.snapshot());
   uninstallChromeMock();
@@ -101,7 +103,9 @@ describe('unlock', () => {
   }, 30_000);
 
   it('leaves the session empty after a wrong password', async () => {
-    await expect(session.unlock('not the password')).rejects.toThrow(cryptoErrors.WrongPasswordError);
+    await expect(session.unlock('not the password')).rejects.toThrow(
+      cryptoErrors.WrongPasswordError,
+    );
     expect(mock.storage.session.snapshot()).toEqual({});
     await expect(session.currentRepository()).resolves.toBeNull();
   }, 30_000);
@@ -191,6 +195,32 @@ describe('lock — INV-7', () => {
     expect(mock.storage.session.snapshot()).toEqual({});
     expect(seen).toContainEqual({ type: 'SESSION_LOCKED', reason: 'panic' });
     expect(mock.storage.local.snapshot()[LOCAL_KEYS.meta]).toEqual(before);
+  }, 30_000);
+
+  it('is not undone by a touch that was already in flight', async () => {
+    await session.unlock(PASSWORD);
+
+    // Hold `touch()` between reading the record and writing it back, then panic-lock in the gap.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const local = chrome.storage.local as unknown as {
+      get: (keys: string) => Promise<Record<string, unknown>>;
+    };
+    const get = local.get.bind(local);
+    const spy = vi.spyOn(local, 'get').mockImplementationOnce(async (keys) => {
+      await gate;
+      return await get(keys);
+    });
+
+    const touched = session.touch();
+    await vi.waitFor(() => {
+      expect(spy).toHaveBeenCalled();
+    });
+    await session.lock({ reason: 'panic', flush: false });
+    release();
+
+    await expect(touched).resolves.toBeNull();
+    expect(mock.storage.session.snapshot()).toEqual({});
   }, 30_000);
 });
 
