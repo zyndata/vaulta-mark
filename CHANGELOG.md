@@ -12,6 +12,13 @@ below.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A preview picture served as JPEG XL is kept.** A page whose `og:image` arrived as `image/jxl`
+  was answered with "This page offered no preview picture.", although the browser had fetched
+  and could draw it. The format is now on the list of ones the vault accepts; a Chrome that cannot
+  decode JPEG XL still shows no preview for such a page.
+
 ## [1.2.1] - 2026-09-25
 
 ### Changed

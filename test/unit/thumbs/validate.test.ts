@@ -129,7 +129,7 @@ describe('content types', () => {
     expect(reasonOf(() => validateContentType(type))).toBe('content-type');
   });
 
-  it.each(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'])(
+  it.each(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/jxl'])(
     'accepts %s',
     (type) => {
       expect(validateContentType(type)).toBe(type);
@@ -214,6 +214,7 @@ describe('a page-declared favicon, treated as hostile', () => {
       ['image/jpeg', 'image/jpeg'],
       ['image/avif', 'image/avif'],
       ['image/bmp', 'image/bmp'],
+      ['image/jxl', 'image/jxl'],
       ['IMAGE/X-ICON', 'image/x-icon'],
       ['image/x-icon; charset=binary', 'image/x-icon'],
       ['  image/vnd.microsoft.icon  ', 'image/vnd.microsoft.icon'],
