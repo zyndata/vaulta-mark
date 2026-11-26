@@ -23,6 +23,9 @@ below.
   uploaded to Drive before the bookmark was told it had one, so the preview showed up only after
   the upload — and not at all if the upload was cut short. The bookmark is updated first now, and
   the upload follows.
+- **An edit made while the vault was being saved is synced with the next sync.** Such an edit could
+  leave the vault's revision number unchanged, and sync then concluded there was nothing new to send
+  until something else changed.
 
 ## [1.2.2] - 2026-10-13
 
