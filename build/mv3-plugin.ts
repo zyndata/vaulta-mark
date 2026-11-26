@@ -179,7 +179,7 @@ async function buildSingleFile({
         name: 'vaultaMark',
         fileName: () => fileName,
       },
-      rollupOptions: {
+      rolldownOptions: {
         // One file, always: `codeSplitting: false` is Rolldown's name for what Rollup called
         // `inlineDynamicImports`, which Vite 8 still accepts and warns about. The requirement it
         // encodes has not changed — a service worker that splits will eventually `import()` a

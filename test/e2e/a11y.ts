@@ -33,8 +33,12 @@ export async function expectNoA11yViolations(page: Page, label: string): Promise
     (violation) => violation.impact === 'critical' || violation.impact === 'serious',
   );
   expect(
+    // The selectors ride along because a count alone sends whoever reads the failure off to
+    // reproduce it by hand — "(2)" names neither node.
     serious.map(
-      (violation) => `${violation.id}: ${violation.help} (${String(violation.nodes.length)})`,
+      (violation) =>
+        `${violation.id}: ${violation.help} (${String(violation.nodes.length)}) ` +
+        violation.nodes.map((node) => JSON.stringify(node.target)).join(', '),
     ),
     label,
   ).toEqual([]);

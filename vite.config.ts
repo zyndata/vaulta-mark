@@ -55,7 +55,7 @@ export default defineConfig(({ mode }) => {
       // Chrome 116 supports modulepreload natively, and the polyfill is one more emitted script
       // in a package whose whole selling point is that you can read all of it.
       modulePreload: false,
-      rollupOptions: {
+      rolldownOptions: {
         input: {
           popup: src('src/popup/popup.html'),
           manager: src('src/manager/manager.html'),
