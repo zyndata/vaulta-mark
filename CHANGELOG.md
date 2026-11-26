@@ -12,6 +12,8 @@ below.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-11-26
+
 ### Fixed
 
 - **A page's preview is kept when you move on right after adding it.** The preview was taken from
@@ -1120,7 +1122,8 @@ The first release. Everything below is new, because there was nothing before it.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
-[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.2.2...dev
+[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.2.3...dev
+[1.2.3]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.3
 [1.2.2]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.2
 [1.2.1]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.1
 [1.2.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.0
