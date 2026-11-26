@@ -53,36 +53,68 @@ export function hasHeavyTier(provider: SyncProvider | null): boolean {
 }
 
 /**
+ * One write to the provider that a caller chose to run later. It never rejects: a failed push is
+ * swallowed where it happens, exactly as it is when the push is not deferred.
+ */
+export type Upload = () => Promise<void>;
+
+/**
+ * Where a caller collects {@link Upload}s instead of waiting on them.
+ *
+ * The add path is the reason it exists. A push is a network round trip or three — with §13.6's
+ * backoff behind every one of them — and on the add path it used to sit in front of things the user
+ * is waiting for: the page injection that captures the preview, the vault record that makes the
+ * preview *exist*, and the broadcast that shows it. The add now finishes all of those first and runs
+ * the pushes last.
+ */
+export type DeferUpload = (upload: Upload) => void;
+
+/** Run collected uploads, one at a time — they share one Drive quota and one token. */
+export async function runUploads(uploads: readonly Upload[]): Promise<void> {
+  for (const upload of uploads) await upload();
+}
+
+/**
  * Store a freshly captured thumbnail: seal once, write both copies, then enforce the cap.
  *
- * The push happens **after** the local write and its failure is not fatal. A device that captured a
- * picture and could not reach Drive still has the picture, and the next capture or the next sweep
- * will carry it up; the reverse order would mean an offline capture is a capture thrown away.
+ * The push happens **after** the local write and its failure is not fatal: a device that captured a
+ * picture and could not reach Drive still has the picture. Nothing re-pushes it later, though — on
+ * another device the item stays `remote` until it is re-captured. Given `defer`, the push is handed
+ * to the caller rather than awaited here, and `pushed` answers `false` because it has not happened.
  */
 export async function saveThumb(
   deps: ThumbStoreDeps,
   itemId: string,
   bytes: Bytes,
+  defer?: DeferUpload,
 ): Promise<{ readonly pushed: boolean; readonly sealedBytes: number }> {
   const sealed = await deps.cipher.seal(itemId, bytes);
   await writeThumb(itemId, sealed);
   await touchThumb(deps, itemId);
-
-  let pushed = false;
-  if (hasHeavyTier(deps.provider)) {
-    try {
-      await deps.provider?.putThumb(itemId, sealed);
-      pushed = true;
-    } catch {
-      // Offline, unauthorized, rate-limited. Nothing to report and nobody to report it to: the
-      // picture is a decoration and the local copy is already good.
-    }
-  }
-
   await evictThumbs();
   // The *sealed* length, because that is what `ThumbMeta.bytes` is for: a quota estimate that costs
   // no decryption (§3.2).
-  return { pushed, sealedBytes: sealed.length };
+  const sealedBytes = sealed.length;
+
+  const provider = deps.provider;
+  if (provider === null || !hasHeavyTier(provider)) return { pushed: false, sealedBytes };
+  const push = async (): Promise<boolean> => {
+    try {
+      await provider.putThumb(itemId, sealed);
+      return true;
+    } catch {
+      // Offline, unauthorized, rate-limited. Nothing to report and nobody to report it to: the
+      // picture is a decoration and the local copy is already good.
+      return false;
+    }
+  };
+  if (defer !== undefined) {
+    defer(async () => {
+      await push();
+    });
+    return { pushed: false, sealedBytes };
+  }
+  return { pushed: await push(), sealedBytes };
 }
 
 /** What a viewer can be shown for one item. */

@@ -2505,6 +2505,22 @@ a context menu points at a URL nobody has opened. So capture runs from `items.ad
 nowhere else, and only for a genuine add — re-vaulting a page already in the vault is a `duplicate`,
 and silently re-capturing on it would make the toolbar button a hidden refresh button.
 
+**The capture goes back to the tab the add read, by id.** It runs after the add and the icon, and by
+then the active tab may be another one — a keyboard-shortcut add followed by Ctrl+Tab, or a popup
+closed by a click elsewhere. Asking for "the active tab" again injected into whatever was in front:
+usually refused, which lost the preview, and on a tab still holding an `activeTab` grant from an
+earlier gesture, a different page's preview stored on this bookmark. So the worker reads the added
+tab with `tabs.get` and injects only while it still shows the added page (fragment ignored); a tab
+that has navigated has also lost its grant, and is not asked.
+
+**Drive is the last thing an add waits for.** The icon and the picture are sealed into
+`storage.local`, the `thumb` record is written into the vault, and open pages are told — and only
+then are `putIcon` / `putThumb` run. Pushing first put a network round trip, with §13.6's backoff
+behind it, in front of the injection and in front of the record that makes the preview exist; a
+worker torn down mid-push left the sealed bytes on disk and a bookmark with no preview. A failed push
+is still swallowed, and nothing re-pushes it: on another device the preview reads `remote` until it is
+re-captured. The explicit refresh keeps the same order, record first.
+
 **Why the content script fetches, not the service worker.** A fetch from the service worker
 originates from the extension and would be a genuine third-party request made by VaultaMark —
 breaking INV-4 and creating a request the site's origin can attribute to "an extension", not "a page

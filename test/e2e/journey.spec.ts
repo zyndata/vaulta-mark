@@ -160,10 +160,15 @@ test('a fresh profile, from first run to a restored backup, without touching the
   const popup = await openPage('popup.html');
   await expect(popup.getByText(/Nothing in the vault yet/)).toBeVisible();
 
-  // No toolbar click means no `activeTab` grant, so the worker cannot read a tab — and a dead
-  // button is how someone concludes the extension is broken. It has to say so.
+  // The tab in front is this popup page, opened as a tab, and the worker has to refuse it out loud —
+  // a dead button is how someone concludes the extension is broken. *Which* refusal depends on the
+  // browser: through Chromium 153 the page's URL was unreadable without an `activeTab` grant
+  // ("no page to add"); from Chromium 159 an extension can read its own pages' URLs, so the answer is
+  // the internal-page one. Both are the product saying no, which is what this step is about.
   await popup.getByRole('button', { name: 'Add this page' }).click();
-  await expect(popup.getByText('There is no page to add here.')).toBeVisible();
+  await expect(
+    popup.getByText(/There is no page to add here\.|one of the browser's own pages/u),
+  ).toBeVisible();
 
   for (const [url, title] of PAGES) await vault(popup, url, title);
   await popup.close();

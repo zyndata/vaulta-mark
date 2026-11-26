@@ -277,6 +277,28 @@ describe('an unlocked vault', () => {
     expect(new Set(repo.getAll().map((item) => item.title)).size).toBe(20);
   });
 
+  it('keeps the revision of a write that lands while a flush is sealing', async () => {
+    /*
+     * A flush captures the header, then awaits sealing; an `apply` is free to run in that await —
+     * flushes and writes are two different queues. The flush used to finish by putting its
+     * *captured* header back, so the newer write's `vaultRev` was undone: the item kept its new
+     * revision while the vault said it had none, and a sync seeing an unchanged `vaultRev` decided
+     * there was nothing to push.
+     */
+    const add = (name: string) =>
+      repo.apply([
+        { kind: 'add', input: { type: 'bookmark', url: `https://example.org/${name}`, title: name } },
+      ]);
+    await add('first');
+    const before = repo.header().vaultRev;
+
+    await Promise.all([repo.flush(), add('second')]);
+    expect(repo.header().vaultRev).toBe(before + 1);
+
+    await repo.flush();
+    expect((await readHeader())?.vaultRev).toBe(before + 1);
+  });
+
   it('does not wedge the queue when one write in it fails', async () => {
     // The chain must swallow a rejection while still handing it to *that* caller — otherwise one
     // bad mutation stops every later write in the worker's lifetime.

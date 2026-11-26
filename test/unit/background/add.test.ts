@@ -188,7 +188,8 @@ describe('activeTab', () => {
   it('reads the active tab', async () => {
     mock.openTabs.push({ id: 1, url: 'https://example.com/', title: 'Example', active: true });
     mock.openTabs.push({ id: 2, url: 'https://other.example/', active: false });
-    expect(await activeTab()).toEqual({ url: 'https://example.com/', title: 'Example' });
+    // The id rides along so the preview capture can go back to this tab and no other.
+    expect(await activeTab()).toEqual({ id: 1, url: 'https://example.com/', title: 'Example' });
   });
 
   it('throws when there is no tab at all', async () => {

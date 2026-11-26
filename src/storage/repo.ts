@@ -555,7 +555,12 @@ export class VaultRepository {
       this.#dirtyBuckets.add(index);
     }
 
-    this.#header = { ...header, vaultRev: rev, updatedAt: now };
+    // Re-read rather than reuse `header`: the writers outside this queue (`changePassword`,
+    // `replaceAll`, a flush's bucket table) may have moved it during the awaits above, and spreading
+    // the stale copy would put back an old `wrappedDek` or bucket table along with the new revision.
+    const latest = this.#header;
+    if (latest === null) throw new VaultLockedError('applying mutations');
+    this.#header = { ...latest, vaultRev: Math.max(latest.vaultRev, rev), updatedAt: now };
     this.#headerDirty = true;
     this.#index = null;
     this.#scheduleFlush();
@@ -883,7 +888,18 @@ export class VaultRepository {
 
     const buckets = header.buckets.map((meta) => metas.get(meta.i) ?? meta);
     const next: VaultHeader = { ...header, buckets };
-    this.#header = next;
+    /*
+     * In memory, only the bucket table is this write's to change. The header was captured before
+     * the sealing await, and an `apply` may have landed in it — flushes and writes are two queues —
+     * so putting the captured header back undid that write's `vaultRev`, and a sync seeing an
+     * unchanged revision pushed nothing. A lock in the same gap left `#header` null, and that stays.
+     * The newer header is dirty and the next flush writes it; what goes to storage now is `next`,
+     * which describes exactly the buckets just written.
+     */
+    const live = this.#header;
+    if (live !== null) {
+      this.#header = { ...live, buckets: live.buckets.map((meta) => metas.get(meta.i) ?? meta) };
+    }
     await writeHeader(next);
   }
 

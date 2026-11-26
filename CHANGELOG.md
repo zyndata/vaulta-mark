@@ -12,6 +12,23 @@ below.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-11-26
+
+### Fixed
+
+- **A page's preview is kept when you move on right after adding it.** The preview was taken from
+  whichever tab was in front once the add had finished, so pressing the shortcut and switching tabs,
+  or closing the toolbar menu by clicking another tab, usually lost it — and could store another
+  page's preview instead. It is now taken from the tab you added, and only while it still shows
+  that page.
+- **With Google Drive sync, a preview appears as soon as the page is added.** The picture was
+  uploaded to Drive before the bookmark was told it had one, so the preview showed up only after
+  the upload — and not at all if the upload was cut short. The bookmark is updated first now, and
+  the upload follows.
+- **An edit made while the vault was being saved is synced with the next sync.** Such an edit could
+  leave the vault's revision number unchanged, and sync then concluded there was nothing new to send
+  until something else changed.
+
 ## [1.2.2] - 2026-10-13
 
 ### Security
@@ -1105,7 +1122,8 @@ The first release. Everything below is new, because there was nothing before it.
 
 <!-- Sections are added as they are needed: Added · Changed · Deprecated · Removed · Fixed · Security -->
 
-[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.2.2...dev
+[Unreleased]: https://github.com/zyndata/vaulta-mark/compare/v1.2.3...dev
+[1.2.3]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.3
 [1.2.2]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.2
 [1.2.1]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.1
 [1.2.0]: https://github.com/zyndata/vaulta-mark/releases/tag/v1.2.0
