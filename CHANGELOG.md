@@ -12,6 +12,18 @@ below.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A page's preview is kept when you move on right after adding it.** The preview was taken from
+  whichever tab was in front once the add had finished, so pressing the shortcut and switching tabs,
+  or closing the toolbar menu by clicking another tab, usually lost it — and could store another
+  page's preview instead. It is now taken from the tab you added, and only while it still shows
+  that page.
+- **With Google Drive sync, a preview appears as soon as the page is added.** The picture was
+  uploaded to Drive before the bookmark was told it had one, so the preview showed up only after
+  the upload — and not at all if the upload was cut short. The bookmark is updated first now, and
+  the upload follows.
+
 ## [1.2.2] - 2026-10-13
 
 ### Security

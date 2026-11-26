@@ -31,7 +31,7 @@ import {
 } from '../storage/local.js';
 import type { IconCipher } from '../storage/repo.js';
 import type { SyncProvider } from '../sync/provider.js';
-import { hasHeavyTier } from './store.js';
+import { hasHeavyTier, type DeferUpload } from './store.js';
 
 /**
  * How much of `storage.local` the icon cache may take (§5.1).
@@ -174,31 +174,43 @@ export function classifyIcon(bytes: Bytes, placeholder: Bytes | null): IconVerdi
  *
  * `source` is stamped into the plaintext by {@link frameIcon} before sealing, so it travels with the
  * bytes to Drive and back and costs no second read to recover.
+ *
+ * Given `defer`, the push to the provider is handed to the caller instead of awaited, exactly as
+ * `saveThumb` does it (`store.ts`, {@link DeferUpload}), and `pushed` answers `false`.
  */
 export async function saveIcon(
   deps: IconStoreDeps,
   host: string,
   bytes: Bytes,
   source: IconSource = 'chrome',
+  defer?: DeferUpload,
 ): Promise<{ readonly name: string; readonly pushed: boolean }> {
   const name = await deps.cipher.name(host);
   const sealed = await deps.cipher.seal(name, frameIcon(source, bytes));
   await writeIcon(name, sealed);
   await touchIcon(deps, name);
-
-  let pushed = false;
-  if (hasHeavyTier(deps.provider)) {
-    try {
-      await deps.provider?.putIcon(name, sealed);
-      pushed = true;
-    } catch {
-      // Offline, unauthorized, rate-limited. The local copy is already good and the next capture
-      // for this host will carry it up; an icon is not worth reporting a failure over.
-    }
-  }
-
   await evictIcons();
-  return { name, pushed };
+
+  const provider = deps.provider;
+  if (provider === null || !hasHeavyTier(provider)) return { name, pushed: false };
+  const push = async (): Promise<boolean> => {
+    try {
+      await provider.putIcon(name, sealed);
+      return true;
+    } catch {
+      // Offline, unauthorized, rate-limited. The local copy is already good, and an icon is not
+      // worth reporting a failure over. Nothing re-pushes it: an add for the same host finds the
+      // local copy and stops, so only an explicit refresh carries it up.
+      return false;
+    }
+  };
+  if (defer !== undefined) {
+    defer(async () => {
+      await push();
+    });
+    return { name, pushed: false };
+  }
+  return { name, pushed: await push() };
 }
 
 /**

@@ -47,7 +47,7 @@ import {
   type IconSource,
   type IconStoreDeps,
 } from '../thumbs/favicons.js';
-import { hasHeavyTier } from '../thumbs/store.js';
+import { hasHeavyTier, type DeferUpload } from '../thumbs/store.js';
 import { isBookmark } from '../vault/types.js';
 import {
   forgetIconMiss,
@@ -101,15 +101,21 @@ export function resetIconState(): void {
  * Never throws and never delays the add. The bookmark is already in the vault by the time this
  * runs; an icon that could not be captured is the ordinary outcome for a site the user has not
  * visited yet, and the opportunistic upgrade will catch it later.
+ *
+ * `defer` takes the Drive push off this call, for the add path's reasons (`thumbs/store.ts`).
  */
-export async function captureOnAdd(repo: VaultRepository, url: string): Promise<IconOutcome> {
+export async function captureOnAdd(
+  repo: VaultRepository,
+  url: string,
+  defer?: DeferUpload,
+): Promise<IconOutcome> {
   const provider = await activeProvider();
   if (!hasHeavyTier(provider)) return 'off';
   const host = iconHost(url);
   if (host === null) return 'unusable';
   const deps = storeDeps(repo, provider);
   if (await hasIcon(deps, host)) return 'held';
-  return await capture(deps, host, url);
+  return await capture(deps, host, url, defer);
 }
 
 /**
@@ -248,11 +254,16 @@ export function wantsPageIcon(outcome: IconOutcome): boolean {
 
 /* ------------------------------------------------------------------ plumbing */
 
-async function capture(deps: IconStoreDeps, host: string, url: string): Promise<IconOutcome> {
+async function capture(
+  deps: IconStoreDeps,
+  host: string,
+  url: string,
+  defer: DeferUpload | undefined,
+): Promise<IconOutcome> {
   const bytes = await readFavicon(url);
   if (bytes === null) return 'unreadable';
   if (classifyIcon(bytes, await placeholderBytes()) !== 'store') return 'placeholder';
-  await saveIcon(deps, host, bytes);
+  await saveIcon(deps, host, bytes, 'chrome', defer);
   forgetIconMiss(host);
   return 'stored';
 }

@@ -32,8 +32,11 @@ import {
   dropThumbs,
   hasHeavyTier,
   loadThumb,
+  runUploads,
   saveThumb,
+  type DeferUpload,
   type ThumbStoreDeps,
+  type Upload,
 } from '../thumbs/store.js';
 import {
   ThumbRejected,
@@ -120,6 +123,31 @@ export interface CaptureOptions {
    * nothing — and where a race between two adds for the same host must not overwrite.
    */
   readonly replaceIcon?: boolean;
+
+  /**
+   * The tab the add read its URL from — capture from **that** tab, and only while it still shows
+   * that page.
+   *
+   * Without it the capture asks for whichever tab is active *by the time it runs*, which on the add
+   * path is after the add itself and the icon. A keyboard-shortcut add followed by Ctrl+Tab, or a
+   * popup closed by a click on another tab, then injected into the wrong tab: usually refused, which
+   * lost the preview, and on a tab that still held an `activeTab` grant from an earlier gesture, a
+   * preview of a different page stored on this bookmark. A tab that has since navigated is not this
+   * page any more and is not asked at all.
+   */
+  readonly from?: SourceTab;
+
+  /**
+   * Collect the provider pushes instead of running them at the end of the capture. Without it they
+   * still run *after* the vault record is written, never before (`thumbs/store.ts`).
+   */
+  readonly defer?: DeferUpload;
+}
+
+/** What the add knew about the tab it vaulted. */
+export interface SourceTab {
+  readonly id?: number;
+  readonly url: string;
 }
 
 /**
@@ -127,11 +155,34 @@ export interface CaptureOptions {
  *
  * Never throws. The worst outcome is a bookmark with no picture, which is the outcome for most
  * bookmarks and is not worth a single line of user-facing anything.
+ *
+ * **The record is written before anything goes to Drive.** The picture used to be pushed first and
+ * recorded second, so a bookmark had no preview until a network round trip or three had finished —
+ * with backoff behind each — and had none at all if the worker was torn down in between, although
+ * the sealed bytes were already in `storage.local`.
  */
 export async function capture(
   repo: VaultRepository,
   itemId: string,
   options: CaptureOptions = {},
+): Promise<CaptureReport> {
+  if (options.defer !== undefined)
+    return await captureLocally(repo, itemId, options, options.defer);
+  const uploads: Upload[] = [];
+  try {
+    return await captureLocally(repo, itemId, options, (upload) => {
+      uploads.push(upload);
+    });
+  } finally {
+    await runUploads(uploads);
+  }
+}
+
+async function captureLocally(
+  repo: VaultRepository,
+  itemId: string,
+  options: CaptureOptions,
+  defer: DeferUpload,
 ): Promise<CaptureReport> {
   const provider = await activeProvider();
   const settings = await readSettings();
@@ -143,7 +194,7 @@ export async function capture(
   const icon: PageIconOutcome = heavy ? 'none' : 'unavailable';
   if (!capturesThumbs(settings, provider)) return { thumb: 'off', icon };
 
-  const tab = await activeTab();
+  const tab = options.from === undefined ? await activeTab() : await sourceTab(options.from);
   const tabId = tab?.id ?? null;
   if (tabId === null) return { thumb: 'blocked', icon };
 
@@ -161,7 +212,7 @@ export async function capture(
 
   // Before the thumbnail, deliberately: the picture is the half that usually fails, it fails by
   // throwing, and an icon that arrived on the same trip must not be lost to a refused preview.
-  const iconOutcome = await keepPageIcon(repo, provider, itemId, result, options);
+  const iconOutcome = await keepPageIcon(repo, provider, itemId, result, options, defer);
 
   if (result.image === undefined || result.imageUrl === undefined) {
     if (replace) await clearThumb(repo, itemId, provider);
@@ -179,7 +230,7 @@ export async function capture(
     const thumb = await processThumb(raw, contentType);
     const deps = storeDeps(repo, provider);
     const digest = toBase64Url(await sha256(thumb.bytes));
-    const { sealedBytes } = await saveThumb(deps, itemId, thumb.bytes);
+    const { sealedBytes } = await saveThumb(deps, itemId, thumb.bytes, defer);
 
     await repo.apply([
       {
@@ -227,6 +278,7 @@ async function keepPageIcon(
   itemId: string,
   result: CaptureResult,
   options: CaptureOptions,
+  defer: DeferUpload,
 ): Promise<PageIconOutcome> {
   if (!hasHeavyTier(provider)) return 'unavailable';
   if (result.icon === undefined) return 'none';
@@ -245,7 +297,7 @@ async function keepPageIcon(
 
   const bytes = await iconBytesFrom(result);
   if (bytes === null) return 'none';
-  await saveIcon(deps, host, bytes, 'page');
+  await saveIcon(deps, host, bytes, 'page', defer);
   forgetIconMiss(host);
   return 'stored';
 }
@@ -540,6 +592,23 @@ async function activeTab(): Promise<chrome.tabs.Tab | null> {
     return tab ?? null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * The tab an add read, if it is still showing the page that was added.
+ *
+ * By id rather than by focus, so the user may already be looking at another tab. An absent `url` is
+ * the shape of a grant that is gone — the tab navigated, which ends `activeTab` — and reads as
+ * "not this page" like any other mismatch.
+ */
+async function sourceTab(from: SourceTab): Promise<chrome.tabs.Tab | null> {
+  if (from.id === undefined) return null;
+  try {
+    const tab = await chrome.tabs.get(from.id);
+    return samePage(tab.url ?? '', from.url) ? tab : null;
+  } catch {
+    return null; // Closed.
   }
 }
 

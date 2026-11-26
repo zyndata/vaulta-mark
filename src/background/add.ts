@@ -69,6 +69,8 @@ export interface AddResult {
 export interface TabInfo {
   readonly url: string;
   readonly title?: string;
+  /** Set when the URL came off a real tab, so a capture can go back to that tab and no other. */
+  readonly id?: number;
 }
 
 /* ------------------------------------------------------------------ URL policy */
@@ -200,7 +202,11 @@ export async function activeTab(): Promise<TabInfo> {
   // An empty or absent URL is the shape of "the `activeTab` grant did not reach this tab" — which
   // happens when the gesture was not on the tab we just asked about.
   if (tab === undefined || url === undefined || url === '') throw new NoActiveTabError();
-  return { url, ...(tab.title === undefined ? {} : { title: tab.title }) };
+  return {
+    url,
+    ...(tab.title === undefined ? {} : { title: tab.title }),
+    ...(tab.id === undefined ? {} : { id: tab.id }),
+  };
 }
 
 /** No tab to read, or `activeTab` did not grant us its URL. */

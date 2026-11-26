@@ -38,6 +38,7 @@ import { VaultRepository } from '../../../src/storage/repo.js';
 import { listIconNames } from '../../../src/storage/local.js';
 import { configureSync, resetSync } from '../../../src/sync/engine.js';
 import { loadIcon, type IconStoreDeps } from '../../../src/thumbs/favicons.js';
+import { runUploads, type Upload } from '../../../src/thumbs/store.js';
 import {
   captureOnAdd,
   refreshIcon,
@@ -276,6 +277,56 @@ describe('an icon is asked for only where one is missing (§10.1)', () => {
 
     expect(iconAsked()).toBe(true);
     expect(await listIconNames()).toEqual([]);
+  });
+});
+
+describe('Drive is the last thing an add waits for', () => {
+  it('records the preview in the vault before the picture is pushed', async () => {
+    const id = await addBookmark();
+    let recordedFirst: boolean | null = null;
+    const put = provider.putThumb.bind(provider);
+    vi.spyOn(provider, 'putThumb').mockImplementation(async (itemId, blob) => {
+      const item = repo.getItem(itemId) as { readonly thumb?: unknown } | undefined;
+      recordedFirst = item?.thumb !== undefined;
+      await put(itemId, blob);
+    });
+
+    await capture(repo, id);
+
+    expect(recordedFirst).toBe(true);
+    expect(provider.thumbs.has(id)).toBe(true);
+  });
+
+  it('keeps the preview when the push fails — the record does not depend on Drive', async () => {
+    const id = await addBookmark();
+    vi.spyOn(provider, 'putThumb').mockRejectedValue(new Error('offline'));
+
+    expect((await capture(repo, id)).thumb).toBe('stored');
+    expect(repo.getItem(id)).toHaveProperty('thumb');
+  });
+
+  it('with `defer`, pushes nothing until the caller runs the uploads', async () => {
+    // The add path: the icon and the preview stored and recorded, the page asked — and only then
+    // the network. A tab switch during a Drive round trip used to cost the preview.
+    const uploads: Upload[] = [];
+    const defer = (upload: Upload): void => {
+      uploads.push(upload);
+    };
+    cache.set(PAGE, CHROME_ICON);
+    const id = await addBookmark();
+
+    expect(await captureOnAdd(repo, PAGE, defer)).toBe('stored');
+    const report = await capture(repo, id, { defer });
+
+    expect(report.thumb).toBe('stored');
+    expect(mock.injections).not.toHaveLength(0);
+    expect(provider.icons.size).toBe(0);
+    expect(provider.thumbs.size).toBe(0);
+    expect(uploads).toHaveLength(2);
+
+    await runUploads(uploads);
+    expect(provider.icons.size).toBe(1);
+    expect(provider.thumbs.has(id)).toBe(true);
   });
 });
 

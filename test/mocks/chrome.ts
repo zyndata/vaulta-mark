@@ -806,6 +806,14 @@ export function createChromeMock(options: ChromeMockOptions = {}): ChromeMock {
         Promise.resolve(
           openTabs.filter((tab) => query.active !== true || tab.active === true),
         ),
+      // By id, whatever has focus — which is what lets a capture go back to the tab an add read.
+      // Rejects for a tab that is gone, as Chrome does.
+      get: (tabId: number) => {
+        const tab = openTabs.find((candidate) => candidate.id === tabId);
+        return tab === undefined
+          ? Promise.reject(new Error(`No tab with id: ${String(tabId)}.`))
+          : Promise.resolve(tab);
+      },
       remove: (tabId: number) => {
         removedTabs.push(tabId);
         const at = openTabs.findIndex((tab) => tab.id === tabId);

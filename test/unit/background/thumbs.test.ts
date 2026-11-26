@@ -280,6 +280,58 @@ describe('capturing', () => {
     expect((await onlyRow())['hasPreview']).toBe(false);
   });
 
+  /**
+   * Let the add read the tab, then change what is in front before the capture runs — which is what
+   * a keyboard-shortcut add followed by Ctrl+Tab, or a popup closed by a click elsewhere, does.
+   */
+  function afterTheAddReadsTheTab(then: () => void): void {
+    // Swapped by hand rather than through `vi.spyOn`: `tabs.query` also has a callback overload,
+    // and that is the one the spy's types pick.
+    type Query = (info: chrome.tabs.QueryInfo) => Promise<chrome.tabs.Tab[]>;
+    const tabs = chrome.tabs as unknown as { query: Query };
+    const original = tabs.query;
+    tabs.query = async (info) => {
+      tabs.query = original;
+      const answer = await original(info);
+      then();
+      return answer;
+    };
+  }
+
+  it('captures from the tab that was added, not from whichever tab is in front by then', async () => {
+    mock.captureResult = captured();
+    afterTheAddReadsTheTab(() => {
+      mock.openTabs.splice(
+        0,
+        mock.openTabs.length,
+        { id: 7, url: PAGE, title: 'One', active: false },
+        { id: 8, url: 'https://elsewhere.example/', title: 'Elsewhere', active: true },
+      );
+    });
+    await send({ type: 'ADD_ACTIVE_TAB' });
+
+    expect(mock.injections.map((injection) => injection.tabId)).toEqual([7, 7]);
+    expect(await storedPicture()).toBe(true);
+  });
+
+  it('captures nothing once the added tab has moved on to another page', async () => {
+    mock.captureResult = captured();
+    afterTheAddReadsTheTab(() => {
+      mock.openTabs.splice(0, mock.openTabs.length, {
+        id: 7,
+        url: 'https://example.com/articles/two',
+        title: 'Two',
+        active: true,
+      });
+    });
+    const response = await send({ type: 'ADD_ACTIVE_TAB' });
+
+    expect(response['status']).toBe('added');
+    // The page in that tab now is not the bookmark's, and its picture must not become this one's.
+    expect(mock.injections).toEqual([]);
+    expect((await onlyRow())['hasPreview']).toBe(false);
+  });
+
   it('does not re-capture when the same page is added again', async () => {
     mock.captureResult = captured();
     await send({ type: 'ADD_ACTIVE_TAB' });

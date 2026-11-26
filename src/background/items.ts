@@ -28,9 +28,9 @@ import type { Mutation } from '../vault/model.js';
 import { sortItems } from '../vault/sort.js';
 import { isBookmark, isDeleted, type Bookmark } from '../vault/types.js';
 import type { VaultRepository } from '../storage/repo.js';
+import { runUploads, type Upload } from '../thumbs/store.js';
 import {
   activeTab,
-  addActiveTab as addActiveTabTo,
   addUrl as addUrlTo,
   findDuplicate,
   summarize,
@@ -86,21 +86,39 @@ export interface OpenOptions {
  * It also runs only for a genuine add. Re-vaulting a page that is already there is a `duplicate`,
  * and quietly re-capturing on it would make the toolbar button a hidden refresh button —
  * `REFRESH_THUMB` is the explicit one (§14.5).
+ *
+ * **Everything the user is waiting for happens before anything goes to Drive.** The icon and the
+ * preview are stored locally and recorded in the vault, open pages are told, and only then are the
+ * pushes run — they are network round trips with backoff behind them, and while they sat in the
+ * middle of this function the page injection waited on them, long enough for the user to have moved
+ * to another tab (`thumbs.ts`, `CaptureOptions.from`).
  */
 export async function addActiveTab(): Promise<AddResult> {
   const repo = await requireVault();
-  const result = await addActiveTabTo(repo, await addOptions());
-  if (result.status === 'added') {
-    /*
-     * The icon first, from `_favicon/`, which is free and reaches all four add gestures. What it
-     * came to then decides whether the injection below is also asked for the icon the *page*
-     * declares (§10.1, D37) — so "an upgrade never overwrites" is honoured by not asking, and the
-     * store is not read a second time to find out something we have just been told.
-     */
-    const outcome = await icons.captureOnAdd(repo, result.item.url);
-    await thumbs.capture(repo, result.item.id, { wantIcon: icons.wantsPageIcon(outcome) });
+  const tab = await activeTab();
+  const result = await addUrlTo(repo, tab, await addOptions());
+  if (result.status !== 'added') {
+    await announce(result);
+    return result;
   }
+  const uploads: Upload[] = [];
+  const defer = (upload: Upload): void => {
+    uploads.push(upload);
+  };
+  /*
+   * The icon first, from `_favicon/`, which is free and reaches all four add gestures. What it
+   * came to then decides whether the injection below is also asked for the icon the *page*
+   * declares (§10.1, D37) — so "an upgrade never overwrites" is honoured by not asking, and the
+   * store is not read a second time to find out something we have just been told.
+   */
+  const outcome = await icons.captureOnAdd(repo, result.item.url, defer);
+  await thumbs.capture(repo, result.item.id, {
+    wantIcon: icons.wantsPageIcon(outcome),
+    from: tab,
+    defer,
+  });
   await announce(result);
+  await runUploads(uploads);
   return result;
 }
 
@@ -155,8 +173,14 @@ export async function addUrl(url: string, title?: string): Promise<AddResult> {
     { url, ...(title === undefined ? {} : { title }) },
     await addOptions(),
   );
-  if (result.status === 'added') await icons.captureOnAdd(repo, result.item.url);
+  const uploads: Upload[] = [];
+  if (result.status === 'added') {
+    await icons.captureOnAdd(repo, result.item.url, (upload) => {
+      uploads.push(upload);
+    });
+  }
   await announce(result);
+  await runUploads(uploads);
   return result;
 }
 
